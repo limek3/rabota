@@ -1,0 +1,328 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useCrm } from "@/lib/crm/store";
+import { filterLeads } from "@/lib/crm/calc";
+import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type LeadStatus } from "@/lib/crm/types";
+import { fmtDate, rangeDays } from "@/lib/crm/dates";
+import { LEADS, fmtInt, fmtNum, fmtPhone, plural } from "@/lib/crm/format";
+import { Chip, Empty, LeadStatusChip, PageHead, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { Select, dot, type Opt } from "@/components/ui/select";
+import { canEditLead, canReviewLead } from "@/lib/crm/access";
+import { Icon } from "@/components/ui/icons";
+
+const PAGE = 100;
+
+function readQuery(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  return Object.fromEntries(new URLSearchParams(window.location.search).entries());
+}
+
+export default function LeadsPage() {
+  const { data, full, ix, today, openLead, deleteLead, setLeadStatus, confirm, toast, access } = useCrm();
+  const [period, setPeriod] = useState<Period>(() => periodFor("month", today));
+  const [operatorId, setOperatorId] = useState("");
+  const [groupId, setGroupId] = useState("");
+  const [projectId, setProjectId] = useState("");
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState<LeadStatus | "">("");
+  const [limit, setLimit] = useState(PAGE);
+
+  // переход из карточки оператора / группы / проекта: /leads?op=…&from=…&to=…
+  useEffect(() => {
+    const qp = readQuery();
+    if (qp.op) setOperatorId(qp.op);
+    if (qp.group) setGroupId(qp.group);
+    if (qp.project) setProjectId(qp.project);
+    if ((LEAD_STATUSES as string[]).includes(qp.status)) setStatus(qp.status as LeadStatus);
+    if (qp.from && qp.to) setPeriod({ mode: "range", from: qp.from, to: qp.to });
+  }, []);
+
+  useEffect(() => setLimit(PAGE), [period, operatorId, groupId, projectId, q, status]);
+
+  // без фильтра по статусу — для счётчиков «в работе / доведён / не доведён»
+  const base = useMemo(
+    () => filterLeads(data.leads, { from: period.from, to: period.to, operatorId, groupId, projectId, q }).sort((a, b) => b.at.localeCompare(a.at)),
+    [data.leads, period, operatorId, groupId, projectId, q],
+  );
+  const list = useMemo(() => (status ? base.filter((l) => l.status === status) : base), [base, status]);
+  const byStatus = useMemo(() => {
+    const m: Record<LeadStatus, number> = { work: 0, done: 0, failed: 0 };
+    for (const l of base) m[l.status]++;
+    return m;
+  }, [base]);
+  // что этот аккаунт может разом отметить доведёнными
+  const reviewable = useMemo(() => list.filter((l) => l.status === "work" && canReviewLead(access, l)), [list, access]);
+
+  const byProject = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of list) m.set(l.projectId || "__none__", (m.get(l.projectId || "__none__") ?? 0) + 1);
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }, [list]);
+
+  const days = rangeDays(period.from, period.to > today ? (period.from > today ? period.from : today) : period.to).length;
+
+  const operators = useMemo(() => [...data.operators].sort((a, b) => Number(!!a.deletedAt) - Number(!!b.deletedAt) || a.name.localeCompare(b.name, "ru")), [data.operators]);
+  const groups = data.groups;
+  const projects = useMemo(() => [...data.projects].sort((a, b) => a.sort - b.sort), [data.projects]);
+  const filtered = !!(operatorId || groupId || projectId || q || status);
+
+  const exportCsv = () => {
+    const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Проект", "Оператор", "Группа", data.settings.directionLabel || "Направление", "Комментарий", "Источник"]];
+    for (const l of list) {
+      rows.push([
+        l.id,
+        fmtDate(l.at.slice(0, 10)),
+        l.at.slice(11, 16),
+        LEAD_STATUS_LABEL[l.status],
+        l.status === "failed" ? l.statusReason : "",
+        l.client,
+        fmtPhone(l.phone),
+        l.projectId ? ix.projectById.get(l.projectId)?.name ?? "" : "",
+        ix.opById.get(l.operatorId)?.name ?? "",
+        l.groupId ? ix.groupById.get(l.groupId)?.name ?? "" : NO_GROUP_LABEL,
+        l.direction,
+        l.comment,
+        l.source,
+      ]);
+    }
+    downloadText(`leads_${period.from}_${period.to}.csv`, toCsv(rows), "text/csv;charset=utf-8");
+  };
+
+  return (
+    <div className="stack">
+      <PageHead
+        title="Лиды"
+        sub="Журнал лидов, переданных менеджеру. Новый лид — «в работе», супервайзер отмечает «доведён» или «не доведён». Источник — Скорозвон."
+        actions={
+          <>
+            <button className="btn" onClick={exportCsv} disabled={!list.length}>
+              <Icon name="download" size={14} /> CSV
+            </button>
+            {access.can.createLeads && (
+              <button className="btn btn-primary" onClick={() => openLead()}>
+                <Icon name="plus" size={14} stroke={2.2} /> Лид передан
+              </button>
+            )}
+          </>
+        }
+      />
+
+      <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <PeriodPicker value={period} onChange={setPeriod} today={today} />
+        <div className="toolbar">
+          <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 320 }}>
+            <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: 10, color: "var(--dim)" }} />
+            <input className="inp" style={{ paddingLeft: 30 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Телефон, клиент, комментарий" />
+          </div>
+          <Select
+            width={210}
+            value={operatorId}
+            options={[
+              { value: "", label: "Все операторы" },
+              ...operators.map<Opt>((o) => ({
+                value: o.id,
+                label: o.name,
+                hint: o.deletedAt ? "удалён" : o.status === "fired" ? "уволен" : "",
+              })),
+            ]}
+            onChange={setOperatorId}
+            ariaLabel="Оператор"
+            minPopWidth={280}
+          />
+          <Select
+            width={170}
+            value={groupId}
+            options={[
+              { value: "", label: "Все группы" },
+              ...groups.map<Opt>((g) => ({ value: g.id, label: g.name + (g.deletedAt ? " (удалена)" : ""), icon: dot(g.color) })),
+              { value: NO_GROUP, label: NO_GROUP_LABEL, icon: dot("gray") },
+            ]}
+            onChange={setGroupId}
+            ariaLabel="Группа"
+          />
+          <Select
+            width={170}
+            value={projectId}
+            options={[
+              { value: "", label: "Все проекты" },
+              ...projects.map<Opt>((p) => ({ value: p.id, label: p.name + (p.deletedAt ? " (удалён)" : ""), icon: dot(p.color) })),
+              { value: "__none__", label: "Без проекта", icon: dot("gray") },
+            ]}
+            onChange={setProjectId}
+            ariaLabel="Проект"
+          />
+          {filtered && (
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                setOperatorId("");
+                setGroupId("");
+                setProjectId("");
+                setQ("");
+                setStatus("");
+              }}
+            >
+              Сбросить
+            </button>
+          )}
+        </div>
+        <div className="row" style={{ gap: 8, flexWrap: "wrap", fontSize: 13 }}>
+          <span>
+            <b className="num">{fmtInt(list.length)}</b> {plural(list.length, LEADS)} · {periodLabel(period)}
+            {days > 1 && list.length > 0 && <span style={{ color: "var(--dim)" }}> · {fmtNum(list.length / days)} в день</span>}
+          </span>
+          {LEAD_STATUSES.map((st) => (
+            <button
+              key={st}
+              type="button"
+              className="chip"
+              style={hueVars(LEAD_STATUS_HUE[st])}
+              aria-pressed={status ? status === st : undefined}
+              onClick={() => setStatus((cur) => (cur === st ? "" : st))}
+              title={status === st ? "Показать все статусы" : `Только «${LEAD_STATUS_LABEL[st]}»`}
+            >
+              <span className="dot" />
+              {LEAD_STATUS_LABEL[st]} · {fmtInt(byStatus[st])}
+            </button>
+          ))}
+          {status === "work" && reviewable.length > 0 && (
+            <button
+              className="btn btn-sm"
+              onClick={async () => {
+                const ok = await confirm({
+                  title: `Отметить доведёнными: ${fmtInt(reviewable.length)}?`,
+                  text: "Все лиды «в работе» из списка (в вашей зоне) станут «доведён». Не доведённые сначала отметьте по одному — с причиной.",
+                  ok: "Отметить",
+                });
+                if (!ok) return;
+                const n = await setLeadStatus(
+                  reviewable.map((l) => l.id),
+                  "done",
+                );
+                if (n) toast(`Доведено: ${fmtInt(n)}`);
+              }}
+            >
+              <Icon name="check" size={13} /> Все в списке — доведён
+            </button>
+          )}
+          {byProject.length > 0 && <span style={{ width: 1, height: 16, background: "var(--ink-08)" }} />}
+          {byProject.map(([pid, n]) => {
+            const p = ix.projectById.get(pid);
+            return (
+              <Chip key={pid} hue={p?.color ?? "gray"} dot>
+                {p?.name ?? "Без проекта"} · {n}
+              </Chip>
+            );
+          })}
+        </div>
+      </div>
+
+      {list.length === 0 ? (
+        <div className="card">
+          <Empty
+            icon="leads"
+            title={data.leads.length ? "Под фильтр ничего не попало" : "Лидов пока нет"}
+            text={data.leads.length ? "Поменяйте период или сбросьте фильтры." : "Запишите первый переданный лид — кнопка «Лид передан» или клавиша N."}
+            action={
+              !data.leads.length && access.can.createLeads && (
+                <button className="btn btn-primary" onClick={() => openLead()}>
+                  <Icon name="plus" size={14} /> Лид передан
+                </button>
+              )
+            }
+          />
+        </div>
+      ) : (
+        <div className="tbl-wrap" style={{ maxHeight: "max(300px, calc(100vh / var(--ui-scale, 1) - 330px))" }}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th className="c">Передан</th>
+                <th className="c">Статус</th>
+                <th>Клиент</th>
+                <th className="c">Телефон</th>
+                <th className="c">Проект</th>
+                <th>Оператор</th>
+                <th className="c">Группа</th>
+                {data.settings.directionEnabled && <th>{data.settings.directionLabel || "Направление"}</th>}
+                <th>Комментарий</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.slice(0, limit).map((l) => {
+                const op = ix.opById.get(l.operatorId);
+                const g = l.groupId ? ix.groupById.get(l.groupId) : null;
+                const p = l.projectId ? ix.projectById.get(l.projectId) : null;
+                return (
+                  <tr key={l.id} className="clickable" onClick={() => openLead(l)}>
+                    <td className="num c">
+                      {fmtDate(l.at.slice(0, 10))} <span className="muted">{l.at.slice(11, 16)}</span>
+                    </td>
+                    <td className="c">
+                      <LeadStatusChip lead={l} />
+                      {l.status === "failed" && l.statusReason && (
+                        <div className="muted" style={{ fontSize: 11.5, marginTop: 3, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={l.statusReason}>
+                          {l.statusReason}
+                        </div>
+                      )}
+                    </td>
+                    <td>{l.client || <span className="muted">—</span>}</td>
+                    <td className="num c">{fmtPhone(l.phone) || <span className="muted">—</span>}</td>
+                    <td className="c">{p ? <Chip hue={p.color}>{p.name}</Chip> : <span className="muted">—</span>}</td>
+                    <td>
+                      {op?.name ?? "—"}
+                      {op?.deletedAt && <span className="muted"> (удалён)</span>}
+                    </td>
+                    <td className={g ? "c" : "c muted"}>{g ? g.name : NO_GROUP_LABEL}</td>
+                    {data.settings.directionEnabled && <td className={l.direction ? "" : "muted"}>{l.direction || "—"}</td>}
+                    <td className="muted" style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={l.comment}>
+                      {l.comment || "—"}
+                    </td>
+                    <td className="r" onClick={(e) => e.stopPropagation()}>
+                      <span className="row-actions">
+                        {canReviewLead(access, l) && l.status !== "done" && (
+                          <button className="btn btn-ghost btn-sm btn-icon" title="Доведён" style={{ color: "var(--c-green-fg)" }} onClick={() => void setLeadStatus([l.id], "done")}>
+                            <Icon name="check" size={14} stroke={2.2} />
+                          </button>
+                        )}
+                        {canReviewLead(access, l) && l.status !== "failed" && (
+                          <button className="btn btn-ghost btn-sm btn-icon" title="Не доведён — указать причину" style={{ color: "var(--c-red-fg)" }} onClick={() => openLead(l, { status: "failed" })}>
+                            <Icon name="close" size={14} stroke={2.2} />
+                          </button>
+                        )}
+                        <button className="btn btn-ghost btn-sm btn-icon" title={canEditLead(access, l, full) ? "Изменить" : "Открыть"} onClick={() => openLead(l)}>
+                          <Icon name={canEditLead(access, l, full) ? "edit" : "info"} size={14} />
+                        </button>
+                        {canEditLead(access, l, full, true) && (
+                        <button
+                          className="btn btn-ghost btn-sm btn-icon"
+                          title="Удалить ошибочную запись"
+                          onClick={async () => {
+                            if (await confirm({ title: "Удалить лид?", text: `${l.client || fmtPhone(l.phone)} · ${op?.name ?? ""}. Удаляйте только ошибочно внесённые записи.`, ok: "Удалить", danger: true }))
+                              void deleteLead(l.id);
+                          }}
+                        >
+                          <Icon name="trash" size={14} />
+                        </button>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {list.length > limit && (
+            <div style={{ padding: 12, textAlign: "center", borderTop: "1px solid var(--ink-06)" }}>
+              <button className="btn btn-sm" onClick={() => setLimit((n) => n + PAGE * 3)}>
+                Показать ещё · осталось {fmtInt(list.length - limit)}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

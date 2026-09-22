@@ -1,0 +1,97 @@
+{
+  "name": "leadup-crm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LEADUP — CRM отдела лидогенерации (Скорозвон)",
+  "author": "LEADUP",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "node server.mjs",
+    "lint": "next lint",
+    "desktop": "next build && electron .",
+    "desktop:dev": "electron . --vexa-dev",
+    "dist": "next build && electron-builder --win",
+    "dist:mac": "next build && electron-builder --mac",
+    "check:routes": "node scripts/check-routes.mjs",
+    "test:calc": "tsc lib/crm/calc.ts lib/crm/payroll.ts lib/crm/demo.ts lib/crm/validate.ts lib/crm/access.ts lib/crm/purge.ts lib/crm/sheets.ts lib/crm/report.ts --outDir .calc-test --module commonjs --target es2020 --strict --skipLibCheck --esModuleInterop && node scripts/test-calc.cjs",
+    "import:academy": "node scripts/import-academy.mjs"
+  },
+  "build": {
+    "appId": "app.leadup.crm",
+    "productName": "LEADUP CRM",
+    "directories": {
+      "output": "dist"
+    },
+    "artifactName": "LEADUP-Setup-${version}.${ext}",
+    "files": [
+      "electron/**/*",
+      "out/**/*",
+      "public/brand-logo.png",
+      "package.json"
+    ],
+    "afterPack": "electron/afterPack.cjs",
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.png",
+      "category": "public.app-category.business",
+      "darkModeSupport": true,
+      "artifactName": "LEADUP-${version}-${arch}.${ext}",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "sign": false
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "LEADUP CRM"
+    }
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.5",
+    "electron-updater": "^6.8.9",
+    "next": "14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.5.4"
+  }
+}

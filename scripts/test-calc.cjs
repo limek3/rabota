@@ -1,0 +1,461 @@
+// Тесты движка расчётов (lib/crm/calc.ts, payroll.ts, validate.ts, demo.ts).
+// Запуск: npm run test:calc — компилирует lib/crm в .calc-test/ и проверяет формулы на демо-данных.
+const path = require("path");
+const R = (m) => require(path.join(__dirname, "..", ".calc-test", m));
+
+/* ── базовые формулы, пустая база, импорт ── */
+(() => {
+const assert = require("assert");
+const { buildIndex, monthModel, pace, monthCal, dailyRows, weeklyRows, freezePastMonths, filterLeads, findDuplicate } = R("calc");
+const { payroll } = R("payroll");
+const { buildDemo } = R("demo");
+const { sanitize, checkIntegrity, toSnapshot } = R("validate");
+const { emptyState, DEFAULT_SETTINGS } = R("defaults");
+
+const today = "2026-09-19"; // суббота
+// 1. Пустая база — без ошибок и NaN
+const empty = emptyState();
+const ixE = buildIndex(empty);
+const mE = monthModel(empty, ixE, "2026-09", today);
+const noNaN = (o, path = "") => {
+  for (const [k, v] of Object.entries(o)) {
+    if (typeof v === "number") assert(Number.isFinite(v), `NaN/Inf at ${path}.${k}=${v}`);
+    else if (v && typeof v === "object" && !(v instanceof Map) && !(v instanceof Set) && typeof v !== "function") noNaN(v, path + "." + k);
+  }
+};
+noNaN(mE.team, "emptyTeam");
+console.log("empty ok", mE.team.plan, mE.team.pace.fact, mE.groups.length, mE.ops.length);
+payroll(empty, ixE, mE.cal);
+
+// 2. Ручной пример: план 50, сентябрь 2026 = 22 рабочих дня; к 18.09 (пт) прошло 14 раб. дней
+const cal = monthCal("2026-09", DEFAULT_SETTINGS, "2026-09-18");
+console.log("W", cal.W, "phase", cal.phase);
+assert.equal(cal.W, 22);
+const counts = new Map();
+for (const d of cal.days) if (d <= "2026-09-18" && cal.isWork(d)) counts.set(d, 2); // 14 days * 2 = 28
+const p = pace(cal, 50, counts, DEFAULT_SETTINGS);
+console.log(JSON.stringify({ fact: p.fact, elapsed: p.elapsedW, ptd: p.planToDate.toFixed(2), rr: p.rr.toFixed(2), need: p.needPerDay.toFixed(3), remW: p.remainingW, avg: p.avgPerDay, best: p.best, worst: p.worst, met: p.daysMet, cnt: p.daysCounted, week: p.thisWeek, prev: p.prevWeek, wch: p.weekChange }));
+assert.equal(p.fact, 28);
+assert.equal(p.elapsedW, 14);
+assert(Math.abs(p.planToDate - 50 * 14 / 22) < 1e-9);
+assert(Math.abs(p.rr - 28 / 14 * 22) < 1e-9);
+// нужно в день: сегодня (пт) рабочий -> база = факт без сегодняшних (26), осталось 9 раб.дней включая сегодня
+assert.equal(p.remainingW, 9);
+assert(Math.abs(p.needPerDay - (50 - 26) / 9) < 1e-9);
+
+// 3. Прошлый месяц: RR = факт, needPerDay = null
+const calP = monthCal("2026-08", DEFAULT_SETTINGS, today);
+const pp = pace(calP, 40, counts, DEFAULT_SETTINGS);
+assert.equal(pp.needPerDay, null); assert.equal(pp.rr, pp.fact);
+
+// 4. Будущий месяц
+const calF = monthCal("2026-10", DEFAULT_SETTINGS, today);
+const pf = pace(calF, 44, new Map(), DEFAULT_SETTINGS);
+assert.equal(pf.elapsedW, 0); assert.equal(pf.planToDate, 0); assert(Math.abs(pf.needPerDay - 44 / calF.W) < 1e-9);
+
+// 5. Без рабочих дней (все дни выходные) — нет деления на ноль
+const s0 = { ...DEFAULT_SETTINGS, workdays: [], holidays: [] };
+const c0 = monthCal("2026-09", { ...s0, workdays: [1,2,3,4,5,6,7], holidays: cal.days }, today);
+noNaN(pace(c0, 10, counts, s0), "noWork");
+
+// 6. Демо
+const demo = buildDemo(today);
+const ix = buildIndex(demo);
+const m = monthModel(demo, ix, "2026-09", today);
+noNaN(m.team, "demoTeam");
+m.ops.forEach((r) => noNaN({ ...r.pace, hours: r.hours, normPct: r.normPct, avg: r.avgPerWorkday }, r.op.name));
+console.log("demo leads", demo.leads.length, "shifts", demo.shifts.length);
+console.log("team", JSON.stringify({ plan: m.team.plan, src: m.team.planSource, fact: m.team.pace.fact, pct: m.team.pace.pct.toFixed(2), rr: m.team.pace.rr.toFixed(1), need: m.team.pace.needPerDay?.toFixed(2), hours: m.team.hours, lph: m.team.lph?.toFixed(3), heads: m.team.headcount, needOps: m.team.neededOps?.toFixed(1), perOpDay: m.team.perOpDay.toFixed(2) }));
+console.log("status", JSON.stringify(m.statusCount));
+m.ops.forEach((r) => console.log(" ", r.op.name.padEnd(34), r.op.status.padEnd(6), r.status.padEnd(9), "plan", r.terms.plan, "fact", r.pace.fact, "ptd", r.pace.planToDate.toFixed(1), "h", r.hours, "norm", r.norm, "lph", r.lph?.toFixed(2), r.isLeader ? "LEADER" : ""));
+m.groups.forEach((g) => console.log(" G", g.name, "plan", g.plan, "fact", g.pace.fact, "heads", g.headcount, "contrib", g.contributors, "h", g.hours));
+const sumGroupFact = m.groups.reduce((a, g) => a + g.pace.fact, 0);
+assert.equal(sumGroupFact, m.team.pace.fact, "group facts sum to team");
+const sumOpFact = m.ops.reduce((a, r) => a + r.pace.fact, 0);
+assert.equal(sumOpFact, m.team.pace.fact, "op facts sum to team");
+
+// prev month
+const mp = monthModel(demo, ix, "2026-08", today);
+console.log("prev", mp.team.plan, mp.team.pace.fact, mp.team.pace.pct.toFixed(2), mp.cal.phase);
+
+// dynamics
+const dr = dailyRows(m.cal, m.team.plan, ix.day, ix.hoursDay);
+const wr = weeklyRows(m.cal, m.team.plan, ix.day);
+assert.equal(dr[dr.length - 1].cumPlan.toFixed(6), m.team.plan.toFixed(6));
+console.log("weeks", wr.map((w) => `${w.from}..${w.to} p${w.plan.toFixed(1)} f${w.fact} ch${w.change==null?'-':w.change.toFixed(2)}`).join(" | "));
+assert.equal(wr.reduce((a, w) => a + w.fact, 0), m.team.pace.fact);
+
+// payroll
+const pr = payroll(demo, ix, m.cal);
+pr.rows.slice(0, 4).forEach((r) => console.log(" P", r.op.name.padEnd(34), r.payType, "h", r.hours, "leads", r.leads, "base", r.base, "lead", r.leadPay, "gross", r.gross, "wh", r.withhold, "net", r.net, "paid", r.paid, "toPay", r.toPay));
+console.log("payroll total gross", pr.total.gross.toFixed(0), "toPay", pr.total.toPay.toFixed(0));
+pr.rows.forEach((r) => noNaN({ a: r.gross, b: r.net, c: r.toPay }, r.op.name));
+
+// freeze
+const fz = freezePastMonths(demo, ix, today);
+console.log("freeze", fz.months, fz.plans.length);
+
+// filter & dup
+const L = demo.leads.find((l) => l.at >= "2026-09"); const f = filterLeads(demo.leads, { from: "2026-09-01", to: "2026-09-30", q: L.phone.slice(-5) });
+assert(f.length >= 1);
+const dup = findDuplicate(demo.leads, demo.leads[5].phone, demo.leads[5].at, 30);
+assert(dup);
+
+// sanitize roundtrip
+const snap = JSON.parse(JSON.stringify(toSnapshot(demo)));
+snap.leads.push({ ...snap.leads[0] }); // дубль
+snap.leads.push({ id: "x", at: "bad", operatorId: "op" });
+snap.leads.push({ ...snap.leads[1], id: "ld_orphan", operatorId: "op_missing" });
+const san = sanitize(snap);
+console.log("sanitize warnings", san.warnings);
+assert.equal(san.state.leads.length, demo.leads.length + 1);
+assert(san.state.operators.find((o) => o.id === "op_missing"));
+console.log("integrity", checkIntegrity(san.state));
+// sanitize garbage
+sanitize(null); sanitize({ leads: "x" }); sanitize([1,2]);
+console.log("ALL OK");
+})();
+
+/* ── сценарии: удаление, группы, новички, зарплата, фиксация месяцев ── */
+(() => {
+const assert = require("assert");
+const { buildIndex, monthModel, monthOperators, opTerms, monthCal, freezePastMonths } = R("calc");
+const { payroll } = R("payroll");
+const { buildDemo } = R("demo");
+const { DEFAULT_SETTINGS } = R("defaults");
+const today = "2026-09-18";
+const demo = buildDemo(today);
+
+// 1. Удалённый оператор: скрыт из текущего штата, но его история остаётся в месяце и в сумме команды
+const st = JSON.parse(JSON.stringify(demo));
+const victim = st.operators[2];
+victim.deletedAt = "2026-09-18T10:00:00Z";
+const ix = buildIndex(st);
+const m = monthModel(st, ix, "2026-09", today);
+const before = monthModel(demo, buildIndex(demo), "2026-09", today);
+assert.equal(m.team.pace.fact, before.team.pace.fact, "факт команды не меняется после удаления оператора");
+assert(m.ops.find((r) => r.op.id === victim.id), "удалённый с лидами остаётся в месяце");
+const empty = JSON.parse(JSON.stringify(st)); empty.leads = empty.leads.filter(l => l.operatorId !== victim.id); empty.shifts = empty.shifts.filter(s => s.operatorId !== victim.id); empty.adjustments = empty.adjustments.filter(a=>a.operatorId!==victim.id);
+assert(!monthOperators(empty, buildIndex(empty), "2026-10").find(o => o.id === victim.id), "удалённый без истории не попадает в будущие месяцы");
+console.log("1 ok: удаление оператора сохраняет историю");
+
+// 2. Удалённая группа: операторы в «Без группы», лиды остаются в истории группы
+const st2 = JSON.parse(JSON.stringify(demo));
+st2.groups[0].deletedAt = "2026-09-18T10:00:00Z";
+st2.operators.forEach(o => { if (o.groupId === "gr_alpha") o.groupId = null; });
+const m2 = monthModel(st2, buildIndex(st2), "2026-09", today);
+const alpha = m2.groups.find(g => g.key === "gr_alpha");
+const none = m2.groups.find(g => g.key === "__none__");
+assert(alpha && alpha.pace.fact === before.groups.find(g => g.key === "gr_alpha").pace.fact, "история удалённой группы сохранена");
+assert(none && none.members.length === 5, "5 операторов перешли в «Без группы»");
+assert.equal(m2.groups.reduce((a,g)=>a+g.pace.fact,0), m2.team.pace.fact, "сумма групп = команда");
+console.log("2 ok: удаление группы ->", alpha.name, "/", none.name, none.members.length, "чел.");
+
+// 3. Приём посреди месяца: план пропорционален рабочим дням
+const cal = monthCal("2026-09", DEFAULT_SETTINGS, today);
+const op = { ...demo.operators[1], hireDate: "2026-09-16", monthlyPlan: 44, fireDate: "", status: "active" };
+const t = opTerms(op, cal, demo, buildIndex(demo));
+// сентябрь: 22 раб. дня; с 16 по 30 — 11 раб. дней → 44*11/22 = 22
+assert.equal(t.plan, 22, "план новичка = 22");
+console.log("3 ok: план новичка", t.plan);
+
+// 4. Зарплата: почасовая + бонус, оклад пропорционально, удержание без компенсаций
+const s4 = JSON.parse(JSON.stringify(demo));
+s4.settings.withholdPct = 10;
+const ix4 = buildIndex(s4);
+const pr = payroll(s4, ix4, monthCal("2026-09", s4.settings, today));
+for (const r of pr.rows) {
+  // сетка проверяется отдельным блоком ниже — здесь сверяем фиксированные схемы
+  const tiered = r.payType === "tiered" || r.payType === "salary_tiered";
+  const sv = r.payType === "sv_volume";
+  const base = sv
+    ? r.salary
+    : r.payType.startsWith("salary")
+    ? r.salary * Math.min(1, r.hours / r.normHours)
+    : tiered
+      ? r.base
+      : r.hours * r.hourlyRate;
+  assert(Math.abs(r.base - Math.round(base*100)/100) < 0.01, "база " + r.op.name);
+  const lp = tiered || sv ? r.leadPay : r.payType.endsWith("bonus") ? r.leads * r.leadBonus : 0;
+  assert(Math.abs(r.leadPay - lp) < 0.01);
+  const gross = base + lp + r.adj.accrual + r.adj.bonus + r.adj.compensation + r.adj.correction;
+  const wh = (gross - r.adj.compensation) * 0.1;
+  assert(Math.abs(r.toPay - (gross - wh - r.adj.deduction - r.adj.advance - r.adj.payout)) < 0.02, "остаток " + r.op.name);
+}
+const comp = pr.rows.find(r => r.adj.compensation > 0);
+console.log("4 ok: ведомость;", comp.op.name, "компенсация", comp.adj.compensation, "не облагается: база удержания", comp.withholdBase, "из", comp.gross);
+
+// 5. Фиксация прошлого месяца: смена плана в карточке не меняет август
+const s5 = JSON.parse(JSON.stringify(demo));
+const ix5 = buildIndex(s5);
+const fz = freezePastMonths(s5, ix5, today);
+s5.plans.push(...fz.plans); s5.frozenMonths = fz.months;
+const augBefore = monthModel(s5, buildIndex(s5), "2026-08", today).team.plan;
+s5.operators.forEach(o => o.monthlyPlan = 999); s5.settings.defaultOperatorPlan = 999;
+const augAfter = monthModel(s5, buildIndex(s5), "2026-08", today).team.plan;
+const sepAfter = monthModel(s5, buildIndex(s5), "2026-09", today).team.plan;
+assert.equal(augBefore, augAfter, "август зафиксирован");
+assert(sepAfter > augAfter, "сентябрь пересчитан по новым планам");
+assert.equal(freezePastMonths(s5, buildIndex(s5), today).plans.length, 0, "повторная фиксация ничего не пишет");
+console.log("5 ok: август", augBefore, "=", augAfter, "; сентябрь стал", sepAfter);
+
+// 6. Один оператор, без групп, без смен
+const one = { ...JSON.parse(JSON.stringify(demo)), groups: [], shifts: [] };
+one.operators = [ { ...one.operators[0], groupId: null } ];
+one.leads = one.leads.filter(l => l.operatorId === one.operators[0].id).map(l => ({ ...l, groupId: null }));
+one.adjustments = [];
+const m6 = monthModel(one, buildIndex(one), "2026-09", today);
+assert.equal(m6.groups.length, 1); assert.equal(m6.groups[0].key, "__none__");
+assert.equal(m6.team.plan, 160); assert(m6.team.lph === null, "нет часов -> лид/час = null, не деление на ноль");
+console.log("6 ok: один оператор без групп/смен, план", m6.team.plan, "факт", m6.team.pace.fact);
+console.log("ALL OK");
+})();
+
+/* ── сетка: ставка и бонус зависят от лидов в смене ── */
+(() => {
+  const assert = require("assert");
+  const { buildIndex, monthCal, opTerms } = R("calc");
+  const { payroll, tierFor, isHourlyTiered } = R("payroll");
+  const { buildDemo } = R("demo");
+  const { monthDays } = R("dates");
+  const today = "2026-09-18";
+  const st = buildDemo(today);
+  const ix = buildIndex(st);
+  const cal = monthCal("2026-09", st.settings, today);
+  const pr = payroll(st, ix, cal);
+  const tiered = pr.rows.filter((r) => r.payType === "tiered" || r.payType === "salary_tiered");
+  assert(tiered.length, "в демо есть операторы на сетке");
+  for (const r of tiered) {
+    const t = opTerms(r.op, cal, st, ix);
+    let base = 0, bonus = 0, days = 0;
+    for (const d of monthDays("2026-09")) {
+      const leads = ix.opDay.get(r.op.id)?.get(d) ?? 0;
+      const hours = ix.hoursOpDay.get(r.op.id)?.get(d) ?? 0;
+      if (!leads && !hours) continue;
+      days++;
+      const tier = tierFor(t.tiers, leads);
+      if (isHourlyTiered(r.payType)) base += hours * tier.hourlyRate;
+      bonus += leads * tier.leadBonus;
+    }
+    if (isHourlyTiered(r.payType)) assert(Math.abs(r.base - Math.round(base * 100) / 100) < 0.01, "база по сетке " + r.op.name);
+    assert(Math.abs(r.leadPay - Math.round(bonus * 100) / 100) < 0.01, "бонус по сетке " + r.op.name);
+    assert.equal(r.tierUse.reduce((a, u) => a + u.days, 0), days, "смены разложены по ступеням " + r.op.name);
+  }
+  const ex = tiered[0];
+  const hiTier = ex.tierUse[ex.tierUse.length - 1];
+  const loTier = ex.tierUse[0];
+  console.log("7 ok: сетка;", ex.op.name, "- смен по нижней ступени", loTier.days, "(бонус", loTier.leadBonus + "₽)", "по верхней", hiTier.days, "(бонус", hiTier.leadBonus + "₽)", "итого база", ex.base, "бонус", ex.leadPay);
+  // один и тот же день с разным числом лидов даёт разную оплату
+  const tiers = [{ from: 0, hourlyRate: 100, leadBonus: 100 }, { from: 3, hourlyRate: 200, leadBonus: 300 }];
+  assert.equal(tierFor(tiers, 2).hourlyRate, 100);
+  assert.equal(tierFor(tiers, 3).hourlyRate, 200);
+  assert.equal(tierFor(tiers, 99).leadBonus, 300);
+  console.log("8 ok: ступень по числу лидов за смену (2 лида -> 100 ₽/ч, 3 лида -> 200 ₽/ч)");
+})();
+
+/* ── реальные ставки из «Академии обзвона» ── */
+(() => {
+  const assert = require("assert");
+  const { DEFAULT_SETTINGS } = R("defaults");
+  const { tierFor, svBonus } = R("payroll");
+  const T = DEFAULT_SETTINGS.rateGrids[0].tiers;
+  // смена 8 ч: 5 лидов -> 200 ₽/ч и 70 ₽ за лид = 1950; 8 лидов -> 240 и 80 = 2560
+  const shift = (h, l) => tierFor(T, l).hourlyRate * h + tierFor(T, l).leadBonus * l;
+  assert.equal(shift(8, 5), 1950, "8 ч и 5 лидов = 1 950 ₽");
+  assert.equal(shift(8, 8), 2560, "8 ч и 8 лидов = 2 560 ₽");
+  assert.equal(shift(8, 11), 260 * 8 + 90 * 11, "верхняя ступень");
+  assert.deepEqual([tierFor(T, 0).hourlyRate, tierFor(T, 6).hourlyRate, tierFor(T, 10).hourlyRate, tierFor(T, 99).hourlyRate], [200, 230, 240, 260]);
+  assert.deepEqual([tierFor(T, 5).leadBonus, tierFor(T, 7).leadBonus, tierFor(T, 8).leadBonus, tierFor(T, 11).leadBonus], [70, 75, 80, 90]);
+  console.log("9 ok: смена 8 ч ·", shift(8, 5), "₽ при 5 лидах и", shift(8, 8), "₽ при 8 лидах (+610 ₽ за 3 лида)");
+
+  const G = DEFAULT_SETTINGS.svBonus;
+  const sv = (leads, o) => svBonus(G, leads, o.prev ?? 0, { grade: o.grade ?? "mid", track: o.track ?? "re", approvePct: o.apr ?? 30, growth: o.growth ?? null });
+  assert.equal(sv(1000, {}).bonus, 18000, "1000 лидов, Middle, недвижимость = 18 000");
+  assert.equal(sv(1000, { grade: "sr" }).bonus, 20000);
+  assert.equal(sv(1000, { track: "auto", grade: "jr" }).bonus, 15000);
+  assert.equal(sv(699, {}).bonus, 0, "ниже 700 лидов бонуса нет");
+  assert.equal(sv(700, {}).bonus, 4500);
+  assert.equal(sv(1000, { apr: 25 }).bonus, 17100, "апрув 25% -> коэффициент 0,95");
+  assert.equal(sv(1000, { apr: 22 }).bonus, 16200, "апрув 22% -> 0,9");
+  assert.equal(sv(1000, { apr: 19 }).bonus, 0, "апрув ниже 20% обнуляет бонус");
+  assert.equal(sv(1000, { growth: false }).bonus, 15300, "нет роста -> 0,85 для Middle");
+  assert.equal(sv(1000, { growth: false, grade: "jr" }).bonus, 16000, "у Junior коэффициента за динамику нет");
+  const s2 = sv(1100, {});
+  assert.deepEqual([s2.step, s2.next.from, s2.next.base], [1000, 1200, 27000]);
+  console.log("10 ok: супервайзер; 1000 лидов Middle =", sv(1000, {}).bonus, "₽ бонуса + оклад", G.salary, "₽; апрув 22% ->", sv(1000, { apr: 22 }).bonus);
+})();
+
+/* 11. ФОТ: фонд против дохода и норматив */
+{
+  const assert = require("assert");
+  const { fundStat } = R("payroll");
+  const f = fundStat(240000, 400, 3000, 24);
+  assert.equal(f.revenue, 1200000);
+  assert.equal(Math.round(f.pct * 100), 20);
+  assert.equal(f.ok, true);
+  assert.equal(f.over, 0);
+  const bad = fundStat(360000, 400, 3000, 24);
+  assert.equal(bad.ok, false);
+  assert.equal(bad.over, 72000); // 360 000 − 24% от 1 200 000
+  const empty = fundStat(50000, 0, 3000, 24);
+  assert.equal(empty.ok, true, "без лидов норматив не считаем");
+  console.log("11 ok: ФОТ 240 000 ₽ при доходе 1 200 000 ₽ = 20% (норма), 360 000 ₽ = 30% и перебор 72 000 ₽");
+}
+
+/* 12. Прогноз ФОТ и апрув по проектам */
+{
+  const assert = require("assert");
+  const { fundForecast } = R("payroll");
+  const { buildIndex, approvePctFor } = R("calc");
+  const { buildDemo } = R("demo");
+
+  // фонд 100 000 за 10 отработанных дней из 20, лиды 200 → RR 400
+  const f = fundForecast(100000, 200, 400, 10, 20, 3000, 24, ["2026-09-22", "2026-09-23", "2026-09-24"]);
+  assert.equal(f.fund, 200000);
+  assert.equal(f.revenue, 1200000);
+  assert.equal(Math.round(f.pct * 100), 17);
+  assert.equal(f.ok, true, "17% ниже норматива 24%");
+
+  // темп дороже норматива: 30 000 в день при 20 лидах в день (доход 60 000, норматив 14 400)
+  const over = fundForecast(30000, 20, 400, 1, 20, 3000, 24, ["2026-09-22", "2026-09-23", "2026-09-24"]);
+  assert.equal(over.alreadyOver, true);
+  assert.ok(over.leadsNeeded > 400, "чтобы уложиться, лидов нужно больше прогноза");
+
+  // апрув: средневзвешенный по проектам
+  const st = buildDemo("2026-09-19");
+  const ix = buildIndex(st);
+  const base = approvePctFor(st, ix, "2026-09");
+  assert.equal(base, st.settings.svBonus.defaultApprovePct, "без записей берём значение по умолчанию");
+  const auto = st.projects.find((p) => p.name === "Авто");
+  st.approves = [{ id: `2026-09|${auto.id}`, month: "2026-09", projectId: auto.id, pct: 10, comment: "", updatedAt: "" }];
+  const ix2 = buildIndex(st);
+  const mixed = approvePctFor(st, ix2, "2026-09");
+  assert.ok(mixed < base && mixed > 10, `средневзвешенный между 10% и ${base}%, получили ${mixed}`);
+  console.log(`12 ok: прогноз ФОТ 200 000 ₽ = 17% (норма), перерасход ловится; апрув по проектам ${base}% → ${mixed}%`);
+}
+
+/* 13. Статусы лидов: «не доведён» выпадает из факта, проверяет супервайзер своей группы */
+{
+  const assert = require("assert");
+  const { buildIndex, monthModel, filterLeads } = R("calc");
+  const { buildDemo } = R("demo");
+  const { computeAccess, canReviewLead } = R("access");
+  const st = buildDemo("2026-09-19");
+  const failed = st.leads.filter((l) => l.status === "failed");
+  assert.ok(failed.length > 0 && failed.every((l) => l.statusReason), "у не доведённых есть причина");
+  const ix = buildIndex(st);
+  let counted = 0;
+  for (const m of ix.opDay.values()) for (const v of m.values()) counted += v;
+  assert.equal(counted, st.leads.length - failed.length, "в факт идут все, кроме «не доведён»");
+  const sep = filterLeads(st.leads, { from: "2026-09-01", to: "2026-09-30", status: "counted" }).length;
+  assert.equal(monthModel(st, ix, "2026-09", "2026-09-19").team.pace.fact, sep, "факт месяца = лиды без «не доведён»");
+
+  const head = computeAccess(st.accounts.find((a) => a.role === "head"), st);
+  const opAcc = st.accounts.find((a) => a.role === "operator");
+  const op = computeAccess(opAcc, st);
+  const sup = computeAccess(st.accounts.find((a) => a.id === "acc_sup_alpha"), st);
+  const alphaLead = st.leads.find((l) => l.groupId === "gr_alpha" && l.operatorId !== sup.opId);
+  const betaLead = st.leads.find((l) => l.groupId === "gr_beta");
+  const ownLead = st.leads.find((l) => l.operatorId === sup.opId);
+  assert.ok(canReviewLead(head, betaLead), "РОП — любой лид");
+  assert.ok(canReviewLead(sup, alphaLead), "супервайзер — лиды своей группы");
+  assert.ok(!canReviewLead(sup, betaLead), "чужую группу — нет");
+  assert.ok(!canReviewLead(sup, ownLead), "свои лиды супервайзер не проверяет");
+  assert.ok(!canReviewLead(op, st.leads.find((l) => l.operatorId === opAcc.operatorId)), "оператор статус не ставит");
+  console.log(`13 ok: статусы; не доведено ${failed.length} из ${st.leads.length}, в факт идут ${counted}`);
+}
+
+/* 14. Очистка демо-данных прежних версий: настоящие записи остаются */
+{
+  const assert = require("assert");
+  const { buildDemo } = R("demo");
+  const { stripDemo } = R("purge");
+  const st = buildDemo("2026-09-19");
+  const clean = stripDemo(st);
+  assert.ok(clean.any);
+  const c = clean.state;
+  assert.equal(c.operators.length + c.leads.length + c.shifts.length + c.groups.length + c.projects.length + c.adjustments.length, 0, "демо удалено целиком");
+  assert.deepEqual(c.accounts.map((a) => a.id), ["acc_head"], "остаётся только РОП");
+  assert.equal(stripDemo(c).any, false, "повторно удалять нечего");
+
+  // настоящий оператор в демо-группе и его лид по демо-проекту — группа и проект остаются
+  const mixed = JSON.parse(JSON.stringify(st));
+  mixed.operators.push({ ...mixed.operators[1], id: "op_mf3k2a01abcdef", name: "Настоящий Оператор" });
+  mixed.leads.push({ ...mixed.leads[0], id: "ld_mf3k2a01abcdef", operatorId: "op_mf3k2a01abcdef", groupId: "gr_alpha", projectId: "pr_auto" });
+  const m = stripDemo(mixed).state;
+  assert.deepEqual(m.operators.map((o) => o.id), ["op_mf3k2a01abcdef"]);
+  assert.equal(m.leads.length, 1);
+  assert.deepEqual(m.groups.map((g) => g.id), ["gr_alpha"]);
+  assert.deepEqual(m.projects.map((p) => p.id), ["pr_auto"]);
+  console.log("14 ok: демо удалено (" + clean.removed.operators + " операторов, " + clean.removed.leads + " лидов), настоящие записи целы");
+}
+
+/* 15. Выгрузка в Google Таблицу: все листы, строки по ширине заголовка, секрет не уходит */
+{
+  const assert = require("assert");
+  const { buildDemo } = R("demo");
+  const { buildSheets } = R("sheets");
+  const st = buildDemo("2026-09-19");
+  st.settings.sheets = { url: "https://script.google.com/macros/s/x/exec", token: "SECRET-123", auto: true };
+  const sheets = buildSheets(st);
+  const names = sheets.map((s) => s.name);
+  for (const n of ["Лиды", "Операторы", "Группы", "Проекты", "График", "Планы", "Начисления", "Апрув", "Аккаунты", "Обучение", "Журнал", "Настройки"]) assert.ok(names.includes(n), "лист " + n);
+  for (const s of sheets) for (const r of s.rows) assert.equal(r.length, s.header.length, `ширина строки на листе «${s.name}»`);
+  const leads = sheets.find((s) => s.name === "Лиды");
+  assert.equal(leads.rows.length, st.leads.length);
+  assert.ok(leads.rows.some((r) => r[3] === "Не доведён" && r[4]), "статус и причина в выгрузке");
+  assert.ok(!JSON.stringify(sheets).includes("SECRET-123"), "секрет не выгружается");
+  console.log(`15 ok: выгрузка — ${sheets.length} листов, ${sheets.reduce((n, s) => n + s.rows.length, 0)} строк`);
+}
+
+/* 16. Зарплата и часы — по факту: смены, запланированные наперёд, не считаются */
+{
+  const assert = require("assert");
+  const { buildIndex, monthCal, monthModel } = R("calc");
+  const { payroll } = R("payroll");
+  const { buildDemo } = R("demo");
+  const today = "2026-09-18";
+  const st = buildDemo(today);
+  const cal = monthCal("2026-09", st.settings, today);
+  const op = st.operators.find((o) => o.status === "active" && o.payType === "tiered");
+  const before = payroll(st, buildIndex(st), cal).rows.find((r) => r.op.id === op.id);
+  const mBefore = monthModel(st, buildIndex(st), "2026-09", today).ops.find((r) => r.op.id === op.id);
+  const plan = JSON.parse(JSON.stringify(st));
+  for (const d of ["2026-09-21", "2026-09-22", "2026-09-23"]) plan.shifts.push({ id: `${d}|${op.id}`, date: d, operatorId: op.id, groupId: op.groupId, hours: 8, type: "work", comment: "", updatedAt: "" });
+  const ix = buildIndex(plan);
+  const after = payroll(plan, ix, cal).rows.find((r) => r.op.id === op.id);
+  const mAfter = monthModel(plan, ix, "2026-09", today).ops.find((r) => r.op.id === op.id);
+  assert.equal(after.hours, before.hours, "часы в ведомости — по сегодня");
+  assert.equal(after.gross, before.gross, "начислено — по сегодня");
+  assert.equal(mAfter.hours, mBefore.hours, "часы в аналитике — по сегодня");
+  assert.equal(mAfter.lph, mBefore.lph, "лидов на час не падает от будущих смен");
+  // прошлый месяц — весь
+  const aug = payroll(st, buildIndex(st), monthCal("2026-08", st.settings, today)).rows.find((r) => r.op.id === op.id);
+  assert.ok(aug.hours > 0);
+  console.log(`16 ok: будущие смены не в зарплате — ${op.name}: ${after.hours} ч, ${after.gross} ₽ (план +24 ч не учтён)`);
+}
+
+/* 17. Отчёты за день и неделю: факт как в CRM, неделя = сумма дней, план по дням */
+{
+  const assert = require("assert");
+  const { buildIndex, sumRange } = R("calc");
+  const { buildDemo } = R("demo");
+  const { buildReport } = R("report");
+  const today = "2026-09-18";
+  const st = buildDemo(today);
+  const ix = buildIndex(st);
+  const day = buildReport(st, ix, "day", "2026-09-17", "", today);
+  assert.equal(day.total.leads, ix.day.get("2026-09-17") ?? 0, "лиды дня = факт по индексу (без «не доведён»)");
+  const failedDay = st.leads.filter((l) => l.at.startsWith("2026-09-17") && l.status === "failed").length;
+  assert.equal(day.total.failed, failedDay, "не доведённые посчитаны отдельно");
+  assert.ok(day.total.plan > 0 && day.total.hours > 0, "есть план и часы");
+  const week = buildReport(st, ix, "week", "2026-09-16", "", today);
+  assert.equal(week.from, "2026-09-14");
+  assert.equal(week.factTo, today, "неделя в процессе — факт по сегодня");
+  assert.equal(week.total.leads, sumRange(ix.day, "2026-09-14", today), "неделя = сумма дней");
+  assert.equal(week.byDay.reduce((a, d) => a + d.leads, 0), week.total.leads);
+  assert.equal(week.byDay.filter((d) => d.day > today).reduce((a, d) => a + d.plan + d.leads, 0), 0, "будущие дни пустые");
+  const g = buildReport(st, ix, "week", "2026-09-16", "gr_alpha", today);
+  assert.ok(g.total.leads < week.total.leads && g.rows.every((r) => r.op.groupId === "gr_alpha" || r.leads > 0), "фильтр по группе");
+  console.log(`17 ok: отчёты — день ${day.total.leads} лидов из плана ${day.total.plan.toFixed(1)}, неделя ${week.total.leads}, Альфа ${g.total.leads}`);
+}
