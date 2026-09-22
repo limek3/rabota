@@ -9,13 +9,11 @@ import {
   ROLES,
   academyRole,
   blockerOf,
-  byId,
   certNo,
   courseById,
   courseProg,
   isDone,
-  itemCourse,
-  itemModule,
+  lib,
   naturalSection,
   neighbours,
   nextUp,
@@ -32,6 +30,7 @@ import {
   type AcademyRole,
   type Course,
   type LearnItem,
+  type Lib,
   type SectionId,
   type WidgetId,
 } from "@/lib/learn";
@@ -42,7 +41,7 @@ import { Avatar } from "@/components/ui/kit";
 import { Lesson } from "@/components/learn/Blocks";
 import { Quiz } from "@/components/learn/Quiz";
 import { Widget } from "@/components/learn/Widgets";
-import { Bar, Cards, LSec, PageHead, Rows, Subline, Tiles, type CardDef } from "@/components/learn/kit";
+import { AcademyRoleProvider, Bar, Cards, LSec, PageHead, Rows, Subline, Tiles, type CardDef } from "@/components/learn/kit";
 import { SectionPage, type Ctx } from "@/components/learn/Sections";
 
 /**
@@ -59,9 +58,11 @@ interface Local {
   ctx: string;
   seen: string[];
   open: Record<string, boolean>;
+  /** Скрипты в режиме «Только реплики» (если он есть в академии роли). */
+  runMode: boolean;
 }
 
-const EMPTY_LOCAL: Local = { progName: "both", track: "all", ctx: "", seen: [], open: {} };
+const EMPTY_LOCAL: Local = { progName: "both", track: "all", ctx: "", seen: [], open: {}, runMode: true };
 
 const DRAWERS: Record<string, { t: string; s: string; go: SectionId; w: WidgetId }> = {
   "st-re": { t: "Статусы — Недвижимость", s: "Что ставить после разговора", go: "statuses", w: "st-re" },
@@ -77,6 +78,7 @@ const DRAWERS: Record<string, { t: string; s: string; go: SectionId; w: WidgetId
 export function Academy() {
   const { data, me, saveLearn, toast } = useCrm();
   const role = academyRole(me.role);
+  const L = lib(role);
   const prog = useMemo(() => progMap(data.learn, me.id), [data.learn, me.id]);
 
   const [sec, setSec] = useState<SectionId>("home");
@@ -117,11 +119,11 @@ export function Academy() {
     const i = q.get("item");
     const c = q.get("course");
     if (s) setSec(s);
-    if (i && byId.has(i)) {
+    if (i && lib(role).byId.has(i)) {
       setItemId(i);
       if (!s) setSec(naturalSection(role, i));
-    } else if (c && courseById(c)) {
-      const first = realItems(courseById(c)!)[0];
+    } else if (c && courseById(role, c)) {
+      const first = realItems(courseById(role, c)!)[0];
       setSec("courses");
       if (first) setItemId(first.id);
     }
@@ -160,7 +162,7 @@ export function Academy() {
     (id: string, target?: SectionId) => {
       let next = id;
       let s = target ?? naturalSection(role, id);
-      const it = byId.get(next);
+      const it = L.byId.get(next);
       const gated = s === "courses" || !!it?.quiz;
       const bl = gated ? blockerOf(prog, role, next) : null;
       if (bl) {
@@ -168,10 +170,10 @@ export function Academy() {
         next = bl.id;
         s = naturalSection(role, next);
       }
-      const c = itemCourse.get(next);
+      const c = L.itemCourse.get(next);
       if (c && (c.track === "auto" || c.track === "realty")) patchLocal({ ctx: c.track });
       if (s === "courses" && c) {
-        const m = itemModule.get(next);
+        const m = L.itemModule.get(next);
         patchLocal({
           track: local.track !== "all" && local.track !== c.id ? c.id : local.track,
           open: m ? { ...local.open, [m.t]: true } : local.open,
@@ -184,23 +186,23 @@ export function Academy() {
       setItemId(next);
       window.scrollTo({ top: 0 });
     },
-    [local.open, local.seen, local.track, patchLocal, prog, role, toast],
+    [L, local.open, local.seen, local.track, patchLocal, prog, role, toast],
   );
 
   const openCourse = useCallback(
     (id: string) => {
-      const c = courseById(id);
+      const c = courseById(role, id);
       if (!c) return;
       const inRole = PROGRAMS[role].includes(id);
       const items = realItems(c);
       const first = items.find((i) => !isDone(prog, i.id)) ?? items[0];
       if (!first) return;
       if (inRole) {
-        patchLocal({ track: id, open: { [itemModule.get(first.id)?.t ?? ""]: true } });
+        patchLocal({ track: id, open: { [L.itemModule.get(first.id)?.t ?? ""]: true } });
         openItem(first.id, "courses");
       } else openItem(first.id, role === "supervisor" ? "opmat" : "courses");
     },
-    [openItem, patchLocal, prog, role],
+    [L, openItem, patchLocal, prog, role],
   );
 
   const openCert = useCallback((id: string) => {
@@ -214,10 +216,10 @@ export function Academy() {
     const items = sectionItems(role, "checklists");
     for (const i of items) {
       const rec = prog.get(i.id);
-      if (rec?.checks?.length) await saveLearn(itemCourse.get(i.id)?.id ?? "", i.id, { checks: [] });
+      if (rec?.checks?.length) await saveLearn(L.itemCourse.get(i.id)?.id ?? "", i.id, { checks: [] });
     }
     toast("Чек-листы очищены — можно начинать смену", "info");
-  }, [prog, role, saveLearn, toast]);
+  }, [L, prog, role, saveLearn, toast]);
 
   const ctx: Ctx = {
     role,
@@ -232,66 +234,70 @@ export function Academy() {
     filter,
     setFilter,
     newShift,
+    runMode: local.runMode,
+    setRunMode: (v) => patchLocal({ runMode: v }),
   };
 
-  const item = itemId ? byId.get(itemId) ?? null : null;
+  const item = itemId ? L.byId.get(itemId) ?? null : null;
   const showAside = sec !== "courses" && sec !== "tests" && sec !== "team" && !item?.quiz && !certId;
-  const track = role === "supervisor" ? "sv" : local.ctx === "auto" || local.ctx === "realty" ? local.ctx : itemTrack(item) ?? "realty";
+  const track = role === "supervisor" ? "sv" : local.ctx === "auto" || local.ctx === "realty" ? local.ctx : itemTrack(L, item) ?? "realty";
 
   return (
-    <div className="lrn-shell">
-      <LearnNav sec={sec} role={me.role} go={go} />
+    <AcademyRoleProvider value={role}>
+      <div className="lrn-shell">
+        <LearnNav sec={sec} role={me.role} go={go} />
 
-      {sec === "courses" && (
-        <CourseTree
-          role={role}
-          prog={prog}
-          activeId={itemId}
-          track={local.track}
-          open={local.open}
-          setTrack={(t) => patchLocal({ track: t })}
-          toggle={(t) => patchLocal({ open: { ...local.open, [t]: !(local.open[t] ?? false) } })}
-          onOpen={(id) => openItem(id, "courses")}
-          onLock={(t) => toast(`Сначала пройдите: ${t}`, "info")}
-        />
-      )}
-
-      <main className={`lrn-main${item && sec !== "courses" ? " reader" : ""}`}>
-        {certId ? (
-          <CertPage id={certId} onBack={() => go("progress")} />
-        ) : item ? (
-          <ItemView item={item} ctx={ctx} onOpen={openItem} onCert={openCert} />
-        ) : sec === "home" ? (
-          <Home ctx={ctx} seen={local.seen} />
-        ) : sec === "courses" ? (
-          <CoursesIntro ctx={ctx} />
-        ) : sec === "notes" ? (
-          <NotesPage ctx={ctx} />
-        ) : sec === "team" ? (
-          <TeamPage />
-        ) : (
-          <SectionPage ctx={ctx} />
+        {sec === "courses" && (
+          <CourseTree
+            role={role}
+            prog={prog}
+            activeId={itemId}
+            track={local.track}
+            open={local.open}
+            setTrack={(t) => patchLocal({ track: t })}
+            toggle={(t) => patchLocal({ open: { ...local.open, [t]: !(local.open[t] ?? false) } })}
+            onOpen={(id) => openItem(id, "courses")}
+            onLock={(t) => toast(`Сначала пройдите: ${t}`, "info")}
+          />
         )}
-      </main>
 
-      {showAside && (
-        <AsidePanel
-          track={track}
-          role={role}
-          prog={prog}
-          ctx={ctx}
-          onDrawer={setDrawer}
-          setTrack={(v) => patchLocal({ ctx: v })}
-        />
-      )}
+        <main className={`lrn-main${item && sec !== "courses" ? " reader" : ""}`}>
+          {certId ? (
+            <CertPage role={role} id={certId} onBack={() => go("progress")} />
+          ) : item ? (
+            <ItemView item={item} ctx={ctx} onOpen={openItem} onCert={openCert} />
+          ) : sec === "home" ? (
+            <Home ctx={ctx} seen={local.seen} />
+          ) : sec === "courses" ? (
+            <CoursesIntro ctx={ctx} />
+          ) : sec === "notes" ? (
+            <NotesPage ctx={ctx} />
+          ) : sec === "team" ? (
+            <TeamPage />
+          ) : (
+            <SectionPage ctx={ctx} />
+          )}
+        </main>
 
-      {drawer && <Drawer id={drawer} onClose={() => setDrawer(null)} go={go} />}
-    </div>
+        {showAside && (
+          <AsidePanel
+            track={track}
+            role={role}
+            prog={prog}
+            ctx={ctx}
+            onDrawer={setDrawer}
+            setTrack={(v) => patchLocal({ ctx: v })}
+          />
+        )}
+
+        {drawer && <Drawer id={drawer} onClose={() => setDrawer(null)} go={go} />}
+      </div>
+    </AcademyRoleProvider>
   );
 }
 
-const itemTrack = (i: LearnItem | null): string | null => {
-  const t = i ? itemCourse.get(i.id)?.track : null;
+const itemTrack = (L: Lib, i: LearnItem | null): string | null => {
+  const t = i ? L.itemCourse.get(i.id)?.track : null;
   return t === "auto" || t === "realty" ? t : null;
 };
 
@@ -322,13 +328,14 @@ function Home({ ctx, seen }: { ctx: Ctx; seen: string[] }) {
   const op = ctx.role === "operator";
   const pr = progressAll(ctx.prog, ctx.role, ctx.progName);
   const nx = nextUp(ctx.prog, ctx.role, ctx.progName);
-  const course = nx ? itemCourse.get(nx.id) : null;
+  const L = lib(ctx.role);
+  const course = nx ? L.itemCourse.get(nx.id) : null;
   const quizItems = programItems(ctx.role, ctx.progName).filter((i) => i.quiz);
   const passed = quizItems.filter((i) => ctx.prog.get(i.id)?.pass).length;
   const d = new Date();
   const days = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
   const hi = d.getHours() < 5 ? "Доброй ночи" : d.getHours() < 12 ? "Доброе утро" : d.getHours() < 18 ? "Добрый день" : "Добрый вечер";
-  const seenItems = seen.map((id) => byId.get(id)).filter(Boolean) as LearnItem[];
+  const seenItems = seen.map((id) => L.byId.get(id)).filter(Boolean) as LearnItem[];
 
   const work: CardDef[] = op
     ? [
@@ -388,7 +395,7 @@ function Home({ ctx, seen }: { ctx: Ctx; seen: string[] }) {
             </div>
             <h2>{nx.t}</h2>
             <p>
-              {course?.title} · {itemModule.get(nx.id)?.t} · {nx.k}, {nx.m}
+              {course?.title} · {L.itemModule.get(nx.id)?.t} · {nx.k}, {nx.m}
             </p>
           </div>
           <button className="btn btn-primary btn-lg" onClick={() => ctx.open(nx.id)}>
@@ -501,7 +508,7 @@ function CourseTree({
       n++;
       mods.push({ n, c, m, items: m.items.filter((i) => !i.from) });
     }
-  const activeMod = activeId ? itemModule.get(activeId)?.t : null;
+  const activeMod = activeId ? lib(role).itemModule.get(activeId)?.t : null;
   const tabs = [{ v: "all", t: "Все курсы" }, ...roleCourses(role).map((c) => ({ v: c.id, t: c.title.replace(/^Оператор — /, "") }))];
 
   return (
@@ -625,8 +632,9 @@ function ItemView({
 }) {
   const { saveLearn, toast } = useCrm();
   const inCourse = ctx.sec === "courses";
-  const c = itemCourse.get(item.id);
-  const m = itemModule.get(item.id);
+  const L = lib(ctx.role);
+  const c = L.itemCourse.get(item.id);
+  const m = L.itemModule.get(item.id);
   const list = inCourse && c ? realItems(c) : sectionItems(ctx.role, ctx.sec);
   const idx = list.findIndex((i) => i.id === item.id);
   const prev = idx > 0 ? list[idx - 1] : null;
@@ -700,7 +708,7 @@ function ItemView({
         <Quiz item={item} onOpen={(id) => onOpen(id)} onCert={onCert} />
       ) : (
         <>
-          {item.b && <Lesson item={item} />}
+          {item.b && <Lesson item={item} runMode={ctx.runMode} onRunMode={ctx.setRunMode} />}
           {item.w && <div className="wbox">{<Widget id={item.w} />}</div>}
         </>
       )}
@@ -812,6 +820,7 @@ function NotePanel({ item, courseId }: { item: LearnItem; courseId: string }) {
 
 function NotesPage({ ctx }: { ctx: Ctx }) {
   const { data, me } = useCrm();
+  const { byId } = lib(ctx.role);
   const mine = data.learn.filter((l) => l.accountId === me.id);
   const notes = mine.filter((l) => (l.note ?? "").trim() && byId.has(l.itemId));
   const favs = mine.filter((l) => l.fav && byId.has(l.itemId));
@@ -1026,11 +1035,12 @@ function Drawer({ id, onClose, go }: { id: string; onClose: () => void; go: (s: 
 
 /* ── сертификат ────────────────────────────────────────────────── */
 
-function CertPage({ id, onBack }: { id: string; onBack: () => void }) {
+function CertPage({ role, id, onBack }: { role: AcademyRole; id: string; onBack: () => void }) {
   const { data, me } = useCrm();
-  const it = byId.get(id);
+  const L = lib(role);
+  const it = L.byId.get(id);
   const rec = data.learn.find((l) => l.id === `${me.id}|${id}`);
-  const course = itemCourse.get(id);
+  const course = L.itemCourse.get(id);
   if (!it || !course) return null;
   const cert = rec?.cert;
   if (!cert)

@@ -7,7 +7,7 @@ import { planId } from "@/lib/crm/ids";
 import { NO_GROUP, NO_GROUP_LABEL, type MonthPlan } from "@/lib/crm/types";
 import { fmtMonth, fmtRange, isWorkday, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct } from "@/lib/crm/format";
-import { Avatar, Chip, MonthSwitcher, PageHead, Swatch } from "@/components/ui/kit";
+import { Avatar, Chip, GoneTag, MonthSwitcher, PageHead, Swatch } from "@/components/ui/kit";
 import { canEditPlan } from "@/lib/crm/access";
 
 /** Поле плана месяца: пусто — значение по умолчанию, число — отдельный план на этот месяц. */
@@ -193,6 +193,7 @@ export default function PlansPage() {
                       <span className="row" style={{ gap: 8 }}>
                         <Avatar name={r.op.name} id={r.op.id} size={22} />
                         {r.op.name}
+                        <GoneTag op={r.op} />
                       </span>
                     </td>
                     <td className="muted">{g ? g.name : NO_GROUP_LABEL}</td>

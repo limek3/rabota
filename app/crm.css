@@ -180,8 +180,8 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 @media (hover: none) { .tbl .row-actions { opacity: 1; } }
 .tbl th.grp { text-align: center; border-left: 1px solid var(--ink-06); }
 .tbl .bl { border-left: 1px solid var(--ink-06); }
-/* столбцы разделены тонким пунктиром (график и академия — со своими рамками) */
-.tbl:not(.sched):not(.learn-tbl) :is(th, td) + :is(th, td) { border-left: 1px dashed var(--ink-08); }
+/* столбцы разделены тонким пунктиром — везде, включая график (у таблиц академии свои рамки) */
+.tbl:not(.learn-tbl) :is(th, td) + :is(th, td) { border-left: 1px dashed var(--ink-08); }
 /* компактные столбцы: все, кроме первого, по ширине содержимого и не уже 56px —
    цифры идут ровными узкими колонками, свободное место забирает первый (имя) */
 .tbl-fit :is(th, td):not(:first-child) { width: 1%; }
@@ -326,7 +326,9 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 
 /* график смен */
 .sched { font-size: 12px; }
-.sched td.cell { padding: 0; min-width: 34px; width: 34px; height: 30px; text-align: center; border-left: 1px solid var(--ink-04); cursor: pointer; font-size: 12px; }
+.sched td.cell { padding: 0; min-width: 34px; width: 34px; height: 30px; text-align: center; cursor: pointer; font-size: 12px; }
+/* строка-заголовок группы — сплошная полоса, без разделителей столбцов */
+.tbl.sched tr.grp td { border-left: none; }
 .sched td.cell:hover { background: var(--brand-tint) !important; }
 .sched td.cell.sel { outline: 2px solid var(--brand); outline-offset: -2px; }
 .sched td.cell.off, .sched th.off { background: var(--ink-03); }
@@ -346,11 +348,11 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 .sched thead .sum { z-index: 4; background: var(--bg-strip); }
 .sched tfoot .sum { z-index: 3; background: var(--bg-strip); }
 .sched tbody tr:hover .sum { background: var(--bg-panel-hover); }
-.sched .sum-h { right: 290px; width: 58px; min-width: 58px; border-left: 1px solid var(--ink-08); }
+.sched .sum-h { right: 290px; width: 58px; min-width: 58px; }
 .sched .sum-n { right: 232px; width: 58px; min-width: 58px; }
 .sched .sum-p { right: 182px; width: 50px; min-width: 50px; }
 .sched .sum-d { right: 116px; width: 66px; min-width: 66px; }
-.sched .sum-l { right: 58px; width: 58px; min-width: 58px; border-left: 1px solid var(--ink-08); }
+.sched .sum-l { right: 58px; width: 58px; min-width: 58px; }
 .sched .sum-c { right: 0; width: 58px; min-width: 58px; }
 
 /* боковое меню */

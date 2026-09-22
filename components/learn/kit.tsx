@@ -1,10 +1,18 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { itemCourse, kindIcon, type LearnItem } from "@/lib/learn";
+import { createContext, useContext, type ReactNode } from "react";
+import { kindIcon, lib, type AcademyRole, type LearnItem, type Lib } from "@/lib/learn";
 import { Icon, type IconName } from "@/components/ui/icons";
 
 /** Мелкие блоки академии: шапка страницы, списки материалов, карточки, плитки. */
+
+const RoleCtx = createContext<AcademyRole>("operator");
+
+/** Чьими глазами открыта академия: от роли зависят тексты материалов и оболочка. */
+export const AcademyRoleProvider = RoleCtx.Provider;
+
+/** Академия текущей роли — курсы, индексы материалов и особенности оболочки. */
+export const useLib = (): Lib => lib(useContext(RoleCtx));
 
 export function PageHead({
   title,
@@ -65,13 +73,14 @@ export function Rows({
   empty = "Пока пусто",
 }: {
   items: LearnItem[];
-  sub?: (i: LearnItem) => string;
+  sub?: (i: LearnItem, L: Lib) => string;
   onOpen: (id: string) => void;
   done?: (id: string) => boolean;
   lockOf?: (id: string) => RowLock | null;
   pill?: (i: LearnItem) => { t: string; hue: string } | null;
   empty?: string;
 }) {
+  const L = useLib();
   if (!items.length) return <div className="lrn-list"><div className="lrn-empty">{empty}</div></div>;
   return (
     <div className="lrn-list">
@@ -91,7 +100,7 @@ export function Rows({
             </span>
             <span className="rt">
               <b>{i.t}</b>
-              <span>{lock ? `Откроется после: ${lock.t}` : (sub?.(i) ?? `${itemCourse.get(i.id)?.title} · ${i.k} · ${i.m}`)}</span>
+              <span>{lock ? `Откроется после: ${lock.t}` : (sub?.(i, L) ?? `${L.itemCourse.get(i.id)?.title} · ${i.k} · ${i.m}`)}</span>
             </span>
             {p ? <span className={`lpill ${p.hue}`}>{p.t}</span> : done?.(i.id) ? <span className="lpill ok">пройдено</span> : null}
             <span className="rc">

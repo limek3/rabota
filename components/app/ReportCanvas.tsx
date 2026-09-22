@@ -82,7 +82,8 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
   // ── раскладка по высоте ──
   const hHeader = 78;
   const hTiles = 96;
-  const hChart = week ? 190 : 0;
+  // заголовок, полоса под подписи столбиков, столбики, подписи дней
+  const hChart = week ? 208 : 0;
   // заголовок блока + шапка таблицы + строки + итого
   const hTable = 26 + (rowH + 2) + rowH * Math.max(1, r.rows.length) + rowH + 14;
   const ctx0 = document.createElement("canvas").getContext("2d")!;
@@ -156,7 +157,8 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
     text("Лиды по дням", P, y + 14);
     font(11.5);
     text("пунктир — план дня", W - P, y + 14, C.dim, "right");
-    const top = y + 30;
+    // сверху — полоса под цифру самого высокого столбика, чтобы она не налезала на заголовок
+    const top = y + 48;
     const ch = 110;
     const max = Math.max(1, ...r.byDay.map((d) => Math.max(d.leads, d.plan)));
     const cw = (W - P * 2) / r.byDay.length;
@@ -167,8 +169,8 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
       const bh = (d.leads / max) * ch;
       const future = d.day > r.factTo;
       roundRect(ctx, bx, top + ch - bh, bw, Math.max(bh, d.leads ? 3 : 0), 5, d.plan > 0 && d.leads >= d.plan ? C.brand : C.brandSoft);
-      if (d.plan > 0) {
-        const py = top + ch - (d.plan / max) * ch;
+      const py = d.plan > 0 ? top + ch - (d.plan / max) * ch : null;
+      if (py != null) {
         ctx.strokeStyle = C.sub;
         ctx.setLineDash([4, 3]);
         ctx.lineWidth = 1;
@@ -179,7 +181,10 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
         ctx.setLineDash([]);
       }
       font(13, 600, mono);
-      if (!future) text(fmtInt(d.leads), cx + cw / 2, top + ch - bh - 6, C.text, "center");
+      // цифра над столбиком; если там же проходит пунктир плана — поднимаем её над пунктиром
+      let ly = top + ch - bh - 6;
+      if (py != null && py > ly - 14 && py < ly + 4) ly = py - 5;
+      if (!future) text(fmtInt(d.leads), cx + cw / 2, ly, C.text, "center");
       font(11.5);
       text(`${fmtWeekday(d.day)} ${d.day.slice(8, 10)}.${d.day.slice(5, 7)}`, cx + cw / 2, top + ch + 18, future ? C.dim : C.sub, "center");
     });

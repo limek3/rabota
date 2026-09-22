@@ -2,16 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
-import {
-  SEARCH_INDEX,
-  itemCourse,
-  itemModule,
-  neighbours,
-  norm,
-  realItems,
-  type LearnItem,
-} from "@/lib/learn";
+import { neighbours, norm, realItems, searchIndex, type LearnItem, type Lib } from "@/lib/learn";
 import { Icon } from "@/components/ui/icons";
+import { useLib } from "@/components/learn/kit";
 
 /**
  * Тест и итоговая аттестация — по правилам исходной академии:
@@ -22,12 +15,11 @@ import { Icon } from "@/components/ui/icons";
 const LETTERS = "АБВГД";
 const PASS = 80;
 
-const idx = new Map(SEARCH_INDEX.map((x) => [x.id, x.txt]));
-
 /** Материалы, которые стоит перечитать перед пересдачей. */
-function lessonsForWrong(item: LearnItem, wrong: number[]): LearnItem[] {
-  const mod = itemModule.get(item.id);
-  const course = itemCourse.get(item.id);
+function lessonsForWrong(L: Lib, item: LearnItem, wrong: number[]): LearnItem[] {
+  const idx = searchIndex(L.role);
+  const mod = L.itemModule.get(item.id);
+  const course = L.itemCourse.get(item.id);
   let cands = (mod?.items ?? []).filter((i) => !i.quiz && !i.from);
   if (cands.length < 2 && course) cands = realItems(course).filter((i) => !i.quiz);
   const out: LearnItem[] = [];
@@ -65,7 +57,8 @@ export function Quiz({
   const { data, me, saveLearn } = useCrm();
   const qs = item.quiz ?? [];
   const rec = data.learn.find((l) => l.id === `${me.id}|${item.id}`);
-  const courseId = itemCourse.get(item.id)?.id ?? "";
+  const L = useLib();
+  const courseId = L.itemCourse.get(item.id)?.id ?? "";
 
   const [ans, setAns] = useState<Record<number, number>>({});
   const [shown, setShown] = useState(false);
@@ -76,7 +69,7 @@ export function Quiz({
   const pass = pct >= PASS;
   const open2 = pass || !!rec?.pass;
   const wrong = qs.map((x, i) => (ans[i] === x.a ? -1 : i)).filter((i) => i >= 0);
-  const next = neighbours(item).next;
+  const next = neighbours(L.role, item).next;
 
   const check = () => {
     setShown(true);
@@ -214,7 +207,8 @@ function Redo({
   onOpen: (id: string) => void;
   onRetry: () => void;
 }) {
-  const les = useMemo(() => lessonsForWrong(item, wrong), [item, wrong]);
+  const L = useLib();
+  const les = useMemo(() => lessonsForWrong(L, item, wrong), [L, item, wrong]);
   if (!les.length) return null;
   const word = wrong.length === 1 ? "ошибка" : wrong.length < 5 ? "ошибки" : "ошибок";
   return (
@@ -235,7 +229,7 @@ function Redo({
             <span className="rt">
               <b>{l.t}</b>
               <span>
-                {itemModule.get(l.id)?.t} · {l.k}, {l.m}
+                {L.itemModule.get(l.id)?.t} · {l.k}, {l.m}
               </span>
             </span>
             <span className="rc">

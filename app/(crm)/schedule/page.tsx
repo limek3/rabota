@@ -267,7 +267,7 @@ export default function SchedulePage() {
                   <td
                     key={days[i]}
                     className="c num"
-                    style={{ fontSize: 11, padding: "6px 0", borderLeft: "1px solid var(--ink-04)" }}
+                    style={{ fontSize: 11, padding: "6px 0" }}
                     title={`${fmtDay(days[i])}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${t.h ? ` · конверсия ${fmtPct(t.n / t.h)} (${fmtNum(t.n / t.h, 2)} лид/ч)` : ""}`}
                   >
                     <div>{t.h ? fmtNum(t.h, 0) : ""}</div>
@@ -334,7 +334,7 @@ function SchedRow({
   return (
     <>
       {groupHeader != null && (
-        <tr>
+        <tr className="grp">
           <td className="sticky-col" style={{ background: "var(--bg-strip)", fontSize: 11.5, fontWeight: 600, color: "var(--text-sub)", padding: "6px 10px" }}>
             {groupHeader}
           </td>

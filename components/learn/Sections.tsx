@@ -9,9 +9,8 @@ import {
   blockerOf,
   courseById,
   courseProg,
-  itemCourse,
-  itemModule,
   isDone,
+  lib,
   progIds,
   programItems,
   progLabel,
@@ -22,6 +21,7 @@ import {
   sectionItems,
   type AcademyRole,
   type LearnItem,
+  type Lib,
   type ProgMap,
   type SectionId,
 } from "@/lib/learn";
@@ -52,10 +52,13 @@ export interface Ctx {
   filter: string;
   setFilter: (v: string) => void;
   newShift: () => void;
+  /** Скрипты в режиме «Только реплики». */
+  runMode: boolean;
+  setRunMode: (v: boolean) => void;
 }
 
-const sub = (i: LearnItem) => `${itemModule.get(i.id)?.t} · ${i.k}, ${i.m}`;
-const subCourse = (i: LearnItem) => `${itemCourse.get(i.id)?.title} · ${i.m}`;
+const sub = (i: LearnItem, L: Lib) => `${L.itemModule.get(i.id)?.t} · ${i.k}, ${i.m}`;
+const subCourse = (i: LearnItem, L: Lib) => `${L.itemCourse.get(i.id)?.title} · ${i.m}`;
 
 export function SectionPage({ ctx }: { ctx: Ctx }) {
   switch (ctx.sec) {
@@ -121,6 +124,7 @@ function Scripts({ ctx }: { ctx: Ctx }) {
         </div>
       </>
     );
+  const { itemCourse } = lib(ctx.role);
   const re = items.filter((i) => itemCourse.get(i.id)?.track === "realty");
   const au = items.filter((i) => itemCourse.get(i.id)?.track === "auto");
   return (
@@ -543,7 +547,7 @@ function Gloss({ ctx }: { ctx: Ctx }) {
 /* ── для группы ────────────────────────────────────────────────── */
 
 function OpMat({ ctx }: { ctx: Ctx }) {
-  const ops = ["op-realty", "op-auto"].map((id) => courseById(id)).filter(Boolean) as NonNullable<ReturnType<typeof courseById>>[];
+  const ops = ["op-realty", "op-auto"].map((id) => courseById(ctx.role, id)).filter(Boolean) as NonNullable<ReturnType<typeof courseById>>[];
   const scripts = ops.flatMap((c) => realItems(c).filter((i) => i.k === "Скрипт"));
   const all = sectionItems(ctx.role, "opmat");
   const byIds = (ids: string[]) => ids.map((id) => all.find((i) => i.id === id)).filter(Boolean) as LearnItem[];
@@ -600,9 +604,9 @@ function Tests({ ctx }: { ctx: Ctx }) {
             items={g.items}
             onOpen={ctx.open}
             lockOf={(id) => blockerOf(ctx.prog, ctx.role, id)}
-            sub={(i) => {
+            sub={(i, L) => {
               const r = ctx.prog.get(i.id);
-              return r?.last != null ? quizLine(r) : `${i.quiz?.length} вопросов · ${itemModule.get(i.id)?.t}`;
+              return r?.last != null ? quizLine(r) : `${i.quiz?.length} вопросов · ${L.itemModule.get(i.id)?.t}`;
             }}
             pill={(i) => {
               if (blockerOf(ctx.prog, ctx.role, i.id)) return { t: "закрыт", hue: "g" };
@@ -710,7 +714,7 @@ function ProgressPage({ ctx }: { ctx: Ctx }) {
                   <Icon name="star" size={16} />
                 </span>
                 <span className="rt">
-                  <b>{itemCourse.get(l.itemId)?.title}</b>
+                  <b>{lib(ctx.role).itemCourse.get(l.itemId)?.title}</b>
                   <span>
                     {l.cert!.pct}% · {new Date(l.cert!.at).toLocaleDateString("ru-RU")}
                   </span>
@@ -728,9 +732,9 @@ function ProgressPage({ ctx }: { ctx: Ctx }) {
       <Rows
         items={all}
         onOpen={ctx.open}
-        sub={(i) => {
+        sub={(i, L) => {
           const r = ctx.prog.get(i.id);
-          return r?.last != null ? quizLine(r) : (itemCourse.get(i.id)?.title ?? "");
+          return r?.last != null ? quizLine(r) : (L.itemCourse.get(i.id)?.title ?? "");
         }}
         pill={(i) => {
           const r = ctx.prog.get(i.id);

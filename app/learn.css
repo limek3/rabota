@@ -338,6 +338,121 @@
 .dlg-row .who { flex: none; width: 74px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--dim); padding-top: 3px; }
 .dlg-row .say { color: var(--text-soft); }
 
+/* режим «Только реплики»: всё, что говорим клиенту, — одной колонкой, пояснения свёрнуты */
+.modebar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  max-width: 760px;
+  margin: 0 0 18px;
+  padding: 9px 12px;
+  border: 1px solid var(--ink-08);
+  border-radius: 12px;
+  background: var(--ink-03);
+}
+.modebar .seg > button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; }
+.mbhint { flex: 1; min-width: 150px; font-size: 12.5px; line-height: 1.5; color: var(--dim); }
+.runsheet { max-width: 760px; }
+.rslead { margin: 0 0 16px; font-size: 14.5px; line-height: 1.6; color: var(--text-sub); }
+.rsnav {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0 0 14px;
+  padding: 7px 10px;
+  border: 1px solid var(--ink-08);
+  border-radius: 11px;
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-sm);
+}
+.rsnav b { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); margin-right: 2px; }
+.rsnav button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--ink-08);
+  background: var(--bg-panel);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-sub);
+  cursor: pointer;
+}
+.rsnav button:hover { border-color: var(--brand-border); color: var(--brand); background: var(--brand-tint); }
+.runstep {
+  margin: 0 0 12px;
+  border: 1px solid var(--ink-08);
+  border-radius: 14px;
+  background: var(--bg-panel);
+  overflow: hidden;
+  /* переход по номеру шага не прячет шапку под плашкой «Шаги» */
+  scroll-margin-top: 64px;
+  transition: box-shadow var(--dur-2, .2s) var(--ease, ease);
+}
+.runstep.flash { box-shadow: 0 0 0 3px var(--brand-border); }
+.rsh { display: flex; align-items: center; gap: 11px; padding: 10px 14px; background: var(--ink-03); border-bottom: 1px solid var(--ink-06); }
+.rsh .n {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.rsh h2 { flex: 1; min-width: 0; margin: 0; font-size: 14.5px; font-weight: 650; line-height: 1.35; }
+.rsline { padding: 13px 16px; border-bottom: 1px solid var(--ink-06); }
+.rsline:last-child { border-bottom: none; }
+.rsl { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+.rsl > span { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); }
+.rsl .tm { font-weight: 600; letter-spacing: 0; text-transform: none; padding: 2px 7px; border-radius: 6px; background: var(--ink-05); }
+.rst { margin: 0; font-size: 16px; line-height: 1.62; font-weight: 500; color: var(--text); white-space: pre-wrap; text-wrap: pretty; }
+.rsflags { display: flex; flex-direction: column; gap: 9px; padding: 12px 16px; border-top: 1px solid var(--ink-06); background: var(--brand-tint); }
+.rsflag { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.55; color: var(--text-sub); }
+.rsflag .fd { flex: none; width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; background: var(--brand); }
+.rsflag.warn .fd { background: var(--c-amber-fg); }
+.rsflag.err .fd { background: var(--c-red-fg); }
+.rsflag b { color: var(--text); font-weight: 600; }
+.rsmore {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-top: 1px solid var(--ink-06);
+  background: var(--bg-panel);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand);
+  text-align: left;
+  cursor: pointer;
+}
+.rsmore:hover { background: var(--brand-tint); }
+.rsmore svg { transition: transform 0.16s; }
+.rsmore.open svg { transform: rotate(180deg); }
+.rsdet { padding: 14px 16px 4px; border-top: 1px solid var(--ink-06); background: var(--ink-03); }
+.rsdet > :first-child { margin-top: 0; }
+@media (max-width: 760px) {
+  .mbhint { display: none; }
+  .rst { font-size: 16.5px; }
+  .rsline { padding: 12px 13px; }
+  .rsh { padding: 10px 12px; }
+}
+
 /* чек-листы */
 .checklist { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 8px; }
 .chk {

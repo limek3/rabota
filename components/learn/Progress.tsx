@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
-import { academyRole, isDone, itemCourse, nextUp, progMap, programItems, progressAll, progLabel } from "@/lib/learn";
+import { academyRole, lib, nextUp, progMap, programItems, progressAll, progLabel } from "@/lib/learn";
 import type { AccountRole, LearnProgress } from "@/lib/crm/types";
 import { fmtPct } from "@/lib/crm/format";
 import { Chip, Progress } from "@/components/ui/kit";
@@ -24,7 +24,7 @@ export function learnSummary(accountId: string, role: AccountRole, learn: LearnP
     tests: tests.length,
     testsPassed: passed,
     label: progLabel(r),
-    next: next ? { itemId: next.id, title: next.t, course: itemCourse.get(next.id)?.title ?? "" } : null,
+    next: next ? { itemId: next.id, title: next.t, course: lib(r).itemCourse.get(next.id)?.title ?? "" } : null,
   };
 }
 

@@ -84,42 +84,84 @@ export interface Refs {
   autoCities: { city: string; km: number; hub: string }[];
 }
 
+/** Оболочка исходника тоже своя у каждой роли — берётся из файла при импорте. */
+export interface Features {
+  /** Режим «Только реплики» у скриптов: говорим одной колонкой, пояснения свёрнуты. */
+  runMode: boolean;
+  /** Кнопка «Скопировать» у реплик и диалогов. */
+  copy: boolean;
+}
+
 const content = raw as unknown as {
-  courses: Course[];
+  /** Все версии курсов; ключ — id, а если у ролей курс разный — id@роль. */
+  library: (Course & { key: string })[];
+  roles: Record<AcademyRole, { courses: string[]; features: Features; source: string; importedAt: string }>;
   refs: Refs;
   dataAsOf: string;
   dataSrc: Record<string, string>;
   importedAt: string;
 };
 
-export const COURSES: Course[] = content.courses;
 export const REFS: Refs = content.refs;
 export const DATA_AS_OF: string = content.dataAsOf;
 export const DATA_SRC: Record<string, string> = content.dataSrc;
 export const IMPORTED_AT: string = content.importedAt;
 
-/* ── индексы ────────────────────────────────────────────────────── */
+/* ── академия роли и её индексы ─────────────────────────────────── */
 
-export const byId = new Map<string, LearnItem>();
-export const itemCourse = new Map<string, Course>();
-export const itemModule = new Map<string, LearnModule>();
-/** Все материалы без повторов (пункт-ссылка из другого модуля не в счёт). */
-export const FLAT: LearnItem[] = [];
-const courseIndex = new Map<string, Course>();
+export type AcademyRole = "operator" | "supervisor";
 
-for (const c of COURSES) {
-  courseIndex.set(c.id, c);
-  for (const m of c.modules)
-    for (const it of m.items) {
-      byId.set(it.id, it);
-      itemCourse.set(it.id, c);
-      itemModule.set(it.id, m);
-      if (!it.from) FLAT.push(it);
-    }
+/**
+ * Академия одной роли: оператор учится по операторскому файлу, супервайзер и РОП —
+ * по супервайзерскому. id курсов и материалов у ролей общие (прогресс один),
+ * а тексты, состав модулей и оболочка могут различаться.
+ */
+export interface Lib {
+  role: AcademyRole;
+  courses: Course[];
+  features: Features;
+  byId: Map<string, LearnItem>;
+  itemCourse: Map<string, Course>;
+  itemModule: Map<string, LearnModule>;
+  courseIndex: Map<string, Course>;
+  /** Все материалы без повторов (пункт-ссылка из другого модуля не в счёт). */
+  flat: LearnItem[];
 }
 
-export const courseById = (id: string): Course | undefined => courseIndex.get(id);
-export const itemById = (id: string): LearnItem | undefined => byId.get(id);
+function buildLib(role: AcademyRole): Lib {
+  const byKey = new Map(content.library.map((c) => [c.key, c]));
+  const r = content.roles[role];
+  const courses = r.courses.map((k) => byKey.get(k)).filter(Boolean) as Course[];
+  const L: Lib = {
+    role,
+    courses,
+    features: r.features,
+    byId: new Map(),
+    itemCourse: new Map(),
+    itemModule: new Map(),
+    courseIndex: new Map(),
+    flat: [],
+  };
+  for (const c of courses) {
+    L.courseIndex.set(c.id, c);
+    for (const m of c.modules)
+      for (const it of m.items) {
+        L.byId.set(it.id, it);
+        L.itemCourse.set(it.id, c);
+        L.itemModule.set(it.id, m);
+        if (!it.from) L.flat.push(it);
+      }
+  }
+  return L;
+}
+
+const LIBS: Record<AcademyRole, Lib> = { operator: buildLib("operator"), supervisor: buildLib("supervisor") };
+
+/** Академия роли. */
+export const lib = (role: AcademyRole): Lib => LIBS[role];
+
+export const courseById = (role: AcademyRole, id: string): Course | undefined => LIBS[role].courseIndex.get(id);
+export const itemById = (role: AcademyRole, id: string): LearnItem | undefined => LIBS[role].byId.get(id);
 
 export function allItems(c: Course): LearnItem[] {
   return c.modules.flatMap((m) => m.items);
@@ -134,8 +176,6 @@ export function realItems(c: Course): LearnItem[] {
 export const countable = realItems;
 
 /* ── роли и программы ───────────────────────────────────────────── */
-
-export type AcademyRole = "operator" | "supervisor";
 
 /** В академии две роли. РОП смотрит академию глазами супервайзера. */
 export const academyRole = (role: AccountRole): AcademyRole => (role === "operator" ? "operator" : "supervisor");
@@ -156,14 +196,7 @@ export const PROGNAME: Record<string, string> = {
 
 /** Курсы программы роли. */
 export function roleCourses(role: AcademyRole): Course[] {
-  return PROGRAMS[role].map((id) => courseById(id)).filter(Boolean) as Course[];
-}
-
-/** Курсы, которые вообще показываем этой роли (для списков и поиска). */
-export function coursesFor(role: AccountRole): Course[] {
-  if (role === "head") return COURSES;
-  const want = academyRole(role);
-  return COURSES.filter((c) => c.role === "both" || c.role === want);
+  return PROGRAMS[role].map((id) => courseById(role, id)).filter(Boolean) as Course[];
 }
 
 export function itemKind(i: LearnItem): string {
@@ -282,7 +315,7 @@ export function sectionName(role: AccountRole, id: SectionId): string {
   return "Раздел";
 }
 
-const pick = (ids: string[]): LearnItem[] => ids.map((x) => byId.get(x)).filter(Boolean) as LearnItem[];
+const pick = (role: AcademyRole, ids: string[]): LearnItem[] => ids.map((x) => LIBS[role].byId.get(x)).filter(Boolean) as LearnItem[];
 
 /** Материалы роли: всё, что входит в её программы. */
 export function roleItems(role: AcademyRole): LearnItem[] {
@@ -292,11 +325,12 @@ export function roleItems(role: AcademyRole): LearnItem[] {
 /** Набор материалов раздела — ровно как в исходной академии. */
 export function sectionItems(role: AcademyRole, sec: SectionId): LearnItem[] {
   const R = roleItems(role);
+  const P = (ids: string[]) => pick(role, ids);
   switch (sec) {
     case "courses":
       return R;
     case "scripts":
-      return role === "supervisor" ? pick(["s22", "s24", "s23"]) : R.filter((i) => i.k === "Скрипт");
+      return role === "supervisor" ? P(["s22", "s24", "s23"]) : R.filter((i) => i.k === "Скрипт");
     case "checklists":
       return R.filter((i) => i.k === "Чек-лист");
     case "regs":
@@ -304,27 +338,27 @@ export function sectionItems(role: AcademyRole, sec: SectionId): LearnItem[] {
     case "tests":
       return R.filter((i) => i.quiz);
     case "money":
-      return pick(["s61", "s62", "s63"]);
+      return P(["s61", "s62", "s63"]);
     case "bases":
-      return pick(["s71", "s72"]);
+      return P(["s71", "s72"]);
     case "objections":
-      return pick(["r41", "r42", "r43", "a33", "a34", "t1"]);
+      return P(["r41", "r42", "r43", "a33", "a34", "t1"]);
     case "statuses":
-      return pick(["r23", "a22", "t2"]);
+      return P(["r23", "a22", "t2"]);
     case "realty":
-      return pick(["r33"]);
+      return P(["r33"]);
     case "pay":
-      return pick(["r51", "r52", "r53", "a41"]);
+      return P(["r51", "r52", "r53", "a41"]);
     case "autoprices":
-      return pick(["auto-prices", "a12", "auto-terms"]);
+      return P(["auto-prices", "a12", "auto-terms"]);
     case "cities":
-      return pick(["auto-cities"]);
+      return P(["auto-cities"]);
     case "gloss":
-      return pick(["f2"]);
+      return P(["f2"]);
     case "opmat": {
       const out: LearnItem[] = [];
       for (const id of ["op-realty", "op-auto", "ref", "train"]) {
-        const c = courseById(id);
+        const c = courseById(role, id);
         if (c) out.push(...realItems(c));
       }
       return out;
@@ -336,8 +370,8 @@ export function sectionItems(role: AcademyRole, sec: SectionId): LearnItem[] {
 
 /** В каком разделе материал «живёт» по умолчанию. */
 export function naturalSection(role: AcademyRole, id: string): SectionId {
-  const it = byId.get(id);
-  const c = itemCourse.get(id);
+  const it = LIBS[role].byId.get(id);
+  const c = LIBS[role].itemCourse.get(id);
   if (!it || !c) return "home";
   const mine = PROGRAMS[role].includes(c.id);
   if (!mine) return role === "supervisor" ? "opmat" : "courses";
@@ -444,7 +478,7 @@ export function progIds(role: AcademyRole, prog?: string): string[] {
 }
 
 export function progCourses(role: AcademyRole, prog?: string): Course[] {
-  return progIds(role, prog).map((id) => courseById(id)).filter(Boolean) as Course[];
+  return progIds(role, prog).map((id) => courseById(role, id)).filter(Boolean) as Course[];
 }
 
 export function programItems(role: AcademyRole, prog?: string): LearnItem[] {
@@ -462,7 +496,7 @@ export const progLabel = (role: AcademyRole, prog?: string): string =>
 
 /** Материал закрыт, пока не пройден предыдущий в своей программе. */
 export function blockerOf(p: ProgMap, role: AcademyRole, id: string): LearnItem | null {
-  const c = itemCourse.get(id);
+  const c = LIBS[role].itemCourse.get(id);
   if (!c || !PROGRAMS[role].includes(c.id)) return null;
   const arr = realItems(c);
   const i = arr.findIndex((x) => x.id === id);
@@ -471,8 +505,8 @@ export function blockerOf(p: ProgMap, role: AcademyRole, id: string): LearnItem 
   return null;
 }
 
-export function neighbours(item: LearnItem) {
-  const c = itemCourse.get(item.id);
+export function neighbours(role: AcademyRole, item: LearnItem) {
+  const c = LIBS[role].itemCourse.get(item.id);
   const arr = c ? realItems(c) : [];
   const i = arr.findIndex((x) => x.id === item.id);
   return { prev: arr[i - 1], next: arr[i + 1], pos: i + 1, total: arr.length };
@@ -481,7 +515,7 @@ export function neighbours(item: LearnItem) {
 /** Следующий непройденный материал программы. */
 export function nextUp(p: ProgMap, role: AcademyRole, prog?: string): LearnItem | null {
   for (const id of progIds(role, prog)) {
-    const c = courseById(id);
+    const c = courseById(role, id);
     const it = c ? realItems(c).find((x) => !isDone(p, x.id)) : undefined;
     if (it) return it;
   }
@@ -549,8 +583,17 @@ function textOf(it: LearnItem): string {
   return norm(s);
 }
 
-/** Поисковый индекс по материалам — строится один раз. */
-export const SEARCH_INDEX: { id: string; txt: string }[] = FLAT.map((it) => ({ id: it.id, txt: textOf(it) }));
+const searchCache = new Map<AcademyRole, Map<string, string>>();
+
+/** Поисковый индекс по материалам роли: id → текст. Строится один раз, при первом обращении. */
+export function searchIndex(role: AcademyRole): Map<string, string> {
+  let idx = searchCache.get(role);
+  if (!idx) {
+    idx = new Map(LIBS[role].flat.map((it) => [it.id, textOf(it)]));
+    searchCache.set(role, idx);
+  }
+  return idx;
+}
 
 export const PAGE_KEYS: Partial<Record<SectionId, string>> = {
   scripts: "скрипт сценарий звонка разговор",
