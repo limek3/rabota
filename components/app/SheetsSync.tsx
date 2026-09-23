@@ -5,7 +5,7 @@ import { useCrm } from "@/lib/crm/store";
 import type { DataState } from "@/lib/crm/types";
 import { SHEETS_SCRIPT, buildSheets, pushToSheets } from "@/lib/crm/sheets";
 import { fmtInt } from "@/lib/crm/format";
-import { Field, Switch } from "@/components/ui/kit";
+import { Collapse, Field, Switch } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 
 /* ── состояние последней выгрузки: общее для секции настроек и автовыгрузки ── */
@@ -99,37 +99,39 @@ export function SheetsSection() {
 
   return (
     <section className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 className="card-title" style={{ fontSize: 15 }}>Google Таблица</h2>
-          <p className="card-sub">
-            Вся база — лиды со статусами, операторы, группы, график, планы, начисления, аккаунты, журнал — листами в вашей таблице. Таблица перезаписывается целиком и
-            повторяет базу; правки в ней обратно в CRM не попадают.
-          </p>
+      <div>
+        <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 className="card-title" style={{ fontSize: 15 }}>Google Таблица</h2>
+            <p className="card-sub">
+              Вся база — лиды со статусами, операторы, группы, график, планы, начисления, аккаунты, журнал — листами в вашей таблице. Таблица перезаписывается целиком и
+              повторяет базу; правки в ней обратно в CRM не попадают.
+            </p>
+          </div>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setHelp((v) => !v)}>
+            {help ? "Скрыть инструкцию" : "Как настроить"}
+          </button>
         </div>
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => setHelp((v) => !v)}>
-          {help ? "Скрыть инструкцию" : "Как настроить"}
-        </button>
-      </div>
 
-      {help && (
-        <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.65, color: "var(--text-sub)" }}>
-          <li>Создайте пустую таблицу на sheets.google.com.</li>
-          <li>
-            Откройте «Расширения → Apps Script», удалите всё в редакторе и вставьте скрипт (кнопка «Скопировать скрипт» ниже).
-          </li>
-          <li>
-            Нажмите «Сгенерировать» у поля «Секрет», скопируйте его и в скрипте замените <code>ЗАМЕНИТЕ_НА_СВОЙ_СЕКРЕТ</code> на него. Сохраните скрипт (Ctrl+S).
-          </li>
-          <li>
-            «Развернуть → Новое развёртывание» → тип «Веб-приложение». Выполнять от имени: «Меня». Доступ: «Все». Разрешите доступ к таблице, когда Google спросит.
-          </li>
-          <li>Скопируйте ссылку веб-приложения (заканчивается на /exec), вставьте ниже, сохраните и нажмите «Выгрузить сейчас».</li>
-          <li>
-            Меняли скрипт — делайте «Развернуть → Управление развёртываниями → Изменить → Новая версия», иначе работает старая.
-          </li>
-        </ol>
-      )}
+        <Collapse open={help} innerStyle={{ paddingTop: 14 }}>
+          <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.65, color: "var(--text-sub)" }}>
+            <li>Создайте пустую таблицу на sheets.google.com.</li>
+            <li>
+              Откройте «Расширения → Apps Script», удалите всё в редакторе и вставьте скрипт (кнопка «Скопировать скрипт» ниже).
+            </li>
+            <li>
+              Нажмите «Сгенерировать» у поля «Секрет», скопируйте его и в скрипте замените <code>ЗАМЕНИТЕ_НА_СВОЙ_СЕКРЕТ</code> на него. Сохраните скрипт (Ctrl+S).
+            </li>
+            <li>
+              «Развернуть → Новое развёртывание» → тип «Веб-приложение». Выполнять от имени: «Меня». Доступ: «Все». Разрешите доступ к таблице, когда Google спросит.
+            </li>
+            <li>Скопируйте ссылку веб-приложения (заканчивается на /exec), вставьте ниже, сохраните и нажмите «Выгрузить сейчас».</li>
+            <li>
+              Меняли скрипт — делайте «Развернуть → Управление развёртываниями → Изменить → Новая версия», иначе работает старая.
+            </li>
+          </ol>
+        </Collapse>
+      </div>
 
       <div className="grid2">
         <Field label="Ссылка веб-приложения" error={urlBad ? "Нужна ссылка вида https://script.google.com/macros/s/…/exec" : null}>

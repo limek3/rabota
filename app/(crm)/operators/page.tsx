@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
 import { PACE_HUE, PACE_LABEL, type OpRow, type Pace, type PaceStatus } from "@/lib/crm/calc";
 import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
 import { fmtMonth } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv } from "@/lib/crm/format";
-import { Avatar, Empty, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, hueVars, toCsv, type SortState } from "@/components/ui/kit";
+import { Avatar, Empty, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
@@ -63,14 +63,8 @@ export default function OperatorsPage() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [sort, setSort] = useState<SortState<SortKey>>({ key: "fact", dir: -1 });
   const [openId, setOpenId] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
-  const toggleGroup = (key: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const fold = useFoldGroups(wrapRef);
 
   // группа строки: супервайзер — в группе, которую ведёт (как в зарплате); остальные — по карточке
   const led = useMemo(() => {
@@ -200,11 +194,12 @@ export default function OperatorsPage() {
 
   const groups = data.groups.filter((g) => !g.deletedAt);
 
-  const renderRow = (r: OpRow) => {
+  const renderRow = (r: OpRow, i = 0, phase?: FoldPhase) => {
+    const f = foldRow(phase, i);
     const g = r.op.groupId ? ix.groupById.get(r.op.groupId) : null;
     const p = r.pace;
     return (
-      <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""}`} onClick={() => setOpenId(r.op.id)}>
+      <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""} ${f.className}`} style={f.style} onClick={() => setOpenId(r.op.id)}>
         <td className="sticky-col">
           <span className="row" style={{ gap: 9 }}>
             <Avatar name={r.op.name} id={r.op.id} size={26} />
@@ -355,7 +350,7 @@ export default function OperatorsPage() {
           />
         </div>
       ) : (
-        <div className="tbl-wrap" style={{ maxHeight: "max(320px, calc(100vh / var(--ui-scale, 1) - 290px))" }}>
+        <div ref={wrapRef} className="tbl-wrap" style={{ maxHeight: "max(320px, calc(100vh / var(--ui-scale, 1) - 290px))" }}>
           <table className="tbl tbl-fit">
             <thead>
               <tr>
@@ -381,14 +376,15 @@ export default function OperatorsPage() {
             </thead>
             {grouped ? (
               sections.map((sec) => {
-                const closed = collapsed.has(sec.key);
+                const closed = fold.isClosed(sec.key);
+                const phase = fold.phase(sec.key);
                 const pct = safeDiv(sec.t.fact, sec.t.plan);
                 return (
                   <tbody key={sec.key}>
-                    <tr className="grp-head" onClick={() => toggleGroup(sec.key)} title={closed ? "Развернуть группу" : "Свернуть группу"}>
+                    <tr className="grp-head" onClick={() => fold.toggle(sec.key)} title={closed ? "Развернуть группу" : "Свернуть группу"} aria-expanded={!closed}>
                       <td className="sticky-col">
                         <span className="row" style={{ gap: 8 }}>
-                          <Icon name={closed ? "chevR" : "chevD"} size={14} style={{ color: "var(--dim)" }} />
+                          <Icon name="chevR" size={14} className={`grp-chev${closed || phase === "out" ? "" : " open"}`} />
                           <Swatch hue={sec.color} />
                           <span>{sec.name}</span>
                           <span className="grp-head-sub">
@@ -417,12 +413,12 @@ export default function OperatorsPage() {
                       <td />
                       <td className="r num">{sec.t.hours > 0 ? fmtNum(sec.t.fact / sec.t.hours, 2) : "—"}</td>
                     </tr>
-                    {!closed && sec.rows.map(renderRow)}
+                    {!closed && sec.rows.map((r, i) => renderRow(r, i, phase))}
                   </tbody>
                 );
               })
             ) : (
-              <tbody>{list.map(renderRow)}</tbody>
+              <tbody>{list.map((r) => renderRow(r))}</tbody>
             )}
             <tfoot>
               <tr>

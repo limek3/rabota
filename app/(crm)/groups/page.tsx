@@ -9,7 +9,7 @@ import { fundStat, payroll } from "@/lib/crm/payroll";
 import { NO_GROUP } from "@/lib/crm/types";
 import { fmtMonth, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned } from "@/lib/crm/format";
-import { Avatar, Chip, Empty, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
+import { Avatar, Chip, Collapse, Empty, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
 import { Select, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 
@@ -159,10 +159,10 @@ function GroupCard({ g }: { g: GroupRow }) {
 
       <div>
         <button className="btn btn-ghost btn-sm" onClick={() => setOpen((v) => !v)} style={{ marginLeft: -8 }}>
-          <Icon name={open ? "chevD" : "chevR"} size={13} /> Состав · {members.length}
+          <Icon name="chevR" size={13} className={`grp-chev${open ? " open" : ""}`} /> Состав · {members.length}
         </button>
-        {open && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+        <Collapse open={open} innerStyle={{ paddingTop: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {members.length === 0 && <div style={{ fontSize: 12.5, color: "var(--dim)" }}>В группе никого нет.</div>}
             {members.map((r) => (
               <div key={r.op.id} className="row" style={{ gap: 8, fontSize: 12.5 }}>
@@ -200,7 +200,7 @@ function GroupCard({ g }: { g: GroupRow }) {
               </Link>
             </div>
           </div>
-        )}
+        </Collapse>
       </div>
     </div>
   );

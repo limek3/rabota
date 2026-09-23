@@ -7,7 +7,7 @@ import { filterLeads, pivot } from "@/lib/crm/calc";
 import { HUES } from "@/lib/crm/defaults";
 import { NO_GROUP, NO_GROUP_LABEL, type Project } from "@/lib/crm/types";
 import { fmtInt, fmtPct, safeDiv } from "@/lib/crm/format";
-import { Chip, Empty, PageHead, PeriodPicker, Progress, Seg, Swatch, downloadText, hueFg, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { Chip, Collapse, Empty, PageHead, PeriodPicker, Progress, Seg, Swatch, downloadText, hueFg, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 
 export default function ProjectsPage() {
@@ -271,10 +271,10 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
       {deleted.length > 0 && (
         <div>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowDeleted((v) => !v)} style={{ marginLeft: -8 }}>
-            <Icon name={showDeleted ? "chevD" : "chevR"} size={13} /> Удалённые · {deleted.length}
+            <Icon name="chevR" size={13} className={`grp-chev${showDeleted ? " open" : ""}`} /> Удалённые · {deleted.length}
           </button>
-          {showDeleted && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+          <Collapse open={showDeleted} innerStyle={{ paddingTop: 6 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {deleted.map((p) => (
                 <div key={p.id} className="row" style={{ gap: 8, fontSize: 13, color: "var(--dim)" }}>
                   <Chip hue={p.color}>{p.name}</Chip>
@@ -288,7 +288,7 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
                 </div>
               ))}
             </div>
-          )}
+          </Collapse>
         </div>
       )}
     </div>

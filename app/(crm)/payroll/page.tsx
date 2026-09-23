@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useCrm, type AdjustmentInput } from "@/lib/crm/store";
 import { approvePctFor, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
@@ -9,7 +9,7 @@ import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
 import { fmtInt, fmtMoney, fmtNum, fmtPct } from "@/lib/crm/format";
-import { Avatar, Chip, Drawer, Empty, Field, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Swatch, downloadText, toCsv } from "@/components/ui/kit";
+import { Avatar, Chip, Drawer, Empty, Field, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Swatch, downloadText, foldRow, toCsv, useFoldGroups } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditPay, canTouchOp } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -78,14 +78,8 @@ export default function PayrollPage() {
   const [q, setQ] = useState("");
 
   const [grp, setGrp] = useState("");
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
-  const toggleGroup = (id: string) =>
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const fold = useFoldGroups(wrapRef);
 
   // группа строки: супервайзер — в группе, которую ведёт; остальные — по карточке
   const led = useMemo(() => {
@@ -259,7 +253,7 @@ export default function PayrollPage() {
               Оклад {data.settings.prorateSalary ? "пропорционален часам, если норма не выполнена" : "платится полностью"} · удержание {data.settings.withholdPct}% (кроме компенсаций)
             </span>
           </div>
-          <div className="tbl-wrap" style={{ maxHeight: "max(300px, calc(100vh / var(--ui-scale, 1) - 360px))" }}>
+          <div ref={wrapRef} className="tbl-wrap" style={{ maxHeight: "max(300px, calc(100vh / var(--ui-scale, 1) - 360px))" }}>
             <table className="tbl tbl-fit">
               <thead>
                 <tr>
@@ -280,13 +274,14 @@ export default function PayrollPage() {
                 </tr>
               </thead>
               {sections.map((sec) => {
-                const closed = collapsed.has(sec.id);
+                const closed = fold.isClosed(sec.id);
+                const phase = fold.phase(sec.id);
                 return (
                   <tbody key={sec.id}>
-                    <tr className="grp-head" onClick={() => toggleGroup(sec.id)} title={closed ? "Развернуть группу" : "Свернуть группу"}>
+                    <tr className="grp-head" onClick={() => fold.toggle(sec.id)} title={closed ? "Развернуть группу" : "Свернуть группу"} aria-expanded={!closed}>
                       <td className="sticky-col">
                         <span className="row" style={{ gap: 8 }}>
-                          <Icon name={closed ? "chevR" : "chevD"} size={14} style={{ color: "var(--dim)" }} />
+                          <Icon name="chevR" size={14} className={`grp-chev${closed || phase === "out" ? "" : " open"}`} />
                           <Swatch hue={sec.color} />
                           <span>{sec.name}</span>
                           <span className="grp-head-sub">
@@ -309,8 +304,10 @@ export default function PayrollPage() {
                       <td />
                     </tr>
                     {!closed &&
-                      sec.rows.map((r) => (
-                        <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""}`} onClick={() => setOpenId(r.op.id)}>
+                      sec.rows.map((r, i) => {
+                        const f = foldRow(phase, i);
+                        return (
+                        <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""} ${f.className}`} style={f.style} onClick={() => setOpenId(r.op.id)}>
                           <td className="sticky-col" style={{ paddingLeft: 28 }}>
                             <span className="row" style={{ gap: 8 }}>
                               <Avatar name={r.op.name} id={r.op.id} size={24} />
@@ -349,7 +346,8 @@ export default function PayrollPage() {
                             )}
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                   </tbody>
                 );
               })}

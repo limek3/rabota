@@ -37,7 +37,7 @@ import {
 import { REFS } from "@/lib/learn";
 import { firstName } from "@/lib/crm/format";
 import { Icon, type IconName } from "@/components/ui/icons";
-import { Avatar } from "@/components/ui/kit";
+import { Avatar, Collapse } from "@/components/ui/kit";
 import { Lesson } from "@/components/learn/Blocks";
 import { Quiz } from "@/components/learn/Quiz";
 import { Widget } from "@/components/learn/Widgets";
@@ -540,7 +540,7 @@ function CourseTree({
                 </span>
               </span>
             </button>
-            {isOpen && (
+            <Collapse open={isOpen}>
               <div className="mitems">
                 {x.items.map((i, k) => {
                   const bl = blockerOf(prog, role, i.id);
@@ -563,7 +563,7 @@ function CourseTree({
                   );
                 })}
               </div>
-            )}
+            </Collapse>
           </div>
         );
       })}

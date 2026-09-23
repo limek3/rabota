@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import type { Block, LearnItem } from "@/lib/learn";
 import { Icon, type IconName } from "@/components/ui/icons";
-import { Seg } from "@/components/ui/kit";
+import { Collapse, Seg } from "@/components/ui/kit";
 import { useLib } from "@/components/learn/kit";
 
 /**
@@ -244,13 +244,13 @@ function RunCard({
             <Icon name="chevD" size={15} stroke={2.2} />
             {open ? "Скрыть пояснения" : `Пояснения и таблицы — ${rest.length}`}
           </button>
-          {open && (
+          <Collapse open={open}>
             <div className="rsdet prose">
               {rest.map((b, i) => (
                 <BlockView key={i} b={b} itemId={itemId} />
               ))}
             </div>
-          )}
+          </Collapse>
         </>
       )}
     </div>

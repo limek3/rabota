@@ -6,7 +6,7 @@ import { normalizeTiers } from "@/lib/crm/defaults";
 import type { RateGrid, RateTier, SvBonusGrid, SvBonusRow } from "@/lib/crm/types";
 import { GRADE_LABEL, TRACK_LABEL } from "@/lib/crm/types";
 import { fmtInt, fmtMoney, plural, LEADS } from "@/lib/crm/format";
-import { Chip, Field, NumInput } from "@/components/ui/kit";
+import { Chip, Collapse, Field, NumInput } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 
 /** «от 3 лидов за смену», «0–2 лида за смену» — подпись ступени. */
@@ -107,7 +107,7 @@ export function RateGridsSection({
           <div key={g.id} className="card" style={{ background: "var(--bg)", padding: 12 }}>
             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
               <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setOpen(expanded ? null : g.id)} aria-label="Раскрыть">
-                <Icon name={expanded ? "chevD" : "chevR"} size={14} />
+                <Icon name="chevR" size={14} className={`grp-chev${expanded ? " open" : ""}`} />
               </button>
               <input
                 className="inp inp-sm"
@@ -139,8 +139,8 @@ export function RateGridsSection({
               )}
             </div>
 
-            {expanded && (
-              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+            <Collapse open={expanded} innerStyle={{ paddingTop: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <table className="tbl tbl-fit" style={{ background: "transparent" }}>
                   <thead>
                     <tr>
@@ -222,7 +222,7 @@ export function RateGridsSection({
                   </span>
                 </div>
               </div>
-            )}
+            </Collapse>
           </div>
         );
       })}

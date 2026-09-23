@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Icon, type IconName } from "./icons";
 import { useCrm } from "@/lib/crm/store";
@@ -369,6 +369,115 @@ export function NumInput({
       }}
     />
   );
+}
+
+/* ── плавное раскрытие ────────────────────────────────────────────── */
+
+const reducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * Блок, который плавно выезжает вниз и так же плавно сворачивается (grid-template-rows 0fr → 1fr,
+ * высоту мерить не нужно). Содержимое монтируется при первом раскрытии и остаётся —
+ * иначе сворачивать было бы нечего. innerStyle — отступы содержимого: они сворачиваются вместе с ним.
+ */
+export function Collapse({ open, children, innerStyle, className }: { open: boolean; children: ReactNode; innerStyle?: CSSProperties; className?: string }) {
+  const [mounted, setMounted] = useState(open);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) setMounted(true);
+    // свёрнутое содержимое не должно ловить фокус с клавиатуры
+    if (ref.current) (ref.current as HTMLDivElement & { inert: boolean }).inert = !open;
+  }, [open]);
+  return (
+    <div ref={ref} className={`collapse${open ? " open" : ""}${className ? ` ${className}` : ""}`} aria-hidden={!open}>
+      <div className="collapse-in">
+        <div style={innerStyle}>{mounted || open ? children : null}</div>
+      </div>
+    </div>
+  );
+}
+
+export type FoldPhase = "in" | "out" | undefined;
+
+/**
+ * Сворачиваемые группы строк в таблице (зарплата, операторы). Раскрытие: таблица плавно растёт
+ * по высоте, строки группы спускаются каскадом. Сворачивание: строки уходят, потом таблица
+ * плавно сжимается. wrapRef — контейнер таблицы (.tbl-wrap), его высоту и анимируем.
+ */
+export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
+  const [closed, setClosed] = useState<Set<string>>(() => new Set());
+  const [phase, setPhase] = useState<Record<string, "in" | "out">>({});
+  const fromH = useRef<number | null>(null);
+  const anim = useRef<Animation | null>(null);
+  const timers = useRef<number[]>([]);
+  useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
+
+  const later = (fn: () => void, ms: number) => timers.current.push(window.setTimeout(fn, ms));
+  const dropPhase = (key: string) =>
+    setPhase((p) => {
+      const { [key]: _, ...rest } = p;
+      return rest;
+    });
+
+  // высота контейнера «было → стало» после того, как строки добавились или ушли
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    const from = fromH.current;
+    fromH.current = null;
+    if (!el || from == null || reducedMotion() || typeof el.animate !== "function") return;
+    // быстрый повторный клик: прошлую анимацию снимаем — «было» уже взято с экрана, скачка нет
+    anim.current?.cancel();
+    const to = el.offsetHeight;
+    if (Math.abs(to - from) < 2) return;
+    el.style.overflow = "hidden";
+    const a = el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 300, easing: "cubic-bezier(.2,.75,.25,1)" });
+    anim.current = a;
+    const done = () => {
+      if (anim.current === a) {
+        anim.current = null;
+        el.style.overflow = "";
+      }
+    };
+    a.onfinish = done;
+    a.oncancel = done;
+  }, [closed, wrapRef]);
+
+  const toggle = useCallback(
+    (key: string) => {
+      const el = wrapRef.current;
+      if (closed.has(key)) {
+        fromH.current = el?.offsetHeight ?? null;
+        setPhase((p) => ({ ...p, [key]: "in" }));
+        setClosed((s) => {
+          const n = new Set(s);
+          n.delete(key);
+          return n;
+        });
+        later(() => dropPhase(key), 700);
+      } else {
+        if (reducedMotion()) {
+          setClosed((s) => new Set(s).add(key));
+          return;
+        }
+        setPhase((p) => ({ ...p, [key]: "out" }));
+        later(() => {
+          fromH.current = wrapRef.current?.offsetHeight ?? null;
+          setClosed((s) => new Set(s).add(key));
+          dropPhase(key);
+        }, 170);
+      }
+    },
+    [closed, wrapRef],
+  );
+
+  return { isClosed: (key: string) => closed.has(key), phase: (key: string): FoldPhase => phase[key], toggle };
+}
+
+/** Класс и задержка для строки группы: каскад сверху вниз при раскрытии, общий уход при сворачивании. */
+export function foldRow(phase: FoldPhase, index: number): { className: string; style?: CSSProperties } {
+  if (phase === "in") return { className: "fold-in", style: { animationDelay: `${Math.min(index, 12) * 24}ms` } };
+  if (phase === "out") return { className: "fold-out" };
+  return { className: "" };
 }
 
 /* ── модальное окно ───────────────────────────────────────────────── */
