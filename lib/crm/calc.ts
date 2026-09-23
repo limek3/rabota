@@ -510,6 +510,27 @@ export function approvePctFor(st: DataState, ix: Index, month: MonthKey): number
   return out;
 }
 
+/**
+ * Апрув для части лидов месяца (группа, зона супервайзера): те же проценты по проектам,
+ * что в approvePctFor, но взвешенные по лидам именно этой части. Лиды — как в расчётах
+ * (без «не доведён»).
+ */
+export function approvePctWhere(st: DataState, month: MonthKey, keep: (l: Lead) => boolean): number {
+  const fallback = st.approves.find((a) => a.month === month && !a.projectId)?.pct ?? st.settings.svBonus.defaultApprovePct;
+  const byProject = new Map(st.approves.filter((a) => a.month === month && a.projectId).map((a) => [a.projectId, a.pct]));
+  let sum = 0;
+  let weight = 0;
+  for (const l of st.leads) {
+    if (l.status === "failed" || l.at.slice(0, 7) !== month || !keep(l)) continue;
+    sum += (l.projectId ? byProject.get(l.projectId) : undefined) ?? fallback;
+    weight++;
+  }
+  return weight > 0 ? Math.round((sum / weight) * 10) / 10 : fallback;
+}
+
+/** Доход с одного лида для ФОТ: цена лида × апрув заказчика (%). */
+export const leadIncome = (leadRevenue: number, approvePct: number) => (leadRevenue * approvePct) / 100;
+
 export function opTerms(op: Operator, cal: MonthCal, st: DataState, ix: Index): OpTerms {
   const rec = ix.planById.get(planId(cal.month, "operator", op.id));
   const s = st.settings;

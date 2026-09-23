@@ -6,8 +6,8 @@ import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
 import { sumRange, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
-import { addMonths, fmtDay, fmtMonth, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays } from "@/lib/crm/dates";
-import { fmtInt, fmtNum, fmtPct, safeDiv } from "@/lib/crm/format";
+import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays } from "@/lib/crm/dates";
+import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv } from "@/lib/crm/format";
 import { Avatar, Empty, Field, GoneTag, Modal, MonthSwitcher, NumInput, PageHead, Seg, Switch, useWheelHScroll } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
@@ -56,6 +56,10 @@ export default function SchedulePage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   useWheelHScroll(scrollRef);
   const lastRect = useRef<{ left: number; top: number; bottom: number }>({ left: 0, top: 0, bottom: 0 });
+  // выделение дат по заголовкам: протянули мышью — рядом с курсором итоги за эти дни
+  const [dayRange, setDayRange] = useState<{ a: number; b: number } | null>(null);
+  const [tipAt, setTipAt] = useState<{ x: number; y: number } | null>(null);
+  const dayDrag = useRef(false);
 
   const days = m.cal.days;
   const rows = useMemo(
@@ -95,11 +99,70 @@ export default function SchedulePage() {
     return { hours, norm, leads };
   }, [rows]);
 
+  // итоги выделенных дат — по тем же строкам, что на экране (учитывает фильтр группы)
+  const dayStats = useMemo(() => {
+    if (!dayRange) return null;
+    const c0 = Math.min(dayRange.a, dayRange.b);
+    const c1 = Math.max(dayRange.a, dayRange.b);
+    let hours = 0;
+    let leads = 0;
+    let shifts = 0;
+    let workdays = 0;
+    for (let c = c0; c <= c1; c++) {
+      const d = days[c];
+      if (!d) continue;
+      if (isWorkday(d, s)) workdays++;
+      for (const r of rows) {
+        const hh = ix.hoursOpDay.get(r.op.id)?.get(d) ?? 0;
+        hours += hh;
+        if (hh > 0) shifts++;
+        leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
+      }
+    }
+    return { from: days[c0], to: days[c1], c0, c1, count: c1 - c0 + 1, workdays, hours, leads, shifts };
+  }, [dayRange, days, rows, ix, s]);
+
+  const clearDays = () => {
+    dayDrag.current = false;
+    setDayRange(null);
+    setTipAt(null);
+  };
+
+  // протягивание по датам: карточка едет за курсором, после отпускания остаётся на месте
+  useEffect(() => {
+    if (!dayRange) return;
+    const move = (e: MouseEvent) => {
+      if (dayDrag.current) setTipAt({ x: e.clientX, y: e.clientY });
+    };
+    const up = () => {
+      dayDrag.current = false;
+    };
+    const down = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest?.(".sched th.day") || t.closest?.(".day-tip")) return;
+      clearDays();
+    };
+    const key = (e: KeyboardEvent) => e.key === "Escape" && clearDays();
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    window.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key);
+    };
+  }, [dayRange]);
+
+  const colSel = dayStats ? { c0: dayStats.c0, c1: dayStats.c1 } : null;
+
   const groups = data.groups.filter((g) => !g.deletedAt);
   const past = m.cal.phase === "past";
 
   /* протягивание мышью: старт на клетке, расширение при наведении, итог по отпусканию */
   const startCell = (r: number, c: number, rect: { left: number; top: number; bottom: number }) => {
+    clearDays();
     dragging.current = true;
     lastRect.current = rect;
     setSel(null);
@@ -224,10 +287,26 @@ export default function SchedulePage() {
                 <th className="sticky-col" style={{ minWidth: 220 }}>
                   Оператор
                 </th>
-                {days.map((d) => {
+                {days.map((d, ci) => {
                   const off = !isWorkday(d, s);
+                  const on = !!colSel && ci >= colSel.c0 && ci <= colSel.c1;
                   return (
-                    <th key={d} className={`day ${off ? "off" : ""} ${d === today ? "today" : ""}`} title={`${fmtDay(d)}, ${fmtWeekday(d)}${off ? " · выходной" : ""}`}>
+                    <th
+                      key={d}
+                      className={`day ${off ? "off" : ""} ${d === today ? "today" : ""} ${on ? "csel" : ""}`}
+                      title={dayRange ? undefined : `${fmtDay(d)}, ${fmtWeekday(d)}${off ? " · выходной" : ""} — протяните по датам, чтобы увидеть итоги`}
+                      onMouseDown={(e) => {
+                        if (e.button !== 0) return;
+                        e.preventDefault();
+                        setSel(null);
+                        setBulk(null);
+                        setRange(null);
+                        dayDrag.current = true;
+                        setDayRange({ a: ci, b: ci });
+                        setTipAt({ x: e.clientX, y: e.clientY });
+                      }}
+                      onMouseEnter={() => dayDrag.current && setDayRange((p) => (p ? { a: p.a, b: ci } : p))}
+                    >
                       <div>{Number(d.slice(8))}</div>
                       <div style={{ fontWeight: 400, color: "var(--dim)", fontSize: 10 }}>{fmtWeekday(d)}</div>
                     </th>
@@ -258,6 +337,7 @@ export default function SchedulePage() {
                     showLeads={showLeads}
                     sel={sel}
                     range={range}
+                    colSel={colSel}
                     onDown={startCell}
                   />
                 );
@@ -269,7 +349,7 @@ export default function SchedulePage() {
                 {dayTotals.map((t, i) => (
                   <td
                     key={days[i]}
-                    className="c num"
+                    className={`c num ${colSel && i >= colSel.c0 && i <= colSel.c1 ? "csel" : ""}`}
                     style={{ fontSize: 11, padding: "6px 0" }}
                     title={`${fmtDay(days[i])}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${t.h ? ` · конверсия ${fmtPct(t.n / t.h)} (${fmtNum(t.n / t.h, 2)} лид/ч)` : ""}`}
                   >
@@ -291,6 +371,7 @@ export default function SchedulePage() {
         </div>
       )}
 
+      {dayStats && tipAt && <DayTip at={tipAt} st={dayStats} scope={group ? ix.groupById.get(group)?.name ?? NO_GROUP_LABEL : null} />}
       {sel && <CellEditor sel={sel} onClose={() => setSel(null)} />}
       {bulk && (
         <RangeEditor
@@ -316,6 +397,7 @@ function SchedRow({
   showLeads,
   sel,
   range,
+  colSel,
   onDown,
 }: {
   r: OpRow;
@@ -326,6 +408,7 @@ function SchedRow({
   showLeads: boolean;
   sel: Sel | null;
   range: Range | null;
+  colSel: { c0: number; c1: number } | null;
   onDown: (r: number, c: number, rect: { left: number; top: number; bottom: number }) => void;
 }) {
   const { ix, data, today, access } = useCrm();
@@ -367,7 +450,7 @@ function SchedRow({
           return (
             <td
               key={d}
-              className={`cell ${off ? "off" : ""} ${d === today ? "today" : ""} ${isSel ? "sel" : ""} ${isRange ? "rng" : ""}`}
+              className={`cell ${off ? "off" : ""} ${d === today ? "today" : ""} ${isSel ? "sel" : ""} ${isRange ? "rng" : ""} ${colSel && colIndex >= colSel.c0 && colIndex <= colSel.c1 ? "csel" : ""}`}
               style={{
                 // цвет клетки — как в легенде: рабочий день синий, выходной серый, больничный красный…
                 background: sh ? `var(--c-${hue}-bg)` : gone ? "var(--c-red-bg)" : outside ? "repeating-linear-gradient(135deg, transparent 0 4px, var(--ink-04) 4px 6px)" : undefined,
@@ -406,6 +489,47 @@ function SchedRow({
         <td className="r num sum sum-c">{r.lph == null ? "—" : fmtNum(r.lph, 2)}</td>
       </tr>
     </>
+  );
+}
+
+/** Итоги выделенных дат рядом с курсором: часы, лиды, конверсия. */
+function DayTip({
+  at,
+  st,
+  scope,
+}: {
+  at: { x: number; y: number };
+  st: { from: DayKey; to: DayKey; count: number; workdays: number; hours: number; leads: number; shifts: number };
+  scope: string | null;
+}) {
+  const W = 240;
+  const H = 170;
+  // справа-снизу от курсора; у края экрана — с другой стороны
+  const left = at.x + 16 + W > window.innerWidth - 8 ? at.x - W - 16 : at.x + 16;
+  const top = at.y + 18 + H > window.innerHeight - 8 ? at.y - H - 12 : at.y + 18;
+  const conv = st.hours > 0 ? st.leads / st.hours : null;
+  return createPortal(
+    <div className="card day-tip" role="status" style={{ left: Math.max(8, left), top: Math.max(8, top), width: W }}>
+      <div className="day-tip-head">
+        <b>{st.from === st.to ? fmtDay(st.from) : fmtRange(st.from, st.to)}</b>
+        <span>
+          {st.count} {plural(st.count, DAYS)}
+          {st.count > 1 ? ` · рабочих ${st.workdays}` : ""}
+          {scope ? ` · ${scope}` : ""}
+        </span>
+      </div>
+      <div className="day-tip-grid">
+        <span>Часов</span>
+        <b className="num">{fmtNum(st.hours)}</b>
+        <span>Лидов</span>
+        <b className="num" style={{ color: "var(--brand)" }}>{fmtInt(st.leads)}</b>
+        <span>Конверсия</span>
+        <b className="num">{conv == null ? "—" : `${fmtPct(conv)} · ${fmtNum(conv, 2)} лид/ч`}</b>
+        <span>Смен</span>
+        <b className="num">{fmtInt(st.shifts)}</b>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

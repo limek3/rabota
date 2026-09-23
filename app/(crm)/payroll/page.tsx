@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useCrm, type AdjustmentInput } from "@/lib/crm/store";
-import { approvePctFor, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
+import { approvePctFor, approvePctWhere, leadIncome, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
 import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, payrollRow, type PayRow } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
@@ -138,35 +138,39 @@ export default function PayrollPage() {
   const t = pr.total;
   const unfixed = pr.rows.filter((r) => !r.explicitTerms).length;
 
-  /* ФОТ: фонд против дохода по лидам, с нормативом из настроек */
-  const fund = useMemo(
-    () => fundStat(t.gross, t.leads, data.settings.leadRevenue, data.settings.payrollCapPct),
-    [t.gross, t.leads, data.settings.leadRevenue, data.settings.payrollCapPct],
-  );
+  /* ФОТ: фонд против дохода, доход = лиды × цена лида × апрув заказчика (по проектам, взвешенный по лидам) */
+  const approve = useMemo(() => approvePctFor(data, ix, month), [data, ix, month]);
+  const income = leadIncome(data.settings.leadRevenue, approve);
+  const fund = useMemo(() => fundStat(t.gross, t.leads, income, data.settings.payrollCapPct), [t.gross, t.leads, income, data.settings.payrollCapPct]);
   /* прогноз: фонд растёт по отработанным дням, доход — по Run Rate лидов */
   const forecast = useMemo(() => {
     if (cal.phase !== "current") return null;
     const elapsed = cal.wIdx(cal.ref);
     const ahead = cal.workdays.filter((d) => d > cal.ref);
     const rr = elapsed > 0 ? Math.round((t.leads / elapsed) * cal.W) : t.leads;
-    return fundForecast(t.gross, t.leads, rr, elapsed, cal.W, data.settings.leadRevenue, data.settings.payrollCapPct, ahead);
-  }, [cal, t.gross, t.leads, data.settings.leadRevenue, data.settings.payrollCapPct]);
+    return fundForecast(t.gross, t.leads, rr, elapsed, cal.W, income, data.settings.payrollCapPct, ahead);
+  }, [cal, t.gross, t.leads, income, data.settings.payrollCapPct]);
 
   const fundByGroup = useMemo(() => {
-    const map = new Map<string, { name: string; color: string; people: number; leads: number; gross: number }>();
+    const map = new Map<string, { name: string; color: string; people: number; leads: number; gross: number; ops: Set<string> }>();
     for (const r of pr.rows) {
       const key = groupOf(r);
       const g = key === NO_GROUP ? null : ix.groupById.get(key);
-      const cur = map.get(key) ?? { name: g?.name ?? NO_GROUP_LABEL, color: g?.color ?? "gray", people: 0, leads: 0, gross: 0 };
+      const cur = map.get(key) ?? { name: g?.name ?? NO_GROUP_LABEL, color: g?.color ?? "gray", people: 0, leads: 0, gross: 0, ops: new Set<string>() };
+      cur.ops.add(r.op.id);
       cur.people += 1;
       cur.leads += r.leads;
       cur.gross += r.gross;
       map.set(key, cur);
     }
     return Array.from(map.entries())
-      .map(([id, v]) => ({ id, ...v, stat: fundStat(v.gross, v.leads, data.settings.leadRevenue, data.settings.payrollCapPct) }))
+      .map(([id, v]) => {
+        // апрув группы — по проектам её лидов
+        const approve = approvePctWhere(data, month, (l) => v.ops.has(l.operatorId));
+        return { id, ...v, approve, stat: fundStat(v.gross, v.leads, leadIncome(data.settings.leadRevenue, approve), data.settings.payrollCapPct) };
+      })
       .sort((a, b) => b.gross - a.gross);
-  }, [pr.rows, ix, groupOf, data.settings.leadRevenue, data.settings.payrollCapPct]);
+  }, [pr.rows, ix, groupOf, data, month]);
 
   const freezeAll = async () => {
     const ok = await confirm({
@@ -229,9 +233,9 @@ export default function PayrollPage() {
         <Kpi
           label="ФОТ к доходу"
           value={fund.revenue > 0 ? fmtPct(fund.pct) : "—"}
-          sub={fund.revenue > 0 ? `норматив ${data.settings.payrollCapPct}% · доход ${fmtMoney(fund.revenue)}` : "укажите цену лида в настройках"}
+          sub={fund.revenue > 0 ? `норматив ${data.settings.payrollCapPct}% · апрув ${fmtNum(approve)}% · доход ${fmtMoney(fund.revenue)}` : data.settings.leadRevenue > 0 ? "апрув заказчика 0%" : "укажите цену лида в настройках"}
           tone={fund.revenue > 0 ? (fund.ok ? "good" : "bad") : undefined}
-          title={`Фонд оплаты труда ${fmtMoney(fund.fund)} против дохода по лидам (${fmtInt(t.leads)} × ${fmtMoney(data.settings.leadRevenue)})`}
+          title={`Фонд оплаты труда ${fmtMoney(fund.fund)} против дохода: ${fmtInt(t.leads)} лидов × ${fmtMoney(data.settings.leadRevenue)} × апрув ${fmtNum(approve)}% = ${fmtMoney(fund.revenue)}`}
         />
       </div>
 
@@ -394,7 +398,7 @@ export default function PayrollPage() {
                 <h3 className="card-title">Фонд оплаты труда</h3>
                 <p className="card-sub">
                   {data.settings.leadRevenue > 0
-                    ? `Доход считается по цене лида ${fmtMoney(data.settings.leadRevenue)} · норматив ФОТ — не выше ${data.settings.payrollCapPct}% дохода`
+                    ? `Доход = лиды × ${fmtMoney(data.settings.leadRevenue)} × апрув заказчика (за месяц ${fmtNum(approve)}%) · норматив ФОТ — не выше ${data.settings.payrollCapPct}% дохода`
                     : `Укажите цену лида для заказчика в настройках — без неё доход и % ФОТ не считаются · норматив — не выше ${data.settings.payrollCapPct}%`}
                 </p>
               </div>
@@ -417,7 +421,7 @@ export default function PayrollPage() {
                   {forecast.ok
                     ? `Норматив ${data.settings.payrollCapPct}% держится, запас ${fmtMoney(forecast.revenue * forecast.cap - forecast.fund)}.`
                     : forecast.alreadyOver
-                      ? `Норматив ${data.settings.payrollCapPct}% уже превышен: чтобы выйти в него, до конца месяца нужно ${fmtInt(forecast.leadsNeeded)} лидов вместо ${fmtInt(Math.round(forecast.revenue / data.settings.leadRevenue))}.`
+                      ? `Норматив ${data.settings.payrollCapPct}% уже превышен: чтобы выйти в него, до конца месяца нужно ${fmtInt(forecast.leadsNeeded)} лидов вместо ${fmtInt(income > 0 ? Math.round(forecast.revenue / income) : 0)}.`
                       : forecast.crossDay
                         ? `При таком темпе выйдете за ${data.settings.payrollCapPct}% ${fmtDate(forecast.crossDay)}. Чтобы уложиться, нужно ${fmtInt(forecast.leadsNeeded)} лидов за месяц.`
                         : `Норматив ${data.settings.payrollCapPct}% будет превышен: нужно ${fmtInt(forecast.leadsNeeded)} лидов за месяц.`}
@@ -431,7 +435,8 @@ export default function PayrollPage() {
                     <th style={{ minWidth: 180 }}>Группа</th>
                     <th className="r">Людей</th>
                     <th className="r">Лиды</th>
-                    <th className="r">Доход</th>
+                    <th className="r" title="Апрув заказчика по проектам лидов группы">Апрув</th>
+                    <th className="r" title="Лиды × цена лида × апрув">Доход</th>
                     <th className="r">ФОТ</th>
                     <th className="r">% ФОТ</th>
                     <th className="r">Запас до норматива</th>
@@ -450,6 +455,7 @@ export default function PayrollPage() {
                         </td>
                         <td className="r num muted">{fmtInt(g.people)}</td>
                         <td className="r num">{fmtInt(g.leads)}</td>
+                        <td className="r num muted">{fmtNum(g.approve)}%</td>
                         <td className="r num muted">{g.stat.revenue ? fmtMoney(g.stat.revenue) : "—"}</td>
                         <td className="r num">{fmtMoney(g.stat.fund)}</td>
                         <td className="r num" style={{ color: g.stat.revenue ? (g.stat.ok ? "var(--c-green-fg)" : "var(--c-red-fg)") : undefined, fontWeight: 600 }}>
@@ -467,6 +473,7 @@ export default function PayrollPage() {
                     <td>Итого</td>
                     <td className="r num">{fmtInt(pr.rows.length)}</td>
                     <td className="r num">{fmtInt(t.leads)}</td>
+                    <td className="r num">{fmtNum(approve)}%</td>
                     <td className="r num">{fund.revenue ? fmtMoney(fund.revenue) : "—"}</td>
                     <td className="r num">{fmtMoney(fund.fund)}</td>
                     <td className="r num" style={{ color: fund.revenue ? (fund.ok ? "var(--c-green-fg)" : "var(--c-red-fg)") : undefined }}>
@@ -822,7 +829,9 @@ function SvCard({ r }: { r: PayRow }) {
     const rows = p.rows.filter((x) => x.op.groupId && mine.has(x.op.groupId));
     const gross = rows.reduce((a, x) => a + x.gross, 0);
     const leads = rows.reduce((a, x) => a + x.leads, 0);
-    return { ...fundStat(gross, leads, data.settings.leadRevenue, data.settings.payrollCapPct), people: rows.length };
+    const ids = new Set(rows.map((x) => x.op.id));
+    const approve = approvePctWhere(data, month, (l) => ids.has(l.operatorId));
+    return { ...fundStat(gross, leads, leadIncome(data.settings.leadRevenue, approve), data.settings.payrollCapPct), people: rows.length, approve };
   }, [data, ix, month, today, r.op.id]);
   return (
     <div className="card card-pad">
@@ -870,7 +879,7 @@ function SvCard({ r }: { r: PayRow }) {
         />
       </div>
       <div style={{ marginTop: 8, fontSize: 12, color: "var(--dim)", lineHeight: 1.5 }}>
-        Бонус считается по сетке, ФОТ — по фактическим начислениям групп и {data.settings.leadRevenue > 0 ? `цене лида ${fmtMoney(data.settings.leadRevenue)}` : "цене лида из настроек (пока не задана)"}. Итог
+        Бонус считается по сетке, ФОТ — по фактическим начислениям групп и {data.settings.leadRevenue > 0 ? `доходу: лиды × ${fmtMoney(data.settings.leadRevenue)} × апрув ${fmtNum(fund.approve)}%` : "цене лида из настроек (пока не задана)"}. Итог
         подтверждает руководитель направления.
       </div>
     </div>

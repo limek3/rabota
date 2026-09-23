@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
-import { PACE_HUE, monthCal, type GroupRow } from "@/lib/crm/calc";
+import { PACE_HUE, approvePctWhere, leadIncome, monthCal, type GroupRow } from "@/lib/crm/calc";
 import { fundStat, payroll } from "@/lib/crm/payroll";
 import { NO_GROUP } from "@/lib/crm/types";
 import { fmtMonth, monthEnd, monthStart } from "@/lib/crm/dates";
@@ -72,7 +72,10 @@ function GroupCard({ g }: { g: GroupRow }) {
     const rows = pr.rows.filter((r) => r.op.groupId === g.group!.id);
     const gross = rows.reduce((a, r) => a + r.gross, 0);
     const leads = rows.reduce((a, r) => a + r.leads, 0);
-    return fundStat(gross, leads, data.settings.leadRevenue, data.settings.payrollCapPct);
+    // доход = лиды × цена лида × апрув заказчика по проектам лидов группы
+    const ids = new Set(rows.map((r) => r.op.id));
+    const approve = approvePctWhere(data, month, (l) => ids.has(l.operatorId));
+    return fundStat(gross, leads, leadIncome(data.settings.leadRevenue, approve), data.settings.payrollCapPct);
   }, [access.can.viewPayroll, data, ix, month, today, g.group]);
   const [open, setOpen] = useState(false);
   const p = g.pace;

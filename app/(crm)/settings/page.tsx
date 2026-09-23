@@ -309,7 +309,7 @@ export default function SettingsPage() {
           <Field label="Процент удержания" hint="У самозанятых — 0: налог платят сами. 13% ставим, когда оформлен ТК РФ">
             <NumInput value={f.withholdPct} onChange={(v) => set("withholdPct", v ?? 0)} max={100} step={0.1} />
           </Field>
-          <Field label="Цена лида для заказчика, ₽" hint="Доход за переданный лид — база для % ФОТ. Поставьте своё значение по договору">
+          <Field label="Цена лида для заказчика, ₽" hint="По договору. Доход для % ФОТ = лиды × цена лида × апрув заказчика за месяц (апрув — в «Зарплате»)">
             <NumInput value={f.leadRevenue} onChange={(v) => set("leadRevenue", v ?? 0)} max={10_000_000} />
           </Field>
           <Field label="Норматив ФОТ, % от дохода" hint="Превышать нельзя; в ведомости подсвечивается по группам">
