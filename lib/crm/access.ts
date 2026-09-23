@@ -52,7 +52,7 @@ export interface Access {
   scopeLabel: string;
 }
 
-export const ALL_ROUTES = ["/dashboard", "/me", "/leads", "/operators", "/groups", "/schedule", "/payroll", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"];
+export const ALL_ROUTES = ["/dashboard", "/me", "/stats", "/leads", "/operators", "/groups", "/schedule", "/payroll", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"];
 
 export function supervisorGroups(acc: Account, st: DataState): Set<ID> {
   const live = new Set(st.groups.filter((g) => !g.deletedAt).map((g) => g.id));
@@ -99,10 +99,13 @@ export function computeAccess(acc: Account, st: DataState): Access {
   const routes = new Set<string>();
   if (isHead) ALL_ROUTES.forEach((r) => routes.add(r));
   else if (isSup) ["/dashboard", "/leads", "/operators", "/groups", "/schedule", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"].forEach((r) => routes.add(r));
-  else ["/me", "/leads", "/schedule", "/dynamics", "/learn", "/settings"].forEach((r) => routes.add(r));
+  else ["/me", "/stats", "/leads", "/schedule", "/dynamics", "/learn", "/settings"].forEach((r) => routes.add(r));
   if (can.viewPayroll) routes.add("/payroll");
-  if (opId) routes.add("/me");
-  else routes.delete("/me");
+  // личные разделы — только у аккаунта с карточкой оператора
+  for (const r of ["/me", "/stats"]) {
+    if (opId) routes.add(r);
+    else routes.delete(r);
+  }
 
   const groupNames = Array.from(ownGroups)
     .map((g) => st.groups.find((x) => x.id === g)?.name)

@@ -7,9 +7,9 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import { buildIndex, dailyRows, monthModel, probation, PACE_HUE } from "@/lib/crm/calc";
 import { isHourlyTiered, isTiered, payrollRow, tierFor } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
-import { NO_GROUP_LABEL } from "@/lib/crm/types";
+import { NO_GROUP_LABEL, type RateTier } from "@/lib/crm/types";
 import { addDays, fmtDay, fmtMonth, fmtWeekday, monthEnd, monthStart } from "@/lib/crm/dates";
-import { LEADS, fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, plural, safeDiv, firstName } from "@/lib/crm/format";
+import { LEADS, fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, plural, safeDiv, surnameAndName } from "@/lib/crm/format";
 import { Avatar, Chip, Empty, Kpi, LeadStatusChip, MonthSwitcher, PageHead, Progress, StatusChip } from "@/components/ui/kit";
 import { DailyBars } from "@/components/ui/charts";
 import { LearnCard } from "@/components/learn/Progress";
@@ -90,9 +90,6 @@ export default function MePage() {
     };
   }, [row]);
 
-  // грейд дня в Telegram — только по доведённым лидам (как у Vexi)
-  const doneTodayApproved = useMemo(() => myLeadsToday.filter((l) => l.status === "done").length, [myLeadsToday]);
-
   const chart = useMemo(() => (row ? dailyRows(m.cal, row.terms.plan, ix.opDay.get(row.op.id), ix.hoursOpDay.get(row.op.id)) : []), [row, m.cal, ix]);
 
   if (!opId) {
@@ -125,7 +122,7 @@ export default function MePage() {
   return (
     <div className="stack">
       <PageHead
-        title={`${greet}, ${firstName(me.name) || me.name}`}
+        title={`${greet}, ${surnameAndName(me.name) || me.name}`}
         sub={`${fmtDay(today)}, ${fmtWeekday(today)} · ${group ? group.name : NO_GROUP_LABEL} · ${fmtMonth(month)}`}
         actions={
           <>
@@ -175,6 +172,8 @@ export default function MePage() {
         </div>
       </div>
 
+      {remote && <TelegramCard compact />}
+
       {prob.active && !prob.done && (
         <div className="card card-pad">
           <div className="card-head">
@@ -217,24 +216,25 @@ export default function MePage() {
             </div>
             {access.can.viewPayroll && <Chip hue="green" dot>За сегодня: {fmtMoney(tierToday.earnedToday)}</Chip>}
           </div>
-          <div className="cols-main" style={{ gap: 14 }}>
-            <div className="row" style={{ gap: 18, flexWrap: "wrap" }}>
-              {tierToday.withHourly && <Tile label="Ставка сейчас" value={`${fmtInt(tierToday.cur.hourlyRate)} ₽/ч`} sub={tierRange(tierToday.tiers, tierToday.tiers.indexOf(tierToday.cur))} />}
-              <Tile label="Бонус за лид сейчас" value={`${fmtInt(tierToday.cur.leadBonus)} ₽`} sub={`сегодня ${fmtInt(tierToday.leads)} ${plural(tierToday.leads, LEADS)}`} />
-              {tierToday.next ? (
-                <Tile
-                  label="До следующей ступени"
-                  value={`${fmtInt(tierToday.need)} ${plural(tierToday.need, LEADS)}`}
-                  tone="good"
-                  sub={`станет ${tierToday.withHourly ? `${fmtInt(tierToday.next.hourlyRate)} ₽/ч и ` : ""}${fmtInt(tierToday.next.leadBonus)} ₽ за лид`}
-                />
-              ) : (
-                <Tile label="Ступень" value="Максимальная" tone="good" sub="выше уже некуда" />
-              )}
+          <div className="tier-shift">
+            <div className="stack" style={{ gap: 14, minWidth: 0 }}>
+              <div className="tier-tiles">
+                {tierToday.withHourly && <Tile label="Ставка сейчас" value={`${fmtInt(tierToday.cur.hourlyRate)} ₽/ч`} sub={tierRange(tierToday.tiers, tierToday.tiers.indexOf(tierToday.cur))} />}
+                <Tile label="Бонус за лид сейчас" value={`${fmtInt(tierToday.cur.leadBonus)} ₽`} sub={`сегодня ${fmtInt(tierToday.leads)} ${plural(tierToday.leads, LEADS)}`} />
+                {tierToday.next ? (
+                  <Tile
+                    label="До следующей ступени"
+                    value={`${fmtInt(tierToday.need)} ${plural(tierToday.need, LEADS)}`}
+                    tone="good"
+                    sub={`станет ${tierToday.withHourly ? `${fmtInt(tierToday.next.hourlyRate)} ₽/ч и ` : ""}${fmtInt(tierToday.next.leadBonus)} ₽ за лид`}
+                  />
+                ) : (
+                  <Tile label="Ступень" value="Максимальная" tone="good" sub="выше уже некуда" />
+                )}
+              </div>
+              <TierLadder tiers={tierToday.tiers} leads={tierToday.leads} withHourly={tierToday.withHourly} />
             </div>
-            <div className="card" style={{ background: "var(--bg)", padding: "2px 10px", overflowX: "auto", minWidth: 0 }}>
-              <TierTable tiers={tierToday.tiers} highlight={tierToday.cur.from} withHourly={tierToday.withHourly} />
-            </div>
+            <TierTable tiers={tierToday.tiers} highlight={tierToday.cur.from} withHourly={tierToday.withHourly} />
           </div>
         </div>
       )}
@@ -340,8 +340,6 @@ export default function MePage() {
             </div>
           )}
 
-          {remote && <TelegramCard doneToday={doneTodayApproved} />}
-
           <LearnCard />
 
           {groupProgress?.group && (
@@ -388,10 +386,40 @@ export default function MePage() {
 
 function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "good" | "bad" }) {
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0 }}>
+    <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0, height: "100%" }}>
       <div style={{ fontSize: 11.5, color: "var(--text-sub)", lineHeight: 1.3 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 600, marginTop: 2, color: tone === "good" ? "var(--c-green-fg)" : tone === "bad" ? "var(--c-red-fg)" : "var(--text)" }}>{value}</div>
       {sub && <div style={{ fontSize: 11.5, color: "var(--dim)", lineHeight: 1.3 }}>{sub}</div>}
+    </div>
+  );
+}
+
+/**
+ * Лестница ступеней сегодняшней смены: сегмент на ступень, заполнено — пройдено,
+ * текущая ступень заполнена пропорционально пути до следующей.
+ */
+function TierLadder({ tiers, leads, withHourly }: { tiers: RateTier[]; leads: number; withHourly: boolean }) {
+  return (
+    <div className="tier-ladder">
+      {tiers.map((t, i) => {
+        const next = tiers[i + 1]?.from;
+        // путь к порогу следующей ступени: 0–5 при 3 лидах — половина, на 6-м лиде сегмент полон
+        const fill = leads < t.from ? 0 : next == null ? 1 : Math.min(1, (leads - t.from) / (next - t.from));
+        const cur = leads >= t.from && (next == null || leads < next);
+        const range = next == null ? `${t.from}+` : next - t.from === 1 ? `${t.from}` : `${t.from}–${next - 1}`;
+        return (
+          <div key={t.from} className={cur ? "tier-step on" : "tier-step"}>
+            <div className="tier-bar">
+              <span style={{ width: `${Math.round(fill * 100)}%` }} />
+            </div>
+            <div className="tier-step-range">{range} {plural(next == null ? t.from : next - 1, LEADS)}</div>
+            <div className="tier-step-rate num">
+              {withHourly ? `${fmtInt(t.hourlyRate)} ₽/ч · ` : ""}
+              {fmtInt(t.leadBonus)} ₽
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

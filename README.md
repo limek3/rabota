@@ -244,7 +244,7 @@ lib/crm/
 Бот — отдельный Python-сервис в `telegram-bot/` (свой Railway Service, Root Directory = `/telegram-bot`,
 инструкция — `telegram-bot/README.md`). Он читает ту же базу Supabase и публикует достижения в рабочий чат.
 
-Оператор привязывает Telegram в «Мой день» → блок **Telegram** (`components/app/TelegramCard.tsx`,
+Оператор привязывает Telegram в «Настройки → Мой профиль» (или «Мой кабинет») → блок **Telegram** (`components/app/TelegramCard.tsx`,
 RPC — `lib/crm/telegram.ts`). После этого Vexi держит у него в рабочем чате тег «Грейд I–IV» по числу
 доведённых лидов за сегодня. Схема и права — `supabase/migrations/20260923000001_telegram_link.sql`;
 её тесты на настоящем Postgres — `npm run test:telegram-sql`. Ключ `service_role` есть только у бота —

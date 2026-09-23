@@ -12,7 +12,7 @@ import { Select, dot, type Opt } from "@/components/ui/select";
 import { canManageOperator } from "@/lib/crm/access";
 import { CumulativeChart, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
-import { hasBonus, isSalary } from "@/lib/crm/payroll";
+import { hasBonus, isHourlyTiered, isSalary, isTiered } from "@/lib/crm/payroll";
 import { learnSummary } from "@/components/learn/Progress";
 
 const EMP_HUE: Record<OperatorStatus, string> = { active: "green", pause: "indigo", fired: "gray" };
@@ -20,26 +20,9 @@ const EMP_HUE: Record<OperatorStatus, string> = { active: "green", pause: "indig
 export function OperatorDrawer({ row, onClose }: { row: OpRow; onClose: () => void }) {
   const { data, ix, month, openOperator, openLead, setOperatorStatus, moveOperator, deleteOperator, restoreOperator, confirm, access } = useCrm();
   const op = ix.opById.get(row.op.id) ?? row.op;
-  // стажировка считается с даты приёма по всем месяцам
-  const prob = useMemo(() => probation(op, ix, data.settings), [op, ix, data.settings]);
-  const p = row.pace;
-  const past = p.remainingW === 0 && p.needPerDay == null;
-
-  const recent = useMemo(
-    () =>
-      data.leads
-        .filter((l) => l.operatorId === op.id)
-        .sort((a, b) => b.at.localeCompare(a.at))
-        .slice(0, 8),
-    [data.leads, op.id],
-  );
   const group = op.groupId ? ix.groupById.get(op.groupId) : null;
-  // обучение сотрудника — по его аккаунту
-  const acc = data.accounts.find((a) => a.operatorId === op.id && !a.deletedAt) ?? null;
-  const learn = acc ? learnSummary(acc.id, acc.role, data.learn) : null;
   const groups = data.groups.filter((g) => !g.deletedAt && (access.isHead || access.ownGroups.has(g.id)));
   const canManage = canManageOperator(access, op);
-  const canPayView = access.can.viewPayroll;
 
   return (
     <Drawer onClose={onClose}>
@@ -141,39 +124,73 @@ export function OperatorDrawer({ row, onClose }: { row: OpRow; onClose: () => vo
           )}
         </div>
 
-        {/* план и факт */}
-        <div>
-          <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{fmtMonth(month)}</span>
-            <span style={{ fontSize: 12, color: "var(--dim)" }}>
-              {row.terms.explicit ? "план месяца задан отдельно" : "план по карточке"}
-              {!row.inWindow && " · не в штате в этом месяце"}
-            </span>
-          </div>
-          <div className="row" style={{ alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontSize: 34, fontWeight: 600, letterSpacing: "-.02em" }}>{fmtInt(p.fact)}</span>
-            <span style={{ color: "var(--text-sub)" }}>из {fmtInt(row.terms.plan)}</span>
-            <span className="spacer" />
-            <span style={{ fontSize: 15, fontWeight: 600 }}>{fmtPct(p.pct)}</span>
-          </div>
-          <Progress value={p.pct} marker={!past && row.terms.plan > 0 ? p.planToDate / row.terms.plan : undefined} height={8} style={{ marginTop: 10 }} />
-        </div>
+        <OperatorStats row={row} />
+      </div>
+    </Drawer>
+  );
+}
 
-        <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
-          <Kpi label="К плану на дату" value={fmtSigned(p.deviation)} sub={`должно быть ${fmtNum(p.planToDate, 0)}`} />
-          <Kpi label="Прогноз (RR)" value={fmtInt(p.rr)} sub={`${fmtPct(p.rrPct)} плана`} />
-          <Kpi label="Осталось" value={fmtInt(p.remaining)} sub="до плана месяца" />
-          <Kpi label="Нужно в день" value={p.needPerDay == null ? "—" : fmtNum(p.needPerDay)} sub={`сейчас ${fmtNum(row.avgPerWorkday)} в раб. день`} />
-          <Kpi label="Сегодня / вчера" value={`${fmtInt(p.today)} / ${fmtInt(p.yesterday)}`} sub="лидов за день" />
-          <Kpi label="Неделя / прошлая" value={`${fmtInt(p.thisWeek)} / ${fmtInt(p.prevWeek)}`} sub="лидов за неделю" />
-          <Kpi
-            label="Часы / норма"
-            value={`${fmtNum(row.hours, 0)} / ${fmtNum(row.norm, 0)}`}
-            sub={`${fmtPct(row.normPct)} нормы · ${row.hoursDelta >= 0 ? "+" : "−"}${fmtNum(Math.abs(row.hoursDelta))} ч к дате`}
-          />
-          <Kpi label="Лидов на час" value={row.lph == null ? "—" : fmtNum(row.lph, 2)} sub={`${row.daysWorked} смен · отсутствий ${row.absentDays}`} />
-        </div>
+/**
+ * Показатели оператора за месяц: план и факт, KPI, накопительный итог, выработка,
+ * последние лиды и карточка. Общие для панели супервайзера (OperatorDrawer) и
+ * страницы «Мои показатели» оператора (wide — раскладка на всю ширину).
+ */
+export function OperatorStats({ row, wide = false }: { row: OpRow; wide?: boolean }) {
+  const { data, ix, month, openLead, access } = useCrm();
+  const op = ix.opById.get(row.op.id) ?? row.op;
+  // стажировка считается с даты приёма по всем месяцам
+  const prob = useMemo(() => probation(op, ix, data.settings), [op, ix, data.settings]);
+  const p = row.pace;
+  const past = p.remainingW === 0 && p.needPerDay == null;
+  const recent = useMemo(
+    () =>
+      data.leads
+        .filter((l) => l.operatorId === op.id)
+        .sort((a, b) => b.at.localeCompare(a.at))
+        .slice(0, 8),
+    [data.leads, op.id],
+  );
+  // обучение сотрудника — по его аккаунту
+  const acc = data.accounts.find((a) => a.operatorId === op.id && !a.deletedAt) ?? null;
+  const learn = acc ? learnSummary(acc.id, acc.role, data.learn) : null;
+  const canPayView = access.can.viewPayroll;
 
+  return (
+    <>
+      {/* план и факт */}
+      <div className={wide ? "card card-pad" : undefined}>
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{fmtMonth(month)}</span>
+          <span style={{ fontSize: 12, color: "var(--dim)" }}>
+            {row.terms.explicit ? "план месяца задан отдельно" : "план по карточке"}
+            {!row.inWindow && " · не в штате в этом месяце"}
+          </span>
+        </div>
+        <div className="row" style={{ alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontSize: 34, fontWeight: 600, letterSpacing: "-.02em" }}>{fmtInt(p.fact)}</span>
+          <span style={{ color: "var(--text-sub)" }}>из {fmtInt(row.terms.plan)}</span>
+          <span className="spacer" />
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{fmtPct(p.pct)}</span>
+        </div>
+        <Progress value={p.pct} marker={!past && row.terms.plan > 0 ? p.planToDate / row.terms.plan : undefined} height={8} style={{ marginTop: 10 }} />
+      </div>
+
+      <div className="kpi-grid" data-n={wide ? "4" : undefined} style={wide ? undefined : { gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
+        <Kpi label="К плану на дату" value={fmtSigned(p.deviation)} sub={`должно быть ${fmtNum(p.planToDate, 0)}`} />
+        <Kpi label="Прогноз (RR)" value={fmtInt(p.rr)} sub={`${fmtPct(p.rrPct)} плана`} />
+        <Kpi label="Осталось" value={fmtInt(p.remaining)} sub="до плана месяца" />
+        <Kpi label="Нужно в день" value={p.needPerDay == null ? "—" : fmtNum(p.needPerDay)} sub={`сейчас ${fmtNum(row.avgPerWorkday)} в раб. день`} />
+        <Kpi label="Сегодня / вчера" value={`${fmtInt(p.today)} / ${fmtInt(p.yesterday)}`} sub="лидов за день" />
+        <Kpi label="Неделя / прошлая" value={`${fmtInt(p.thisWeek)} / ${fmtInt(p.prevWeek)}`} sub="лидов за неделю" />
+        <Kpi
+          label="Часы / норма"
+          value={`${fmtNum(row.hours, 0)} / ${fmtNum(row.norm, 0)}`}
+          sub={`${fmtPct(row.normPct)} нормы · ${row.hoursDelta >= 0 ? "+" : "−"}${fmtNum(Math.abs(row.hoursDelta))} ч к дате`}
+        />
+        <Kpi label="Лидов на час" value={row.lph == null ? "—" : fmtNum(row.lph, 2)} sub={`${row.daysWorked} смен · отсутствий ${row.absentDays}`} />
+      </div>
+
+      <div className={wide ? "cols-main" : "stack"} style={{ gap: 16 }}>
         <OperatorChart row={row} />
 
         <div className="card" style={{ overflow: "hidden" }}>
@@ -202,66 +219,83 @@ export function OperatorDrawer({ row, onClose }: { row: OpRow; onClose: () => vo
             </tbody>
           </table>
         </div>
+      </div>
 
-        <div className="grid2">
-          <div className="card card-pad">
-            <h3 className="card-title" style={{ marginBottom: 10 }}>
-              Последние лиды
-            </h3>
-            {recent.length === 0 ? (
-              <div style={{ fontSize: 13, color: "var(--dim)" }}>Лидов нет.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {recent.map((l) => (
-                  <button key={l.id} onClick={() => openLead(l)} className="row" style={{ gap: 8, border: "none", background: "none", padding: 0, color: "var(--text)", font: "inherit", textAlign: "left", fontSize: 12.5 }}>
-                    <span className="num" style={{ color: "var(--dim)", flex: "none", whiteSpace: "nowrap" }}>
-                      {fmtStamp(l.at).slice(0, 5)} {l.at.slice(11, 16)}
-                    </span>
-                    {/* проект — цветной точкой с подсказкой: в узкой колонке иначе не видно имени клиента */}
-                    <span
-                      title={l.projectId ? ix.projectById.get(l.projectId)?.name ?? "" : "Без проекта"}
-                      style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", background: `var(--c-${(l.projectId && ix.projectById.get(l.projectId)?.color) || "gray"}-fg)` }}
-                    />
-                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.client || fmtPhone(l.phone)}</span>
-                    <LeadStatusChip lead={l} />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="card card-pad" style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 7 }}>
-            <h3 className="card-title" style={{ marginBottom: 4 }}>
-              Карточка
-            </h3>
-            <Info k="Приём" v={op.hireDate ? fmtDate(op.hireDate) : "—"} />
-            {op.fireDate && <Info k="Увольнение" v={fmtDate(op.fireDate)} />}
-            {canPayView && <Info k="Оплата" v={PAY_LABEL[row.terms.payType]} />}
-            {canPayView && (isSalary(row.terms.payType) ? <Info k="Оклад" v={fmtMoney(row.terms.salary)} /> : <Info k="Ставка" v={`${fmtMoney(row.terms.hourlyRate)}/ч`} />)}
-            {canPayView && hasBonus(row.terms.payType) && <Info k="Бонус за лид" v={fmtMoney(row.terms.leadBonus)} />}
-            <Info k="Норма" v={fmtHours(row.norm)} />
-            <Info k="Контакт" v={op.contact || "—"} />
-            <Info k="Обучение" v={learn ? `${learn.passed} из ${learn.total} (${Math.round(learn.pct * 100)}%)` : "нет аккаунта"} />
-            {prob.active && (
-              <Info
-                k="Стажировка"
-                v={
-                  prob.done
-                    ? `закрыта ${prob.doneAt ? fmtDate(prob.doneAt) : ""} · ${fmtInt(prob.leads)} лид. за ${fmtHours(prob.hours)}`
-                    : `${fmtInt(prob.leads)} из ${fmtInt(prob.needLeads)} лид. за ${fmtHours(prob.hours)} из ${fmtHours(prob.needHours)}`
-                }
-              />
-            )}
-            {op.comment && <Info k="Комментарий" v={op.comment} />}
-            {canPayView && (
-              <Link href="/payroll" style={{ fontSize: 12.5, color: "var(--brand)", textDecoration: "none", marginTop: 4 }}>
-                Начисления за месяц →
-              </Link>
-            )}
-          </div>
+      <div className="grid2">
+        <div className="card card-pad">
+          <h3 className="card-title" style={{ marginBottom: 10 }}>
+            Последние лиды
+          </h3>
+          {recent.length === 0 ? (
+            <div style={{ fontSize: 13, color: "var(--dim)" }}>Лидов нет.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {recent.map((l) => (
+                <button key={l.id} onClick={() => openLead(l)} className="row" style={{ gap: 8, border: "none", background: "none", padding: 0, color: "var(--text)", font: "inherit", textAlign: "left", fontSize: 12.5 }}>
+                  <span className="num" style={{ color: "var(--dim)", flex: "none", whiteSpace: "nowrap" }}>
+                    {fmtStamp(l.at).slice(0, 5)} {l.at.slice(11, 16)}
+                  </span>
+                  {/* проект — цветной точкой с подсказкой: в узкой колонке иначе не видно имени клиента */}
+                  <span
+                    title={l.projectId ? ix.projectById.get(l.projectId)?.name ?? "" : "Без проекта"}
+                    style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", background: `var(--c-${(l.projectId && ix.projectById.get(l.projectId)?.color) || "gray"}-fg)` }}
+                  />
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.client || fmtPhone(l.phone)}</span>
+                  <LeadStatusChip lead={l} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="card card-pad" style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 7 }}>
+          <h3 className="card-title" style={{ marginBottom: 4 }}>
+            Карточка
+          </h3>
+          <Info k="Приём" v={op.hireDate ? fmtDate(op.hireDate) : "—"} />
+          {op.fireDate && <Info k="Увольнение" v={fmtDate(op.fireDate)} />}
+          {canPayView && <Info k="Оплата" v={PAY_LABEL[row.terms.payType]} />}
+          {canPayView && isSalary(row.terms.payType) && <Info k="Оклад" v={fmtMoney(row.terms.salary)} />}
+          {/* по сетке ставка и бонус зависят от лидов за смену — показываем диапазон ступеней, а не «0 ₽/ч» из карточки */}
+          {canPayView && isHourlyTiered(row.terms.payType) && row.terms.tiers.length > 0 && (
+            <Info k="Ставка" v={`${range(row.terms.tiers.map((t) => t.hourlyRate))} ₽/ч по ступеням`} />
+          )}
+          {canPayView && !isSalary(row.terms.payType) && !isTiered(row.terms.payType) && <Info k="Ставка" v={`${fmtMoney(row.terms.hourlyRate)}/ч`} />}
+          {canPayView && hasBonus(row.terms.payType) && (
+            <Info
+              k="Бонус за лид"
+              v={isTiered(row.terms.payType) && row.terms.tiers.length ? `${range(row.terms.tiers.map((t) => t.leadBonus))} ₽ по ступеням` : fmtMoney(row.terms.leadBonus)}
+            />
+          )}
+          <Info k="Норма" v={fmtHours(row.norm)} />
+          <Info k="Контакт" v={op.contact || "—"} />
+          <Info k="Обучение" v={learn ? `${learn.passed} из ${learn.total} (${Math.round(learn.pct * 100)}%)` : "нет аккаунта"} />
+          {prob.active && (
+            <Info
+              k="Стажировка"
+              v={
+                prob.done
+                  ? `закрыта ${prob.doneAt ? fmtDate(prob.doneAt) : ""} · ${fmtInt(prob.leads)} лид. за ${fmtHours(prob.hours)}`
+                  : `${fmtInt(prob.leads)} из ${fmtInt(prob.needLeads)} лид. за ${fmtHours(prob.hours)} из ${fmtHours(prob.needHours)}`
+              }
+            />
+          )}
+          {op.comment && <Info k="Комментарий" v={op.comment} />}
+          {canPayView && (
+            <Link href="/payroll" style={{ fontSize: 12.5, color: "var(--brand)", textDecoration: "none", marginTop: 4 }}>
+              Начисления за месяц →
+            </Link>
+          )}
         </div>
       </div>
-    </Drawer>
+    </>
   );
+}
+
+/** «200–260» из значений ступеней (или одно число, если все равны). */
+function range(vals: number[]): string {
+  const lo = Math.min(...vals);
+  const hi = Math.max(...vals);
+  return lo === hi ? fmtInt(lo) : `${fmtInt(lo)}–${fmtInt(hi)}`;
 }
 
 function Info({ k, v }: { k: string; v: string }) {

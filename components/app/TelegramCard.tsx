@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { createTgCode, deepLink, fetchTgStatus, gradeTag, linkCommand, unlinkTg, watchTgLink, type TgChatStatus, type TgCode, type TgStatus } from "@/lib/crm/telegram";
 import { Chip, Modal } from "@/components/ui/kit";
@@ -53,12 +53,18 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /**
- * Блок «Telegram» в личном кабинете: привязка аккаунта к Vexi, чтобы бот ставил дневной
- * грейд тегом в рабочем чате. doneToday — доведённые лиды за сегодня (для подсказки,
- * какой тег положен, пока Vexi его не подтвердил).
+ * Блок «Telegram» (Настройки → Мой профиль и «Мой кабинет»): привязка аккаунта к Vexi,
+ * чтобы бот ставил дневной грейд тегом в рабочем чате. Грейд ведётся по карточке
+ * оператора — аккаунту без карточки (обычно РОП) привязывать нечего.
+ * compact — одной строкой, для верха «Моего кабинета».
  */
-export function TelegramCard({ doneToday }: { doneToday: number }) {
-  const { toast, confirm } = useCrm();
+export function TelegramCard({ compact = false }: { compact?: boolean }) {
+  const { toast, confirm, data, access, today } = useCrm();
+  // доведённые лиды за сегодня — подсказка, какой тег положен, пока Vexi его не подтвердил
+  const doneToday = useMemo(
+    () => data.leads.filter((l) => l.operatorId === access.opId && l.status === "done" && l.at.slice(0, 10) === today).length,
+    [data.leads, access.opId, today],
+  );
   const [st, setSt] = useState<TgStatus | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<"code" | "unlink" | null>(null);
@@ -174,6 +180,92 @@ export function TelegramCard({ doneToday }: { doneToday: number }) {
   const shownTag = st?.linked && st.chatStatus === "member" && st.tag ? st.tag : null;
   const note = st?.linked && st.chatStatus !== "member" ? CHAT_NOTE[st.chatStatus] : null;
 
+  const modal = open && (
+    <Modal
+      title="Подключение Telegram"
+      width={460}
+      onClose={() => {
+        setOpen(false);
+        setCode(null);
+        setCodeErr(null);
+      }}
+    >
+      <LinkBody
+        code={code}
+        error={codeErr}
+        generating={busy === "code"}
+        expired={expired}
+        leftMs={code ? new Date(code.expiresAt).getTime() - now : 0}
+        onNew={() => void newCode()}
+        onCopy={(t) => void copy(t)}
+      />
+    </Modal>
+  );
+
+  if (compact) {
+    // аккаунт без карточки оператора — в кабинете блок не нужен (сам кабинет у такого аккаунта не открывается)
+    if (st && !st.operatorId) return null;
+    return (
+      <div className="card tg-strip">
+        <span className="tg-strip-icon" aria-hidden>
+          <Icon name="chat" size={17} />
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 600, fontSize: 13.5 }}>Telegram</span>
+            {st && (st.linked ? <Chip hue="green" dot>Подключен</Chip> : <Chip hue="gray" dot>Не подключен</Chip>)}
+            {st?.linked && <span style={{ fontSize: 13, fontWeight: 500, overflowWrap: "anywhere" }}>{displayName(st)}</span>}
+          </div>
+          <div style={{ fontSize: 12.5, color: note?.hue === "amber" ? "var(--c-amber-fg)" : "var(--text-sub)", marginTop: 3, lineHeight: 1.45 }}>
+            {!st && !loadErr && "Проверяем подключение…"}
+            {!st && loadErr && <span style={{ color: "var(--c-red-fg)" }}>{loadErr}</span>}
+            {st && !st.linked && (
+              <>
+                Vexi будет ставить ваш грейд дня тегом в рабочем чате — сейчас это <b style={{ color: "var(--text)" }}>{expected}</b>
+              </>
+            )}
+            {st?.linked &&
+              (note ? (
+                <>
+                  {note.hue === "amber" && "⚠️ "}
+                  {note.text}
+                  {note.sub && <span style={{ color: "var(--dim)" }}> · {note.sub}</span>}
+                </>
+              ) : (
+                <>
+                  Текущий тег: <b style={{ color: "var(--text)" }}>{shownTag ?? expected}</b>
+                  {!shownTag && <span style={{ color: "var(--dim)" }}> · ещё не назначен</span>}
+                </>
+              ))}
+          </div>
+        </div>
+        <div className="row tg-strip-actions" style={{ gap: 8 }}>
+          {!st && loadErr && (
+            <button className="btn btn-sm" onClick={() => void refresh()}>
+              <Icon name="refresh" size={13} /> Повторить
+            </button>
+          )}
+          {st && !st.linked && (
+            <button className="btn btn-primary btn-sm" onClick={() => void startLink()} disabled={busy !== null}>
+              <Icon name="link" size={13} /> Подключить Telegram
+            </button>
+          )}
+          {st?.linked && (
+            <>
+              <button className="btn btn-sm" onClick={() => void startLink()} disabled={busy !== null}>
+                <Icon name="refresh" size={13} /> Переподключить
+              </button>
+              <button className="btn btn-sm btn-danger" onClick={() => void unlink()} disabled={busy !== null}>
+                {busy === "unlink" ? "Отключаем…" : "Отключить"}
+              </button>
+            </>
+          )}
+        </div>
+        {modal}
+      </div>
+    );
+  }
+
   return (
     <div className="card card-pad">
       <div className="card-head">
@@ -181,7 +273,7 @@ export function TelegramCard({ doneToday }: { doneToday: number }) {
           <h3 className="card-title">Telegram</h3>
           <p className="card-sub">Vexi ставит ваш грейд дня тегом в рабочем чате</p>
         </div>
-        {st && (st.linked ? <Chip hue="green" dot>Подключен</Chip> : <Chip hue="gray" dot>Не подключен</Chip>)}
+        {st?.operatorId && (st.linked ? <Chip hue="green" dot>Подключен</Chip> : <Chip hue="gray" dot>Не подключен</Chip>)}
       </div>
 
       {!st && !loadErr && <div style={{ fontSize: 13, color: "var(--dim)" }}>Проверяем подключение…</div>}
@@ -197,7 +289,14 @@ export function TelegramCard({ doneToday }: { doneToday: number }) {
         </div>
       )}
 
-      {st && !st.linked && (
+      {st && !st.operatorId && (
+        <div style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.55 }}>
+          Грейд-теги ведутся для операторов: Vexi считает доведённые лиды по карточке сотрудника. Ваш аккаунт не связан с карточкой оператора, поэтому привязывать
+          Telegram не нужно. Операторы подключают его сами — здесь же, в «Моём профиле», или в «Моём кабинете».
+        </div>
+      )}
+
+      {st?.operatorId && !st.linked && (
         <div className="stack" style={{ gap: 12 }}>
           <div style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.55 }}>
             Подключите Telegram — и рядом с вашим именем в рабочем чате появится тег <b style={{ color: "var(--text)" }}>{expected}</b>. Он меняется в течение дня по числу доведённых
@@ -240,27 +339,7 @@ export function TelegramCard({ doneToday }: { doneToday: number }) {
         </div>
       )}
 
-      {open && (
-        <Modal
-          title="Подключение Telegram"
-          width={460}
-          onClose={() => {
-            setOpen(false);
-            setCode(null);
-            setCodeErr(null);
-          }}
-        >
-          <LinkBody
-            code={code}
-            error={codeErr}
-            generating={busy === "code"}
-            expired={expired}
-            leftMs={code ? new Date(code.expiresAt).getTime() - now : 0}
-            onNew={() => void newCode()}
-            onCopy={(t) => void copy(t)}
-          />
-        </Modal>
-      )}
+      {modal}
     </div>
   );
 }

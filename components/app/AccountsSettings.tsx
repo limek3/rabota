@@ -18,6 +18,7 @@ import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { RoleChip } from "./AccountMenu";
 import { AUTH_ENABLED } from "@/lib/appMode";
+import { TelegramCard } from "./TelegramCard";
 import { setLogin } from "@/lib/crm/remote";
 
 function Section({ title, sub, children, action }: { title: string; sub?: string; children: React.ReactNode; action?: React.ReactNode }) {
@@ -74,7 +75,7 @@ function EditHoursField({ value, onSave }: { value: number; onSave: (v: number) 
 /* ── мой профиль ─────────────────────────────────────────────────── */
 
 export function ProfileTab() {
-  const { me, access, data, saveMyProfile, toast } = useCrm();
+  const { me, access, data, saveMyProfile, toast, remote } = useCrm();
   const [name, setName] = useState(me.name);
   const [login, setLogin] = useState(me.login);
   const op = access.opId ? data.operators.find((o) => o.id === access.opId) : null;
@@ -130,6 +131,9 @@ export function ProfileTab() {
           </div>
         )}
       </Section>
+
+      {/* привязка к Vexi живёт в базе — без Supabase её нет */}
+      {remote && <TelegramCard />}
 
       <Section title="Внешний вид и удобство" sub="Настройки только для вашего аккаунта — другим они не мешают">
         <div className="grid2">

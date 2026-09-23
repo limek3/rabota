@@ -17,6 +17,7 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { href: "/me", label: "Мой кабинет", icon: "user", hint: "Мой план, лиды за сегодня, часы и заработок", group: "Работа" },
+  { href: "/stats", label: "Мои показатели", icon: "chart", hint: "План и факт, прогноз, темп, часы и выработка за месяц", group: "Работа" },
   { href: "/dashboard", label: "Сводка", icon: "dashboard", hint: "План, факт, темп и прогноз команды", group: "Работа" },
   { href: "/leads", label: "Лиды", icon: "leads", hint: "Журнал переданных лидов", group: "Работа" },
   { href: "/operators", label: "Операторы", icon: "users", hint: "Показатели и карточки сотрудников", group: "Работа" },

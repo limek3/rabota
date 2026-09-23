@@ -715,3 +715,26 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
   50% { opacity: 1; transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) { .tg-wait-dot { animation: none; } }
+
+/* блок Telegram одной строкой — верх «Моего кабинета» */
+.tg-strip { display: flex; align-items: center; gap: 14px; padding: 14px 18px; }
+.tg-strip-icon { width: 36px; height: 36px; border-radius: 10px; flex: none; display: flex; align-items: center; justify-content: center; background: var(--brand-tint); color: var(--brand); }
+.tg-strip-actions { flex: none; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .tg-strip { flex-wrap: wrap; }
+  .tg-strip-actions { width: 100%; justify-content: flex-start; }
+}
+
+/* «Ставка этой смены»: плитки + лестница ступеней слева, сетка справа */
+.tier-shift { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.tier-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.tier-ladder { display: flex; gap: 6px; }
+.tier-step { flex: 1; min-width: 0; }
+.tier-bar { height: 8px; border-radius: 99px; background: var(--ink-06); overflow: hidden; }
+.tier-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brand); transition: width 0.3s var(--ease); }
+.tier-step-range { margin-top: 7px; font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tier-step-rate { font-size: 11.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tier-step.on .tier-step-range { color: var(--brand); font-weight: 600; }
+.tier-step.on .tier-step-rate { color: var(--text); }
+@media (max-width: 1100px) { .tier-shift { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .tier-step-rate { white-space: normal; } }

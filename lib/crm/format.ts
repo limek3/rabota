@@ -100,6 +100,11 @@ export function shortName(name: string): string {
   return `${p[0]} ${p.slice(1).map((x) => x[0] + ".").join(" ")}`;
 }
 
+/** «Фамилия Имя» из «Фамилия Имя Отчество» — для приветствия: одна фамилия звучит сухо, с отчеством — длинно. */
+export function surnameAndName(full: string): string {
+  return full.trim().split(/\s+/).filter(Boolean).slice(0, 2).join(" ");
+}
+
 /** Как обратиться к человеку: из «Фамилия Имя Отчество» берём имя, иначе первое слово. */
 export function firstName(full: string): string {
   const parts = full.trim().split(/\s+/).filter(Boolean);

@@ -18,35 +18,40 @@ export function tierRange(tiers: RateTier[], i: number): string {
   return `${from}–${next - 1} ${plural(next - 1, LEADS)} за смену`;
 }
 
-/** Показ сетки: чем больше лидов в смене, тем выше ставка часа и бонус. */
+/**
+ * Показ сетки: чем больше лидов в смене, тем выше ставка часа и бонус.
+ * Своя рамка (.tbl-wrap) — шапка доходит до скруглённых краёв, а не висит внутри отступа.
+ */
 export function TierTable({ tiers, highlight, withHourly = true }: { tiers: RateTier[]; highlight?: number; withHourly?: boolean }) {
   if (!tiers.length) return <div style={{ fontSize: 12.5, color: "var(--dim)" }}>Сетка пуста</div>;
   return (
-    <table className="tbl tbl-fit" style={{ background: "transparent" }}>
-      <thead>
-        <tr>
-          <th>Лидов за смену</th>
-          {withHourly && <th className="r">Ставка, ₽/ч</th>}
-          <th className="r">Бонус за лид, ₽</th>
-        </tr>
-      </thead>
-      <tbody>
-        {tiers.map((t, i) => {
-          const on = highlight != null && highlight === t.from;
-          return (
-            <tr key={t.from} style={on ? { background: "var(--brand-tint)" } : undefined}>
-              {/* в узкой колонке «0–5 лидов за смену · сейчас» переносится, а не распирает таблицу */}
-              <td style={{ fontWeight: on ? 600 : 400, whiteSpace: "normal" }}>
-                {tierRange(tiers, i)}
-                {on && <span style={{ color: "var(--brand)" }}> · сейчас</span>}
-              </td>
-              {withHourly && <td className="r num">{fmtInt(t.hourlyRate)}</td>}
-              <td className="r num">{fmtInt(t.leadBonus)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="tbl-wrap">
+      <table className="tbl tbl-fit">
+        <thead>
+          <tr>
+            <th>Лидов за смену</th>
+            {withHourly && <th className="r">Ставка, ₽/ч</th>}
+            <th className="r">Бонус за лид, ₽</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tiers.map((t, i) => {
+            const on = highlight != null && highlight === t.from;
+            return (
+              <tr key={t.from} style={on ? { background: "var(--brand-tint)" } : undefined}>
+                {/* в узкой колонке «0–5 лидов за смену · сейчас» переносится, а не распирает таблицу */}
+                <td style={{ fontWeight: on ? 600 : 400, whiteSpace: "normal" }}>
+                  {tierRange(tiers, i)}
+                  {on && <span style={{ color: "var(--brand)" }}> · сейчас</span>}
+                </td>
+                {withHourly && <td className="r num">{fmtInt(t.hourlyRate)}</td>}
+                <td className="r num">{fmtInt(t.leadBonus)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -380,11 +385,7 @@ export function GridField({ value, onChange }: { value: string | null; onChange:
           ))}
         </div>
       </Field>
-      {grid && (
-        <div className="card" style={{ background: "var(--bg)", padding: "4px 10px" }}>
-          <TierTable tiers={grid.tiers} />
-        </div>
-      )}
+      {grid && <TierTable tiers={grid.tiers} />}
     </div>
   );
 }

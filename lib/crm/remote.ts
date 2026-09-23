@@ -118,6 +118,21 @@ const chunks = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.lengt
 
 export async function putRecords(table: Table, recs: object[]): Promise<void> {
   if (!recs.length) return;
+  // Аккаунты: upsert — это INSERT … ON CONFLICT, и RLS проверяет его по правилу вставки, а создавать
+  // аккаунты может только РОП. Оператор и супервайзер меняют свой аккаунт (тема, стартовая страница,
+  // время входа) — поэтому сначала UPDATE по id, вставка — только если такой строки ещё нет.
+  if (table === "accounts") {
+    for (const rec of recs) {
+      const row = toRow(table, rec);
+      const { data, error } = await supabase().from(table).update(row).eq("id", String(row.id)).select("id");
+      if (error) fail(error);
+      if (!data?.length) {
+        const { error: insErr } = await supabase().from(table).insert(row);
+        if (insErr) fail(insErr);
+      }
+    }
+    return;
+  }
   for (const part of chunks(recs, 500)) {
     const rows = part.map((r) => toRow(table, r));
     // журнал — только добавление: читать его могут не все, а upsert требует права чтения
