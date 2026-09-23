@@ -64,6 +64,36 @@ export default function LeadsPage() {
 
   const operators = useMemo(() => [...data.operators].sort((a, b) => Number(!!a.deletedAt) - Number(!!b.deletedAt) || a.name.localeCompare(b.name, "ru")), [data.operators]);
   const groups = data.groups;
+
+  // Список операторов в фильтре: работающие — по группам; уволенные и удалённые — отдельно
+  // и только те, у кого есть лиды за выбранный период (история их не теряется, но и не мешает).
+  const opOptions = useMemo<Opt[]>(() => {
+    const cnt = new Map<string, number>();
+    for (const l of data.leads) {
+      const d = l.at.slice(0, 10);
+      if (d >= period.from && d <= period.to) cnt.set(l.operatorId, (cnt.get(l.operatorId) ?? 0) + 1);
+    }
+    const groupName = (o: (typeof operators)[number]) => (o.groupId ? ix.groupById.get(o.groupId)?.name ?? NO_GROUP_LABEL : NO_GROUP_LABEL);
+    const leadsHint = (id: string) => (cnt.get(id) ? `${fmtInt(cnt.get(id)!)} ${plural(cnt.get(id)!, LEADS)}` : "");
+    const working = operators
+      .filter((o) => !o.deletedAt && o.status !== "fired")
+      .sort((a, b) => Number(!a.groupId) - Number(!b.groupId) || groupName(a).localeCompare(groupName(b), "ru") || a.name.localeCompare(b.name, "ru"));
+    const former = operators.filter((o) => o.deletedAt || o.status === "fired");
+    const shown = former.filter((o) => cnt.get(o.id) || o.id === operatorId);
+    const hidden = former.length - shown.length;
+    const FORMER = "Уволенные и удалённые";
+    return [
+      { value: "", label: "Все операторы" },
+      ...working.map<Opt>((o) => ({ value: o.id, label: o.name, group: groupName(o), hint: leadsHint(o.id) })),
+      ...shown.map<Opt>((o) => ({
+        value: o.id,
+        label: o.name,
+        group: FORMER,
+        hint: [o.deletedAt ? "удалён" : "уволен", leadsHint(o.id)].filter(Boolean).join(" · "),
+      })),
+      ...(hidden > 0 ? [{ value: "__former_hidden__", label: `Ещё ${hidden} — без лидов за период`, group: FORMER, disabled: true }] : []),
+    ];
+  }, [operators, data.leads, period.from, period.to, operatorId, ix]);
   const projects = useMemo(() => [...data.projects].sort((a, b) => a.sort - b.sort), [data.projects]);
   const filtered = !!(operatorId || groupId || projectId || q || status);
 
@@ -118,14 +148,7 @@ export default function LeadsPage() {
           <Select
             width={210}
             value={operatorId}
-            options={[
-              { value: "", label: "Все операторы" },
-              ...operators.map<Opt>((o) => ({
-                value: o.id,
-                label: o.name,
-                hint: o.deletedAt ? "удалён" : o.status === "fired" ? "уволен" : "",
-              })),
-            ]}
+            options={opOptions}
             onChange={setOperatorId}
             ariaLabel="Оператор"
             minPopWidth={280}

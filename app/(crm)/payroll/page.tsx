@@ -283,13 +283,13 @@ export default function PayrollPage() {
                 const closed = collapsed.has(sec.id);
                 return (
                   <tbody key={sec.id}>
-                    <tr className="pay-grp" onClick={() => toggleGroup(sec.id)} title={closed ? "Развернуть группу" : "Свернуть группу"}>
+                    <tr className="grp-head" onClick={() => toggleGroup(sec.id)} title={closed ? "Развернуть группу" : "Свернуть группу"}>
                       <td className="sticky-col">
                         <span className="row" style={{ gap: 8 }}>
                           <Icon name={closed ? "chevR" : "chevD"} size={14} style={{ color: "var(--dim)" }} />
                           <Swatch hue={sec.color} />
                           <span>{sec.name}</span>
-                          <span className="pay-grp-sub">
+                          <span className="grp-head-sub">
                             {sec.rows.length} чел.{sec.supervisor ? ` · супервайзер ${sec.supervisor}` : ""}
                           </span>
                         </span>

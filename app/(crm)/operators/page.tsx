@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
 import { PACE_HUE, PACE_LABEL, type OpRow, type Pace, type PaceStatus } from "@/lib/crm/calc";
 import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
 import { fmtMonth } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv } from "@/lib/crm/format";
-import { Avatar, Empty, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Switch, downloadText, hueVars, toCsv, type SortState } from "@/components/ui/kit";
+import { Avatar, Empty, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, hueVars, toCsv, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
@@ -63,6 +63,22 @@ export default function OperatorsPage() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [sort, setSort] = useState<SortState<SortKey>>({ key: "fact", dir: -1 });
   const [openId, setOpenId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const toggleGroup = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  // группа строки: супервайзер — в группе, которую ведёт (как в зарплате); остальные — по карточке
+  const led = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const g of data.groups) if (!g.deletedAt && g.supervisorId && !out.has(g.supervisorId)) out.set(g.supervisorId, g.id);
+    return out;
+  }, [data.groups]);
+  const keyOf = useCallback((r: OpRow) => led.get(r.op.id) ?? r.groupKey, [led]);
 
   // /operators?id=… — открыть карточку сразу
   useEffect(() => {
@@ -83,7 +99,7 @@ export default function OperatorsPage() {
       if (!showDeleted && r.op.deletedAt) return false;
       if (emp === "work" && r.op.status === "fired") return false;
       if (emp !== "work" && emp !== "all" && r.op.status !== emp) return false;
-      if (group && r.groupKey !== group) return false;
+      if (group && keyOf(r) !== group) return false;
       if (pace.size && !pace.has(r.status)) return false;
       if (t && !r.op.name.toLowerCase().includes(t) && !r.op.contact.toLowerCase().includes(t)) return false;
       return true;
@@ -95,7 +111,45 @@ export default function OperatorsPage() {
       return c * sort.dir || a.op.name.localeCompare(b.op.name, "ru");
     });
     return out;
-  }, [rows, q, group, emp, pace, showDeleted, sort]);
+  }, [rows, q, group, emp, pace, showDeleted, sort, keyOf]);
+
+  // по группам: у РОПа (и у всех, если в списке несколько групп) — строка-заголовок группы с итогами;
+  // внутри группы порядок — по выбранной сортировке
+  const sections = useMemo(() => {
+    const map = new Map<string, OpRow[]>();
+    for (const r of list) {
+      const k = keyOf(r);
+      map.set(k, [...(map.get(k) ?? []), r]);
+    }
+    return Array.from(map.entries())
+      .map(([key, rs]) => {
+        const g = key === NO_GROUP ? null : ix.groupById.get(key);
+        const sum = (f: (r: OpRow) => number) => rs.reduce((a, r) => a + f(r), 0);
+        const plan = sum((r) => r.terms.plan);
+        const fact = sum((r) => r.pace.fact);
+        const hours = sum((r) => r.hours);
+        return {
+          key,
+          name: g?.name ?? NO_GROUP_LABEL,
+          color: g?.color ?? "gray",
+          supervisor: g ? (g.supervisorId ? ix.opById.get(g.supervisorId)?.name : null) ?? (g.supervisorName || null) : null,
+          status: m.groups.find((x) => x.key === key)?.status ?? null,
+          rows: rs,
+          t: {
+            plan, fact, hours,
+            planToDate: sum((r) => r.pace.planToDate),
+            dev: sum((r) => r.pace.deviation),
+            rr: sum((r) => r.pace.rr),
+            left: sum((r) => r.pace.remaining),
+            today: sum((r) => r.pace.today),
+            week: sum((r) => r.pace.thisWeek),
+            prev: sum((r) => r.pace.prevWeek),
+          },
+        };
+      })
+      .sort((a, b) => Number(a.key === NO_GROUP) - Number(b.key === NO_GROUP) || a.name.localeCompare(b.name, "ru"));
+  }, [list, keyOf, ix, m.groups]);
+  const grouped = access.viewAll || sections.length > 1;
 
   const counts = useMemo(() => {
     const c = {} as Record<PaceStatus, number>;
@@ -145,6 +199,62 @@ export default function OperatorsPage() {
   };
 
   const groups = data.groups.filter((g) => !g.deletedAt);
+
+  const renderRow = (r: OpRow) => {
+    const g = r.op.groupId ? ix.groupById.get(r.op.groupId) : null;
+    const p = r.pace;
+    return (
+      <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""}`} onClick={() => setOpenId(r.op.id)}>
+        <td className="sticky-col">
+          <span className="row" style={{ gap: 9 }}>
+            <Avatar name={r.op.name} id={r.op.id} size={26} />
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 500 }}>
+                {r.op.name}
+                {r.isLeader && <Icon name="star" size={12} stroke={2} style={{ color: "var(--c-amber-fg)" }} />}
+                <GoneTag op={r.op} />
+              </span>
+              <span style={{ fontSize: 11.5, color: "var(--dim)" }}>
+                {g ? g.name : NO_GROUP_LABEL}
+                {r.op.role !== "operator" && ` · ${ROLE_LABEL[r.op.role]}`}
+                {r.op.deletedAt ? " · удалён" : r.op.status !== "active" ? ` · ${STATUS_LABEL[r.op.status].toLowerCase()}` : ""}
+              </span>
+            </span>
+          </span>
+        </td>
+        <td>
+          <StatusChip status={r.status} />
+        </td>
+        <td className="r num">
+          {fmtInt(r.terms.plan)}
+          {r.terms.explicit && <span title="План задан для этого месяца" style={{ color: "var(--brand)" }}>•</span>}
+        </td>
+        <td className="r num" style={{ fontWeight: 600 }}>{fmtInt(p.fact)}</td>
+        <td>
+          <div className="row" style={{ gap: 8 }}>
+            <Progress value={p.pct} marker={!past && r.terms.plan > 0 ? p.planToDate / r.terms.plan : undefined} hue={PACE_HUE[r.status]} style={{ flex: 1, minWidth: 50 }} />
+            <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(p.pct)}</span>
+          </div>
+        </td>
+        <td className="r num" style={{ color: p.deviation >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(p.deviation)}</td>
+        <td className="r num">
+          {fmtInt(p.rr)} <span className="muted">{fmtPct(p.rrPct)}</span>
+        </td>
+        <td className="r num">{fmtInt(p.remaining)}</td>
+        <td className="r num">{p.needPerDay == null ? "—" : fmtNum(p.needPerDay)}</td>
+        <td className="r num bl">{fmtInt(p.today)}</td>
+        <td className="r num">{fmtInt(p.thisWeek)}</td>
+        <td className="r num muted">{fmtInt(p.prevWeek)}</td>
+        <td className="r num">{fmtNum(r.avgPerWorkday)}</td>
+        <td className="r num bl">{fmtNum(r.hours)}</td>
+        <td className="r num" title={`Норма ${fmtNum(r.norm)} ч; к дате ${fmtNum(r.normToDate)} ч`}>
+          <span style={{ color: r.hoursDelta < -0.5 ? "var(--c-red-fg)" : undefined }}>{fmtPct(r.normPct)}</span>
+        </td>
+        <td className="r num">{r.lph == null ? "—" : fmtNum(r.lph, 2)}</td>
+      </tr>
+    );
+  };
+
   const past = m.cal.phase === "past";
 
   return (
@@ -269,62 +379,51 @@ export default function OperatorsPage() {
                 <SortTh k="lph" sort={sort} setSort={setSort} className="r" title="Переданные лиды / отработанные часы">Лид/час</SortTh>
               </tr>
             </thead>
-            <tbody>
-              {list.map((r) => {
-                const g = r.op.groupId ? ix.groupById.get(r.op.groupId) : null;
-                const p = r.pace;
+            {grouped ? (
+              sections.map((sec) => {
+                const closed = collapsed.has(sec.key);
+                const pct = safeDiv(sec.t.fact, sec.t.plan);
                 return (
-                  <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""}`} onClick={() => setOpenId(r.op.id)}>
-                    <td className="sticky-col">
-                      <span className="row" style={{ gap: 9 }}>
-                        <Avatar name={r.op.name} id={r.op.id} size={26} />
-                        <span style={{ minWidth: 0 }}>
-                          <span style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 500 }}>
-                            {r.op.name}
-                            {r.isLeader && <Icon name="star" size={12} stroke={2} style={{ color: "var(--c-amber-fg)" }} />}
-                            <GoneTag op={r.op} />
-                          </span>
-                          <span style={{ fontSize: 11.5, color: "var(--dim)" }}>
-                            {g ? g.name : NO_GROUP_LABEL}
-                            {r.op.role !== "operator" && ` · ${ROLE_LABEL[r.op.role]}`}
-                            {r.op.deletedAt ? " · удалён" : r.op.status !== "active" ? ` · ${STATUS_LABEL[r.op.status].toLowerCase()}` : ""}
+                  <tbody key={sec.key}>
+                    <tr className="grp-head" onClick={() => toggleGroup(sec.key)} title={closed ? "Развернуть группу" : "Свернуть группу"}>
+                      <td className="sticky-col">
+                        <span className="row" style={{ gap: 8 }}>
+                          <Icon name={closed ? "chevR" : "chevD"} size={14} style={{ color: "var(--dim)" }} />
+                          <Swatch hue={sec.color} />
+                          <span>{sec.name}</span>
+                          <span className="grp-head-sub">
+                            {sec.rows.length} чел.{sec.supervisor ? ` · СВ ${sec.supervisor}` : ""}
                           </span>
                         </span>
-                      </span>
-                    </td>
-                    <td>
-                      <StatusChip status={r.status} />
-                    </td>
-                    <td className="r num">
-                      {fmtInt(r.terms.plan)}
-                      {r.terms.explicit && <span title="План задан для этого месяца" style={{ color: "var(--brand)" }}>•</span>}
-                    </td>
-                    <td className="r num" style={{ fontWeight: 600 }}>{fmtInt(p.fact)}</td>
-                    <td>
-                      <div className="row" style={{ gap: 8 }}>
-                        <Progress value={p.pct} marker={!past && r.terms.plan > 0 ? p.planToDate / r.terms.plan : undefined} hue={PACE_HUE[r.status]} style={{ flex: 1, minWidth: 50 }} />
-                        <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(p.pct)}</span>
-                      </div>
-                    </td>
-                    <td className="r num" style={{ color: p.deviation >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(p.deviation)}</td>
-                    <td className="r num">
-                      {fmtInt(p.rr)} <span className="muted">{fmtPct(p.rrPct)}</span>
-                    </td>
-                    <td className="r num">{fmtInt(p.remaining)}</td>
-                    <td className="r num">{p.needPerDay == null ? "—" : fmtNum(p.needPerDay)}</td>
-                    <td className="r num bl">{fmtInt(p.today)}</td>
-                    <td className="r num">{fmtInt(p.thisWeek)}</td>
-                    <td className="r num muted">{fmtInt(p.prevWeek)}</td>
-                    <td className="r num">{fmtNum(r.avgPerWorkday)}</td>
-                    <td className="r num bl">{fmtNum(r.hours)}</td>
-                    <td className="r num" title={`Норма ${fmtNum(r.norm)} ч; к дате ${fmtNum(r.normToDate)} ч`}>
-                      <span style={{ color: r.hoursDelta < -0.5 ? "var(--c-red-fg)" : undefined }}>{fmtPct(r.normPct)}</span>
-                    </td>
-                    <td className="r num">{r.lph == null ? "—" : fmtNum(r.lph, 2)}</td>
-                  </tr>
+                      </td>
+                      <td>{sec.status && <StatusChip status={sec.status} />}</td>
+                      <td className="r num">{fmtInt(sec.t.plan)}</td>
+                      <td className="r num">{fmtInt(sec.t.fact)}</td>
+                      <td>
+                        <div className="row" style={{ gap: 8 }}>
+                          <Progress value={pct} marker={!past && sec.t.plan > 0 ? sec.t.planToDate / sec.t.plan : undefined} hue={sec.status ? PACE_HUE[sec.status] : undefined} style={{ flex: 1, minWidth: 50 }} />
+                          <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(pct)}</span>
+                        </div>
+                      </td>
+                      <td className="r num" style={{ color: sec.t.dev >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(sec.t.dev)}</td>
+                      <td className="r num">{fmtInt(sec.t.rr)}</td>
+                      <td className="r num">{fmtInt(sec.t.left)}</td>
+                      <td />
+                      <td className="r num bl">{fmtInt(sec.t.today)}</td>
+                      <td className="r num">{fmtInt(sec.t.week)}</td>
+                      <td className="r num">{fmtInt(sec.t.prev)}</td>
+                      <td />
+                      <td className="r num bl">{fmtNum(sec.t.hours)}</td>
+                      <td />
+                      <td className="r num">{sec.t.hours > 0 ? fmtNum(sec.t.fact / sec.t.hours, 2) : "—"}</td>
+                    </tr>
+                    {!closed && sec.rows.map(renderRow)}
+                  </tbody>
                 );
-              })}
-            </tbody>
+              })
+            ) : (
+              <tbody>{list.map(renderRow)}</tbody>
+            )}
             <tfoot>
               <tr>
                 <td className="sticky-col">Итого · {list.length}</td>
