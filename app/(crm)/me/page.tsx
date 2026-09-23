@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
@@ -15,6 +15,7 @@ import { DailyBars } from "@/components/ui/charts";
 import { LearnCard } from "@/components/learn/Progress";
 import { Icon } from "@/components/ui/icons";
 import { TelegramCard } from "@/components/app/TelegramCard";
+import { PayslipModal } from "@/components/app/Payslip";
 
 /**
  * Личный кабинет оператора (и супервайзера, который сам звонит).
@@ -23,6 +24,7 @@ import { TelegramCard } from "@/components/app/TelegramCard";
 export default function MePage() {
   const { data, full, ix, access, me, month, setMonth, today, openLead, remote } = useCrm();
   const m = useMonthModel();
+  const [slipOpen, setSlipOpen] = useState(false);
   const s = data.settings;
   const opId = access.opId;
   const row = useMemo(() => m.ops.find((r) => r.op.id === opId) ?? null, [m.ops, opId]);
@@ -305,8 +307,11 @@ export default function MePage() {
               <div className="card-head">
                 <div>
                   <h3 className="card-title">Мой заработок</h3>
-                  <p className="card-sub">{fmtMonth(month)} · предварительно</p>
+                  <p className="card-sub">{fmtMonth(month)}{m.cal.phase === "past" ? "" : " · предварительно"}</p>
                 </div>
+                <button className="btn btn-sm" onClick={() => setSlipOpen(true)} title="Разбор начислений за месяц — PDF или картинкой">
+                  <Icon name="doc" size={13} /> Расчётный лист
+                </button>
               </div>
               <div style={{ fontSize: 30, fontWeight: 600, letterSpacing: "-.02em" }}>{fmtMoney(pay.net)}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12, fontSize: 13 }}>
@@ -380,6 +385,7 @@ export default function MePage() {
           </div>
         </div>
       </div>
+      {slipOpen && pay && <PayslipModal row={pay} cal={m.cal} onClose={() => setSlipOpen(false)} />}
     </div>
   );
 }

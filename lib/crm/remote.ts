@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
  * можно видеть и менять, решает база (RLS): загрузка возвращает только его зону.
  */
 
-export const TABLES = ["operators", "groups", "projects", "leads", "shifts", "plans", "adjustments", "accounts", "learn", "approves", "audit"] as const;
+export const TABLES = ["operators", "groups", "projects", "leads", "shifts", "plans", "adjustments", "accounts", "learn", "approves", "candidates", "audit"] as const;
 export type Table = (typeof TABLES)[number];
 
 /** Пустое значение при отсутствии поля: OPT — необязательное поле (null из базы → undefined). */
@@ -48,6 +48,10 @@ const SPEC: Record<Table, Record<string, Def>> = {
     at: OPT, checks: OPT, note: OPT, fav: OPT, cert: OPT, updatedAt: NOW,
   },
   approves: { id: "", month: "", projectId: "", pct: 0, comment: "", updatedAt: NOW },
+  candidates: {
+    id: "", name: "", contact: "", source: "", groupId: null, stage: "new", appliedAt: "", interviewAt: "", trainingAt: "", closedAt: "",
+    operatorId: null, reason: "", comment: "", createdAt: NOW, updatedAt: NOW, deletedAt: null,
+  },
   audit: { id: "", at: NOW, accountId: "", accountName: "", entity: "", entityId: "", summary: "" },
 };
 
@@ -78,9 +82,21 @@ export function fromRow<T>(table: Table, row: Record<string, unknown>): T {
   return out as T;
 }
 
-function fail(e: { message: string; code?: string; details?: string | null; hint?: string | null } | null): never {
+/**
+ * Таблица кандидатов появилась позже остальных. Пока схему в Supabase не перезапустили,
+ * CRM работает как раньше, а раздел «Найм» просит обновить схему — вместо того чтобы
+ * не пускать в систему целиком.
+ */
+let candidatesReady = true;
+export const hasCandidatesTable = () => candidatesReady;
+const CANDIDATES_MISSING = "В Supabase ещё нет таблицы кандидатов. Выполните supabase/migrations/20260924000001_candidates.sql в SQL Editor (повторный запуск безопасен).";
+
+const isMissingTable = (e: { message: string; code?: string } | null) => e?.code === "PGRST205" || e?.code === "PGRST202" || /schema cache/i.test(e?.message ?? "");
+
+function fail(e: { message: string; code?: string; details?: string | null; hint?: string | null } | null, table?: string): never {
   const msg = e?.message ?? "Ошибка базы";
-  if (e?.code === "PGRST205" || e?.code === "PGRST202" || /schema cache/i.test(msg))
+  if (table === "candidates" && isMissingTable(e)) throw new Error(CANDIDATES_MISSING);
+  if (isMissingTable(e))
     throw new Error("В Supabase ещё нет таблиц CRM. Выполните supabase/migrations/20260921000001_crm_schema.sql в SQL Editor проекта и нажмите «Повторить».");
   if (e?.code === "42501" || /row-level security/i.test(msg)) throw new Error(`Нет прав на это действие (${msg})`);
   throw new Error(msg);
@@ -92,6 +108,10 @@ async function fetchAll(table: string): Promise<Record<string, unknown>[]> {
   const PAGE = 1000;
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabase().from(table).select("*").order(table === "kv" ? "key" : "id").range(from, from + PAGE - 1);
+    if (error && table === "candidates" && isMissingTable(error)) {
+      candidatesReady = false;
+      return [];
+    }
     if (error) fail(error);
     out.push(...(data as Record<string, unknown>[]));
     if (!data || data.length < PAGE) break;
@@ -101,6 +121,7 @@ async function fetchAll(table: string): Promise<Record<string, unknown>[]> {
 
 export async function loadAll(): Promise<{ state: DataState; persistent: boolean }> {
   const st = emptyState();
+  candidatesReady = true;
   const [kv, ...rows] = await Promise.all([fetchAll("kv"), ...TABLES.map((t) => fetchAll(t))]);
   TABLES.forEach((t, i) => {
     (st as unknown as Record<string, unknown[]>)[t] = rows[i].map((r) => fromRow(t, r));
@@ -137,7 +158,7 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
     const rows = part.map((r) => toRow(table, r));
     // журнал — только добавление: читать его могут не все, а upsert требует права чтения
     const { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
-    if (error) fail(error);
+    if (error) fail(error, table);
   }
 }
 
@@ -147,7 +168,7 @@ const inList = (ids: string[]) => `(${ids.map((v) => `"${v.replace(/\\/g, "\\\\"
 export async function deleteRecords(table: Table, ids: string[]): Promise<void> {
   for (const part of chunks(ids, 100)) {
     const { error } = await supabase().from(table).delete().filter("id", "in", inList(part));
-    if (error) fail(error);
+    if (error) fail(error, table);
   }
 }
 
@@ -184,9 +205,10 @@ export async function replaceAll(state: DataState): Promise<void> {
 export async function mergeUpload(state: DataState, myEmail: string): Promise<Record<Table, number>> {
   const counts = {} as Record<Table, number>;
   // порядок важен: сначала справочники, потом то, что на них ссылается
-  const order: Table[] = ["groups", "projects", "operators", "accounts", "leads", "shifts", "plans", "adjustments", "approves", "learn", "audit"];
+  const order: Table[] = ["groups", "projects", "operators", "accounts", "leads", "shifts", "plans", "adjustments", "approves", "candidates", "learn", "audit"];
   const me = myEmail.trim().toLowerCase();
   for (const t of order) {
+    if (t === "candidates" && !candidatesReady) continue;
     let recs = (state as unknown as Record<string, { id: string; login?: string }[]>)[t] ?? [];
     if (t === "accounts") recs = recs.filter((a) => a.login && a.login.trim().toLowerCase() !== me);
     if (t === "audit") {
@@ -243,7 +265,8 @@ export type Change = { table: Table; type: "INSERT" | "UPDATE" | "DELETE"; rec?:
 /** Изменения от других пользователей в реальном времени (RLS соблюдается: приходит только своя зона). */
 export function subscribe(onChange: (c: Change) => void): () => void {
   const ch = supabase().channel("crm-db");
-  for (const t of [...TABLES, "kv"] as const) {
+  // таблицы кандидатов может ещё не быть — подписка на несуществующую таблицу ломает весь канал
+  for (const t of [...TABLES.filter((x) => x !== "candidates" || candidatesReady), "kv"] as const) {
     ch.on("postgres_changes", { event: "*", schema: "public", table: t }, (p) => {
       if (t === "kv") return onChange({ table: "kv" });
       if (p.eventType === "DELETE") onChange({ table: t, type: "DELETE", id: String((p.old as { id?: string })?.id ?? "") });

@@ -1,4 +1,4 @@
-import type { Account, AccountRole, DataState, ID, Lead, Operator } from "./types";
+import type { Account, AccountRole, Candidate, DataState, ID, Lead, Operator } from "./types";
 
 /**
  * Права доступа. Чистые функции: по аккаунту и данным решают, что человек видит
@@ -45,6 +45,8 @@ export interface Access {
     systemSettings: boolean;
     manageData: boolean;
     manageAccounts: boolean;
+    /** Найм: кандидаты и приём в штат (супервайзеру — вместе с правом вести операторов). */
+    manageHiring: boolean;
   };
   /** Разрешённые страницы. */
   routes: Set<string>;
@@ -52,7 +54,7 @@ export interface Access {
   scopeLabel: string;
 }
 
-export const ALL_ROUTES = ["/dashboard", "/me", "/stats", "/leads", "/operators", "/groups", "/schedule", "/payroll", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"];
+export const ALL_ROUTES = ["/dashboard", "/me", "/stats", "/leads", "/operators", "/groups", "/hiring", "/schedule", "/payroll", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"];
 
 export function supervisorGroups(acc: Account, st: DataState): Set<ID> {
   const live = new Set(st.groups.filter((g) => !g.deletedAt).map((g) => g.id));
@@ -83,17 +85,20 @@ export function computeAccess(acc: Account, st: DataState): Access {
     ? {
         createLeads: true, editLeads: true, manageOperators: true, manageGroups: true, editShifts: true, viewPayroll: true,
         editPayroll: true, editPlans: true, editTeamPlan: true, manageProjects: true, systemSettings: true, manageData: true, manageAccounts: true,
+        manageHiring: true,
       }
     : isSup
       ? {
           createLeads: S.createLeads, editLeads: S.editLeads, manageOperators: S.manageOperators, manageGroups: false,
           editShifts: S.editShifts, viewPayroll: S.viewPayroll, editPayroll: S.viewPayroll && S.editPayroll, editPlans: S.editPlans,
           editTeamPlan: false, manageProjects: S.manageProjects, systemSettings: false, manageData: false, manageAccounts: false,
+          manageHiring: S.manageOperators,
         }
       : {
           createLeads: O.createOwnLeads && !!opId, editLeads: O.editOwnLeadsHours > 0 && !!opId, manageOperators: false, manageGroups: false,
           editShifts: O.editOwnShifts && !!opId, viewPayroll: O.viewOwnPay && !!opId, editPayroll: false, editPlans: false,
           editTeamPlan: false, manageProjects: false, systemSettings: false, manageData: false, manageAccounts: false,
+          manageHiring: false,
         };
 
   const routes = new Set<string>();
@@ -101,6 +106,7 @@ export function computeAccess(acc: Account, st: DataState): Access {
   else if (isSup) ["/dashboard", "/leads", "/operators", "/groups", "/schedule", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"].forEach((r) => routes.add(r));
   else ["/me", "/stats", "/leads", "/schedule", "/dynamics", "/learn", "/settings"].forEach((r) => routes.add(r));
   if (can.viewPayroll) routes.add("/payroll");
+  if (can.manageHiring) routes.add("/hiring");
   // личные разделы — только у аккаунта с карточкой оператора
   for (const r of ["/me", "/stats"]) {
     if (opId) routes.add(r);
@@ -175,6 +181,15 @@ export function canEditPay(a: Access, operatorId: ID): boolean {
 }
 
 /**
+ * Кандидат в зоне аккаунта: РОП — любой; супервайзер с правом вести операторов —
+ * без группы (общий поток) и в свои группы. То же правило — в RLS таблицы candidates.
+ */
+export function canTouchCandidate(a: Access, c: Pick<Candidate, "groupId">): boolean {
+  if (a.isHead) return true;
+  return a.can.manageHiring && (!c.groupId || a.ownGroups.has(c.groupId));
+}
+
+/**
  * Срез данных по правам. РОП получает всё как есть. Остальные — только свою
  * зону; план команды в срезе = сумма планов их групп (общий план отдела им не нужен).
  */
@@ -192,6 +207,7 @@ export function scopeData(st: DataState, a: Access): DataState {
       ...st,
       adjustments: a.can.viewPayroll ? st.adjustments.filter((x) => canTouchOp(a, x.operatorId)) : [],
       accounts: st.accounts.filter((x) => x.id === a.account.id),
+      candidates: st.candidates.filter((c) => canTouchCandidate(a, c)),
     };
   }
   if (a.isSup) {
@@ -223,6 +239,7 @@ export function scopeData(st: DataState, a: Access): DataState {
     ),
     adjustments: canPay ? st.adjustments.filter((x) => opIds.has(x.operatorId)) : [],
     accounts: st.accounts.filter((x) => x.id === a.account.id),
+    candidates: st.candidates.filter((c) => canTouchCandidate(a, c)),
     // прогресс обучения не режем: оператору нужен свой, руководителю — своей команды
     learn: st.learn,
   };

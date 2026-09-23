@@ -777,3 +777,47 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .day-tip-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 12.5px; }
 .day-tip-grid span { color: var(--text-sub); }
 .day-tip-grid b { text-align: right; font-weight: 600; }
+
+/* «Динамика → По часам»: тепловая карта день недели × час и выводы сбоку */
+.heat-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 18px; align-items: start; }
+.heat-scroll { min-width: 0; overflow-x: auto; }
+.heat { border-collapse: separate; border-spacing: 3px; width: 100%; min-width: calc(var(--heat-cols) * 34px + 130px); font-size: 11.5px; }
+.heat th { font-weight: 500; color: var(--dim); }
+.heat-h { text-align: center; font-size: 11px; padding-bottom: 2px; }
+.heat-wd { text-align: left; padding-right: 6px; white-space: nowrap; color: var(--text-sub) !important; font-size: 12.5px; }
+.heat-wd span { display: block; font-size: 10.5px; color: var(--dim); font-weight: 400; }
+.heat-c { height: 32px; min-width: 30px; border-radius: 6px; text-align: center; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); background: color-mix(in srgb, var(--brand) calc(var(--k) * 88%), var(--ink-06)); }
+.heat-c.bad { background: color-mix(in srgb, var(--c-red-fg) calc(var(--k) * 85%), var(--ink-06)); }
+.heat-c[data-hot] { color: #fff; font-weight: 600; }
+.heat-sum { text-align: right; padding-left: 8px; white-space: nowrap; font-weight: 600; color: var(--text); }
+th.heat-sum { font-weight: 500; color: var(--dim); }
+.heat-foot { vertical-align: bottom; padding-top: 6px; }
+.heat-bar { position: relative; height: 46px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.heat-bar > span { display: block; width: 70%; min-height: 1px; border-radius: 3px 3px 0 0; background: var(--brand); opacity: 0.75; }
+.heat-bar > span.bad { background: var(--c-red-fg); }
+.heat-bar > em { font-style: normal; font-size: 10.5px; color: var(--dim); margin-top: 3px; font-family: var(--font-mono); }
+.heat-note { margin: 10px 0 0; font-size: 12px; color: var(--dim); line-height: 1.5; }
+.heat-side { display: flex; flex-direction: column; gap: 10px; }
+.heat-ins { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--ink-06); }
+.heat-ins-ico { width: 28px; height: 28px; border-radius: 8px; flex: none; display: flex; align-items: center; justify-content: center; background: var(--brand-tint); color: var(--brand); }
+.heat-ins.bad .heat-ins-ico { background: var(--c-red-bg); color: var(--c-red-fg); }
+.heat-ins-title { font-size: 11.5px; color: var(--text-sub); }
+.heat-ins-text { font-size: 13px; line-height: 1.45; margin-top: 1px; }
+@media (max-width: 1100px) { .heat-layout { grid-template-columns: 1fr; } .heat-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); } }
+
+/* «Найм»: приём в штат внутри карточки кандидата, воронка и полосы распределения */
+.hire-box { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--brand-tint); border: 1px solid var(--ink-06); }
+.funnel { display: flex; flex-direction: column; gap: 8px; }
+.funnel-row { display: grid; grid-template-columns: 170px minmax(0, 1fr) 150px; gap: 12px; align-items: center; }
+.funnel-label { font-size: 13px; font-weight: 500; }
+.funnel-label span { display: block; font-size: 11.5px; color: var(--dim); font-weight: 400; }
+.funnel-track { height: 30px; border-radius: 8px; background: var(--ink-04, var(--ink-06)); overflow: hidden; }
+.funnel-fill { height: 100%; min-width: 3px; border-radius: 8px; background: var(--brand); display: flex; align-items: center; padding-left: 10px; color: #fff; font-weight: 600; font-size: 13px; font-family: var(--font-mono); transition: width 0.3s var(--ease); }
+.funnel-fill.low { color: var(--text); background: color-mix(in srgb, var(--brand) 35%, transparent); }
+.funnel-meta { font-size: 12.5px; color: var(--text-sub); text-align: right; white-space: nowrap; }
+.funnel-meta b { color: var(--text); font-weight: 600; }
+.dist { display: flex; flex-direction: column; gap: 8px; }
+.dist-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 40px; gap: 10px; align-items: center; font-size: 12.5px; }
+.dist-bar { height: 10px; border-radius: 99px; background: var(--ink-06); overflow: hidden; }
+.dist-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
+@media (max-width: 760px) { .funnel-row { grid-template-columns: 1fr; gap: 4px; } .funnel-meta { text-align: left; } }

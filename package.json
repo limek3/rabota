@@ -15,7 +15,7 @@
     "dist": "next build && electron-builder --win",
     "dist:mac": "next build && electron-builder --mac",
     "check:routes": "node scripts/check-routes.mjs",
-    "test:calc": "tsc lib/crm/calc.ts lib/crm/payroll.ts lib/crm/demo.ts lib/crm/validate.ts lib/crm/access.ts lib/crm/purge.ts lib/crm/sheets.ts lib/crm/report.ts --outDir .calc-test --module commonjs --target es2020 --strict --skipLibCheck --esModuleInterop && node scripts/test-calc.cjs",
+    "test:calc": "tsc lib/crm/calc.ts lib/crm/payroll.ts lib/crm/demo.ts lib/crm/validate.ts lib/crm/access.ts lib/crm/purge.ts lib/crm/sheets.ts lib/crm/report.ts lib/crm/hours.ts lib/crm/hiring.ts lib/crm/payslip.ts --outDir .calc-test --module commonjs --target es2020 --strict --skipLibCheck --esModuleInterop && node scripts/test-calc.cjs",
     "import:academy": "node scripts/import-academy.mjs",
     "test:telegram-sql": "node scripts/test-telegram-sql.mjs"
   },

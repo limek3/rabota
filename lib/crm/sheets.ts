@@ -3,6 +3,7 @@ import {
   ACCOUNT_ROLE_LABEL,
   ADJ_LABEL,
   AUDIT_LABEL,
+  CANDIDATE_STAGE_LABEL,
   DAY_LABEL,
   GRADE_LABEL,
   LEAD_STATUS_LABEL,
@@ -142,6 +143,27 @@ export function buildSheets(st: DataState, exportedAt = new Date()): SheetData[]
       name: "Апрув",
       header: ["Месяц", "Проект", "Апрув %", "Комментарий"],
       rows: st.approves.map((a) => [a.month, a.projectId ? pr.get(a.projectId) ?? a.projectId : "Весь месяц", a.pct, a.comment]),
+    },
+    {
+      name: "Кандидаты",
+      header: ["ФИО", "Контакт", "Источник", "Группа", "Этап", "Отклик", "Собеседование", "Обучение", "Итог", "Оператор", "Причина отказа", "Комментарий", "Удалён"],
+      rows: [...st.candidates]
+        .sort((a, b) => a.appliedAt.localeCompare(b.appliedAt))
+        .map((c) => [
+          c.name,
+          c.contact,
+          c.source,
+          c.groupId ? gr.get(c.groupId) ?? c.groupId : "",
+          CANDIDATE_STAGE_LABEL[c.stage] ?? c.stage,
+          c.appliedAt,
+          c.interviewAt,
+          c.trainingAt,
+          c.closedAt,
+          c.operatorId ? op.get(c.operatorId) ?? c.operatorId : "",
+          c.reason,
+          c.comment,
+          yes(c.deletedAt),
+        ]),
     },
     {
       name: "Аккаунты",

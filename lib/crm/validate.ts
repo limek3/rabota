@@ -12,8 +12,9 @@ import type {
   Snapshot,
   Approve,
   AuditEntry,
+  Candidate,
 } from "./types";
-import { LEAD_SOURCE, LEAD_STATUSES } from "./types";
+import { CANDIDATE_STAGES, LEAD_SOURCE, LEAD_STATUSES } from "./types";
 import { normalizePrefs, normalizeSettings, normalizeTiers } from "./defaults";
 import { isDayKey, isMonthKey, isStamp } from "./dates";
 import { normPhone } from "./format";
@@ -294,6 +295,35 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
     warns,
   );
 
+  const opIds = new Set(operators.map((o) => o.id));
+  const groupIds = new Set(groups.map((g) => g.id));
+  const dayOr = (v: unknown) => (isDayKey(v) ? (v as string) : "");
+  const candidates: Candidate[] = dedupe(
+    arr("candidates")
+      .filter((c) => c && typeof c.id === "string" && c.id)
+      .map((c) => ({
+        id: str(c.id),
+        name: str(c.name, "Без имени").trim() || "Без имени",
+        contact: str(c.contact),
+        source: str(c.source),
+        // ссылки на то, чего нет в выгрузке, обнуляем — кандидат остаётся
+        groupId: c.groupId && groupIds.has(str(c.groupId)) ? str(c.groupId) : null,
+        stage: (CANDIDATE_STAGES as string[]).includes(str(c.stage)) ? (c.stage as Candidate["stage"]) : "new",
+        appliedAt: dayOr(c.appliedAt) || str(c.createdAt, now).slice(0, 10),
+        interviewAt: dayOr(c.interviewAt),
+        trainingAt: dayOr(c.trainingAt),
+        closedAt: dayOr(c.closedAt),
+        operatorId: c.operatorId && opIds.has(str(c.operatorId)) ? str(c.operatorId) : null,
+        reason: str(c.reason),
+        comment: str(c.comment),
+        createdAt: str(c.createdAt, now),
+        updatedAt: str(c.updatedAt, now),
+        deletedAt: c.deletedAt ? str(c.deletedAt) : null,
+      })),
+    "Кандидаты",
+    warns,
+  );
+
   const audit: AuditEntry[] = dedupe(
     arr("audit")
       .filter((a) => a && typeof a.summary === "string")
@@ -302,7 +332,7 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
         at: str(a.at, now),
         accountId: str(a.accountId),
         accountName: str(a.accountName),
-        entity: (["operator", "group", "lead", "shift", "plan", "payroll", "project", "account", "settings", "approve", "data"].includes(String(a.entity))
+        entity: (["operator", "group", "lead", "shift", "plan", "payroll", "project", "account", "settings", "approve", "candidate", "data"].includes(String(a.entity))
           ? a.entity
           : "data") as AuditEntry["entity"],
         entityId: str(a.entityId),
@@ -324,6 +354,7 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
     accounts,
     learn,
     approves,
+    candidates,
     audit,
     frozenMonths: Array.isArray(src.frozenMonths) ? (src.frozenMonths as unknown[]).filter(isMonthKey) : [],
   };
@@ -486,6 +517,7 @@ export function toSnapshot(st: DataState): Snapshot {
     accounts: st.accounts,
     learn: st.learn,
     approves: st.approves,
+    candidates: st.candidates,
     audit: st.audit,
     frozenMonths: st.frozenMonths,
   };
@@ -501,5 +533,6 @@ export function counts(st: DataState): Record<string, number> {
     adjustments: st.adjustments.length,
     accounts: st.accounts.filter((a) => !a.deletedAt).length,
     learn: st.learn.length,
+    candidates: st.candidates.filter((c) => !c.deletedAt).length,
   };
 }

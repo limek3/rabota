@@ -7,6 +7,7 @@ import type {
   Adjustment,
   Approve,
   AuditEntry,
+  Candidate,
   DataState,
   DayKey,
   Group,
@@ -26,7 +27,7 @@ import type {
   Grade,
   Track,
 } from "./types";
-import { ADJ_LABEL, DAY_LABEL, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
+import { ADJ_LABEL, CANDIDATE_STAGE_LABEL, DAY_LABEL, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
 import { buildIndex, freezePastMonths, type Index } from "./calc";
 import { currentMonth, fmtDay, isoNow, monthOf, nowStamp, todayKey } from "./dates";
 import { emptyState, newAccount, normalizePrefs, normalizeSettings } from "./defaults";
@@ -38,6 +39,7 @@ import {
   canEditShift,
   canManageOperator,
   canReviewLead,
+  canTouchCandidate,
   computeAccess,
   scopeData,
   type Access,
@@ -88,6 +90,7 @@ export type GroupInput = Omit<Group, "id" | "createdAt" | "updatedAt" | "deleted
 export type ProjectInput = Omit<Project, "id" | "createdAt" | "updatedAt" | "deletedAt" | "sort"> & { id?: ID; sort?: number };
 export type AdjustmentInput = Omit<Adjustment, "id" | "createdAt" | "updatedAt"> & { id?: ID };
 export type AccountInput = Omit<Account, "id" | "createdAt" | "updatedAt" | "deletedAt" | "lastSeenAt"> & { id?: ID };
+export type CandidateInput = Omit<Candidate, "id" | "createdAt" | "updatedAt" | "deletedAt" | "operatorId"> & { id?: ID };
 export interface TermsInput {
   plan: number;
   normHours: number;
@@ -180,6 +183,11 @@ interface Store {
   /** Апрув заказчика за месяц: по проекту или на весь месяц (projectId = ""). */
   saveApprove: (month: MonthKey, projectId: ID | "", pct: number, comment?: string) => Promise<void>;
   deleteApprove: (id: ID) => Promise<void>;
+  /** Найм: кандидат (новый или правка). */
+  saveCandidate: (input: CandidateInput) => Promise<Candidate | null>;
+  deleteCandidate: (id: ID) => Promise<void>;
+  /** Принять кандидата: заводится карточка оператора с датой приёма, кандидат — «Принят». */
+  hireCandidate: (id: ID, hireDate: DayKey, groupId: ID | null, fresh?: Candidate) => Promise<Operator | null>;
   /** Сохранить часть настроек (остальное не трогается). true — записано. */
   saveSettings: (patch: Partial<Settings>) => Promise<boolean>;
 
@@ -1271,6 +1279,139 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     [commit, deny, log],
   );
 
+  /* ── найм ──────────────────────────────────────────────────────── */
+  const saveCandidate = useCallback<Store["saveCandidate"]>(
+    async (input) => {
+      const st = dataRef.current;
+      const name = input.name.trim();
+      if (!name) {
+        toast("Укажите ФИО кандидата", "err");
+        return null;
+      }
+      const prev = input.id ? st.candidates.find((c) => c.id === input.id) : undefined;
+      const a = accessRef.current;
+      if (!canTouchCandidate(a, { groupId: input.groupId }) || (prev && !canTouchCandidate(a, prev))) {
+        deny();
+        return null;
+      }
+      if (input.stage === "hired" && !prev?.operatorId) {
+        toast("В штат — кнопкой «Принять»: так заведётся карточка оператора", "err");
+        return null;
+      }
+      const now = isoNow();
+      const today = todayKey();
+      const stage = input.stage;
+      const closing = stage === "rejected" || stage === "declined" || stage === "hired";
+      // дата этапа ставится сама, если этап выбрали, а дату не указали
+      const c: Candidate = {
+        ...input,
+        name,
+        contact: input.contact.trim(),
+        source: input.source.trim(),
+        reason: stage === "rejected" || stage === "declined" ? input.reason.trim() : "",
+        comment: input.comment.trim(),
+        appliedAt: input.appliedAt || today,
+        interviewAt: input.interviewAt || (stage === "interview" ? today : ""),
+        trainingAt: input.trainingAt || (stage === "training" ? today : ""),
+        closedAt: closing ? input.closedAt || today : "",
+        id: prev?.id ?? uniqueId("cand", new Set(st.candidates.map((x) => x.id))),
+        operatorId: prev?.operatorId ?? null,
+        createdAt: prev?.createdAt ?? now,
+        updatedAt: now,
+        deletedAt: prev?.deletedAt ?? null,
+      };
+      const ok = await commit(
+        () => db.putRecord("candidates", c),
+        (d) => ({ ...d, candidates: prev ? d.candidates.map((x) => (x.id === c.id ? c : x)) : [...d.candidates, c] }),
+      );
+      if (ok) {
+        const summary = !prev
+          ? `Новый кандидат «${c.name}»${c.source ? ` · ${c.source}` : ""}`
+          : prev.stage !== c.stage
+            ? `${c.name}: ${CANDIDATE_STAGE_LABEL[prev.stage]} → ${CANDIDATE_STAGE_LABEL[c.stage]}${c.reason ? ` (${c.reason})` : ""}`
+            : `${c.name}: карточка кандидата изменена`;
+        void log("candidate", c.id, summary);
+      }
+      return ok ? c : null;
+    },
+    [commit, toast, deny, log],
+  );
+
+  const deleteCandidate = useCallback<Store["deleteCandidate"]>(
+    async (id) => {
+      const prev = dataRef.current.candidates.find((c) => c.id === id);
+      if (!prev) return;
+      if (!canTouchCandidate(accessRef.current, prev)) return deny();
+      const now = isoNow();
+      const upd: Candidate = { ...prev, deletedAt: now, updatedAt: now };
+      const ok = await commit(
+        () => db.putRecord("candidates", upd),
+        (d) => ({ ...d, candidates: d.candidates.map((c) => (c.id === id ? upd : c)) }),
+      );
+      if (!ok) return;
+      void log("candidate", id, `Кандидат «${prev.name}» удалён`);
+      toast("Кандидат удалён", "info", {
+        label: "Вернуть",
+        run: () => void commit(() => db.putRecord("candidates", prev), (d) => ({ ...d, candidates: d.candidates.map((c) => (c.id === id ? prev : c)) })),
+      });
+    },
+    [commit, deny, log, toast],
+  );
+
+  const hireCandidate = useCallback<Store["hireCandidate"]>(
+    async (id, hireDate, groupId, fresh) => {
+      const st = dataRef.current;
+      // fresh — только что сохранённая версия: в памяти она появится лишь после перерисовки
+      const prev = fresh?.id === id ? fresh : st.candidates.find((c) => c.id === id);
+      if (!prev) return null;
+      if (prev.operatorId) {
+        toast("Кандидат уже принят", "info");
+        return null;
+      }
+      const a = accessRef.current;
+      if (!canTouchCandidate(a, prev) || !canTouchCandidate(a, { groupId }) || !canManageOperator(a, null, groupId)) {
+        deny();
+        return null;
+      }
+      const s = st.settings;
+      const now = isoNow();
+      // условия — как у нового оператора по умолчанию; ставку и план руководитель поправит в карточке
+      const op: Operator = {
+        id: uniqueId("op", new Set(st.operators.map((o) => o.id))),
+        name: prev.name,
+        groupId,
+        role: "operator",
+        status: "active",
+        hireDate,
+        fireDate: "",
+        monthlyPlan: null,
+        normHours: null,
+        payType: s.defaultPayType,
+        salary: s.defaultSalary,
+        hourlyRate: s.defaultHourlyRate,
+        leadBonus: null,
+        rateGridId: null,
+        grade: "mid",
+        track: "re",
+        contact: prev.contact,
+        comment: prev.source ? `Источник найма: ${prev.source}` : "",
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      };
+      const c: Candidate = { ...prev, groupId, stage: "hired", closedAt: hireDate, operatorId: op.id, reason: "", updatedAt: now };
+      // оператор раньше кандидата: кандидат ссылается на его карточку
+      const ok = await commit(
+        () => db.applyBatch([{ store: "operators", put: [op] }, { store: "candidates", put: [c] }]),
+        (d) => ({ ...d, operators: [...d.operators, op], candidates: d.candidates.map((x) => (x.id === id ? c : x)) }),
+      );
+      if (!ok) return null;
+      void log("operator", op.id, `Принят из кандидатов: «${op.name}» с ${fmtDay(hireDate)}`);
+      return op;
+    },
+    [commit, toast, deny, log],
+  );
+
   /* ── настройки ─────────────────────────────────────────────────── */
   const saveSettings = useCallback<Store["saveSettings"]>(
     async (patch) => {
@@ -1733,6 +1874,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     deleteAdjustment,
     saveApprove,
     deleteApprove,
+    saveCandidate,
+    deleteCandidate,
+    hireCandidate,
     saveSettings,
     saveLearn,
     resetLearn,

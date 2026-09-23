@@ -22,6 +22,7 @@ export const NAV: NavItem[] = [
   { href: "/leads", label: "Лиды", icon: "leads", hint: "Журнал переданных лидов", group: "Работа" },
   { href: "/operators", label: "Операторы", icon: "users", hint: "Показатели и карточки сотрудников", group: "Работа" },
   { href: "/groups", label: "Группы", icon: "groups", hint: "Состав и выполнение планов групп", group: "Работа" },
+  { href: "/hiring", label: "Найм", icon: "userPlus", hint: "Кандидаты, воронка найма, стажировка и текучесть", group: "Работа" },
   { href: "/schedule", label: "График", icon: "calendar", hint: "Смены и отработанные часы", group: "Время и деньги" },
   { href: "/payroll", label: "Зарплата", icon: "wallet", hint: "Ведомость, начисления и выплаты", group: "Время и деньги" },
   { href: "/dynamics", label: "Динамика", icon: "trend", hint: "Результат по дням и неделям", group: "Аналитика" },

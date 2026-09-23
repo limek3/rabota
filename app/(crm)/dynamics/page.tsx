@@ -10,12 +10,14 @@ import { MonthSwitcher, PageHead, Seg, downloadText, toCsv } from "@/components/
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { CumulativeChart, DailyBars, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
+import { HourHeatmap } from "@/components/app/HourHeatmap";
+import { NO_GROUP } from "@/lib/crm/types";
 
 export default function DynamicsPage() {
-  const { ix, month, setMonth } = useCrm();
+  const { data, ix, month, setMonth } = useCrm();
   const m = useMonthModel();
   const [scope, setScope] = useState("team");
-  const [tab, setTab] = useState<"days" | "weeks">("days");
+  const [tab, setTab] = useState<"days" | "weeks" | "hours">("days");
 
   const sel = useMemo(() => {
     if (scope.startsWith("g:")) {
@@ -28,6 +30,19 @@ export default function DynamicsPage() {
     }
     return { label: "Вся команда", plan: m.team.plan, counts: ix.day, hours: ix.hoursDay, pace: m.team.pace };
   }, [scope, m, ix]);
+
+  // лиды выбранного среза — для карты по часам (группа — на момент передачи, как в факте)
+  const scopedLeads = useMemo(() => {
+    if (scope.startsWith("g:")) {
+      const key = scope.slice(2);
+      return data.leads.filter((l) => (l.groupId || NO_GROUP) === key);
+    }
+    if (scope.startsWith("o:")) {
+      const id = scope.slice(2);
+      return data.leads.filter((l) => l.operatorId === id);
+    }
+    return data.leads;
+  }, [scope, data.leads]);
 
   const days = useMemo(() => dailyRows(m.cal, sel.plan, sel.counts, sel.hours), [m.cal, sel]);
   const weeks = useMemo(() => weeklyRows(m.cal, sel.plan, sel.counts), [m.cal, sel]);
@@ -54,9 +69,11 @@ export default function DynamicsPage() {
         actions={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
-            <button className="btn" onClick={exportCsv}>
-              <Icon name="download" size={14} /> CSV
-            </button>
+            {tab !== "hours" && (
+              <button className="btn" onClick={exportCsv}>
+                <Icon name="download" size={14} /> CSV
+              </button>
+            )}
           </>
         }
       />
@@ -76,25 +93,27 @@ export default function DynamicsPage() {
               .map<Opt>((r) => ({ value: `o:${r.op.id}`, label: r.op.name, group: "Операторы" })),
           ]}
         />
-        <Seg value={tab} onChange={setTab} options={[{ value: "days", label: "По дням" }, { value: "weeks", label: "По неделям" }]} />
+        <Seg value={tab} onChange={setTab} options={[{ value: "days", label: "По дням" }, { value: "weeks", label: "По неделям" }, { value: "hours", label: "По часам" }]} />
       </div>
 
-      <div className="grid2" style={{ gap: 16 }}>
-        <div className="card card-pad">
-          <div className="card-head">
-            <h3 className="card-title">Накопительный итог</h3>
-            <Legend items={[{ color: "var(--brand)", label: "Факт" }, { color: "var(--text-sub3)", label: "План", dashed: true }, ...(cur ? [{ color: "var(--brand)", label: "Прогноз", dashed: true }] : [])]} />
+      {tab !== "hours" && (
+        <div className="grid2" style={{ gap: 16 }}>
+          <div className="card card-pad">
+            <div className="card-head">
+              <h3 className="card-title">Накопительный итог</h3>
+              <Legend items={[{ color: "var(--brand)", label: "Факт" }, { color: "var(--text-sub3)", label: "План", dashed: true }, ...(cur ? [{ color: "var(--brand)", label: "Прогноз", dashed: true }] : [])]} />
+            </div>
+            <CumulativeChart rows={days} rr={p.rr} showForecast={cur && p.elapsedW > 0} height={230} />
           </div>
-          <CumulativeChart rows={days} rr={p.rr} showForecast={cur && p.elapsedW > 0} height={230} />
-        </div>
-        <div className="card card-pad">
-          <div className="card-head">
-            <h3 className="card-title">Лиды по дням</h3>
-            <span style={{ fontSize: 12, color: "var(--dim)" }}>пунктир — дневной план {fmtNum(p.dailyPlan)}</span>
+          <div className="card card-pad">
+            <div className="card-head">
+              <h3 className="card-title">Лиды по дням</h3>
+              <span style={{ fontSize: 12, color: "var(--dim)" }}>пунктир — дневной план {fmtNum(p.dailyPlan)}</span>
+            </div>
+            <DailyBars rows={days} dailyPlan={p.dailyPlan} height={230} />
           </div>
-          <DailyBars rows={days} dailyPlan={p.dailyPlan} height={230} />
         </div>
-      </div>
+      )}
 
       {tab === "days" ? (
         <div className="tbl-wrap">
@@ -132,7 +151,7 @@ export default function DynamicsPage() {
             </tbody>
           </table>
         </div>
-      ) : (
+      ) : tab === "weeks" ? (
         <div className="tbl-wrap">
           <table className="tbl tbl-fit">
             <thead>
@@ -163,6 +182,8 @@ export default function DynamicsPage() {
             </tbody>
           </table>
         </div>
+      ) : (
+        <HourHeatmap leads={scopedLeads} month={month} dayHours={data.settings.dayHours} scopeLabel={sel.label} />
       )}
     </div>
   );

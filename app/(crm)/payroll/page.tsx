@@ -14,6 +14,7 @@ import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditPay, canTouchOp } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 import { ApproveMonthEditor } from "@/components/app/ApproveSettings";
+import { PayslipModal } from "@/components/app/Payslip";
 
 const ADJ_TYPES: AdjustmentType[] = ["accrual", "bonus", "compensation", "correction", "deduction", "advance", "payout"];
 const ADJ_HUE: Record<AdjustmentType, string> = {
@@ -510,9 +511,10 @@ function Line({ label, formula, value, strong, neg }: { label: string; formula?:
 }
 
 function PayDrawer({ row: r, planValue, onClose, onAdj }: { row: PayRow; planValue: number; onClose: () => void; onAdj: (a?: Adjustment) => void }) {
-  const { data, month, saveTerms, deleteAdjustment, confirm, access } = useCrm();
+  const { data, month, saveTerms, deleteAdjustment, confirm, access, today } = useCrm();
   const canEdit = canEditPay(access, r.op.id);
   const [edit, setEdit] = useState(false);
+  const [slip, setSlip] = useState(false);
   const [f, setF] = useState({
     payType: r.payType,
     salary: r.salary,
@@ -543,6 +545,9 @@ function PayDrawer({ row: r, planValue, onClose, onAdj }: { row: PayRow; planVal
             {fmtMonth(month)} · {PAY_LABEL[r.payType]} · {r.explicitTerms ? "условия месяца зафиксированы" : "условия из карточки"}
           </div>
         </div>
+        <button className="btn btn-sm" onClick={() => setSlip(true)} title="Разбор начислений — PDF или картинкой, чтобы отдать сотруднику">
+          <Icon name="doc" size={13} /> Расчётный лист
+        </button>
         <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose} aria-label="Закрыть">
           <Icon name="close" size={16} />
         </button>
@@ -812,6 +817,7 @@ function PayDrawer({ row: r, planValue, onClose, onAdj }: { row: PayRow; planVal
           )}
         </div>
       </div>
+      {slip && <PayslipModal row={r} cal={monthCal(month, data.settings, today)} onClose={() => setSlip(false)} />}
     </Drawer>
   );
 }

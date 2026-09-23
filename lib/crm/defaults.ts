@@ -121,6 +121,7 @@ export function emptyState(): DataState {
     accounts: [],
     learn: [],
     approves: [],
+    candidates: [],
     audit: [],
     frozenMonths: [],
   };

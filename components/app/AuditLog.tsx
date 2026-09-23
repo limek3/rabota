@@ -15,6 +15,7 @@ import { Icon, type IconName } from "@/components/ui/icons";
 
 const ICON: Record<AuditEntity, IconName> = {
   operator: "user",
+  candidate: "userPlus",
   group: "groups",
   lead: "leads",
   shift: "calendar",

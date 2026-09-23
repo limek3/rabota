@@ -23,7 +23,7 @@ function rand(n: number): string {
   return out;
 }
 
-export function newId(prefix: "op" | "gr" | "pr" | "ld" | "adj" | "bk" | "acc"): ID {
+export function newId(prefix: "op" | "gr" | "pr" | "ld" | "adj" | "bk" | "acc" | "cand"): ID {
   seq = (seq + 1) % 1296;
   return `${prefix}_${Date.now().toString(36)}${seq.toString(36).padStart(2, "0")}${rand(6)}`;
 }

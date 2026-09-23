@@ -422,6 +422,7 @@ export interface Snapshot {
   accounts: Account[];
   learn: LearnProgress[];
   approves: Approve[];
+  candidates: Candidate[];
   audit: AuditEntry[];
   frozenMonths: MonthKey[];
 }
@@ -440,8 +441,62 @@ export interface Approve {
   updatedAt: string;
 }
 
+/**
+ * Кандидат на работу оператором — воронка найма до карточки сотрудника.
+ *
+ * Этапы идут по порядку: отклик → собеседование → обучение → принят. Даты этапов
+ * хранятся отдельно от текущего этапа: кандидат, которому отказали после обучения,
+ * всё равно считается дошедшим до обучения — иначе воронка врала бы о конверсии.
+ * При приёме создаётся карточка оператора (operatorId); стажировка, стаж и
+ * увольнение дальше считаются по ней.
+ */
+export type CandidateStage = "new" | "interview" | "training" | "hired" | "rejected" | "declined";
+export const CANDIDATE_STAGES: CandidateStage[] = ["new", "interview", "training", "hired", "rejected", "declined"];
+
+export interface Candidate {
+  id: ID;
+  name: string;
+  contact: string;
+  /** Откуда пришёл: hh.ru, Авито, рекомендация… — свободный текст. */
+  source: string;
+  /** Группа, куда планируется. */
+  groupId: ID | null;
+  stage: CandidateStage;
+  /** Отклик. */
+  appliedAt: DayKey;
+  interviewAt: DayKey | "";
+  trainingAt: DayKey | "";
+  /** Принят / отказ / отказался. */
+  closedAt: DayKey | "";
+  /** Карточка оператора, созданная при приёме. */
+  operatorId: ID | null;
+  /** Причина отказа (наш отказ или кандидат отказался). */
+  reason: string;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
+export const CANDIDATE_STAGE_LABEL: Record<CandidateStage, string> = {
+  new: "Отклик",
+  interview: "Собеседование",
+  training: "Обучение",
+  hired: "Принят",
+  rejected: "Отказ",
+  declined: "Отказался",
+};
+export const CANDIDATE_STAGE_HUE: Record<CandidateStage, string> = {
+  new: "gray",
+  interview: "blue",
+  training: "purple",
+  hired: "green",
+  rejected: "red",
+  declined: "amber",
+};
+
 /** Что менялось — для журнала изменений. */
-export type AuditEntity = "operator" | "group" | "lead" | "shift" | "plan" | "payroll" | "project" | "account" | "settings" | "approve" | "data";
+export type AuditEntity = "operator" | "group" | "lead" | "shift" | "plan" | "payroll" | "project" | "account" | "settings" | "approve" | "candidate" | "data";
 
 export interface AuditEntry {
   id: ID;
@@ -465,6 +520,7 @@ export const AUDIT_LABEL: Record<AuditEntity, string> = {
   account: "Аккаунт",
   settings: "Настройки",
   approve: "Апрув",
+  candidate: "Кандидат",
   data: "Данные",
 };
 
@@ -480,6 +536,7 @@ export interface DataState {
   accounts: Account[];
   learn: LearnProgress[];
   approves: Approve[];
+  candidates: Candidate[];
   audit: AuditEntry[];
   frozenMonths: MonthKey[];
 }

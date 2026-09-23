@@ -459,3 +459,150 @@ console.log("ALL OK");
   assert.ok(g.total.leads < week.total.leads && g.rows.every((r) => r.op.groupId === "gr_alpha" || r.leads > 0), "фильтр по группе");
   console.log(`17 ok: отчёты — день ${day.total.leads} лидов из плана ${day.total.plan.toFixed(1)}, неделя ${week.total.leads}, Альфа ${g.total.leads}`);
 }
+
+/* 18. Лиды по часам: клетки, «не доведён» отдельно, среднее за день, лучшее окно смены */
+{
+  const assert = require("assert");
+  const { hourGrid, bestWindow, perDay, topHours } = R("hours");
+  const L = (at, status = "work") => ({ id: at + status, at, client: "", phone: "", projectId: null, operatorId: "o1", groupId: null, direction: "", comment: "", source: "Скорозвон", status, statusReason: status === "failed" ? "x" : "", createdAt: "", updatedAt: "" });
+  const leads = [
+    L("2026-09-14T11:05"), L("2026-09-14T11:40"), L("2026-09-14T15:00"), // пн
+    L("2026-09-21T11:10"), L("2026-09-21T11:20", "failed"), // пн, следующая неделя
+    L("2026-09-16T19:59"), // ср
+    L("2026-08-31T11:00"), // вне периода
+    L("2026-09-17"), // без времени — пропускаем
+  ];
+  const g = hourGrid(leads, "2026-09-01", "2026-09-30");
+  assert.equal(g.total, 5, "в факт — без «не доведён» и без лидов вне периода");
+  assert.equal(g.failedTotal, 1);
+  assert.equal(g.leads[0][11], 3, "пн 11:00 — три лида за два понедельника");
+  assert.equal(g.failed[0][11], 1);
+  assert.equal(g.leads[2][19], 1, "ср 19:59 — в час 19");
+  assert.equal(g.daysByWd[0], 2, "два понедельника с лидами");
+  assert.equal(perDay(g, 0, 11), 1.5, "в среднем за понедельник");
+  assert.deepEqual([g.hourFrom, g.hourTo], [11, 19]);
+  assert.deepEqual(g.peak, { wd: 0, hour: 11, leads: 3 });
+  const w = bestWindow(g.byHour, 8);
+  assert.equal(w.leads, 4, "окно 8 ч забирает 11:00 и 15:00, но не 19:00");
+  assert.deepEqual([w.from, w.to], [11, 19], "окно по центру часов с лидами, а не с 8 утра");
+  assert.equal(bestWindow(new Array(24).fill(0), 8), null);
+  assert.equal(topHours(g.byHour, 1)[0].hour, 11);
+  const e = hourGrid([], "2026-09-01", "2026-09-30");
+  assert.equal(e.total, 0); assert.equal(e.peak, null); assert.ok(e.hourFrom < e.hourTo);
+  console.log(`18 ok: лиды по часам — пик пн 11:00 (${g.peak.leads}), окно ${w.from}–${w.to} ч = ${Math.round(w.share * 100)}%`);
+}
+
+/* 19. Найм: воронка вложенная, текучесть сходится (было + принято − ушло = стало), доля оставшихся */
+{
+  const assert = require("assert");
+  const { buildIndex } = R("calc");
+  const { emptyState } = R("defaults");
+  const { hiringFunnel, hiresIn, turnoverByMonth, staffStat, stints, leaversIn, daysBetween } = R("hiring");
+  const today = "2026-09-23";
+  const st = emptyState();
+  st.settings = { ...st.settings, probationLeads: 2, probationHours: 8 };
+  const op = (id, hireDate, fireDate = "", extra = {}) => ({ id, name: id, groupId: null, role: "operator", status: fireDate ? "fired" : "active", hireDate, fireDate, monthlyPlan: null, normHours: null, payType: "tiered", salary: 0, hourlyRate: 0, leadBonus: null, rateGridId: null, grade: "mid", track: "re", contact: "", comment: "", createdAt: "", updatedAt: "", deletedAt: null, ...extra });
+  st.operators = [
+    op("a", "2026-06-01"), // старичок
+    op("b", "2026-08-10", "2026-08-25"), // ушёл через 15 дней
+    op("c", "2026-09-01"), // принят из кандидатов, закрыл стажировку
+    op("d", "2026-09-10"), // принят из кандидатов, стажируется
+    op("x", "", "", { deletedAt: "2026-09-02T00:00:00Z", status: "fired" }), // заведён по ошибке — не в счёт
+  ];
+  const shift = (d, o, hours) => ({ id: `${d}|${o}`, date: d, operatorId: o, groupId: null, hours, type: "work", comment: "", updatedAt: "" });
+  st.shifts = [shift("2026-09-02", "c", 8), shift("2026-09-11", "d", 4)];
+  const lead = (at, o) => ({ id: at + o, at, client: "", phone: "", projectId: null, operatorId: o, groupId: null, direction: "", comment: "", source: "Скорозвон", status: "work", statusReason: "", createdAt: "", updatedAt: "" });
+  st.leads = [lead("2026-09-02T10:00", "c"), lead("2026-09-02T12:00", "c"), lead("2026-09-11T10:00", "d")];
+  const cand = (id, stage, extra = {}) => ({ id, name: id, contact: "", source: "hh", groupId: null, stage, appliedAt: "2026-08-20", interviewAt: "", trainingAt: "", closedAt: "", operatorId: null, reason: "", comment: "", createdAt: "", updatedAt: "", deletedAt: null, ...extra });
+  st.candidates = [
+    cand("k1", "hired", { operatorId: "c", closedAt: "2026-09-01", interviewAt: "2026-08-22" }),
+    cand("k2", "hired", { operatorId: "d", closedAt: "2026-09-10", source: "Авито" }), // без дат этапов — всё равно их прошёл
+    cand("k3", "rejected", { trainingAt: "2026-08-25", reason: "не прошёл обучение" }),
+    cand("k4", "declined", { reason: "зарплата" }),
+    cand("k5", "interview"),
+    cand("k6", "new", { deletedAt: "2026-09-01T00:00:00Z" }), // удалён — не в счёт
+  ];
+  const ix = buildIndex(st);
+  const f = hiringFunnel(st, ix, "2026-08-01", "2026-09-30", today);
+  const n = Object.fromEntries(f.steps.map((s) => [s.key, s.count]));
+  assert.deepEqual(n, { applied: 5, interview: 4, training: 3, hired: 2, probation: 1 }, JSON.stringify(n));
+  for (let i = 1; i < f.steps.length; i++) assert.ok(f.steps[i].count <= f.steps[i - 1].count, "этапы вложены");
+  assert.equal(f.open, 1); assert.equal(f.rejected, 1); assert.equal(f.declined, 1);
+  assert.equal(f.working, 2); assert.equal(f.onProbation, 1); assert.equal(f.fired, 0);
+  assert.equal(f.avgDaysToHire, (daysBetween("2026-08-20", "2026-09-01") + daysBetween("2026-08-20", "2026-09-10")) / 2);
+  assert.equal(f.sources.find((s) => s.source === "hh").hired, 1);
+  assert.equal(f.reasons.length, 2);
+
+  assert.equal(stints(st, ix).length, 4, "карточка без дат и работы, удалённая, — не в счёт");
+  const hires = hiresIn(st, ix, "2026-08-01", "2026-09-30", today);
+  assert.deepEqual(hires.map((h) => h.stint.op.id).sort(), ["b", "c", "d"]);
+  assert.equal(hires.find((h) => h.stint.op.id === "b").early, true, "ушёл в первые 30 дней");
+  assert.equal(hires.find((h) => h.stint.op.id === "c").daysToPass, 1);
+  assert.equal(hires.find((h) => h.stint.op.id === "c").candidate.id, "k1");
+
+  const rows = turnoverByMonth(st, ix, ["2026-07", "2026-08", "2026-09", "2026-10"], today);
+  assert.equal(rows.length, 3, "будущий месяц не считается");
+  for (const r of rows) assert.equal(r.end, r.start + r.hired - r.fired, `баланс ${r.month}`);
+  const aug = rows.find((r) => r.month === "2026-08");
+  assert.deepEqual([aug.start, aug.hired, aug.fired, aug.end, aug.early], [1, 1, 1, 1, 1]);
+  assert.equal(aug.rate, 1, "ушёл 1 при средней численности 1");
+  const sep = rows.find((r) => r.month === "2026-09");
+  assert.deepEqual([sep.start, sep.hired, sep.fired, sep.end], [1, 2, 0, 3]);
+  assert.ok(sep.current);
+
+  const ss = staffStat(st, ix, today);
+  assert.equal(ss.staff.length, 3);
+  assert.equal(ss.buckets.reduce((a, b) => a + b.count, 0), 3);
+  // приняты не позже 24.08: a и b; b ушёл через 15 дней
+  assert.deepEqual([ss.retention30.kept, ss.retention30.base], [1, 2]);
+  const lv = leaversIn(st, ix, "2026-08-01", "2026-09-30", today);
+  assert.equal(lv.length, 1); assert.equal(lv[0].days, 15);
+  console.log(`19 ok: найм — воронка ${f.steps.map((s) => s.count).join("→")}, август: ${aug.start}+${aug.hired}−${aug.fired}=${aug.end}, удержание 30 дн. ${ss.retention30.kept}/${ss.retention30.base}`);
+}
+
+/* 20. Расчётный лист = ведомость: строки сходятся к остатку, по сменам — та же ступень */
+{
+  const assert = require("assert");
+  const { buildIndex, monthCal } = R("calc");
+  const { payroll } = R("payroll");
+  const { buildDemo } = R("demo");
+  const { buildPayslip } = R("payslip");
+  const today = "2026-09-18";
+  const st = buildDemo(today);
+  st.settings = { ...st.settings, withholdPct: 13 };
+  const op0 = st.operators.find((o) => !o.deletedAt);
+  st.adjustments = [
+    { id: "t1", month: "2026-09", operatorId: op0.id, type: "bonus", amount: 1000, date: "2026-09-05", comment: "лучший день", createdAt: "", updatedAt: "" },
+    { id: "t2", month: "2026-09", operatorId: op0.id, type: "compensation", amount: 500, date: "2026-09-06", comment: "такси", createdAt: "", updatedAt: "" },
+    { id: "t3", month: "2026-09", operatorId: op0.id, type: "deduction", amount: 300, date: "2026-09-07", comment: "", createdAt: "", updatedAt: "" },
+    { id: "t4", month: "2026-09", operatorId: op0.id, type: "advance", amount: 5000, date: "2026-09-15", comment: "аванс", createdAt: "", updatedAt: "" },
+  ];
+  const ix = buildIndex(st);
+  const cal = monthCal("2026-09", st.settings, today);
+  const p = payroll(st, ix, cal);
+  let checked = 0;
+  for (const r of p.rows) {
+    const s = buildPayslip(st, ix, cal, r);
+    const plus = s.lines.filter((l) => l.kind === "plus").reduce((a, l) => a + l.value, 0);
+    const minus = s.lines.filter((l) => l.kind === "minus").reduce((a, l) => a + l.value, 0);
+    const gross = s.lines.find((l) => l.label === "Начислено").value;
+    assert.ok(Math.abs(plus - gross) < 0.05, `${r.op.name}: плюсы = начислено (${plus} / ${gross})`);
+    assert.ok(Math.abs(gross - minus - r.toPay) < 0.05, `${r.op.name}: начислено − минусы = остаток`);
+    assert.equal(s.lines[s.lines.length - 1].value, r.toPay);
+    const sums = s.days.filter((d) => d.sum != null);
+    if (r.payType === "tiered" || r.payType === "hourly" || r.payType === "hourly_bonus") {
+      const total = sums.reduce((a, d) => a + d.sum, 0);
+      assert.ok(Math.abs(total - (r.base + r.leadPay)) < 0.05, `${r.op.name}: сумма по сменам = база + бонус (${total} / ${r.base + r.leadPay})`);
+      checked++;
+    }
+    assert.ok(s.days.every((d) => d.day <= today), "будущие смены в лист не попадают");
+    assert.equal(s.preliminary, true);
+  }
+  const s0 = buildPayslip(st, ix, cal, p.rows.find((r) => r.op.id === op0.id));
+  assert.ok(s0.lines.some((l) => l.label === "Премия" && l.note.includes("лучший день")), "начисление со своей датой и причиной");
+  assert.ok(s0.lines.some((l) => l.label === "Аванс" && l.kind === "minus"));
+  const calA = monthCal("2026-08", st.settings, today);
+  const aug = buildPayslip(st, ix, calA, payroll(st, ix, calA).rows[0]);
+  assert.equal(aug.preliminary, false, "прошлый месяц — итог");
+  console.log(`20 ok: расчётный лист сходится с ведомостью у ${p.rows.length} сотрудников, по сменам проверено ${checked}`);
+}
