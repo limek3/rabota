@@ -26,7 +26,7 @@ import type {
   Grade,
   Track,
 } from "./types";
-import { DAY_LABEL, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
+import { ADJ_LABEL, DAY_LABEL, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
 import { buildIndex, freezePastMonths, type Index } from "./calc";
 import { currentMonth, fmtDay, isoNow, monthOf, nowStamp, todayKey } from "./dates";
 import { emptyState, newAccount, normalizePrefs, normalizeSettings } from "./defaults";
@@ -1207,8 +1207,10 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       );
       if (ok) {
         const name = ixRef.current.opById.get(a.operatorId)?.name ?? a.operatorId;
-        void log("payroll", a.id, `${prev ? "Изменено" : "Добавлено"} начисление «${a.type}» ${Math.round(a.amount).toLocaleString("ru-RU")} ₽ · ${name} · ${a.month}`);
-        toast(prev ? "Начисление изменено" : "Начисление добавлено");
+        const what = `${ADJ_LABEL[a.type]} ${Math.round(a.amount).toLocaleString("ru-RU")} ₽`;
+        void log("payroll", a.id, `${prev ? "Изменено" : "Добавлено"}: ${what} · ${name} · ${a.month}`);
+        // сразу видно, что именно записано и кому — премия не «теряется» в остатке
+        toast(`${what} · ${name} — ${prev ? "изменено" : "записано"}`);
       }
     },
     [commit, toast, log],

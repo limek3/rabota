@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCrm, type AdjustmentInput } from "@/lib/crm/store";
-import { approvePctFor, monthCal, opTerms } from "@/lib/crm/calc";
-import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, type PayRow } from "@/lib/crm/payroll";
+import { approvePctFor, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
+import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, payrollRow, type PayRow } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
-import { ADJ_LABEL, GRADE_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
+import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
 import { fmtInt, fmtMoney, fmtNum, fmtPct } from "@/lib/crm/format";
 import { Avatar, Chip, Drawer, Empty, Field, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Swatch, downloadText, toCsv } from "@/components/ui/kit";
@@ -28,6 +28,18 @@ const ADJ_HINT: Record<AdjustmentType, string> = {
   advance: "уже выплачено — уменьшает остаток",
   payout: "уже выплачено — уменьшает остаток",
 };
+
+const NO_GROUP = "__none__";
+
+/** Доп. начисления без премий: доплаты, компенсации, корректировки. */
+const extraOf = (a: Record<AdjustmentType, number>) => a.accrual + a.compensation + a.correction;
+
+/** Подсказка к ячейке: из каких записей сложилась сумма. */
+function adjTitle(r: PayRow, types: AdjustmentType[]): string | undefined {
+  const list = r.adjustments.filter((a) => types.includes(a.type));
+  if (!list.length) return undefined;
+  return list.map((a) => `${fmtDate(a.date)} · ${ADJ_LABEL[a.type]} ${fmtMoney(a.amount)}${a.comment ? ` — ${a.comment}` : ""}`).join("\n");
+}
 
 /** Итоги по подмножеству строк — когда часть ведомости скрыта правами. */
 function payrollOf(rows: PayRow[]) {
@@ -65,7 +77,69 @@ export default function PayrollPage() {
   const [adjFor, setAdjFor] = useState<{ opId: string; adj?: Adjustment } | null>(null);
   const [q, setQ] = useState("");
 
-  const rows = useMemo(() => pr.rows.filter((r) => !q.trim() || r.op.name.toLowerCase().includes(q.trim().toLowerCase())), [pr.rows, q]);
+  const [grp, setGrp] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const toggleGroup = (id: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // группа строки: супервайзер — в группе, которую ведёт; остальные — по карточке
+  const led = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const g of data.groups) if (!g.deletedAt && g.supervisorId && !m.has(g.supervisorId)) m.set(g.supervisorId, g.id);
+    return m;
+  }, [data.groups]);
+  const groupOf = useCallback((r: PayRow) => led.get(r.op.id) ?? r.op.groupId ?? NO_GROUP, [led]);
+  // супервайзер — по роли в карточке или потому что ведёт группу
+  const isSv = useCallback((r: PayRow) => r.op.role === "supervisor" || led.has(r.op.id), [led]);
+
+  const rows = useMemo(
+    () =>
+      pr.rows.filter(
+        (r) => (!q.trim() || r.op.name.toLowerCase().includes(q.trim().toLowerCase())) && (!grp || groupOf(r) === grp),
+      ),
+    [pr.rows, q, grp, groupOf],
+  );
+
+  // ведомость по группам: у каждой строка-заголовок с итогами, внутри — сначала супервайзер
+  const sections = useMemo(() => {
+    const map = new Map<string, PayRow[]>();
+    for (const r of rows) {
+      const k = groupOf(r);
+      map.set(k, [...(map.get(k) ?? []), r]);
+    }
+    return Array.from(map.entries())
+      .map(([id, list]) => {
+        const g = id === NO_GROUP ? null : ix.groupById.get(id);
+        const sorted = [...list].sort((a, b) => Number(isSv(b)) - Number(isSv(a)) || a.op.name.localeCompare(b.op.name, "ru"));
+        return {
+          id,
+          name: g?.name ?? NO_GROUP_LABEL,
+          color: g?.color ?? "gray",
+          supervisor: g ? (g.supervisorId ? ix.opById.get(g.supervisorId)?.name : null) ?? (g.supervisorName || null) : null,
+          rows: sorted,
+          total: payrollOf(sorted).total,
+        };
+      })
+      .sort((a, b) => Number(a.id === NO_GROUP) - Number(b.id === NO_GROUP) || a.name.localeCompare(b.name, "ru"));
+  }, [rows, groupOf, isSv, ix]);
+  // итог по видимым строкам (фильтр по группе или поиску)
+  const vt = useMemo(() => ({ rows: rows.length, total: payrollOf(rows).total }), [rows]);
+
+  const groupOpts = useMemo<Opt[]>(() => {
+    const ids = new Set(pr.rows.map(groupOf));
+    const list = Array.from(ids)
+      .map((id) => {
+        const g = id === NO_GROUP ? null : ix.groupById.get(id);
+        return { value: id, label: g?.name ?? NO_GROUP_LABEL, icon: dot(g?.color ?? "gray") };
+      })
+      .sort((a, b) => Number(a.value === NO_GROUP) - Number(b.value === NO_GROUP) || a.label.localeCompare(b.label, "ru"));
+    return [{ value: "", label: "Все группы" }, ...list];
+  }, [pr.rows, groupOf, ix]);
   const openRow = openId ? pr.rows.find((r) => r.op.id === openId) ?? null : null;
   const t = pr.total;
   const unfixed = pr.rows.filter((r) => !r.explicitTerms).length;
@@ -87,9 +161,9 @@ export default function PayrollPage() {
   const fundByGroup = useMemo(() => {
     const map = new Map<string, { name: string; color: string; people: number; leads: number; gross: number }>();
     for (const r of pr.rows) {
-      const g = r.op.groupId ? ix.groupById.get(r.op.groupId) : null;
-      const key = g?.id ?? "__none__";
-      const cur = map.get(key) ?? { name: g?.name ?? "Без группы", color: g?.color ?? "gray", people: 0, leads: 0, gross: 0 };
+      const key = groupOf(r);
+      const g = key === NO_GROUP ? null : ix.groupById.get(key);
+      const cur = map.get(key) ?? { name: g?.name ?? NO_GROUP_LABEL, color: g?.color ?? "gray", people: 0, leads: 0, gross: 0 };
       cur.people += 1;
       cur.leads += r.leads;
       cur.gross += r.gross;
@@ -98,7 +172,7 @@ export default function PayrollPage() {
     return Array.from(map.entries())
       .map(([id, v]) => ({ id, ...v, stat: fundStat(v.gross, v.leads, data.settings.leadRevenue, data.settings.payrollCapPct) }))
       .sort((a, b) => b.gross - a.gross);
-  }, [pr.rows, ix, data.settings.leadRevenue, data.settings.payrollCapPct]);
+  }, [pr.rows, ix, groupOf, data.settings.leadRevenue, data.settings.payrollCapPct]);
 
   const freezeAll = async () => {
     const ok = await confirm({
@@ -178,6 +252,9 @@ export default function PayrollPage() {
               <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: 10, color: "var(--dim)" }} />
               <input className="inp" style={{ paddingLeft: 30 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Оператор" />
             </div>
+            {groupOpts.length > 2 && (
+              <Select value={grp} options={groupOpts} onChange={setGrp} width={220} ariaLabel="Группа" title="Показать группу" />
+            )}
             <span style={{ fontSize: 12, color: "var(--dim)" }}>
               Оклад {data.settings.prorateSalary ? "пропорционален часам, если норма не выполнена" : "платится полностью"} · удержание {data.settings.withholdPct}% (кроме компенсаций)
             </span>
@@ -186,13 +263,14 @@ export default function PayrollPage() {
             <table className="tbl tbl-fit">
               <thead>
                 <tr>
-                  <th className="sticky-col" style={{ minWidth: 220 }}>Оператор</th>
+                  <th className="sticky-col" style={{ minWidth: 240 }}>Оператор</th>
                   <th>Схема</th>
                   <th className="r">Часы</th>
                   <th className="r">Лиды</th>
                   <th className="r bl" title="Оклад (с учётом пропорции) или часы × ставка">База</th>
                   <th className="r" title="Лиды × бонус за лид">Бонус за лиды</th>
-                  <th className="r" title="Доп. начисления, премии, компенсации, корректировки">Доп.</th>
+                  <th className="r" title="Премии за месяц">Премии</th>
+                  <th className="r" title="Доп. начисления, компенсации, корректировки">Доп.</th>
                   <th className="r" style={{ fontWeight: 700 }}>Начислено</th>
                   <th className="r bl" title="Процент удержания + удержания">Удержано</th>
                   <th className="r">К выплате</th>
@@ -201,62 +279,105 @@ export default function PayrollPage() {
                   <th />
                 </tr>
               </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""}`} onClick={() => setOpenId(r.op.id)}>
-                    <td className="sticky-col">
-                      <span className="row" style={{ gap: 8 }}>
-                        <Avatar name={r.op.name} id={r.op.id} size={24} />
-                        {r.op.name}
-                        {r.explicitTerms && <span title="Условия месяца зафиксированы" style={{ color: "var(--brand)" }}>•</span>}
-                        <GoneTag op={r.op} />
-                      </span>
-                    </td>
-                    <td className="muted">{PAY_LABEL[r.payType]}</td>
-                    <td className="r num">
-                      {fmtNum(r.hours)}
-                      {isSalary(r.payType) && <span className="muted"> / {fmtNum(r.normHours, 0)}</span>}
-                    </td>
-                    <td className="r num">{fmtInt(r.leads)}</td>
-                    <td className="r num bl">{fmtMoney(r.base)}</td>
-                    <td className="r num">{hasBonus(r.payType) ? fmtMoney(r.leadPay) : <span className="muted">—</span>}</td>
-                    <td className="r num">{fmtMoney(r.adj.accrual + r.adj.bonus + r.adj.compensation + r.adj.correction)}</td>
-                    <td className="r num" style={{ fontWeight: 600 }}>{fmtMoney(r.gross)}</td>
-                    <td className="r num bl">{fmtMoney(r.withhold + r.deductions)}</td>
-                    <td className="r num">{fmtMoney(r.net)}</td>
-                    <td className="r num">{fmtMoney(r.paid)}</td>
-                    <td className="r num" style={{ fontWeight: 600, color: r.toPay < 0 ? "var(--c-red-fg)" : undefined }}>{fmtMoney(r.toPay)}</td>
-                    <td className="r" onClick={(e) => e.stopPropagation()}>
-                      {canEditPay(access, r.op.id) && (
-                        <span className="row-actions">
-                          <button className="btn btn-ghost btn-sm btn-icon" title="Добавить начисление/выплату" onClick={() => setAdjFor({ opId: r.op.id })}>
-                            <Icon name="plus" size={14} />
-                          </button>
+              {sections.map((sec) => {
+                const closed = collapsed.has(sec.id);
+                return (
+                  <tbody key={sec.id}>
+                    <tr className="pay-grp" onClick={() => toggleGroup(sec.id)} title={closed ? "Развернуть группу" : "Свернуть группу"}>
+                      <td className="sticky-col">
+                        <span className="row" style={{ gap: 8 }}>
+                          <Icon name={closed ? "chevR" : "chevD"} size={14} style={{ color: "var(--dim)" }} />
+                          <Swatch hue={sec.color} />
+                          <span>{sec.name}</span>
+                          <span className="pay-grp-sub">
+                            {sec.rows.length} чел.{sec.supervisor ? ` · супервайзер ${sec.supervisor}` : ""}
+                          </span>
                         </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+                      </td>
+                      <td />
+                      <td className="r num">{fmtNum(sec.total.hours)}</td>
+                      <td className="r num">{fmtInt(sec.total.leads)}</td>
+                      <td className="r num bl">{fmtMoney(sec.total.base)}</td>
+                      <td className="r num">{fmtMoney(sec.total.leadPay)}</td>
+                      <td className="r num">{sec.total.adj.bonus ? fmtMoney(sec.total.adj.bonus) : "—"}</td>
+                      <td className="r num">{extraOf(sec.total.adj) ? fmtMoney(extraOf(sec.total.adj)) : "—"}</td>
+                      <td className="r num">{fmtMoney(sec.total.gross)}</td>
+                      <td className="r num bl">{fmtMoney(sec.total.withhold + sec.total.deductions)}</td>
+                      <td className="r num">{fmtMoney(sec.total.net)}</td>
+                      <td className="r num">{fmtMoney(sec.total.paid)}</td>
+                      <td className="r num">{fmtMoney(sec.total.toPay)}</td>
+                      <td />
+                    </tr>
+                    {!closed &&
+                      sec.rows.map((r) => (
+                        <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""}`} onClick={() => setOpenId(r.op.id)}>
+                          <td className="sticky-col" style={{ paddingLeft: 28 }}>
+                            <span className="row" style={{ gap: 8 }}>
+                              <Avatar name={r.op.name} id={r.op.id} size={24} />
+                              {r.op.name}
+                              {isSv(r) && <Chip hue="indigo">СВ</Chip>}
+                              {r.explicitTerms && <span title="Условия месяца зафиксированы" style={{ color: "var(--brand)" }}>•</span>}
+                              <GoneTag op={r.op} />
+                            </span>
+                          </td>
+                          <td className="muted">{PAY_LABEL[r.payType]}</td>
+                          <td className="r num">
+                            {fmtNum(r.hours)}
+                            {isSalary(r.payType) && <span className="muted"> / {fmtNum(r.normHours, 0)}</span>}
+                          </td>
+                          <td className="r num">{fmtInt(r.leads)}</td>
+                          <td className="r num bl">{fmtMoney(r.base)}</td>
+                          <td className="r num">{hasBonus(r.payType) ? fmtMoney(r.leadPay) : <span className="muted">—</span>}</td>
+                          <td className="r num" title={adjTitle(r, ["bonus"])}>
+                            {r.adj.bonus ? <span style={{ color: "var(--c-green-fg)", fontWeight: 600 }}>+{fmtMoney(r.adj.bonus)}</span> : <span className="muted">—</span>}
+                          </td>
+                          <td className="r num" title={adjTitle(r, ["accrual", "compensation", "correction"])}>
+                            {extraOf(r.adj) ? fmtMoney(extraOf(r.adj)) : <span className="muted">—</span>}
+                          </td>
+                          <td className="r num" style={{ fontWeight: 600 }}>{fmtMoney(r.gross)}</td>
+                          <td className="r num bl" title={adjTitle(r, ["deduction"])}>{fmtMoney(r.withhold + r.deductions)}</td>
+                          <td className="r num">{fmtMoney(r.net)}</td>
+                          <td className="r num" title={adjTitle(r, ["advance", "payout"])}>{fmtMoney(r.paid)}</td>
+                          <td className="r num" style={{ fontWeight: 600, color: r.toPay < 0 ? "var(--c-red-fg)" : undefined }}>{fmtMoney(r.toPay)}</td>
+                          <td className="r" onClick={(e) => e.stopPropagation()}>
+                            {canEditPay(access, r.op.id) && (
+                              <span className="row-actions">
+                                <button className="btn btn-ghost btn-sm btn-icon" title="Добавить начисление/выплату" onClick={() => setAdjFor({ opId: r.op.id })}>
+                                  <Icon name="plus" size={14} />
+                                </button>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                );
+              })}
               <tfoot>
                 <tr>
-                  <td className="sticky-col">Итого · {pr.rows.length}</td>
+                  <td className="sticky-col">
+                    Итого · {vt.rows}
+                    {vt.rows !== pr.rows.length && <span className="muted"> из {pr.rows.length}</span>}
+                  </td>
                   <td />
-                  <td className="r num">{fmtNum(t.hours)}</td>
-                  <td className="r num">{fmtInt(t.leads)}</td>
-                  <td className="r num bl">{fmtMoney(t.base)}</td>
-                  <td className="r num">{fmtMoney(t.leadPay)}</td>
-                  <td className="r num">{fmtMoney(t.adj.accrual + t.adj.bonus + t.adj.compensation + t.adj.correction)}</td>
-                  <td className="r num">{fmtMoney(t.gross)}</td>
-                  <td className="r num bl">{fmtMoney(t.withhold + t.deductions)}</td>
-                  <td className="r num">{fmtMoney(t.net)}</td>
-                  <td className="r num">{fmtMoney(t.paid)}</td>
-                  <td className="r num">{fmtMoney(t.toPay)}</td>
+                  <td className="r num">{fmtNum(vt.total.hours)}</td>
+                  <td className="r num">{fmtInt(vt.total.leads)}</td>
+                  <td className="r num bl">{fmtMoney(vt.total.base)}</td>
+                  <td className="r num">{fmtMoney(vt.total.leadPay)}</td>
+                  <td className="r num">{fmtMoney(vt.total.adj.bonus)}</td>
+                  <td className="r num">{fmtMoney(extraOf(vt.total.adj))}</td>
+                  <td className="r num">{fmtMoney(vt.total.gross)}</td>
+                  <td className="r num bl">{fmtMoney(vt.total.withhold + vt.total.deductions)}</td>
+                  <td className="r num">{fmtMoney(vt.total.net)}</td>
+                  <td className="r num">{fmtMoney(vt.total.paid)}</td>
+                  <td className="r num">{fmtMoney(vt.total.toPay)}</td>
                   <td />
                 </tr>
               </tfoot>
             </table>
           </div>
+
+          <AdjustmentJournal rows={rows} onEdit={(a) => setAdjFor({ opId: a.operatorId, adj: a })} onAdd={access.can.editPayroll ? () => setAdjFor({ opId: "" }) : undefined} />
 
           <div className="card card-pad">
             <div className="card-head">
@@ -363,7 +484,7 @@ export default function PayrollPage() {
       )}
 
       {openRow && <PayDrawer row={openRow} planValue={termsPlan(openRow)} onClose={() => setOpenId(null)} onAdj={(adj) => setAdjFor({ opId: openRow.op.id, adj })} />}
-      {adjFor && <AdjustmentModal opId={adjFor.opId} adj={adjFor.adj} rows={pr.rows} onClose={() => setAdjFor(null)} />}
+      {adjFor && <AdjustmentModal opId={adjFor.opId} adj={adjFor.adj} rows={pr.rows} cal={cal} onClose={() => setAdjFor(null)} />}
     </div>
   );
 }
@@ -768,8 +889,136 @@ function SvTile({ label, value, sub, tone }: { label: string; value: string; sub
   );
 }
 
-function AdjustmentModal({ opId, adj, rows, onClose }: { opId: string; adj?: Adjustment; rows: PayRow[]; onClose: () => void }) {
-  const { month, today, saveAdjustment } = useCrm();
+/** Куда запись идёт в ведомости: начисление (+), удержание (−), выплата (уже отдано). */
+const ADJ_EFFECT: Record<AdjustmentType, "plus" | "minus" | "paid"> = {
+  accrual: "plus", bonus: "plus", compensation: "plus", correction: "plus", deduction: "minus", advance: "paid", payout: "paid",
+};
+
+function adjAmount(a: Pick<Adjustment, "type" | "amount">) {
+  const eff = ADJ_EFFECT[a.type];
+  if (eff === "plus") return <span style={{ color: a.amount < 0 ? "var(--c-red-fg)" : "var(--c-green-fg)" }}>{a.amount < 0 ? "−" : "+"}{fmtMoney(Math.abs(a.amount))}</span>;
+  if (eff === "minus") return <span style={{ color: "var(--c-red-fg)" }}>−{fmtMoney(a.amount)}</span>;
+  return <span style={{ color: "var(--c-amber-fg)" }}>{fmtMoney(a.amount)}</span>;
+}
+
+/**
+ * Все премии, начисления, удержания и выплаты месяца одним списком — видно сразу,
+ * что и кому добавили, без захода в карточку. Учитывает фильтр группы и поиск.
+ */
+function AdjustmentJournal({ rows, onEdit, onAdd }: { rows: PayRow[]; onEdit: (a: Adjustment) => void; onAdd?: () => void }) {
+  const { month, access, confirm, deleteAdjustment } = useCrm();
+  const list = useMemo(
+    () =>
+      rows
+        .flatMap((r) => r.adjustments.map((a) => ({ a, r })))
+        .sort((x, y) => y.a.date.localeCompare(x.a.date) || y.a.createdAt.localeCompare(x.a.createdAt)),
+    [rows],
+  );
+  const sum = (types: AdjustmentType[]) => list.filter((x) => types.includes(x.a.type)).reduce((s, x) => s + x.a.amount, 0);
+  const bonus = sum(["bonus"]);
+  const extra = sum(["accrual", "compensation", "correction"]);
+  const minus = sum(["deduction"]);
+  const paid = sum(["advance", "payout"]);
+
+  return (
+    <div className="card card-pad">
+      <div className="card-head">
+        <div>
+          <h3 className="card-title">Премии, начисления и выплаты · {fmtMonth(month)}</h3>
+          <p className="card-sub">
+            {list.length
+              ? `Премии ${fmtMoney(bonus)} · доп. начисления ${fmtMoney(extra)} · удержания ${fmtMoney(minus)} · выплачено ${fmtMoney(paid)}`
+              : "Пока нет записей — премии, авансы и выплаты появятся здесь"}
+          </p>
+        </div>
+        {onAdd && (
+          <button className="btn btn-sm btn-primary" onClick={onAdd}>
+            <Icon name="plus" size={13} /> Начисление
+          </button>
+        )}
+      </div>
+      {list.length > 0 && (
+        <div className="tbl-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th style={{ width: 90 }}>Дата</th>
+                <th>Оператор</th>
+                <th>Тип</th>
+                <th>Комментарий</th>
+                <th className="r">Сумма</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map(({ a, r }) => {
+                const canEdit = canEditPay(access, a.operatorId);
+                return (
+                  <tr key={a.id} className={canEdit ? "clickable" : undefined} onClick={canEdit ? () => onEdit(a) : undefined}>
+                    <td className="num muted">{fmtDate(a.date)}</td>
+                    <td>
+                      <span className="row" style={{ gap: 8 }}>
+                        <Avatar name={r.op.name} id={r.op.id} size={22} />
+                        {r.op.name}
+                      </span>
+                    </td>
+                    <td>
+                      <Chip hue={ADJ_HUE[a.type]}>{ADJ_LABEL[a.type]}</Chip>
+                    </td>
+                    <td className="muted wrap">{a.comment || "—"}</td>
+                    <td className="r num" style={{ fontWeight: 600 }}>{adjAmount(a)}</td>
+                    <td className="r" onClick={(e) => e.stopPropagation()}>
+                      {canEdit && (
+                        <span className="row-actions">
+                          <button className="btn btn-ghost btn-sm btn-icon" title="Изменить" onClick={() => onEdit(a)}>
+                            <Icon name="edit" size={13} />
+                          </button>
+                          <button
+                            className="btn btn-ghost btn-sm btn-icon"
+                            title="Удалить"
+                            onClick={async () => {
+                              if (await confirm({ title: "Удалить запись?", text: `${ADJ_LABEL[a.type]} ${fmtMoney(a.amount)} · ${r.op.name}`, ok: "Удалить", danger: true }))
+                                void deleteAdjustment(a.id);
+                            }}
+                          >
+                            <Icon name="trash" size={13} />
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Строка сравнения «было → станет» в окне начисления. */
+function Delta({ label, from, to, strong }: { label: string; from: number; to: number; strong?: boolean }) {
+  const changed = Math.round(from * 100) !== Math.round(to * 100);
+  return (
+    <div className="row" style={{ gap: 10, fontWeight: strong ? 600 : 400, color: changed ? "var(--text)" : "var(--dim)" }}>
+      <span style={{ flex: 1 }}>{label}</span>
+      <span className="num">
+        {changed ? (
+          <>
+            <span style={{ color: "var(--dim)", fontWeight: 400 }}>{fmtMoney(from)} → </span>
+            {fmtMoney(to)}
+          </>
+        ) : (
+          fmtMoney(to)
+        )}
+      </span>
+    </div>
+  );
+}
+
+function AdjustmentModal({ opId, adj, rows, cal, onClose }: { opId: string; adj?: Adjustment; rows: PayRow[]; cal: MonthCal; onClose: () => void }) {
+  const { month, today, saveAdjustment, data, ix } = useCrm();
   // запись относится к ведомости выбранного месяца; дата — когда начислили/выплатили
   const [f, setF] = useState<AdjustmentInput>(() =>
     adj
@@ -786,6 +1035,22 @@ function AdjustmentModal({ opId, adj, rows, onClose }: { opId: string; adj?: Adj
   const [tried, setTried] = useState(false);
   const errOp = !f.operatorId ? "Выберите оператора" : null;
   const errAmt = !f.amount ? "Укажите сумму" : null;
+
+  // что изменится в ведомости: та же формула, что у строки, с черновиком записи вместо старой
+  const row = rows.find((r) => r.op.id === f.operatorId) ?? null;
+  const preview = useMemo(() => {
+    if (!row) return null;
+    const others = row.adjustments.filter((a) => a.id !== adj?.id);
+    if (!f.amount) return { before: row, after: row, others };
+    const draft: Adjustment = {
+      ...f,
+      id: adj?.id ?? "__draft__",
+      amount: f.type === "correction" ? f.amount : Math.abs(f.amount),
+      createdAt: adj?.createdAt ?? "",
+      updatedAt: "",
+    };
+    return { before: row, after: payrollRow(row.op, cal, data, ix, [...others, draft]), others };
+  }, [row, f, adj, cal, data, ix]);
 
   return (
     <Modal
@@ -842,6 +1107,30 @@ function AdjustmentModal({ opId, adj, rows, onClose }: { opId: string; adj?: Adj
       <Field label="Комментарий">
         <input className="inp" value={f.comment} onChange={(e) => setF({ ...f, comment: e.target.value })} placeholder="За что / основание" />
       </Field>
+
+      {preview && (
+        <div className="adj-preview">
+          <div className="adj-preview-title">
+            {preview.before.op.name} · {fmtMonth(f.month)}
+          </div>
+          {preview.others.length > 0 && (
+            <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              <span style={{ color: "var(--dim)" }}>Уже в этом месяце:</span>
+              {preview.others.map((a) => (
+                <Chip key={a.id} hue={ADJ_HUE[a.type]} title={a.comment || undefined}>
+                  {ADJ_LABEL[a.type]} {fmtMoney(a.amount)}
+                </Chip>
+              ))}
+            </div>
+          )}
+          <Delta label="Премии" from={preview.before.adj.bonus} to={preview.after.adj.bonus} />
+          <Delta label="Доп. начисления" from={extraOf(preview.before.adj)} to={extraOf(preview.after.adj)} />
+          <Delta label="Начислено" from={preview.before.gross} to={preview.after.gross} />
+          <Delta label="Удержано" from={preview.before.withhold + preview.before.deductions} to={preview.after.withhold + preview.after.deductions} />
+          <Delta label="Выплачено (аванс и выплаты)" from={preview.before.paid} to={preview.after.paid} />
+          <Delta label="Остаток к выплате" from={preview.before.toPay} to={preview.after.toPay} strong />
+        </div>
+      )}
     </Modal>
   );
 }

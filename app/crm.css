@@ -738,3 +738,11 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .tier-step.on .tier-step-rate { color: var(--text); }
 @media (max-width: 1100px) { .tier-shift { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .tier-step-rate { white-space: normal; } }
+
+/* зарплата: строка-заголовок группы с итогами и предпросмотр начисления */
+.tbl tr.pay-grp td { background: var(--bg-strip); font-weight: 600; cursor: pointer; border-top: 1px solid var(--ink-07); }
+.tbl tr.pay-grp td.sticky-col { background: var(--bg-strip); }
+.tbl tbody tr.pay-grp:hover td, .tbl tbody tr.pay-grp:hover td.sticky-col { background: var(--bg-strip); color: var(--text); }
+.pay-grp-sub { font-weight: 400; font-size: 12px; color: var(--dim); }
+.adj-preview { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; padding: 12px 14px; border-radius: 10px; background: var(--bg); border: 1px solid var(--ink-06); font-size: 12.5px; }
+.adj-preview-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
