@@ -778,32 +778,26 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .day-tip-grid span { color: var(--text-sub); }
 .day-tip-grid b { text-align: right; font-weight: 600; }
 
-/* «Динамика → По часам»: тепловая карта день недели × час и выводы сбоку */
-.heat-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 18px; align-items: start; }
-.heat-scroll { min-width: 0; overflow-x: auto; }
-.heat { border-collapse: separate; border-spacing: 3px; width: 100%; min-width: calc(var(--heat-cols) * 34px + 130px); font-size: 11.5px; }
-.heat th { font-weight: 500; color: var(--dim); }
-.heat-h { text-align: center; font-size: 11px; padding-bottom: 2px; }
-.heat-wd { text-align: left; padding-right: 6px; white-space: nowrap; color: var(--text-sub) !important; font-size: 12.5px; }
-.heat-wd span { display: block; font-size: 10.5px; color: var(--dim); font-weight: 400; }
-.heat-c { height: 32px; min-width: 30px; border-radius: 6px; text-align: center; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); background: color-mix(in srgb, var(--brand) calc(var(--k) * 88%), var(--ink-06)); }
-.heat-c.bad { background: color-mix(in srgb, var(--c-red-fg) calc(var(--k) * 85%), var(--ink-06)); }
-.heat-c[data-hot] { color: #fff; font-weight: 600; }
-.heat-sum { text-align: right; padding-left: 8px; white-space: nowrap; font-weight: 600; color: var(--text); }
-th.heat-sum { font-weight: 500; color: var(--dim); }
-.heat-foot { vertical-align: bottom; padding-top: 6px; }
-.heat-bar { position: relative; height: 46px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
-.heat-bar > span { display: block; width: 70%; min-height: 1px; border-radius: 3px 3px 0 0; background: var(--brand); opacity: 0.75; }
-.heat-bar > span.bad { background: var(--c-red-fg); }
-.heat-bar > em { font-style: normal; font-size: 10.5px; color: var(--dim); margin-top: 3px; font-family: var(--font-mono); }
-.heat-note { margin: 10px 0 0; font-size: 12px; color: var(--dim); line-height: 1.5; }
-.heat-side { display: flex; flex-direction: column; gap: 10px; }
-.heat-ins { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--ink-06); }
-.heat-ins-ico { width: 28px; height: 28px; border-radius: 8px; flex: none; display: flex; align-items: center; justify-content: center; background: var(--brand-tint); color: var(--brand); }
-.heat-ins.bad .heat-ins-ico { background: var(--c-red-bg); color: var(--c-red-fg); }
-.heat-ins-title { font-size: 11.5px; color: var(--text-sub); }
-.heat-ins-text { font-size: 13px; line-height: 1.45; margin-top: 1px; }
-@media (max-width: 1100px) { .heat-layout { grid-template-columns: 1fr; } .heat-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); } }
+/* «Динамика → По часам»: плитки выводов, столбики по часам, карта по дням недели */
+.hs-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.hs-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 10px; background: var(--bg); border: 1px solid var(--ink-06); min-width: 0; }
+.hs-tile-label { font-size: 12px; color: var(--text-sub); }
+.hs-tile-value { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.hs-tile-sub { font-size: 12px; color: var(--dim); }
+.hs-tile.brand { background: var(--brand-tint); border-color: transparent; }
+.hs-tile.brand .hs-tile-value { color: var(--brand); }
+.hs-tile.bad .hs-tile-value { color: var(--c-red-fg); }
+.hs-tip { display: grid; grid-template-columns: auto auto; gap: 3px 14px; padding: 8px 10px; font-size: 12px; background: var(--bg-modal); border: 1px solid var(--ink-10); border-radius: 8px; box-shadow: var(--shadow-lg); }
+.hs-tip b { grid-column: 1 / -1; font-weight: 600; margin-bottom: 2px; }
+.hs-tip span { color: var(--text-sub); }
+.hs-tip em { font-style: normal; font-weight: 600; text-align: right; }
+.hs-map { display: grid; grid-template-columns: 34px repeat(var(--cols), minmax(18px, 1fr)) 52px; gap: 3px; align-items: center; overflow-x: auto; }
+.hs-map-h { font-size: 10.5px; color: var(--dim); text-align: center; }
+.hs-map-wd { font-size: 12px; color: var(--text-sub); }
+.hs-map-c { height: 22px; border-radius: 5px; background: color-mix(in srgb, var(--brand) calc(var(--k) * 90%), var(--ink-04, var(--ink-06))); }
+.hs-map-sum { font-size: 12px; text-align: right; color: var(--text-sub); }
+.hs-scale { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--dim); }
+.hs-scale i { width: 64px; height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--ink-06), var(--brand)); }
 
 /* «Найм»: приём в штат внутри карточки кандидата, воронка и полосы распределения */
 .hire-box { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 10px; background: var(--brand-tint); border: 1px solid var(--ink-06); }

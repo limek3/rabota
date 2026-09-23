@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
-import type { Candidate } from "@/lib/crm/types";
-import { CANDIDATE_STAGE_HUE, CANDIDATE_STAGE_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
+import type { Candidate, DataState, Group } from "@/lib/crm/types";
+import { CANDIDATE_STAGE_HUE, CANDIDATE_STAGE_LABEL, NO_GROUP, NO_GROUP_LABEL } from "@/lib/crm/types";
 import { EARLY_DAYS, daysBetween, fmtTenure, hiresIn, hiringFunnel, isOpenCandidate, leaversIn, staffStat, turnoverByMonth } from "@/lib/crm/hiring";
 import { hasCandidatesTable } from "@/lib/crm/remote";
 import { addMonths, fmtDate, fmtMonth, fmtMonthShort, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, plural, safeDiv } from "@/lib/crm/format";
 import { Chip, Empty, Kpi, MonthSwitcher, PageHead, Progress, Seg, downloadText, toCsv } from "@/components/ui/kit";
+import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { CandidateModal } from "@/components/app/CandidateModal";
 
@@ -19,6 +20,10 @@ import { CandidateModal } from "@/components/app/CandidateModal";
  *                принятые за период (с кандидатом или без) и как у них со стажировкой.
  *   Кандидаты  — список: кто в работе, кого приняли, кому отказали. Карточка — CandidateModal.
  *   Текучесть  — кто ушёл, сколько проработал, отток по месяцам, стаж работающих.
+ *
+ * Супервайзер видит только своих (срез по правам — access.ts). РОП — весь отдел и фильтр
+ * «чей найм»: супервайзер (все его группы) или отдельная группа; фильтр режет кандидатов
+ * по группе, куда их ведут, а сотрудников — по текущей группе.
  */
 
 type Span = "1" | "3" | "6" | "12";
@@ -35,17 +40,47 @@ export default function HiringPage() {
   const [filter, setFilter] = useState<ListFilter>("open");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Candidate | "new" | null>(null);
+  const [who, setWho] = useState("");
+
+  const liveGroups = useMemo(() => data.groups.filter((g) => !g.deletedAt), [data.groups]);
+  const svName = (g: Group) => (g.supervisorId ? ix.opById.get(g.supervisorId)?.name ?? "" : g.supervisorName.trim());
+  // «чей найм»: супервайзеры (все их группы) и отдельные группы — только тем, кто видит больше одной группы
+  const whoOpts = useMemo(() => {
+    const bySv = new Map<string, { label: string; groups: string[] }>();
+    for (const g of liveGroups) {
+      const name = svName(g);
+      if (!name) continue;
+      const key = g.supervisorId ? `sv:${g.supervisorId}` : `svn:${name}`;
+      const cur = bySv.get(key) ?? { label: name, groups: [] };
+      cur.groups.push(g.id);
+      bySv.set(key, cur);
+    }
+    const opts: (Opt & { groups: string[] })[] = [{ value: "", label: "Весь отдел", groups: [] }];
+    for (const [value, v] of Array.from(bySv).sort((a, b) => a[1].label.localeCompare(b[1].label, "ru")))
+      opts.push({ value, label: v.label, hint: v.groups.map((id) => ix.groupById.get(id)?.name ?? "").join(", "), group: "Супервайзеры", groups: v.groups });
+    for (const g of liveGroups) opts.push({ value: `g:${g.id}`, label: g.name, icon: dot(g.color), group: "Группы", groups: [g.id] });
+    opts.push({ value: `g:${NO_GROUP}`, label: NO_GROUP_LABEL, icon: dot("gray"), group: "Группы", groups: [NO_GROUP] });
+    return opts;
+  }, [liveGroups, ix]);
+  const showWho = access.viewAll && liveGroups.length > 1;
+  const view: DataState = useMemo(() => {
+    const keep = whoOpts.find((o) => o.value === who)?.groups;
+    if (!who || !keep) return data;
+    const set = new Set(keep);
+    const inScope = (groupId: string | null) => set.has(groupId || NO_GROUP);
+    return { ...data, candidates: data.candidates.filter((c) => inScope(c.groupId)), operators: data.operators.filter((o) => inScope(o.groupId)) };
+  }, [data, who, whoOpts]);
 
   const from = monthStart(addMonths(month, -(Number(span) - 1)));
   const to = monthEnd(month) < today ? monthEnd(month) : today;
   const periodLabel = span === "1" ? fmtMonth(month) : `${fmtMonthShort(addMonths(month, -(Number(span) - 1)))} – ${fmtMonthShort(month)}`;
 
-  const funnel = useMemo(() => hiringFunnel(data, ix, from, to, today), [data, ix, from, to, today]);
-  const hires = useMemo(() => hiresIn(data, ix, from, to, today), [data, ix, from, to, today]);
-  const leavers = useMemo(() => leaversIn(data, ix, from, to, today), [data, ix, from, to, today]);
-  const staff = useMemo(() => staffStat(data, ix, today), [data, ix, today]);
+  const funnel = useMemo(() => hiringFunnel(view, ix, from, to, today), [view, ix, from, to, today]);
+  const hires = useMemo(() => hiresIn(view, ix, from, to, today), [view, ix, from, to, today]);
+  const leavers = useMemo(() => leaversIn(view, ix, from, to, today), [view, ix, from, to, today]);
+  const staff = useMemo(() => staffStat(view, ix, today), [view, ix, today]);
   const months = useMemo(() => Array.from({ length: 12 }, (_, i) => addMonths(month, i - 11)), [month]);
-  const churn = useMemo(() => turnoverByMonth(data, ix, months, today), [data, ix, months, today]);
+  const churn = useMemo(() => turnoverByMonth(view, ix, months, today), [view, ix, months, today]);
   // свежие сверху; пустые месяцы до появления первых сотрудников не показываем
   const churnRows = useMemo(() => {
     const first = churn.findIndex((r) => r.start || r.hired || r.fired || r.end);
@@ -53,7 +88,14 @@ export default function HiringPage() {
   }, [churn]);
 
   const groupName = (id: string | null) => (id ? ix.groupById.get(id)?.name ?? NO_GROUP_LABEL : NO_GROUP_LABEL);
-  const live = useMemo(() => data.candidates.filter((c) => !c.deletedAt), [data.candidates]);
+  /** Группа и её супервайзер — РОПу видно, чей это кандидат. */
+  const groupWithSv = (id: string | null) => {
+    const g = id ? ix.groupById.get(id) : null;
+    if (!g) return "—";
+    const sv = svName(g);
+    return sv ? `${g.name} · ${sv}` : g.name;
+  };
+  const live = useMemo(() => view.candidates.filter((c) => !c.deletedAt), [view.candidates]);
   const openCount = live.filter(isOpenCandidate).length;
   const missing = remote && !hasCandidatesTable();
 
@@ -82,8 +124,8 @@ export default function HiringPage() {
   }, [live, filter, q, from, to]);
 
   const exportCsv = () => {
-    const head = ["ФИО", "Контакт", "Источник", "Группа", "Этап", "Отклик", "Собеседование", "Обучение", "Итог", "Причина", "Комментарий"];
-    const body = list.map((c) => [c.name, c.contact, c.source, c.groupId ? groupName(c.groupId) : "", CANDIDATE_STAGE_LABEL[c.stage], c.appliedAt, c.interviewAt, c.trainingAt, c.closedAt, c.reason, c.comment]);
+    const head = ["ФИО", "Контакт", "Источник", "Группа · супервайзер", "Этап", "Отклик", "Собеседование", "Обучение", "Итог", "Причина", "Комментарий"];
+    const body = list.map((c) => [c.name, c.contact, c.source, c.groupId ? groupWithSv(c.groupId) : "", CANDIDATE_STAGE_LABEL[c.stage], c.appliedAt, c.interviewAt, c.trainingAt, c.closedAt, c.reason, c.comment]);
     downloadText(`kandidaty_${from}_${to}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
   };
 
@@ -122,6 +164,16 @@ export default function HiringPage() {
             { value: "churn", label: "Текучесть" },
           ]}
         />
+        {showWho && (
+          <Select
+            width={240}
+            value={who}
+            options={whoOpts}
+            onChange={setWho}
+            ariaLabel="Чей найм"
+            minPopWidth={300}
+          />
+        )}
         <Seg<Span>
           value={span}
           onChange={setSpan}
@@ -381,7 +433,7 @@ export default function HiringPage() {
                     <th>Кандидат</th>
                     <th>Этап</th>
                     <th>Источник</th>
-                    <th>Группа</th>
+                    <th>Группа · СВ</th>
                     <th>Отклик</th>
                     <th>Последний шаг</th>
                     <th>Комментарий</th>
@@ -400,7 +452,7 @@ export default function HiringPage() {
                         </Chip>
                       </td>
                       <td className="muted">{c.source || "—"}</td>
-                      <td className="muted">{c.groupId ? groupName(c.groupId) : "—"}</td>
+                      <td className="muted">{groupWithSv(c.groupId)}</td>
                       <td className="num">{fmtDate(c.appliedAt)}</td>
                       <td className="num muted">
                         {fmtDate(lastMove(c))}

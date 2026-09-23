@@ -181,12 +181,12 @@ export function canEditPay(a: Access, operatorId: ID): boolean {
 }
 
 /**
- * Кандидат в зоне аккаунта: РОП — любой; супервайзер с правом вести операторов —
- * без группы (общий поток) и в свои группы. То же правило — в RLS таблицы candidates.
+ * Кандидат в зоне аккаунта: РОП — любой (и без группы); супервайзер с правом вести
+ * операторов — только кандидаты своих групп. То же правило — в RLS таблицы candidates.
  */
 export function canTouchCandidate(a: Access, c: Pick<Candidate, "groupId">): boolean {
   if (a.isHead) return true;
-  return a.can.manageHiring && (!c.groupId || a.ownGroups.has(c.groupId));
+  return a.can.manageHiring && !!c.groupId && a.ownGroups.has(c.groupId);
 }
 
 /**

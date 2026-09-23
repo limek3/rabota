@@ -10,7 +10,7 @@ import { MonthSwitcher, PageHead, Seg, downloadText, toCsv } from "@/components/
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { CumulativeChart, DailyBars, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
-import { HourHeatmap } from "@/components/app/HourHeatmap";
+import { LeadsByHour } from "@/components/app/LeadsByHour";
 import { NO_GROUP } from "@/lib/crm/types";
 
 export default function DynamicsPage() {
@@ -183,7 +183,7 @@ export default function DynamicsPage() {
           </table>
         </div>
       ) : (
-        <HourHeatmap leads={scopedLeads} month={month} dayHours={data.settings.dayHours} scopeLabel={sel.label} />
+        <LeadsByHour leads={scopedLeads} month={month} dayHours={data.settings.dayHours} scopeLabel={sel.label} />
       )}
     </div>
   );

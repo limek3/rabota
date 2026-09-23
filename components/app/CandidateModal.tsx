@@ -15,9 +15,10 @@ const MANUAL: CandidateStage[] = ["new", "interview", "training", "rejected", "d
 
 export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onClose: () => void }) {
   const { data, today, access, saveCandidate, deleteCandidate, hireCandidate, openOperator, toast, confirm } = useCrm();
-  // супервайзер ведёт кандидатов своих групп и общий поток без группы
+  // супервайзер ведёт только кандидатов своих групп; «без группы» — только у РОПа
   const groups = data.groups.filter((g) => !g.deletedAt && (access.isHead || access.ownGroups.has(g.id)));
-  const groupOpts: Opt[] = [{ value: "", label: "Пока не решили", icon: dot("gray") }, ...groups.map((g) => ({ value: g.id, label: g.name, icon: dot(g.color) }))];
+  const own: Opt[] = groups.map((g) => ({ value: g.id, label: g.name, icon: dot(g.color) }));
+  const groupOpts: Opt[] = access.isHead ? [{ value: "", label: "Пока не решили", icon: dot("gray") }, ...own] : own;
 
   const [f, setF] = useState<CandidateInput>(() =>
     cand
@@ -51,6 +52,7 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
   const reasons = useMemo(() => uniq(data.candidates.map((c) => c.reason)), [data.candidates]);
 
   const errName = !f.name.trim() ? "Укажите ФИО" : null;
+  const errGroup = !access.isHead && !f.groupId ? "Выберите группу" : null;
   const errDates =
     (f.interviewAt && f.interviewAt < f.appliedAt) || (f.trainingAt && f.trainingAt < f.appliedAt) || (f.closedAt && closing && f.closedAt < f.appliedAt)
       ? "Дата этапа раньше отклика"
@@ -58,7 +60,7 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
 
   const submit = async () => {
     setTried(true);
-    if (errName || errDates || busy) return;
+    if (errName || errDates || errGroup || busy) return;
     setBusy(true);
     const saved = await saveCandidate({ ...f, id: cand?.id });
     setBusy(false);
@@ -137,8 +139,8 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
               ))}
             </datalist>
           </Field>
-          <Field label="Группа">
-            <Select value={f.groupId ?? ""} options={groupOpts} onChange={(v) => set("groupId", v || null)} ariaLabel="Группа" disabled={hired} />
+          <Field label="Группа" error={tried ? errGroup : null}>
+            <Select value={f.groupId ?? ""} options={groupOpts} onChange={(v) => set("groupId", v || null)} ariaLabel="Группа" disabled={hired} invalid={tried && !!errGroup} />
           </Field>
         </div>
 
@@ -225,7 +227,7 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
                   <Field label="Группа">
                     <Select
                       value={hire.groupId}
-                      options={access.isHead ? [{ value: "", label: "Без группы", icon: dot("gray") }, ...groupOpts.slice(1)] : groupOpts.slice(1)}
+                      options={access.isHead ? [{ value: "", label: "Без группы", icon: dot("gray") }, ...own] : own}
                       onChange={(v) => setHire({ ...hire, groupId: v })}
                       ariaLabel="Группа"
                     />

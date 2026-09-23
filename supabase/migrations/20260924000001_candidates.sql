@@ -42,12 +42,12 @@ create policy candidates_all on public.candidates for all to authenticated
   using (
     (select public.crm_is_head())
     or ((select public.crm_role()) = 'supervisor' and (select public.crm_flag('supervisor', 'manageOperators', true))
-        and (group_id is null or group_id = any ((select public.crm_sup_groups())::text[])))
+        and group_id = any ((select public.crm_sup_groups())::text[]))
   )
   with check (
     (select public.crm_is_head())
     or ((select public.crm_role()) = 'supervisor' and (select public.crm_flag('supervisor', 'manageOperators', true))
-        and (group_id is null or group_id = any ((select public.crm_sup_groups())::text[])))
+        and group_id = any ((select public.crm_sup_groups())::text[]))
   );
 
 revoke all on public.candidates from anon;

@@ -380,8 +380,6 @@ export default function PayrollPage() {
             </table>
           </div>
 
-          <AdjustmentJournal rows={rows} onEdit={(a) => setAdjFor({ opId: a.operatorId, adj: a })} onAdd={access.can.editPayroll ? () => setAdjFor({ opId: "" }) : undefined} />
-
           <div className="card card-pad">
             <div className="card-head">
               <div>
@@ -898,114 +896,6 @@ function SvTile({ label, value, sub, tone }: { label: string; value: string; sub
       <div style={{ fontSize: 11.5, color: "var(--text-sub)", lineHeight: 1.3 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 600, marginTop: 2, color: tone === "good" ? "var(--c-green-fg)" : tone === "bad" ? "var(--c-red-fg)" : "var(--text)" }}>{value}</div>
       {sub && <div style={{ fontSize: 11.5, color: "var(--dim)" }}>{sub}</div>}
-    </div>
-  );
-}
-
-/** Куда запись идёт в ведомости: начисление (+), удержание (−), выплата (уже отдано). */
-const ADJ_EFFECT: Record<AdjustmentType, "plus" | "minus" | "paid"> = {
-  accrual: "plus", bonus: "plus", compensation: "plus", correction: "plus", deduction: "minus", advance: "paid", payout: "paid",
-};
-
-function adjAmount(a: Pick<Adjustment, "type" | "amount">) {
-  const eff = ADJ_EFFECT[a.type];
-  if (eff === "plus") return <span style={{ color: a.amount < 0 ? "var(--c-red-fg)" : "var(--c-green-fg)" }}>{a.amount < 0 ? "−" : "+"}{fmtMoney(Math.abs(a.amount))}</span>;
-  if (eff === "minus") return <span style={{ color: "var(--c-red-fg)" }}>−{fmtMoney(a.amount)}</span>;
-  return <span style={{ color: "var(--c-amber-fg)" }}>{fmtMoney(a.amount)}</span>;
-}
-
-/**
- * Все премии, начисления, удержания и выплаты месяца одним списком — видно сразу,
- * что и кому добавили, без захода в карточку. Учитывает фильтр группы и поиск.
- */
-function AdjustmentJournal({ rows, onEdit, onAdd }: { rows: PayRow[]; onEdit: (a: Adjustment) => void; onAdd?: () => void }) {
-  const { month, access, confirm, deleteAdjustment } = useCrm();
-  const list = useMemo(
-    () =>
-      rows
-        .flatMap((r) => r.adjustments.map((a) => ({ a, r })))
-        .sort((x, y) => y.a.date.localeCompare(x.a.date) || y.a.createdAt.localeCompare(x.a.createdAt)),
-    [rows],
-  );
-  const sum = (types: AdjustmentType[]) => list.filter((x) => types.includes(x.a.type)).reduce((s, x) => s + x.a.amount, 0);
-  const bonus = sum(["bonus"]);
-  const extra = sum(["accrual", "compensation", "correction"]);
-  const minus = sum(["deduction"]);
-  const paid = sum(["advance", "payout"]);
-
-  return (
-    <div className="card card-pad">
-      <div className="card-head">
-        <div>
-          <h3 className="card-title">Премии, начисления и выплаты · {fmtMonth(month)}</h3>
-          <p className="card-sub">
-            {list.length
-              ? `Премии ${fmtMoney(bonus)} · доп. начисления ${fmtMoney(extra)} · удержания ${fmtMoney(minus)} · выплачено ${fmtMoney(paid)}`
-              : "Пока нет записей — премии, авансы и выплаты появятся здесь"}
-          </p>
-        </div>
-        {onAdd && (
-          <button className="btn btn-sm btn-primary" onClick={onAdd}>
-            <Icon name="plus" size={13} /> Начисление
-          </button>
-        )}
-      </div>
-      {list.length > 0 && (
-        <div className="tbl-wrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th style={{ width: 90 }}>Дата</th>
-                <th>Оператор</th>
-                <th>Тип</th>
-                <th>Комментарий</th>
-                <th className="r">Сумма</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {list.map(({ a, r }) => {
-                const canEdit = canEditPay(access, a.operatorId);
-                return (
-                  <tr key={a.id} className={canEdit ? "clickable" : undefined} onClick={canEdit ? () => onEdit(a) : undefined}>
-                    <td className="num muted">{fmtDate(a.date)}</td>
-                    <td>
-                      <span className="row" style={{ gap: 8 }}>
-                        <Avatar name={r.op.name} id={r.op.id} size={22} />
-                        {r.op.name}
-                      </span>
-                    </td>
-                    <td>
-                      <Chip hue={ADJ_HUE[a.type]}>{ADJ_LABEL[a.type]}</Chip>
-                    </td>
-                    <td className="muted wrap">{a.comment || "—"}</td>
-                    <td className="r num" style={{ fontWeight: 600 }}>{adjAmount(a)}</td>
-                    <td className="r" onClick={(e) => e.stopPropagation()}>
-                      {canEdit && (
-                        <span className="row-actions">
-                          <button className="btn btn-ghost btn-sm btn-icon" title="Изменить" onClick={() => onEdit(a)}>
-                            <Icon name="edit" size={13} />
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-sm btn-icon"
-                            title="Удалить"
-                            onClick={async () => {
-                              if (await confirm({ title: "Удалить запись?", text: `${ADJ_LABEL[a.type]} ${fmtMoney(a.amount)} · ${r.op.name}`, ok: "Удалить", danger: true }))
-                                void deleteAdjustment(a.id);
-                            }}
-                          >
-                            <Icon name="trash" size={13} />
-                          </button>
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }

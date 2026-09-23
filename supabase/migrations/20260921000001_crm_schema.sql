@@ -600,18 +600,18 @@ create policy audit_insert on public.audit for insert to authenticated
   with check (account_id = (select public.crm_account_id()));
 create policy audit_delete on public.audit for delete to authenticated using ((select public.crm_is_head()));
 
--- кандидаты: РОП — все; супервайзер с правом вести операторов — без группы (общий поток) и в свои группы.
+-- кандидаты: РОП — все; супервайзер с правом вести операторов — только кандидаты своих групп.
 -- То же правило в приложении — lib/crm/access.ts (canTouchCandidate). Операторам не видны.
 create policy candidates_all on public.candidates for all to authenticated
   using (
     (select public.crm_is_head())
     or ((select public.crm_role()) = 'supervisor' and (select public.crm_flag('supervisor', 'manageOperators', true))
-        and (group_id is null or group_id = any ((select public.crm_sup_groups())::text[])))
+        and group_id = any ((select public.crm_sup_groups())::text[]))
   )
   with check (
     (select public.crm_is_head())
     or ((select public.crm_role()) = 'supervisor' and (select public.crm_flag('supervisor', 'manageOperators', true))
-        and (group_id is null or group_id = any ((select public.crm_sup_groups())::text[])))
+        and group_id = any ((select public.crm_sup_groups())::text[]))
   );
 
 -- настройки: читают все вошедшие, кроме секретов выгрузки; меняет РОП

@@ -3,7 +3,7 @@ import { isoWeekday } from "./dates";
 import { safeDiv } from "./format";
 
 /**
- * Лиды по часам: тепловая карта «день недели × час».
+ * Лиды по часам: по часам дня и по дням недели («день недели × час»).
  *
  * Время берётся из записи лида (at = момент передачи). «Не доведён» в основную
  * карту не идёт — как и везде в CRM, — но считается отдельно, чтобы видеть часы,
@@ -115,16 +115,6 @@ export function bestWindow(byHour: number[], len: number): { from: number; to: n
     }
   }
   return { from: at, to: at + L, leads: best, share: best / total };
-}
-
-/** Часы с наибольшим числом лидов (по убыванию), только ненулевые. */
-export function topHours(byHour: number[], n: number): { hour: number; leads: number; share: number }[] {
-  const total = byHour.reduce((a, b) => a + b, 0);
-  return byHour
-    .map((leads, hour) => ({ hour, leads, share: safeDiv(leads, total) }))
-    .filter((x) => x.leads > 0)
-    .sort((a, b) => b.leads - a.leads || a.hour - b.hour)
-    .slice(0, n);
 }
 
 export const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;

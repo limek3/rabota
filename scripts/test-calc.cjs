@@ -463,7 +463,7 @@ console.log("ALL OK");
 /* 18. Лиды по часам: клетки, «не доведён» отдельно, среднее за день, лучшее окно смены */
 {
   const assert = require("assert");
-  const { hourGrid, bestWindow, perDay, topHours } = R("hours");
+  const { hourGrid, bestWindow, perDay } = R("hours");
   const L = (at, status = "work") => ({ id: at + status, at, client: "", phone: "", projectId: null, operatorId: "o1", groupId: null, direction: "", comment: "", source: "Скорозвон", status, statusReason: status === "failed" ? "x" : "", createdAt: "", updatedAt: "" });
   const leads = [
     L("2026-09-14T11:05"), L("2026-09-14T11:40"), L("2026-09-14T15:00"), // пн
@@ -486,7 +486,6 @@ console.log("ALL OK");
   assert.equal(w.leads, 4, "окно 8 ч забирает 11:00 и 15:00, но не 19:00");
   assert.deepEqual([w.from, w.to], [11, 19], "окно по центру часов с лидами, а не с 8 утра");
   assert.equal(bestWindow(new Array(24).fill(0), 8), null);
-  assert.equal(topHours(g.byHour, 1)[0].hour, 11);
   const e = hourGrid([], "2026-09-01", "2026-09-30");
   assert.equal(e.total, 0); assert.equal(e.peak, null); assert.ok(e.hourFrom < e.hourTo);
   console.log(`18 ok: лиды по часам — пик пн 11:00 (${g.peak.leads}), окно ${w.from}–${w.to} ч = ${Math.round(w.share * 100)}%`);
