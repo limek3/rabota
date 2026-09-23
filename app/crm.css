@@ -757,7 +757,7 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 @keyframes foldIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
 @keyframes foldOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-6px); } }
 .tbl tr.fold-in > td { animation: foldIn 0.34s var(--ease) both; }
-.tbl tr.fold-out > td { animation: foldOut 0.17s var(--ease) both; }
+.tbl tr.fold-out > td { animation: foldOut 0.2s var(--ease) both; }
 @media (prefers-reduced-motion: reduce) {
   .collapse, .grp-chev { transition: none; }
   .tbl tr.fold-in > td, .tbl tr.fold-out > td { animation: none; }

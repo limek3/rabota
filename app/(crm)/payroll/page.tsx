@@ -277,7 +277,7 @@ export default function PayrollPage() {
                 const closed = fold.isClosed(sec.id);
                 const phase = fold.phase(sec.id);
                 return (
-                  <tbody key={sec.id}>
+                  <tbody key={sec.id} data-fold={sec.id}>
                     <tr className="grp-head" onClick={() => fold.toggle(sec.id)} title={closed ? "Развернуть группу" : "Свернуть группу"} aria-expanded={!closed}>
                       <td className="sticky-col">
                         <span className="row" style={{ gap: 8 }}>

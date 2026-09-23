@@ -380,7 +380,7 @@ export default function OperatorsPage() {
                 const phase = fold.phase(sec.key);
                 const pct = safeDiv(sec.t.fact, sec.t.plan);
                 return (
-                  <tbody key={sec.key}>
+                  <tbody key={sec.key} data-fold={sec.key}>
                     <tr className="grp-head" onClick={() => fold.toggle(sec.key)} title={closed ? "Развернуть группу" : "Свернуть группу"} aria-expanded={!closed}>
                       <td className="sticky-col">
                         <span className="row" style={{ gap: 8 }}>

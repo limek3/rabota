@@ -400,15 +400,18 @@ export function Collapse({ open, children, innerStyle, className }: { open: bool
 export type FoldPhase = "in" | "out" | undefined;
 
 /**
- * Сворачиваемые группы строк в таблице (зарплата, операторы). Раскрытие: таблица плавно растёт
- * по высоте, строки группы спускаются каскадом. Сворачивание: строки уходят, потом таблица
- * плавно сжимается. wrapRef — контейнер таблицы (.tbl-wrap), его высоту и анимируем.
+ * Сворачиваемые группы строк в таблице (зарплата, операторы) — одним движением, как аккордеон.
+ * Контейнер таблицы (wrapRef, .tbl-wrap) плавно меняет высоту, «Итого» (sticky снизу) едет вместе
+ * с краем, группы ниже одновременно сдвигаются вверх/вниз, а строки самой группы гаснут или
+ * проявляются каскадом. Строки убираются из DOM только когда всё доехало — без скачка в конце.
+ * У каждой группы — <tbody data-fold={key}>, первая строка в нём — заголовок группы.
  */
 export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
   const [closed, setClosed] = useState<Set<string>>(() => new Set());
   const [phase, setPhase] = useState<Record<string, "in" | "out">>({});
-  const fromH = useRef<number | null>(null);
-  const anim = useRef<Animation | null>(null);
+  const opening = useRef<{ key: string; from: number } | null>(null);
+  const running = useRef<Animation[]>([]);
+  const cancelAfterCommit = useRef(false);
   const timers = useRef<number[]>([]);
   useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), []);
 
@@ -419,34 +422,63 @@ export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
       return rest;
     });
 
-  // высота контейнера «было → стало» после того, как строки добавились или ушли
+  const stopAll = () => {
+    running.current.forEach((a) => a.cancel());
+    running.current = [];
+    if (wrapRef.current) wrapRef.current.style.overflow = "";
+  };
+  const track = (list: Animation[]) => {
+    running.current = list;
+    const end = () => (running.current === list ? stopAll() : undefined);
+    const last = list[list.length - 1];
+    if (last) last.onfinish = end;
+    later(end, FOLD_MS + 60);
+  };
+  // группа: её tbody, высота её строк (без заголовка) и tbody групп ниже
+  const parts = (el: HTMLElement, key: string) => {
+    const tb = Array.from(el.querySelectorAll<HTMLElement>("tbody[data-fold]")).find((t) => t.dataset.fold === key) ?? null;
+    if (!tb) return null;
+    const rows = Array.from(tb.children).slice(1) as HTMLElement[];
+    const rowsH = rows.reduce((s, r) => s + r.offsetHeight, 0);
+    const below: HTMLElement[] = [];
+    for (let n = tb.nextElementSibling; n; n = n.nextElementSibling) if (n.tagName === "TBODY") below.push(n as HTMLElement);
+    return { rowsH, below };
+  };
+
   useLayoutEffect(() => {
     const el = wrapRef.current;
-    const from = fromH.current;
-    fromH.current = null;
-    if (!el || from == null || reducedMotion() || typeof el.animate !== "function") return;
-    // быстрый повторный клик: прошлую анимацию снимаем — «было» уже взято с экрана, скачка нет
-    anim.current?.cancel();
+    // сворачивание доехало, строки только что убраны — снимаем «замороженную» высоту в том же кадре
+    if (cancelAfterCommit.current) {
+      cancelAfterCommit.current = false;
+      stopAll();
+    }
+    const o = opening.current;
+    opening.current = null;
+    if (!el || !o || reducedMotion() || typeof el.animate !== "function") return;
+    const p = parts(el, o.key);
+    if (!p) return;
     const to = el.offsetHeight;
-    if (Math.abs(to - from) < 2) return;
     el.style.overflow = "hidden";
-    const a = el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 300, easing: "cubic-bezier(.2,.75,.25,1)" });
-    anim.current = a;
-    const done = () => {
-      if (anim.current === a) {
-        anim.current = null;
-        el.style.overflow = "";
-      }
-    };
-    a.onfinish = done;
-    a.oncancel = done;
+    const opts: KeyframeAnimationOptions = { duration: FOLD_MS, easing: FOLD_EASE };
+    const list: Animation[] = [];
+    for (const b of p.below) list.push(b.animate([{ transform: `translateY(${-p.rowsH}px)` }, { transform: "none" }], opts));
+    if (Math.abs(to - o.from) > 1) list.push(el.animate([{ height: `${o.from}px` }, { height: `${to}px` }], opts));
+    track(list);
   }, [closed, wrapRef]);
 
   const toggle = useCallback(
     (key: string) => {
       const el = wrapRef.current;
+      const from = el?.offsetHeight ?? 0; // текущая высота — и посреди прошлой анимации (offsetHeight её учитывает)
+      // повторный клик, пока группа сворачивается — передумали: возвращаем как было
+      if (phase[key] === "out" && !closed.has(key)) {
+        stopAll();
+        dropPhase(key);
+        return;
+      }
+      stopAll();
       if (closed.has(key)) {
-        fromH.current = el?.offsetHeight ?? null;
+        opening.current = el ? { key, from } : null;
         setPhase((p) => ({ ...p, [key]: "in" }));
         setClosed((s) => {
           const n = new Set(s);
@@ -454,24 +486,41 @@ export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
           return n;
         });
         later(() => dropPhase(key), 700);
-      } else {
-        if (reducedMotion()) {
-          setClosed((s) => new Set(s).add(key));
-          return;
-        }
-        setPhase((p) => ({ ...p, [key]: "out" }));
-        later(() => {
-          fromH.current = wrapRef.current?.offsetHeight ?? null;
-          setClosed((s) => new Set(s).add(key));
-          dropPhase(key);
-        }, 170);
+        return;
       }
+      const p = el && typeof el.animate === "function" && !reducedMotion() ? parts(el, key) : null;
+      if (!el || !p) {
+        setClosed((s) => new Set(s).add(key));
+        return;
+      }
+      // до какой высоты сжимается контейнер: содержимое минус строки группы, но не выше, чем сейчас
+      const chrome = el.offsetHeight - el.clientHeight;
+      const to = Math.min(from, el.scrollHeight - p.rowsH + chrome);
+      setPhase((ph) => ({ ...ph, [key]: "out" }));
+      el.style.overflow = "hidden";
+      const opts: KeyframeAnimationOptions = { duration: FOLD_MS, easing: FOLD_EASE, fill: "forwards" };
+      const list: Animation[] = [];
+      for (const b of p.below) list.push(b.animate([{ transform: "none" }, { transform: `translateY(${-p.rowsH}px)` }], opts));
+      list.push(el.animate([{ height: `${from}px` }, { height: `${to}px` }], opts));
+      running.current = list;
+      // конец — по событию анимации или по таймеру (события не приходят, пока вкладка не рисуется)
+      const finish = () => {
+        if (running.current !== list || cancelAfterCommit.current) return;
+        cancelAfterCommit.current = true;
+        setClosed((s) => new Set(s).add(key));
+        dropPhase(key);
+      };
+      list[list.length - 1].onfinish = finish;
+      later(finish, FOLD_MS + 60);
     },
-    [closed, wrapRef],
+    [closed, phase, wrapRef],
   );
 
   return { isClosed: (key: string) => closed.has(key), phase: (key: string): FoldPhase => phase[key], toggle };
 }
+
+const FOLD_MS = 280;
+const FOLD_EASE = "cubic-bezier(.2,.75,.25,1)";
 
 /** Класс и задержка для строки группы: каскад сверху вниз при раскрытии, общий уход при сворачивании. */
 export function foldRow(phase: FoldPhase, index: number): { className: string; style?: CSSProperties } {
