@@ -707,3 +707,11 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 }
 .save-bar > svg { color: var(--brand); flex: none; }
 .save-bar-sticky { position: sticky; bottom: 12px; z-index: 20; box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, .12)); background: var(--bg-panel); }
+
+/* блок Telegram: ожидание подтверждения от Vexi */
+.tg-wait-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); flex: none; animation: tgWait 1.4s ease-in-out infinite; }
+@keyframes tgWait {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .tg-wait-dot { animation: none; } }

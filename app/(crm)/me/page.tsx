@@ -14,6 +14,7 @@ import { Avatar, Chip, Empty, Kpi, LeadStatusChip, MonthSwitcher, PageHead, Prog
 import { DailyBars } from "@/components/ui/charts";
 import { LearnCard } from "@/components/learn/Progress";
 import { Icon } from "@/components/ui/icons";
+import { TelegramCard } from "@/components/app/TelegramCard";
 
 /**
  * Личный кабинет оператора (и супервайзера, который сам звонит).
@@ -88,6 +89,9 @@ export default function MePage() {
       withHourly: isHourlyTiered(row.terms.payType),
     };
   }, [row]);
+
+  // грейд дня в Telegram — только по доведённым лидам (как у Vexi)
+  const doneTodayApproved = useMemo(() => myLeadsToday.filter((l) => l.status === "done").length, [myLeadsToday]);
 
   const chart = useMemo(() => (row ? dailyRows(m.cal, row.terms.plan, ix.opDay.get(row.op.id), ix.hoursOpDay.get(row.op.id)) : []), [row, m.cal, ix]);
 
@@ -335,6 +339,8 @@ export default function MePage() {
               )}
             </div>
           )}
+
+          {remote && <TelegramCard doneToday={doneTodayApproved} />}
 
           <LearnCard />
 
