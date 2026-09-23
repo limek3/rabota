@@ -348,12 +348,15 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 .sched thead .sum { z-index: 4; background: var(--bg-strip); }
 .sched tfoot .sum { z-index: 3; background: var(--bg-strip); }
 .sched tbody tr:hover .sum { background: var(--bg-panel-hover); }
-.sched .sum-h { right: 290px; width: 58px; min-width: 58px; }
-.sched .sum-n { right: 232px; width: 58px; min-width: 58px; }
-.sched .sum-p { right: 182px; width: 50px; min-width: 50px; }
-.sched .sum-d { right: 116px; width: 66px; min-width: 66px; }
-.sched .sum-l { right: 58px; width: 58px; min-width: 58px; }
-.sched .sum-c { right: 0; width: 58px; min-width: 58px; }
+/* итоговые колонки справа — узкие, чтобы дням оставалось больше места (было 348px, стало 272px).
+   right — сумма ширин колонок правее; ширины не меньше заголовков, иначе липкие колонки наедут друг на друга */
+.sched .sum { padding-left: 4px; padding-right: 4px; }
+.sched .sum-h { right: 226px; width: 46px; min-width: 46px; }
+.sched .sum-n { right: 178px; width: 48px; min-width: 48px; }
+.sched .sum-p { right: 138px; width: 40px; min-width: 40px; }
+.sched .sum-d { right: 92px; width: 46px; min-width: 46px; }
+.sched .sum-l { right: 46px; width: 46px; min-width: 46px; }
+.sched .sum-c { right: 0; width: 46px; min-width: 46px; }
 
 /* боковое меню */
 .app-rail-item {

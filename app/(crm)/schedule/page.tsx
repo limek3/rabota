@@ -8,7 +8,7 @@ import { sumRange, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, safeDiv } from "@/lib/crm/format";
-import { Avatar, Empty, Field, GoneTag, Modal, MonthSwitcher, NumInput, PageHead, Seg, Switch } from "@/components/ui/kit";
+import { Avatar, Empty, Field, GoneTag, Modal, MonthSwitcher, NumInput, PageHead, Seg, Switch, useWheelHScroll } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -52,6 +52,9 @@ export default function SchedulePage() {
   const [range, setRange] = useState<Range | null>(null);
   const [bulk, setBulk] = useState<{ rect: { left: number; top: number; bottom: number }; cells: { opId: string; day: DayKey }[] } | null>(null);
   const dragging = useRef(false);
+  // колесо листает дни вправо-влево без Shift
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useWheelHScroll(scrollRef);
   const lastRect = useRef<{ left: number; top: number; bottom: number }>({ left: 0, top: 0, bottom: 0 });
 
   const days = m.cal.days;
@@ -205,7 +208,7 @@ export default function SchedulePage() {
           <Empty icon="calendar" title="Некого ставить в график" text="В выбранном месяце нет операторов в штате. Добавьте операторов или смените месяц." />
         </div>
       ) : (
-        <div className="tbl-wrap" style={{ flex: "0 1 auto", minHeight: 0 }}>
+        <div ref={scrollRef} className="tbl-wrap" style={{ flex: "0 1 auto", minHeight: 0 }}>
           <table
             className="tbl sched"
             onMouseMove={(e) => {
@@ -218,7 +221,7 @@ export default function SchedulePage() {
           >
             <thead>
               <tr>
-                <th className="sticky-col" style={{ minWidth: 248 }}>
+                <th className="sticky-col" style={{ minWidth: 220 }}>
                   Оператор
                 </th>
                 {days.map((d) => {
@@ -234,7 +237,7 @@ export default function SchedulePage() {
                 <th className="r sum sum-n" title="Месячная норма">Норма</th>
                 <th className="r sum sum-p">%</th>
                 <th className="r sum sum-d" title={past ? "Часы минус норма месяца" : "Часы минус норма на сегодня"}>
-                  ±{past ? "" : " к дате"}
+                  ±
                 </th>
                 <th className="r sum sum-l">Лиды</th>
                 <th className="r sum sum-c" title="Конверсия: лидов на отработанный час">Лид/ч</th>

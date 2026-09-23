@@ -529,6 +529,51 @@ export function foldRow(phase: FoldPhase, index: number): { className: string; s
   return { className: "" };
 }
 
+/**
+ * Колесо мыши листает широкую таблицу вправо-влево без Shift (график на месяц).
+ * Плавно: колесо двигает цель, прокрутка догоняет её. Упёрлись в край — колесо снова
+ * крутит страницу вертикально. Тачпад с горизонтальным жестом и Ctrl+колесо (масштаб) не трогаем.
+ */
+export function useWheelHScroll(ref: RefObject<HTMLElement>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let target = el.scrollLeft;
+    let raf = 0;
+    const step = () => {
+      const diff = target - el.scrollLeft;
+      if (Math.abs(diff) < 0.5) {
+        el.scrollLeft = target;
+        raf = 0;
+        return;
+      }
+      el.scrollLeft += diff * 0.22;
+      raf = requestAnimationFrame(step);
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.shiftKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+      const max = el.scrollWidth - el.clientWidth;
+      if (max <= 0) return;
+      if (!raf) target = el.scrollLeft; // пока стояли, таблицу могли сдвинуть полосой прокрутки
+      const unit = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? el.clientWidth : 1;
+      const next = Math.max(0, Math.min(max, target + e.deltaY * unit));
+      if (next === target) return; // край — отдаём колесо странице
+      e.preventDefault();
+      target = next;
+      if (reducedMotion()) {
+        el.scrollLeft = target;
+        return;
+      }
+      if (!raf) raf = requestAnimationFrame(step);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [ref]);
+}
+
 /* ── модальное окно ───────────────────────────────────────────────── */
 export function Modal({
   title,
