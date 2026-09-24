@@ -1,14 +1,14 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Report } from "@/lib/crm/report";
 import { fmtDate, fmtDay, fmtDayShort, fmtMonth, fmtStamp, fmtWeekday, nowStamp } from "@/lib/crm/dates";
 import { fmtInt, fmtNum } from "@/lib/crm/format";
 
 /**
  * Отчёт картинкой: рисуем на canvas сами, без библиотек — поэтому то, что видно
- * на странице, один в один уходит в PNG (скачать / скопировать в чат). Всегда
- * светлая палитра: картинку смотрят в мессенджере, а не в теме CRM.
+ * на странице, один в один уходит в PNG (скачать / скопировать в чат). Палитра —
+ * по теме CRM: в тёмной теме белая карточка слепит, и в чат уходит то же, что на экране.
  */
 
 export interface ReportCanvasHandle {
@@ -20,7 +20,7 @@ const W = 960; // ширина картинки, CSS-пикселей
 const P = 36; // поля
 const SCALE = 2; // чёткость для экранов с плотными пикселями
 
-const C = {
+const LIGHT = {
   bg: "#ffffff",
   text: "#37352f",
   sub: "#787774",
@@ -37,11 +37,45 @@ const C = {
   amberBg: "#fbf3e1",
 };
 
+/** Тёмная — те же поверхности и акценты, что у тёмной темы CRM (globals.css). */
+const DARK: typeof LIGHT = {
+  bg: "#252525",
+  text: "#e6e6e4",
+  sub: "#9b9a97",
+  dim: "#6f6e6b",
+  line: "#333331",
+  strip: "#2c2c2c",
+  brand: "#a283fb",
+  brandSoft: "#3a3159",
+  green: "#65ae7e",
+  greenBg: "#223b2f",
+  red: "#e67876",
+  redBg: "#452a29",
+  amber: "#d4a047",
+  amberBg: "#4a3c2a",
+};
+
+type Palette = typeof LIGHT;
+
+/** Тема CRM сейчас: следим за data-theme на <html>, чтобы перерисовать при переключении. */
+function useDarkTheme(): boolean {
+  const [dark, setDark] = useState(false);
+  useEffect(() => {
+    const el = document.documentElement;
+    const read = () => setDark(el.dataset.theme === "dark");
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(el, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => mo.disconnect();
+  }, []);
+  return dark;
+}
+
 const pct = (v: number | null) => (v == null ? "—" : `${Math.round(v * 100)}%`);
-const toneOf = (v: number | null) => (v == null ? C.text : v >= 1 ? C.green : v >= 0.8 ? C.amber : C.red);
 
 export const ReportCanvas = forwardRef<ReportCanvasHandle, { report: Report; company: string }>(function ReportCanvas({ report, company }, ref) {
   const cv = useRef<HTMLCanvasElement>(null);
+  const dark = useDarkTheme();
 
   useImperativeHandle(ref, () => ({
     toBlob: () => new Promise((res) => (cv.current ? cv.current.toBlob((b) => res(b), "image/png") : res(null))),
@@ -58,17 +92,18 @@ export const ReportCanvas = forwardRef<ReportCanvasHandle, { report: Report; com
     const mono = getComputedStyle(probe).fontFamily || "monospace";
     probe.remove();
     void document.fonts.ready.then(() => {
-      if (alive && cv.current) draw(cv.current, report, company, sans, mono);
+      if (alive && cv.current) draw(cv.current, report, company, sans, mono, dark ? DARK : LIGHT);
     });
     return () => {
       alive = false;
     };
-  }, [report, company]);
+  }, [report, company, dark]);
 
   return <canvas ref={cv} style={{ width: "100%", maxWidth: W, height: "auto", display: "block", borderRadius: 12, boxShadow: "var(--shadow-sm)", border: "1px solid var(--ink-07)" }} />;
 });
 
-function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: string, mono: string) {
+function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: string, mono: string, C: Palette) {
+  const toneOf = (v: number | null) => (v == null ? C.text : v >= 1 ? C.green : v >= 0.8 ? C.amber : C.red);
   const week = r.kind === "week";
   const rowH = 30;
   const attn = [

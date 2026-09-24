@@ -1,6 +1,6 @@
 import type { DataState, DayKey, Operator } from "./types";
 import { NO_GROUP, NO_GROUP_LABEL } from "./types";
-import { employmentWindow, monthModel, type Index, type MonthModel, type OpRow } from "./calc";
+import { WORKED_TYPES, employmentWindow, monthModel, type Index, type MonthModel, type OpRow } from "./calc";
 import { addDays, monthOf, rangeDays, weekStart } from "./dates";
 import { safeDiv } from "./format";
 
@@ -87,12 +87,17 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
   for (const d of days) for (const r of model(d).ops) if (inGroup(r.op.groupId) && employmentWindow(r.op, monthOf(d)) && !(r.op.deletedAt && !byOpDay.has(r.op.id))) ids.add(r.op.id);
   for (const id of byOpDay.keys()) ids.add(id);
 
-  // план оператора на день: месячный план ÷ рабочие дни его окна работы в месяце
+  // план оператора на день: месячный план ÷ рабочие дни его окна работы в месяце.
+  // Смена в графике есть, но без отработанных часов (выходной, отпуск, больничный) — плана
+  // на этот день нет: иначе отдыхающий висит в отчёте с «0% плана» и тянет вниз итог дня.
+  // Смены нет вовсе — план остаётся: человек должен был работать (он в «Нет смены в графике»).
   const dayPlan = (op: Operator, d: DayKey): number => {
     const mm = model(d);
     const r = rowOf(d, op.id);
     const win = employmentWindow(op, mm.cal.month);
     if (!r || !win || d < win.from || d > win.to || !mm.cal.isWork(d)) return 0;
+    const sh = ix.shift.get(`${d}|${op.id}`);
+    if (sh && !(WORKED_TYPES.has(sh.type) && sh.hours > 0)) return 0;
     const wd = mm.cal.workdays.filter((x) => x >= win.from && x <= win.to).length;
     return wd > 0 ? r.terms.plan / wd : 0;
   };

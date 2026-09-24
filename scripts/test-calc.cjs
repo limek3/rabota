@@ -640,3 +640,26 @@ console.log("ALL OK");
   assert.ok(shown <= appStamp(), "время лида не убегает вперёд вместе с часами компьютера");
   console.log("22 ok: ссылка на лид и поправка часов");
 }
+
+/* 23. Отчёт за день: у кого в графике выходной/отпуск — нет плана на день и нет строки «0%» */
+{
+  const assert = require("assert");
+  const { buildIndex } = R("calc");
+  const { buildDemo } = R("demo");
+  const { buildReport } = R("report");
+  const today = "2026-09-18";
+  const day = "2026-09-17";
+  const st = buildDemo(today);
+  const before = buildReport(st, buildIndex(st), "day", day, "", today);
+  const victim = before.rows.find((r) => r.plan > 0 && r.hours > 0);
+  assert.ok(victim, "есть работавший с планом");
+  // ставим ему выходной и убираем его лиды за этот день
+  const id = `${day}|${victim.op.id}`;
+  st.shifts = st.shifts.filter((s) => s.id !== id).concat([{ id, date: day, operatorId: victim.op.id, groupId: victim.op.groupId, hours: 0, type: "off", comment: "", updatedAt: "" }]);
+  st.leads = st.leads.filter((l) => !(l.operatorId === victim.op.id && l.at.startsWith(day)));
+  const after = buildReport(st, buildIndex(st), "day", day, "", today);
+  assert.ok(!after.rows.some((r) => r.op.id === victim.op.id), "отдыхающего нет в отчёте");
+  assert.ok(Math.abs(after.total.plan - (before.total.plan - victim.plan)) < 1e-9, "план дня уменьшился ровно на его план");
+  assert.ok(!after.attention.noShift.includes(victim.op.name), "выходной — не «нет смены»");
+  console.log(`23 ok: выходной не тянет отчёт вниз — план дня ${before.total.plan.toFixed(1)} → ${after.total.plan.toFixed(1)}`);
+}
