@@ -164,7 +164,7 @@ export interface Lead {
   status: LeadStatus;
   /** Причина, если «не доведён». */
   statusReason: string;
-  /** Кто и когда поставил статус (у «в работе» — пусто). */
+  /** Кто и когда последним менял статус (у только что записанного лида — пусто). */
   statusAt?: string;
   statusBy?: string;
   createdAt: string;

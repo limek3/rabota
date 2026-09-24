@@ -815,3 +815,24 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .dist-bar { height: 10px; border-radius: 99px; background: var(--ink-06); overflow: hidden; }
 .dist-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
 @media (max-width: 760px) { .funnel-row { grid-template-columns: 1fr; gap: 4px; } .funnel-meta { text-align: left; } }
+
+/* карточка лида: выбор статуса карточками, плашка «было → станет», кто поставил */
+.st-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.st-opt { --hue-fg: var(--text-sub); --hue-bg: var(--bg-panel); --hue-bd: var(--ink-10); display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--ink-08, var(--ink-07)); background: var(--bg-panel); text-align: left; cursor: pointer; transition: border-color 0.15s var(--ease), background 0.15s var(--ease), box-shadow 0.15s var(--ease); }
+.st-opt[data-hue="amber"] { --hue-fg: var(--c-amber-fg); --hue-bg: var(--c-amber-bg); --hue-bd: var(--c-amber-bd); }
+.st-opt[data-hue="green"] { --hue-fg: var(--c-green-fg); --hue-bg: var(--c-green-bg); --hue-bd: var(--c-green-bd); }
+.st-opt[data-hue="red"] { --hue-fg: var(--c-red-fg); --hue-bg: var(--c-red-bg); --hue-bd: var(--c-red-bd); }
+.st-opt:hover { border-color: var(--hue-bd); }
+.st-opt[aria-checked="true"] { border-color: var(--hue-fg); background: var(--hue-bg); box-shadow: 0 0 0 3px var(--hue-bd); }
+.st-opt-ico { width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--hue-fg); background: var(--hue-bg); }
+.st-opt[aria-checked="true"] .st-opt-ico { color: #fff; background: var(--hue-fg); }
+.st-opt-title { font-size: 13.5px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
+.st-opt-title em { font-style: normal; font-size: 10.5px; font-weight: 500; color: var(--dim); padding: 1px 6px; border-radius: 99px; background: var(--ink-06); }
+.st-opt-hint { font-size: 11.5px; line-height: 1.35; color: var(--text-sub); }
+.st-change { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; background: var(--c-amber-bg); color: var(--text); }
+.st-change[data-hue="green"] { background: var(--c-green-bg); }
+.st-change[data-hue="red"] { background: var(--c-red-bg); }
+.st-change > svg { flex: none; margin-top: 2px; color: var(--text-sub); }
+.st-stamp { font-size: 12px; color: var(--dim); }
+.st-stamp b { color: var(--text-sub); font-weight: 600; }
+@media (max-width: 560px) { .st-pick { grid-template-columns: 1fr; } }

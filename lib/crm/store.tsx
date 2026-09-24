@@ -660,13 +660,13 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const recs: Lead[] = targets
         .filter((l) => l.status !== status || (status === "failed" && l.statusReason !== why))
         .map((l) => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { statusAt, statusBy, ...rest } = l;
+          // кто и когда — при любой смене, в том числе при возврате «в работу»: в карточке видно, кто вернул
           return {
-            ...rest,
+            ...l,
             status,
             statusReason: status === "failed" ? why : "",
-            ...(status !== "work" ? { statusAt: now, statusBy: a.account.name } : {}),
+            statusAt: now,
+            statusBy: a.account.name,
             updatedAt: now,
           };
         });

@@ -3,11 +3,11 @@
 import { useMemo, useRef, useState } from "react";
 import { useCrm, type LeadPreset } from "@/lib/crm/store";
 import type { Lead, LeadStatus } from "@/lib/crm/types";
-import { LEAD_SOURCE, LEAD_STATUSES, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
-import { Avatar, Field, LeadStatusChip, Modal, Seg } from "@/components/ui/kit";
+import { LEAD_SOURCE, LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
+import { Avatar, Field, LeadStatusChip, Modal } from "@/components/ui/kit";
 import { DateTimeInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canCreateLeadFor, canEditLead, canReviewLead } from "@/lib/crm/access";
-import { Icon } from "@/components/ui/icons";
+import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
 import { fmtPhone, normPhone } from "@/lib/crm/format";
 import { fmtStamp, nowStamp } from "@/lib/crm/dates";
@@ -243,7 +243,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
             )}
             {(!readOnly || canReview) && (
               <button className="btn btn-primary" onClick={() => void submit(false)} disabled={busy} title="Ctrl+Enter">
-                {lead ? "Сохранить" : "Записать лид"}
+                {!lead ? "Записать лид" : statusChanged ? `Сохранить · «${LEAD_STATUS_LABEL[status]}»` : "Сохранить"}
               </button>
             )}
           </>
@@ -274,8 +274,16 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
             (canReview ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: 10, background: "var(--bg-strip)", border: "1px solid var(--ink-07)" }}>
                 <Field label="Статус лида">
-                  <Seg<LeadStatus> value={status} options={LEAD_STATUSES.map((st) => ({ value: st, label: LEAD_STATUS_LABEL[st] }))} onChange={setStatus} />
+                  <StatusPicker value={status} current={lead.status} onChange={setStatus} />
                 </Field>
+                {statusChanged && status !== lead.status && (
+                  <div className="st-change" data-hue={LEAD_STATUS_HUE[status]}>
+                    <Icon name="arrowR" size={14} />
+                    <span>
+                      <b>{LEAD_STATUS_LABEL[lead.status]}</b> → <b>{LEAD_STATUS_LABEL[status]}</b>. {STATUS_EFFECT[lead.status][status]} Применится после «Сохранить».
+                    </span>
+                  </div>
+                )}
                 {status === "failed" && (
                   <Field label="Причина — почему не доведён" error={tried ? errReason : null}>
                     <input
@@ -294,17 +302,13 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
                     </datalist>
                   </Field>
                 )}
-                {lead.statusBy && (
-                  <div style={{ fontSize: 11.5, color: "var(--dim)" }}>
-                    Сейчас: {LEAD_STATUS_LABEL[lead.status]} · {lead.statusBy}
-                  </div>
-                )}
+                <StatusStamp lead={lead} />
               </div>
             ) : (
               <div className="row" style={{ gap: 8, flexWrap: "wrap", fontSize: 12.5 }}>
                 <LeadStatusChip lead={lead} />
                 {lead.status === "failed" && lead.statusReason && <span>Причина: {lead.statusReason}</span>}
-                {lead.statusBy && <span style={{ color: "var(--dim)" }}>· {lead.statusBy}</span>}
+                {lead.statusBy && <span style={{ color: "var(--dim)" }}>· {lead.statusBy}{lead.statusAt ? `, ${fmtStamp(lead.statusAt)} МСК` : ""}</span>}
               </div>
             ))}
           <div className="grid2">
@@ -385,5 +389,63 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
         </form>
       )}
     </Modal>
+  );
+}
+
+/* ── статус лида: выбор карточками, что он значит и кто его поставил ── */
+
+const STATUS_META: Record<LeadStatus, { icon: IconName; hint: string }> = {
+  work: { icon: "clock", hint: "Передан, менеджер ещё работает. В факте и в оплате, пока не отклонён" },
+  done: { icon: "check", hint: "Менеджер подтвердил. В факте и в оплате оператора" },
+  failed: { icon: "close", hint: "Сорвался. Уходит из факта и из оплаты, нужна причина" },
+};
+
+/** Что изменится для оператора при смене статуса: было → станет. */
+const STATUS_EFFECT: Record<LeadStatus, Record<LeadStatus, string>> = {
+  work: { work: "", done: "Лид останется в факте и в оплате.", failed: "Лид уйдёт из факта и из оплаты оператора." },
+  done: { done: "", work: "Лид останется в факте, но снова ждёт проверки.", failed: "Лид уйдёт из факта и из оплаты оператора." },
+  failed: { failed: "", work: "Лид вернётся в факт и в оплату.", done: "Лид вернётся в факт и в оплату." },
+};
+
+function StatusPicker({ value, current, onChange }: { value: LeadStatus; current: LeadStatus; onChange: (s: LeadStatus) => void }) {
+  return (
+    <div className="st-pick" role="radiogroup" aria-label="Статус лида">
+      {LEAD_STATUSES.map((st) => (
+        <button
+          key={st}
+          type="button"
+          role="radio"
+          aria-checked={value === st}
+          className="st-opt"
+          data-hue={LEAD_STATUS_HUE[st]}
+          onClick={() => onChange(st)}
+        >
+          <span className="st-opt-ico">
+            <Icon name={STATUS_META[st].icon} size={15} stroke={2.2} />
+          </span>
+          <span className="st-opt-title">
+            {LEAD_STATUS_LABEL[st]}
+            {st === current && <em>сейчас</em>}
+          </span>
+          <span className="st-opt-hint">{STATUS_META[st].hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** «Доведён — поставил Оленчук Борис, 24.09.2026 14:05 МСК». */
+function StatusStamp({ lead }: { lead: Lead }) {
+  if (!lead.statusBy && !lead.statusAt) return <div className="st-stamp">Статус ещё не меняли — лид «В работе» с момента записи</div>;
+  return (
+    <div className="st-stamp">
+      Сейчас <b>«{LEAD_STATUS_LABEL[lead.status]}»</b>
+      {lead.statusBy && (
+        <>
+          {" "}— поставил(а) <b>{lead.statusBy}</b>
+        </>
+      )}
+      {lead.statusAt && <>, {fmtStamp(lead.statusAt)} МСК</>}
+    </div>
   );
 }
