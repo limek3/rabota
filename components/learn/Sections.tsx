@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useCrm } from "@/lib/crm/store";
+import { appStamp, fmtDate } from "@/lib/crm/dates";
 import {
   DATA_AS_OF,
   PASS_PCT,
@@ -716,7 +717,7 @@ function ProgressPage({ ctx }: { ctx: Ctx }) {
                 <span className="rt">
                   <b>{lib(ctx.role).itemCourse.get(l.itemId)?.title}</b>
                   <span>
-                    {l.cert!.pct}% · {new Date(l.cert!.at).toLocaleDateString("ru-RU")}
+                    {l.cert!.pct}% · {fmtDate(appStamp(l.cert!.at).slice(0, 10))}
                   </span>
                 </span>
                 <span className="lpill ok">сдано</span>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { PAY_HINT, PAY_LABEL, type PayType, type Settings } from "@/lib/crm/types";
-import { WEEKDAYS_SHORT, currentMonth, fmtDate, fmtMonth } from "@/lib/crm/dates";
+import { WEEKDAYS_SHORT, currentMonth, fmtDate, fmtMonth, fmtStamp, nowStamp } from "@/lib/crm/dates";
 import { fmtInt } from "@/lib/crm/format";
 import { checkIntegrity, type Issue } from "@/lib/crm/validate";
 import * as db from "@/lib/crm/db";
@@ -439,7 +439,7 @@ function DataSection() {
   }, [data]);
 
   const doExport = () => {
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    const stamp = nowStamp().replace(/[:T]/g, "-");
     downloadText(`leadup_backup_${stamp}.json`, exportJson(), "application/json");
   };
 
@@ -562,7 +562,7 @@ function DataSection() {
             <tbody>
               {backups.map((b) => (
                 <tr key={b.id}>
-                  <td className="num c">{new Date(b.createdAt).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}</td>
+                  <td className="num c">{fmtStamp(b.createdAt)}</td>
                   <td>{b.reason}</td>
                   <td className="c num">{fmtInt(b.counts.operators ?? 0)}</td>
                   <td className="c num">{fmtInt(b.counts.leads ?? 0)}</td>

@@ -5,9 +5,46 @@ import type { DayKey, MonthKey, Settings } from "./types";
  *
  * Все ключи — локальные строки. Внутри Date создаём на полдень, чтобы переход
  * на летнее/зимнее время не сдвигал сутки.
+ *
+ * «Сейчас» и «сегодня» — по часам платформы (APP_TZ, по умолчанию Москва), а не по
+ * часам компьютера: оператор в Новосибирске, передавший лид в 12:00 по Москве, пишет
+ * 12:00, и смена суток для всех наступает в полночь по Москве. Моменты в ISO (журнал,
+ * статус лида, входы) показываются в том же поясе — appStamp.
  */
 
 const pad = (n: number) => String(n).padStart(2, "0");
+
+/** Часовой пояс платформы. Меняется переменной NEXT_PUBLIC_APP_TIMEZONE при сборке. */
+export const APP_TZ = validZone(process.env.NEXT_PUBLIC_APP_TIMEZONE) ?? "Europe/Moscow";
+
+function validZone(tz: string | undefined): string | null {
+  if (!tz) return null;
+  try {
+    new Intl.DateTimeFormat("ru-RU", { timeZone: tz });
+    return tz;
+  } catch {
+    return null; // опечатка в переменной не должна ронять приложение
+  }
+}
+
+const zoned = new Intl.DateTimeFormat("en-CA", {
+  timeZone: APP_TZ,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Момент (Date или ISO-строка) → "YYYY-MM-DDTHH:mm" по часам платформы; "" — не дата. */
+export function appStamp(at: Date | string = new Date()): string {
+  const d = typeof at === "string" ? new Date(at) : at;
+  if (Number.isNaN(d.getTime())) return "";
+  const p: Record<string, string> = {};
+  for (const x of zoned.formatToParts(d)) p[x.type] = x.value;
+  return `${p.year}-${p.month}-${p.day}T${p.hour === "24" ? "00" : p.hour}:${p.minute}`;
+}
 
 export function toKey(d: Date): DayKey {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -19,12 +56,16 @@ export function fromKey(k: DayKey): Date {
 }
 
 export function todayKey(): DayKey {
-  return toKey(new Date());
+  return appStamp().slice(0, 10);
 }
 
 export function nowStamp(): string {
-  const d = new Date();
-  return `${toKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return appStamp();
+}
+
+/** Текущий час по часам платформы — для приветствий. */
+export function nowHour(): number {
+  return Number(appStamp().slice(11, 13));
 }
 
 export function isoNow(): string {
@@ -146,7 +187,7 @@ export function fmtMonthShort(m: MonthKey): string {
 export function fmtDay(k: DayKey, withYear = false): string {
   const [y, m, d] = k.split("-").map(Number);
   const base = `${d} ${MONTHS_GEN[m - 1] ?? ""}`;
-  const needYear = withYear || y !== new Date().getFullYear();
+  const needYear = withYear || y !== Number(todayKey().slice(0, 4));
   return needYear ? `${base} ${y}` : base;
 }
 
@@ -163,9 +204,11 @@ export function fmtDate(k: DayKey): string {
   return `${d}.${m}.${y}`;
 }
 
+/** «24.09.2026 12:05». Понимает и "YYYY-MM-DDTHH:mm" (время лида), и ISO-момент — его переводит в пояс платформы. */
 export function fmtStamp(at: string): string {
   if (!at) return "—";
-  return `${fmtDate(at.slice(0, 10))} ${at.slice(11, 16)}`;
+  const s = isStamp(at) ? at : appStamp(at) || at;
+  return `${fmtDate(s.slice(0, 10))} ${s.slice(11, 16)}`;
 }
 
 export function fmtWeekday(k: DayKey): string {

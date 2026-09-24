@@ -44,7 +44,7 @@ export default function HiringPage() {
 
   const liveGroups = useMemo(() => data.groups.filter((g) => !g.deletedAt), [data.groups]);
   const svName = (g: Group) => (g.supervisorId ? ix.opById.get(g.supervisorId)?.name ?? "" : g.supervisorName.trim());
-  // «чей найм»: супервайзеры (все их группы) и отдельные группы — только тем, кто видит больше одной группы
+  // «чей найм»: супервайзеры (все их группы) и отдельные группы — РОПу и тем, кто видит весь отдел
   const whoOpts = useMemo(() => {
     const bySv = new Map<string, { label: string; groups: string[] }>();
     for (const g of liveGroups) {
@@ -62,7 +62,7 @@ export default function HiringPage() {
     opts.push({ value: `g:${NO_GROUP}`, label: NO_GROUP_LABEL, icon: dot("gray"), group: "Группы", groups: [NO_GROUP] });
     return opts;
   }, [liveGroups, ix]);
-  const showWho = access.viewAll && liveGroups.length > 1;
+  const showWho = access.viewAll && liveGroups.length > 0;
   const view: DataState = useMemo(() => {
     const keep = whoOpts.find((o) => o.value === who)?.groups;
     if (!who || !keep) return data;

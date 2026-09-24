@@ -8,7 +8,7 @@ import { buildIndex, dailyRows, monthModel, probation, PACE_HUE } from "@/lib/cr
 import { isHourlyTiered, isTiered, payrollRow, tierFor } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { NO_GROUP_LABEL, type RateTier } from "@/lib/crm/types";
-import { addDays, fmtDay, fmtMonth, fmtWeekday, monthEnd, monthStart } from "@/lib/crm/dates";
+import { addDays, fmtDay, fmtMonth, fmtWeekday, monthEnd, monthStart, nowHour } from "@/lib/crm/dates";
 import { LEADS, fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, plural, safeDiv, surnameAndName } from "@/lib/crm/format";
 import { Avatar, Chip, Empty, Kpi, LeadStatusChip, MonthSwitcher, PageHead, Progress, StatusChip } from "@/components/ui/kit";
 import { DailyBars } from "@/components/ui/charts";
@@ -117,7 +117,7 @@ export default function MePage() {
   const dayPlan = p.dailyPlan;
   const doneToday = p.today;
   const leftToday = Math.max(0, Math.ceil(dayPlan - doneToday));
-  const hour = new Date().getHours();
+  const hour = nowHour();
   const greet = hour < 6 ? "Доброй ночи" : hour < 12 ? "Доброе утро" : hour < 18 ? "Добрый день" : "Добрый вечер";
   const group = row.op.groupId ? ix.groupById.get(row.op.groupId) : null;
 

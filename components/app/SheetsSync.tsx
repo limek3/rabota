@@ -5,6 +5,7 @@ import { useCrm } from "@/lib/crm/store";
 import type { DataState } from "@/lib/crm/types";
 import { SHEETS_SCRIPT, buildSheets, pushToSheets } from "@/lib/crm/sheets";
 import { fmtInt } from "@/lib/crm/format";
+import { fmtStamp } from "@/lib/crm/dates";
 import { Collapse, Field, Switch } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 
@@ -183,7 +184,7 @@ export function SheetsSection() {
         <span className="spacer" />
         {sync.at && (
           <span style={{ fontSize: 12.5, color: sync.ok ? "var(--dim)" : "var(--c-red-fg)" }}>
-            {sync.ok ? `Последняя выгрузка ${new Date(sync.at).toLocaleString("ru-RU")} · ${fmtInt(sync.rows)} строк` : `Ошибка ${new Date(sync.at).toLocaleString("ru-RU")}: ${sync.error}`}
+            {sync.ok ? `Последняя выгрузка ${fmtStamp(sync.at)} · ${fmtInt(sync.rows)} строк` : `Ошибка ${fmtStamp(sync.at)}: ${sync.error}`}
           </span>
         )}
       </div>

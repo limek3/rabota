@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import type { Report } from "@/lib/crm/report";
-import { fmtDate, fmtDay, fmtDayShort, fmtMonth, fmtWeekday } from "@/lib/crm/dates";
+import { fmtDate, fmtDay, fmtDayShort, fmtMonth, fmtStamp, fmtWeekday, nowStamp } from "@/lib/crm/dates";
 import { fmtInt, fmtNum } from "@/lib/crm/format";
 
 /**
@@ -120,8 +120,7 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
   font(13);
   const note = week && r.factTo < r.to ? ` · неделя идёт, данные по ${fmtDate(r.factTo)}` : "";
   text(`${r.scope}${note}`, P, y + 66, C.sub);
-  const now = new Date();
-  text(`сформирован ${fmtDate(now.toISOString().slice(0, 10))} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`, W - P, y + 66, C.dim, "right");
+  text(`сформирован ${fmtStamp(nowStamp())}`, W - P, y + 66, C.dim, "right");
   y += hHeader;
 
   // ── плитки ──

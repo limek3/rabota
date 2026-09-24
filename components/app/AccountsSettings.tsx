@@ -12,7 +12,7 @@ import {
   type OperatorAccess,
   type SupervisorAccess,
 } from "@/lib/crm/types";
-import { fmtDate } from "@/lib/crm/dates";
+import { appStamp, fmtDate } from "@/lib/crm/dates";
 import { Avatar, Chip, Empty, Field, Modal, NumInput, Switch, useDraft } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
@@ -263,7 +263,7 @@ export function AccountsTab() {
                       {acc.scopeLabel}
                     </td>
                     <td className="muted">{a.login || "—"}</td>
-                    <td className="muted num c">{a.lastSeenAt ? fmtDate(a.lastSeenAt.slice(0, 10)) : "—"}</td>
+                    <td className="muted num c">{a.lastSeenAt ? fmtDate(appStamp(a.lastSeenAt).slice(0, 10)) : "—"}</td>
                     <td className="r">
                       <span className="row-actions">
                         {a.active && !a.deletedAt && a.id !== me.id && (

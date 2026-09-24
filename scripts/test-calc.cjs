@@ -605,3 +605,17 @@ console.log("ALL OK");
   assert.equal(aug.preliminary, false, "прошлый месяц — итог");
   console.log(`20 ok: расчётный лист сходится с ведомостью у ${p.rows.length} сотрудников, по сменам проверено ${checked}`);
 }
+
+/* 21. Время платформы: моменты переводятся в Москву, «сегодня» — по Москве, а не по часам компьютера */
+{
+  const assert = require("assert");
+  const { appStamp, fmtStamp, APP_TZ } = R("dates");
+  assert.equal(APP_TZ, "Europe/Moscow");
+  assert.equal(appStamp("2026-09-24T09:05:00.000Z"), "2026-09-24T12:05", "UTC 09:05 = 12:05 МСК");
+  assert.equal(appStamp("2026-09-24T22:30:00Z"), "2026-09-25T01:30", "после 21:00 UTC в Москве уже следующий день");
+  assert.equal(appStamp("2026-09-24T16:00:00+04:00"), "2026-09-24T15:00", "16:00 в Самаре = 15:00 МСК");
+  assert.equal(fmtStamp("2026-09-24T12:05"), "24.09.2026 12:05", "время лида не пересчитывается");
+  assert.equal(fmtStamp("2026-09-24T09:05:00.000Z"), "24.09.2026 12:05", "ISO-момент — в МСК");
+  assert.equal(appStamp("не дата"), "");
+  console.log(`21 ok: время платформы — ${APP_TZ}, 09:05 UTC → ${appStamp("2026-09-24T09:05:00Z").slice(11)}`);
+}

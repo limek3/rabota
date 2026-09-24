@@ -14,6 +14,7 @@ import {
   TRACK_LABEL,
 } from "./types";
 import { fmtPhone } from "./format";
+import { appStamp } from "./dates";
 
 /**
  * Выгрузка всей базы в Google Таблицу.
@@ -33,13 +34,8 @@ export interface SheetData {
 }
 
 const yes = (b: unknown) => (b ? "да" : "");
-const localTime = (iso?: string) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-};
+// моменты — в поясе платформы, как в самой CRM
+const localTime = (iso?: string) => (iso ? appStamp(iso).replace("T", " ") || iso : "");
 
 export function buildSheets(st: DataState, exportedAt = new Date()): SheetData[] {
   const op = new Map(st.operators.map((o) => [o.id, o.name]));

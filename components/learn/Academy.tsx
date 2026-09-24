@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
+import { appStamp, fmtDay, isoWeekday, nowHour, todayKey } from "@/lib/crm/dates";
 import {
   ASIDE,
   DATA_AS_OF,
@@ -332,9 +333,10 @@ function Home({ ctx, seen }: { ctx: Ctx; seen: string[] }) {
   const course = nx ? L.itemCourse.get(nx.id) : null;
   const quizItems = programItems(ctx.role, ctx.progName).filter((i) => i.quiz);
   const passed = quizItems.filter((i) => ctx.prog.get(i.id)?.pass).length;
-  const d = new Date();
-  const days = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
-  const hi = d.getHours() < 5 ? "Доброй ночи" : d.getHours() < 12 ? "Доброе утро" : d.getHours() < 18 ? "Добрый день" : "Добрый вечер";
+  const today = todayKey();
+  const hour = nowHour();
+  const days = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
+  const hi = hour < 5 ? "Доброй ночи" : hour < 12 ? "Доброе утро" : hour < 18 ? "Добрый день" : "Добрый вечер";
   const seenItems = seen.map((id) => L.byId.get(id)).filter(Boolean) as LearnItem[];
 
   const work: CardDef[] = op
@@ -377,7 +379,7 @@ function Home({ ctx, seen }: { ctx: Ctx; seen: string[] }) {
         </b>
         <span>·</span>
         <span>
-          {days[d.getDay()]}, {d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}
+          {days[isoWeekday(today) - 1]}, {fmtDay(today)}
         </span>
       </div>
       <h1 className="lpg">{op ? "Рабочий стол оператора" : "Рабочий стол супервайзера"}</h1>
@@ -1054,7 +1056,7 @@ function CertPage({ role, id, onBack }: { role: AcademyRole; id: string; onBack:
     );
   const prog = progMap(data.learn, me.id);
   const p = courseProg(prog, course);
-  const d = new Date(cert.at);
+  const certDay = appStamp(cert.at).slice(0, 10);
   return (
     <>
       <div className="crumbrow">
@@ -1100,7 +1102,7 @@ function CertPage({ role, id, onBack }: { role: AcademyRole; id: string; onBack:
           <div className="certsign">
             <div className="sigcol">
               <i />
-              <b>{d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}</b>
+              <b>{certDay ? fmtDay(certDay, true) : "—"}</b>
               <span>Дата выдачи</span>
             </div>
             <div className="certseal">

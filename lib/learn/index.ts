@@ -1,5 +1,6 @@
 import raw from "./content.json";
 import type { AccountRole, LearnProgress } from "@/lib/crm/types";
+import { appStamp, fmtDate } from "@/lib/crm/dates";
 import type { IconName } from "@/components/ui/icons";
 
 /**
@@ -525,7 +526,7 @@ export function nextUp(p: ProgMap, role: AcademyRole, prog?: string): LearnItem 
 /** Строка результата теста — формат исходной академии. */
 export function quizLine(r?: LearnProgress): string {
   if (!r || r.last == null) return "";
-  const d = r.at ? new Date(r.at).toLocaleDateString("ru-RU") : "";
+  const d = r.at ? fmtDate(appStamp(r.at).slice(0, 10)) : "";
   const n = r.tries ?? 1;
   const tries = n === 1 ? "1 попытка" : n < 5 ? `${n} попытки` : `${n} попыток`;
   return `Последний результат ${r.last}% · лучший ${r.best ?? r.last}% · ${tries}${d ? ` · ${d}` : ""}`;

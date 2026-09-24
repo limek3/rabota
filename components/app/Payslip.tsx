@@ -5,7 +5,7 @@ import { useCrm } from "@/lib/crm/store";
 import type { MonthCal } from "@/lib/crm/calc";
 import { isHourlyTiered, isTiered, type PayRow } from "@/lib/crm/payroll";
 import { buildPayslip, type Payslip, type SlipLine } from "@/lib/crm/payslip";
-import { fmtDate, fmtMonth, fmtWeekday } from "@/lib/crm/dates";
+import { fmtDate, fmtMonth, fmtStamp, fmtWeekday, nowStamp } from "@/lib/crm/dates";
 import { fmtInt, fmtMoney, fmtNum } from "@/lib/crm/format";
 import { dataUrlBytes, jpegToPdf } from "@/lib/pdf";
 import { Modal } from "@/components/ui/kit";
@@ -113,8 +113,7 @@ function draw(ctx: CanvasRenderingContext2D, s: Payslip, company: string, sans: 
   text(clip(ctx, r.op.name, inner * 0.62), P, y + 70);
   font(12.5);
   text(clip(ctx, `${s.group} · ${s.scheme}`, inner * 0.62), P, y + 90, C.sub);
-  const now = new Date();
-  const stamp = `${fmtDate(now.toISOString().slice(0, 10))} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const stamp = fmtStamp(nowStamp());
   font(12.5, 600);
   text(s.preliminary ? `Предварительно, на ${fmtDate(s.asOf)}` : "Итог за месяц", W - P, y + 70, s.preliminary ? C.brand : C.green, "right");
   font(11.5);

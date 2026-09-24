@@ -10,6 +10,7 @@ import {
   currentMonth,
   fmtMonth,
   fmtRange,
+  fmtStamp,
   monthEnd,
   monthOf,
   monthStart,
@@ -58,7 +59,7 @@ export function GoneTag({ op }: { op: Pick<Operator, "status" | "fireDate" | "de
 
 /** Статус лида; у «не доведён» — причина в подсказке, у проверенных — кто и когда. */
 export function LeadStatusChip({ lead }: { lead: Pick<Lead, "status" | "statusReason" | "statusAt" | "statusBy"> }) {
-  const who = lead.statusBy ? `${lead.statusBy}${lead.statusAt ? `, ${new Date(lead.statusAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}` : "";
+  const who = lead.statusBy ? `${lead.statusBy}${lead.statusAt ? `, ${fmtStamp(lead.statusAt).slice(0, 5)} ${fmtStamp(lead.statusAt).slice(11)}` : ""}` : "";
   const title = [lead.status === "failed" && lead.statusReason ? `Причина: ${lead.statusReason}` : "", who].filter(Boolean).join(" · ");
   return (
     <Chip hue={LEAD_STATUS_HUE[lead.status]} dot title={title || undefined}>
