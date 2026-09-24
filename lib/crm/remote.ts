@@ -134,6 +134,9 @@ export async function loadAll(): Promise<{ state: DataState; persistent: boolean
   TABLES.forEach((t, i) => {
     (st as unknown as Record<string, unknown[]>)[t] = rows[i].map((r) => fromRow(t, r));
   });
+  // колонки link нет — видно уже по загруженным строкам, не дожидаясь неудачного сохранения
+  const leadRows = rows[TABLES.indexOf("leads")];
+  if (leadRows.length) leadLinkReady = "link" in leadRows[0];
   const val = (key: string) => kv.find((r) => r.key === key)?.value as unknown;
   // секреты выгрузки лежат отдельно (читает только РОП) — собираем настройки обратно
   const settings = (val("settings") ?? {}) as Partial<Settings>;

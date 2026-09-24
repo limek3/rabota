@@ -5,8 +5,8 @@ import { useCrm } from "@/lib/crm/store";
 import { filterLeads } from "@/lib/crm/calc";
 import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type LeadStatus } from "@/lib/crm/types";
 import { fmtDate, rangeDays } from "@/lib/crm/dates";
-import { LEADS, fmtInt, fmtNum, fmtPhone, plural } from "@/lib/crm/format";
-import { Chip, Empty, LeadLinkButton, LeadStatusChip, PageHead, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { LEADS, fmtInt, fmtNum, fmtPhone, plural, shortName } from "@/lib/crm/format";
+import { Chip, ClipText, Empty, LeadLinkButton, LeadStatusChip, PageHead, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -259,14 +259,13 @@ export default function LeadsPage() {
         </div>
       ) : (
         <div className="tbl-wrap" style={{ maxHeight: "max(300px, calc(100vh / var(--ui-scale, 1) - 330px))" }}>
-          <table className="tbl">
+          <table className="tbl tbl-leads">
             <thead>
               <tr>
                 <th className="c">Передан</th>
                 <th className="c">Статус</th>
                 <th>Клиент</th>
                 <th className="c">Телефон</th>
-                <th className="c">Ссылка</th>
                 <th className="c">Проект</th>
                 <th>Оператор</th>
                 <th className="c">Группа</th>
@@ -282,31 +281,36 @@ export default function LeadsPage() {
                 const p = l.projectId ? ix.projectById.get(l.projectId) : null;
                 return (
                   <tr key={l.id} className="clickable" onClick={() => openLead(l)}>
-                    <td className="num c">
-                      {fmtDate(l.at.slice(0, 10))} <span className="muted">{l.at.slice(11, 16)}</span>
+                    <td className="num c" title={`${fmtDate(l.at.slice(0, 10))} ${l.at.slice(11, 16)} МСК`}>
+                      {l.at.slice(0, 4) === today.slice(0, 4) ? fmtDate(l.at.slice(0, 10)).slice(0, 5) : fmtDate(l.at.slice(0, 10))} <span className="muted">{l.at.slice(11, 16)}</span>
                     </td>
                     <td className="c">
                       <LeadStatusChip lead={l} />
                       {l.status === "failed" && l.statusReason && (
-                        <div className="muted" style={{ fontSize: 11.5, marginTop: 3, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }} title={l.statusReason}>
-                          {l.statusReason}
+                        <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
+                          <ClipText text={l.statusReason} width={104} />
                         </div>
                       )}
                     </td>
-                    <td>{l.client || <span className="muted">—</span>}</td>
-                    <td className="num c">{fmtPhone(l.phone) || <span className="muted">—</span>}</td>
-                    <td className="c">
-                      <LeadLinkButton link={l.link} />
+                    <td>
+                      <span className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                        <ClipText text={l.client} width={120} />
+                        <LeadLinkButton link={l.link} variant="icon" />
+                      </span>
                     </td>
+                    <td className="num c">{fmtPhone(l.phone) || <span className="muted">—</span>}</td>
                     <td className="c">{p ? <Chip hue={p.color}>{p.name}</Chip> : <span className="muted">—</span>}</td>
                     <td>
-                      {op?.name ?? "—"}
-                      {op?.deletedAt && <span className="muted"> (удалён)</span>}
+                      <ClipText text={shortName(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} full={(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} width={130} />
                     </td>
                     <td className={g ? "c" : "c muted"}>{g ? g.name : NO_GROUP_LABEL}</td>
-                    {data.settings.directionEnabled && <td className={l.direction ? "" : "muted"}>{l.direction || "—"}</td>}
-                    <td className="muted" style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }} title={l.comment}>
-                      {l.comment || "—"}
+                    {data.settings.directionEnabled && (
+                      <td>
+                        <ClipText text={l.direction} width={100} />
+                      </td>
+                    )}
+                    <td className="muted">
+                      <ClipText text={l.comment} width={130} />
                     </td>
                     <td className="r" onClick={(e) => e.stopPropagation()}>
                       <span className="row-actions">

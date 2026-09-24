@@ -847,3 +847,12 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .req { margin-left: 3px; color: var(--c-red-fg); font-weight: 600; }
 .lead-open { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px 0 6px; border-radius: 99px; font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--brand); background: var(--brand-tint); text-decoration: none; transition: background 0.15s var(--ease), color 0.15s var(--ease); }
 .lead-open:hover { background: var(--brand); color: #fff; }
+.lead-open-ico { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border-radius: 6px; color: var(--brand); background: var(--brand-tint); transition: background 0.15s var(--ease), color 0.15s var(--ease), transform 0.15s var(--ease); }
+.lead-open-ico:hover { background: var(--brand); color: #fff; transform: translateY(-1px); }
+
+/* обрезанный текст в узкой колонке и его подсказка целиком */
+.clip-text { display: inline-block; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clip-tip { position: fixed; z-index: 800; max-width: 380px; padding: 8px 11px; border-radius: 9px; font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); background: var(--bg-modal); border: 1px solid var(--ink-10); box-shadow: var(--shadow-lg); transform: translateY(-100%); pointer-events: none; animation: vexaModalIn 0.1s var(--ease); }
+.clip-tip.below { transform: none; }
+/* журнал лидов: плотнее по горизонтали — все колонки влезают без прокрутки на 1440 */
+.tbl-leads th, .tbl-leads td { padding-left: 7px; padding-right: 7px; }

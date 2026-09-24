@@ -58,16 +58,58 @@ export function GoneTag({ op }: { op: Pick<Operator, "status" | "fireDate" | "de
 }
 
 /**
- * Кнопка «↗ лид»: открывает ссылку на лид в новой вкладке (в десктопе — в браузере).
- * Клик не открывает карточку лида под ней — строки таблиц кликабельны.
+ * Ссылка на лид: открывает её в новой вкладке (в десктопе — в браузере). Клик не
+ * открывает карточку лида под ней — строки таблиц кликабельны.
+ *   pill — кнопка «↗ лид» (кабинет, карточка оператора);
+ *   icon — маленький значок рядом с именем клиента (журнал лидов).
  */
-export function LeadLinkButton({ link }: { link: string }) {
-  if (!link) return <span className="muted">—</span>;
+export function LeadLinkButton({ link, variant = "pill" }: { link: string; variant?: "pill" | "icon" }) {
+  if (!link) return variant === "icon" ? null : <span className="muted">—</span>;
   return (
-    <a className="lead-open" href={link} target="_blank" rel="noreferrer noopener" title={`Открыть лид в новой вкладке\n${link}`} onClick={(e) => e.stopPropagation()}>
-      <Icon name="arrowR" size={11} stroke={2.2} style={{ transform: "rotate(-45deg)" }} />
-      лид
+    <a
+      className={variant === "icon" ? "lead-open-ico" : "lead-open"}
+      href={link}
+      target="_blank"
+      rel="noreferrer noopener"
+      title={`Открыть лид в новой вкладке\n${link}`}
+      aria-label="Открыть лид в новой вкладке"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <Icon name={variant === "icon" ? "external" : "arrowR"} size={variant === "icon" ? 12 : 11} stroke={2.2} style={variant === "icon" ? undefined : { transform: "rotate(-45deg)" }} />
+      {variant === "pill" && "лид"}
     </a>
+  );
+}
+
+/**
+ * Текст в узкой колонке: обрезается многоточием, а целиком появляется при наведении —
+ * своей подсказкой, без задержки системного title. Не обрезался — подсказки нет.
+ */
+export function ClipText({ text, width, full }: { text: string; width: number; full?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [tip, setTip] = useState<{ x: number; y: number; below: boolean } | null>(null);
+  if (!text) return <span className="muted">—</span>;
+  const show = () => {
+    const el = ref.current;
+    // подсказка — если текст обрезан или показан сокращённо (full — полная форма)
+    if (!el || (el.scrollWidth <= el.clientWidth && (!full || full === text))) return;
+    const r = el.getBoundingClientRect();
+    const below = r.top < 160;
+    setTip({ x: Math.max(8, Math.min(r.left - 10, window.innerWidth - 388)), y: below ? r.bottom + 6 : r.top - 6, below });
+  };
+  return (
+    <>
+      <span ref={ref} className="clip-text" style={{ maxWidth: width }} onMouseEnter={show} onMouseLeave={() => setTip(null)}>
+        {text}
+      </span>
+      {tip &&
+        createPortal(
+          <div className={tip.below ? "clip-tip below" : "clip-tip"} style={{ left: tip.x, top: tip.y }} role="tooltip">
+            {full || text}
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

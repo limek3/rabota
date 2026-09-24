@@ -11,6 +11,7 @@ import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
 import { fmtPhone, normLink, normPhone } from "@/lib/crm/format";
 import { fmtStamp, nowStamp } from "@/lib/crm/dates";
+import { hasLeadLinkColumn } from "@/lib/crm/remote";
 
 const LAST_OP = "leadup.lastOperator";
 const LAST_PR = "leadup.lastProject";
@@ -31,7 +32,9 @@ function remember(key: string, v: string) {
 }
 
 export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPreset }) {
-  const { data, full, ix, closeModal, saveLead, setLeadStatus, deleteLead, confirm, toast, access, me } = useCrm();
+  const { data, full, ix, closeModal, saveLead, setLeadStatus, deleteLead, confirm, toast, access, me, remote } = useCrm();
+  // в Supabase ещё нет колонки для ссылки (не выполнен SQL) — предупреждаем у самого поля
+  const linkNotStored = remote && !hasLeadLinkColumn();
   const s = data.settings;
   // в списке — только те, за кого этот аккаунт может записывать лиды
   const liveOps = useMemo(
@@ -388,7 +391,13 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
           <Field
             label={isNew ? <Req>Ссылка на лид</Req> : "Ссылка на лид"}
             error={tried ? errLink : null}
-            hint={!tried || !errLink ? "Карточка лида в CRM заказчика или запись звонка — чтобы супервайзер проверил в один клик" : undefined}
+            hint={
+              linkNotStored ? (
+                <span style={{ color: "var(--c-red-fg)" }}>Ссылка пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260925000001_lead_link_time.sql</span>
+              ) : !tried || !errLink ? (
+                "Карточка лида в CRM заказчика или запись звонка — чтобы супервайзер проверил в один клик"
+              ) : undefined
+            }
           >
             <div className="lead-link">
               <Icon name="link" size={15} />

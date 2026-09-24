@@ -651,6 +651,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         const who = ixRef.current.opById.get(lead.operatorId)?.name ?? lead.operatorId;
         void log("lead", lead.id, `Правка лида ${lead.phone || lead.client || lead.id} · ${who}`);
       }
+      // в Supabase ещё нет колонки для ссылки — лид сохранён, а ссылка нет: говорим прямо, а не молча
+      if (ok && lead.link && db.REMOTE && !remote.hasLeadLinkColumn())
+        toast("Лид сохранён, но ссылка — нет: в Supabase нет колонки для неё. Выполните supabase/migrations/20260925000001_lead_link_time.sql", "err");
       return ok ? lead : null;
     },
     [commit, toast, deny, log],
