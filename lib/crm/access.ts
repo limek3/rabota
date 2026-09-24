@@ -1,4 +1,5 @@
 import type { Account, AccountRole, Candidate, DataState, ID, Lead, Operator } from "./types";
+import { nowMs } from "./dates";
 
 /**
  * Права доступа. Чистые функции: по аккаунту и данным решают, что человек видит
@@ -141,7 +142,7 @@ export function canEditLead(a: Access, lead: Lead, st: DataState, del = false): 
   if (del && !O.deleteOwnLeads) return false;
   if (O.editOwnLeadsHours <= 0) return false;
   const created = Date.parse(lead.createdAt);
-  return Number.isFinite(created) && Date.now() - created <= O.editOwnLeadsHours * 3600_000;
+  return Number.isFinite(created) && nowMs() - created <= O.editOwnLeadsHours * 3600_000;
 }
 
 /**

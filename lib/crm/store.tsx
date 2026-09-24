@@ -48,9 +48,10 @@ import { AUTH_ENABLED } from "@/lib/appMode";
 import { planId, shiftId, uniqueId } from "./ids";
 import * as db from "./db";
 import * as remote from "./remote";
-import { normPhone } from "./format";
+import { normLink, normPhone } from "./format";
 import { counts, repair, sanitize, toSnapshot } from "./validate";
 import { stripDemo } from "./purge";
+import { syncClock } from "@/lib/clock";
 
 /**
  * Состояние CRM.
@@ -460,6 +461,23 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
 
+  // часы компьютера не в счёт: сверяемся с сервером до загрузки и раз в полчаса
+  useEffect(() => {
+    let warned = false;
+    const sync = async () => {
+      const skew = await syncClock();
+      setToday(todayKey());
+      if (!warned && Math.abs(skew) >= 120_000) {
+        warned = true;
+        const min = Math.round(Math.abs(skew) / 60_000);
+        toast(`Часы этого компьютера ${skew > 0 ? "отстают" : "спешат"} на ${min} мин — CRM ставит время по серверу (МСК)`, "info");
+      }
+    };
+    void sync();
+    const id = window.setInterval(() => void sync(), 30 * 60_000);
+    return () => window.clearInterval(id);
+  }, [toast]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -587,15 +605,34 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       // группа — снимок на момент передачи; при правке меняется только если сменили оператора
       const groupId =
         input.groupId !== undefined ? input.groupId : prev && prev.operatorId === input.operatorId ? prev.groupId : op.groupId;
+      // Время: оператор его не выбирает — новый лид получает «сейчас» по серверу (МСК), при правке
+      // время не меняется. Руководитель может поставить время задним числом, но не в будущем.
+      const now16 = nowStamp();
+      const at = a.isOp ? prev?.at ?? now16 : input.at || now16;
+      if (at > now16) {
+        toast(`Время передачи позже текущего (${now16.slice(11)} МСК) — проверьте дату и время`, "err");
+        return null;
+      }
+      const link = normLink(input.link);
+      if (input.link.trim() && !link) {
+        toast("Ссылка на лид не похожа на ссылку — вставьте адрес целиком (https://…)", "err");
+        return null;
+      }
+      // новый лид — только полный: клиент, телефон и ссылка (старые лиды без ссылки правятся как раньше)
+      if (!prev && (!input.client.trim() || normPhone(input.phone).length < 10 || !link)) {
+        toast("Для лида нужны клиент, телефон и ссылка на лид", "err");
+        return null;
+      }
       const lead: Lead = {
         id: prev?.id ?? uniqueId("ld", new Set(st.leads.map((l) => l.id))),
-        at: input.at || nowStamp(),
+        at,
         client: input.client.trim(),
         phone: normPhone(input.phone),
         projectId: input.projectId || null,
         operatorId: input.operatorId,
         groupId: groupId ?? null,
         direction: (input.direction || "").trim(),
+        link: link || (prev?.link ?? ""),
         comment: (input.comment || "").trim(),
         source: LEAD_SOURCE,
         // новый лид — «в работе»; правка полей статус не меняет

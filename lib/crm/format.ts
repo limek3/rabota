@@ -76,6 +76,23 @@ export function normPhone(raw: string): string {
   return d;
 }
 
+/**
+ * Ссылка на лид: без пробелов, http(s), с доменом. Без схемы — добавляем https://
+ * (вставили «crm.site.ru/lead/1»). "" — на ссылку не похоже.
+ */
+export function normLink(raw: string): string {
+  const t = (raw || "").trim();
+  if (!t || /\s/.test(t)) return "";
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`;
+  try {
+    const u = new URL(withScheme);
+    if ((u.protocol !== "http:" && u.protocol !== "https:") || !u.hostname.includes(".")) return "";
+    return u.href;
+  } catch {
+    return "";
+  }
+}
+
 /** +7 (912) 345-67-89 для 11-значных российских, иначе как есть. */
 export function fmtPhone(p: string): string {
   const d = (p || "").replace(/\D+/g, "");

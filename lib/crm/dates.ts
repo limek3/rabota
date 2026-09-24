@@ -37,8 +37,21 @@ const zoned = new Intl.DateTimeFormat("en-CA", {
   hourCycle: "h23",
 });
 
+/**
+ * Поправка на часы компьютера. Часам сотрудника верить нельзя: у одного они спешат
+ * на 20 минут, у другого сбиты на день. lib/clock.ts сверяется со временем сервера и
+ * записывает сюда разницу — дальше все «сейчас» в CRM идут от серверного времени.
+ */
+let clockSkew = 0;
+export function setClockSkew(ms: number): void {
+  clockSkew = Number.isFinite(ms) ? ms : 0;
+}
+export const clockSkewMs = () => clockSkew;
+/** Текущий момент по серверу, мс. */
+export const nowMs = () => Date.now() + clockSkew;
+
 /** Момент (Date или ISO-строка) → "YYYY-MM-DDTHH:mm" по часам платформы; "" — не дата. */
-export function appStamp(at: Date | string = new Date()): string {
+export function appStamp(at: Date | string = new Date(nowMs())): string {
   const d = typeof at === "string" ? new Date(at) : at;
   if (Number.isNaN(d.getTime())) return "";
   const p: Record<string, string> = {};
@@ -69,7 +82,7 @@ export function nowHour(): number {
 }
 
 export function isoNow(): string {
-  return new Date().toISOString();
+  return new Date(nowMs()).toISOString();
 }
 
 export function isDayKey(s: unknown): s is DayKey {

@@ -619,3 +619,24 @@ console.log("ALL OK");
   assert.equal(appStamp("не дата"), "");
   console.log(`21 ok: время платформы — ${APP_TZ}, 09:05 UTC → ${appStamp("2026-09-24T09:05:00Z").slice(11)}`);
 }
+
+/* 22. Ссылка на лид: без схемы — https, мусор — пусто; поправка часов по серверу */
+{
+  const assert = require("assert");
+  const { normLink } = R("format");
+  const { setClockSkew, nowMs, appStamp } = R("dates");
+  assert.equal(normLink("crm.site.ru/lead/15"), "https://crm.site.ru/lead/15");
+  assert.equal(normLink("  https://amo.ru/leads/detail/77  "), "https://amo.ru/leads/detail/77");
+  assert.equal(normLink("http://x.ru"), "http://x.ru/");
+  assert.equal(normLink("просто текст"), "");
+  assert.equal(normLink("localhost:3000"), "");
+  assert.equal(normLink("javascript:alert(1)"), "");
+  assert.equal(normLink(""), "");
+  const before = Date.now();
+  setClockSkew(-20 * 60_000); // часы компьютера спешат на 20 минут
+  assert.ok(Math.abs(nowMs() - (before - 20 * 60_000)) < 1000, "«сейчас» — по серверу");
+  const shown = appStamp();
+  setClockSkew(0);
+  assert.ok(shown <= appStamp(), "время лида не убегает вперёд вместе с часами компьютера");
+  console.log("22 ok: ссылка на лид и поправка часов");
+}

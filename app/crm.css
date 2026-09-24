@@ -836,3 +836,14 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .st-stamp { font-size: 12px; color: var(--dim); }
 .st-stamp b { color: var(--text-sub); font-weight: 600; }
 @media (max-width: 560px) { .st-pick { grid-template-columns: 1fr; } }
+
+/* окно лида: ссылка на лид, время по серверу, что не заполнено */
+.lead-link { position: relative; display: flex; align-items: center; gap: 6px; }
+.lead-link > svg { position: absolute; left: 10px; color: var(--dim); pointer-events: none; }
+.lead-link > .inp { padding-left: 32px; flex: 1; min-width: 0; }
+.lead-link > a { flex: none; white-space: nowrap; }
+.lead-time { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 8px; background: var(--ink-04, var(--ink-06)); color: var(--text-sub); font-size: 13px; font-variant-numeric: tabular-nums; }
+.lead-missing { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c-amber-fg); }
+.req { margin-left: 3px; color: var(--c-red-fg); font-weight: 600; }
+.lead-open { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px 0 6px; border-radius: 99px; font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--brand); background: var(--brand-tint); text-decoration: none; transition: background 0.15s var(--ease), color 0.15s var(--ease); }
+.lead-open:hover { background: var(--brand); color: #fff; }

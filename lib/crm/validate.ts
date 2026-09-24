@@ -147,6 +147,7 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
         operatorId: str(l.operatorId),
         groupId: l.groupId ? str(l.groupId) : null,
         direction: str(l.direction),
+        link: str(l.link),
         comment: str(l.comment),
         source: LEAD_SOURCE,
         status: (LEAD_STATUSES as string[]).includes(str(l.status)) ? (l.status as Lead["status"]) : "work",

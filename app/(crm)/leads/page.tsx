@@ -6,7 +6,7 @@ import { filterLeads } from "@/lib/crm/calc";
 import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type LeadStatus } from "@/lib/crm/types";
 import { fmtDate, rangeDays } from "@/lib/crm/dates";
 import { LEADS, fmtInt, fmtNum, fmtPhone, plural } from "@/lib/crm/format";
-import { Chip, Empty, LeadStatusChip, PageHead, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { Chip, Empty, LeadLinkButton, LeadStatusChip, PageHead, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -98,7 +98,7 @@ export default function LeadsPage() {
   const filtered = !!(operatorId || groupId || projectId || q || status);
 
   const exportCsv = () => {
-    const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Проект", "Оператор", "Группа", data.settings.directionLabel || "Направление", "Комментарий", "Источник"]];
+    const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", data.settings.directionLabel || "Направление", "Комментарий", "Источник"]];
     for (const l of list) {
       rows.push([
         l.id,
@@ -108,6 +108,7 @@ export default function LeadsPage() {
         l.status === "failed" ? l.statusReason : "",
         l.client,
         fmtPhone(l.phone),
+        l.link,
         l.projectId ? ix.projectById.get(l.projectId)?.name ?? "" : "",
         ix.opById.get(l.operatorId)?.name ?? "",
         l.groupId ? ix.groupById.get(l.groupId)?.name ?? "" : NO_GROUP_LABEL,
@@ -265,6 +266,7 @@ export default function LeadsPage() {
                 <th className="c">Статус</th>
                 <th>Клиент</th>
                 <th className="c">Телефон</th>
+                <th className="c">Ссылка</th>
                 <th className="c">Проект</th>
                 <th>Оператор</th>
                 <th className="c">Группа</th>
@@ -293,6 +295,9 @@ export default function LeadsPage() {
                     </td>
                     <td>{l.client || <span className="muted">—</span>}</td>
                     <td className="num c">{fmtPhone(l.phone) || <span className="muted">—</span>}</td>
+                    <td className="c">
+                      <LeadLinkButton link={l.link} />
+                    </td>
                     <td className="c">{p ? <Chip hue={p.color}>{p.name}</Chip> : <span className="muted">—</span>}</td>
                     <td>
                       {op?.name ?? "—"}

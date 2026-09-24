@@ -30,7 +30,7 @@ const SPEC: Record<Table, Record<string, Def>> = {
   groups: { id: "", name: "", supervisorId: null, supervisorName: "", monthlyPlan: 0, active: true, color: "gray", createdAt: NOW, updatedAt: NOW, deletedAt: null },
   projects: { id: "", name: "", active: true, color: "gray", sort: 0, createdAt: NOW, updatedAt: NOW, deletedAt: null },
   leads: {
-    id: "", at: "", client: "", phone: "", projectId: null, operatorId: "", groupId: null, direction: "", comment: "", source: "Скорозвон",
+    id: "", at: "", client: "", phone: "", projectId: null, operatorId: "", groupId: null, direction: "", link: "", comment: "", source: "Скорозвон",
     status: "work", statusReason: "", statusAt: OPT, statusBy: OPT, createdAt: NOW, updatedAt: NOW,
   },
   shifts: { id: "", date: "", operatorId: "", groupId: null, hours: 0, type: "work", comment: "", updatedAt: NOW },
@@ -89,6 +89,14 @@ export function fromRow<T>(table: Table, row: Record<string, unknown>): T {
  */
 let candidatesReady = true;
 export const hasCandidatesTable = () => candidatesReady;
+
+/**
+ * Колонка leads.link (ссылка на лид) тоже появилась позже. Пока её нет в базе, лиды
+ * сохраняются без ссылки — запись лидов не должна вставать из-за невыполненного SQL.
+ */
+let leadLinkReady = true;
+export const hasLeadLinkColumn = () => leadLinkReady;
+const isMissingLink = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /link/.test(e.message);
 const CANDIDATES_MISSING = "В Supabase ещё нет таблицы кандидатов. Выполните supabase/migrations/20260924000001_candidates.sql в SQL Editor (повторный запуск безопасен).";
 
 const isMissingTable = (e: { message: string; code?: string } | null) => e?.code === "PGRST205" || e?.code === "PGRST202" || /schema cache/i.test(e?.message ?? "");
@@ -155,9 +163,14 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
     return;
   }
   for (const part of chunks(recs, 500)) {
-    const rows = part.map((r) => toRow(table, r));
+    let rows = part.map((r) => toRow(table, r));
+    if (table === "leads" && !leadLinkReady) rows = rows.map(({ link: _link, ...rest }) => rest);
     // журнал — только добавление: читать его могут не все, а upsert требует права чтения
-    const { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
+    let { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
+    if (error && table === "leads" && isMissingLink(error)) {
+      leadLinkReady = false;
+      ({ error } = await supabase().from(table).upsert(rows.map(({ link: _link, ...rest }) => rest), { onConflict: "id" }));
+    }
     if (error) fail(error, table);
   }
 }

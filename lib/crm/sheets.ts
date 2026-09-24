@@ -51,7 +51,7 @@ export function buildSheets(st: DataState, exportedAt = new Date()): SheetData[]
   const sheets: SheetData[] = [
     {
       name: "Лиды",
-      header: ["ID", "Дата", "Время", "Статус", "Причина", "Кто проверил", "Когда проверил", "Клиент", "Телефон", "Проект", "Оператор", "Группа", dir, "Комментарий", "Источник", "Создан", "Изменён"],
+      header: ["ID", "Дата", "Время", "Статус", "Причина", "Кто проверил", "Когда проверил", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", dir, "Комментарий", "Источник", "Создан", "Изменён"],
       rows: [...st.leads].sort(byDate).map((l) => [
         l.id,
         l.at.slice(0, 10),
@@ -62,6 +62,7 @@ export function buildSheets(st: DataState, exportedAt = new Date()): SheetData[]
         localTime(l.statusAt),
         l.client,
         fmtPhone(l.phone),
+        l.link,
         l.projectId ? pr.get(l.projectId) ?? l.projectId : "",
         op.get(l.operatorId) ?? l.operatorId,
         group(l.groupId),

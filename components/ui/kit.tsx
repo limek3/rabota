@@ -57,6 +57,20 @@ export function GoneTag({ op }: { op: Pick<Operator, "status" | "fireDate" | "de
   return null;
 }
 
+/**
+ * Кнопка «↗ лид»: открывает ссылку на лид в новой вкладке (в десктопе — в браузере).
+ * Клик не открывает карточку лида под ней — строки таблиц кликабельны.
+ */
+export function LeadLinkButton({ link }: { link: string }) {
+  if (!link) return <span className="muted">—</span>;
+  return (
+    <a className="lead-open" href={link} target="_blank" rel="noreferrer noopener" title={`Открыть лид в новой вкладке\n${link}`} onClick={(e) => e.stopPropagation()}>
+      <Icon name="arrowR" size={11} stroke={2.2} style={{ transform: "rotate(-45deg)" }} />
+      лид
+    </a>
+  );
+}
+
 /** Статус лида; у «не доведён» — причина в подсказке, у проверенных — кто и когда. */
 export function LeadStatusChip({ lead }: { lead: Pick<Lead, "status" | "statusReason" | "statusAt" | "statusBy"> }) {
   const who = lead.statusBy ? `${lead.statusBy}${lead.statusAt ? `, ${fmtStamp(lead.statusAt).slice(0, 5)} ${fmtStamp(lead.statusAt).slice(11)}` : ""}` : "";

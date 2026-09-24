@@ -10,7 +10,7 @@ import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { NO_GROUP_LABEL, type RateTier } from "@/lib/crm/types";
 import { addDays, fmtDay, fmtMonth, fmtWeekday, monthEnd, monthStart, nowHour } from "@/lib/crm/dates";
 import { LEADS, fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, plural, safeDiv, surnameAndName } from "@/lib/crm/format";
-import { Avatar, Chip, Empty, Kpi, LeadStatusChip, MonthSwitcher, PageHead, Progress, StatusChip } from "@/components/ui/kit";
+import { Avatar, Chip, Empty, Kpi, LeadLinkButton, LeadStatusChip, MonthSwitcher, PageHead, Progress, StatusChip } from "@/components/ui/kit";
 import { DailyBars } from "@/components/ui/charts";
 import { LearnCard } from "@/components/learn/Progress";
 import { Icon } from "@/components/ui/icons";
@@ -289,6 +289,9 @@ export default function MePage() {
                       </td>
                       <td>{l.client || <span className="muted">без имени</span>}</td>
                       <td className="num">{fmtPhone(l.phone)}</td>
+                      <td style={{ width: 1 }}>
+                        <LeadLinkButton link={l.link} />
+                      </td>
                       <td>{l.projectId ? <Chip hue={ix.projectById.get(l.projectId)?.color ?? "gray"}>{ix.projectById.get(l.projectId)?.name}</Chip> : <span className="muted">—</span>}</td>
                       <td className="muted" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
                         {l.direction || l.comment || ""}

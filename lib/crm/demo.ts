@@ -180,6 +180,7 @@ export function buildDemo(today: DayKey): DataState {
           operatorId: op.id,
           groupId: op.groupId,
           direction,
+          link: "",
           comment: pick(COMMENTS),
           source: LEAD_SOURCE,
           // проверенные супервайзером — старше двух дней; малая доля не доведена

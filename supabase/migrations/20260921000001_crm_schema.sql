@@ -110,6 +110,7 @@ create table if not exists public.leads (
   operator_id   text not null references public.operators (id) deferrable initially deferred,
   group_id      text references public.groups (id) on delete set null deferrable initially deferred,
   direction     text not null default '',
+  link          text not null default '',   -- ссылка на лид (CRM заказчика, запись звонка)
   comment       text not null default '',
   source        text not null default 'Скорозвон',
   status        text not null default 'work' check (status in ('work', 'done', 'failed')),
@@ -120,6 +121,9 @@ create table if not exists public.leads (
   updated_at    timestamptz not null default now(),
   constraint leads_failed_needs_reason check (status <> 'failed' or btrim(status_reason) <> '')
 );
+
+-- колонка появилась позже — в уже созданную таблицу добавляем
+alter table public.leads add column if not exists link text not null default '';
 
 -- Смены: одна запись на оператора в день, id = 'YYYY-MM-DD|<operator_id>'.
 create table if not exists public.shifts (
@@ -648,13 +652,23 @@ begin
     new.status_reason := '';
     new.status_at := null;
     new.status_by := null;
+    -- оператор время не выбирает: лид получает «сейчас» по Москве по часам сервера,
+    -- а не по часам его компьютера
+    if v_role = 'operator' then
+      new.at := to_char(now() at time zone 'Europe/Moscow', 'YYYY-MM-DD"T"HH24:MI');
+    end if;
     return new;
+  end if;
+
+  -- время передачи оператор при правке не меняет
+  if v_role = 'operator' then
+    new.at := old.at;
   end if;
 
   v_status_changed := (new.status, new.status_reason, new.status_at, new.status_by)
                       is distinct from (old.status, old.status_reason, old.status_at, old.status_by);
-  v_fields_changed := (new.at, new.client, new.phone, new.project_id, new.operator_id, new.group_id, new.direction, new.comment, new.source, new.created_at)
-                      is distinct from (old.at, old.client, old.phone, old.project_id, old.operator_id, old.group_id, old.direction, old.comment, old.source, old.created_at);
+  v_fields_changed := (new.at, new.client, new.phone, new.project_id, new.operator_id, new.group_id, new.direction, new.link, new.comment, new.source, new.created_at)
+                      is distinct from (old.at, old.client, old.phone, old.project_id, old.operator_id, old.group_id, old.direction, old.link, old.comment, old.source, old.created_at);
 
   if v_status_changed and not public.crm_can_review(old.operator_id, old.group_id) then
     raise exception 'Статус этого лида может поставить только супервайзер его группы или руководитель' using errcode = '42501';

@@ -7,7 +7,7 @@ import { dailyRows, monthCal, probation, type OpRow } from "@/lib/crm/calc";
 import { NO_GROUP_LABEL, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, type OperatorStatus } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, fmtStamp, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned } from "@/lib/crm/format";
-import { Avatar, Chip, Drawer, Kpi, LeadStatusChip, Progress, StatusChip } from "@/components/ui/kit";
+import { Avatar, Chip, Drawer, Kpi, LeadLinkButton, LeadStatusChip, Progress, StatusChip } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canManageOperator } from "@/lib/crm/access";
 import { CumulativeChart, Legend } from "@/components/ui/charts";
@@ -231,18 +231,21 @@ export function OperatorStats({ row, wide = false }: { row: OpRow; wide?: boolea
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {recent.map((l) => (
-                <button key={l.id} onClick={() => openLead(l)} className="row" style={{ gap: 8, border: "none", background: "none", padding: 0, color: "var(--text)", font: "inherit", textAlign: "left", fontSize: 12.5 }}>
-                  <span className="num" style={{ color: "var(--dim)", flex: "none", whiteSpace: "nowrap" }}>
-                    {fmtStamp(l.at).slice(0, 5)} {l.at.slice(11, 16)}
-                  </span>
-                  {/* проект — цветной точкой с подсказкой: в узкой колонке иначе не видно имени клиента */}
-                  <span
-                    title={l.projectId ? ix.projectById.get(l.projectId)?.name ?? "" : "Без проекта"}
-                    style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", background: `var(--c-${(l.projectId && ix.projectById.get(l.projectId)?.color) || "gray"}-fg)` }}
-                  />
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.client || fmtPhone(l.phone)}</span>
-                  <LeadStatusChip lead={l} />
-                </button>
+                <div key={l.id} className="row" style={{ gap: 8 }}>
+                  <button onClick={() => openLead(l)} className="row" style={{ flex: 1, minWidth: 0, gap: 8, border: "none", background: "none", padding: 0, color: "var(--text)", font: "inherit", textAlign: "left", fontSize: 12.5 }}>
+                    <span className="num" style={{ color: "var(--dim)", flex: "none", whiteSpace: "nowrap" }}>
+                      {fmtStamp(l.at).slice(0, 5)} {l.at.slice(11, 16)}
+                    </span>
+                    {/* проект — цветной точкой с подсказкой: в узкой колонке иначе не видно имени клиента */}
+                    <span
+                      title={l.projectId ? ix.projectById.get(l.projectId)?.name ?? "" : "Без проекта"}
+                      style={{ width: 7, height: 7, borderRadius: "50%", flex: "none", background: `var(--c-${(l.projectId && ix.projectById.get(l.projectId)?.color) || "gray"}-fg)` }}
+                    />
+                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.client || fmtPhone(l.phone)}</span>
+                    <LeadStatusChip lead={l} />
+                  </button>
+                  {l.link && <LeadLinkButton link={l.link} />}
+                </div>
               ))}
             </div>
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useCrm, type LeadPreset } from "@/lib/crm/store";
 import type { Lead, LeadStatus } from "@/lib/crm/types";
 import { LEAD_SOURCE, LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
@@ -9,7 +9,7 @@ import { DateTimeInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canCreateLeadFor, canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
-import { fmtPhone, normPhone } from "@/lib/crm/format";
+import { fmtPhone, normLink, normPhone } from "@/lib/crm/format";
 import { fmtStamp, nowStamp } from "@/lib/crm/dates";
 
 const LAST_OP = "leadup.lastOperator";
@@ -67,7 +67,12 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
   const [phone, setPhone] = useState(lead ? fmtPhone(lead.phone) : preset?.phone ?? "");
   const [direction, setDirection] = useState(lead?.direction ?? preset?.direction ?? "");
   const [comment, setComment] = useState(lead?.comment ?? "");
+  const [link, setLink] = useState(lead?.link ?? preset?.link ?? "");
   const [at, setAt] = useState(lead?.at ?? preset?.at ?? nowStamp());
+  // время нового лида, которое не трогали руками, берётся в момент записи, а не открытия окна
+  const [atTouched, setAtTouched] = useState(!!lead || !!preset?.at);
+  // оператор время не выбирает: его ставит система по серверу (МСК)
+  const timeLocked = access.isOp;
   const [groupId, setGroupId] = useState<string>(lead ? lead.groupId ?? "" : "");
   const [status, setStatus] = useState<LeadStatus>(preset?.status ?? lead?.status ?? "work");
   const [reason, setReason] = useState(lead?.statusReason ?? "");
@@ -144,13 +149,32 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
 
   const errOp = !operatorId ? "Выберите оператора" : null;
   const errPr = liveProjects.length > 0 && !projectId ? "Выберите проект" : null;
-  const errContact = !client.trim() && !phoneNorm ? "Укажите имя клиента или телефон" : null;
-  const errPhone = phone.trim() && phoneNorm.length < 6 ? "Слишком короткий номер" : null;
-  const errAt = !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at) ? "Укажите дату и время" : null;
+  // новый лид — только полный: клиент, телефон, ссылка. Старые записи без них правятся как раньше
+  const isNew = !lead;
+  const linkNorm = normLink(link);
+  const errContact = isNew ? (!client.trim() ? "Укажите имя клиента" : null) : !client.trim() && !phoneNorm ? "Укажите имя клиента или телефон" : null;
+  const errPhone = isNew
+    ? !phone.trim()
+      ? "Укажите телефон"
+      : phoneNorm.length < 10
+        ? "Номер неполный"
+        : null
+    : phone.trim() && phoneNorm.length < 6
+      ? "Слишком короткий номер"
+      : null;
+  const errLink = link.trim() && !linkNorm ? "Не похоже на ссылку — вставьте адрес целиком" : isNew && !linkNorm ? "Вставьте ссылку на лид" : null;
+  const errAt = timeLocked
+    ? null
+    : !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at)
+      ? "Укажите дату и время"
+      : atTouched && at > nowStamp()
+        ? "Время позже текущего (МСК)"
+        : null;
+  const missing = isNew ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка"].filter(Boolean) : [];
   const canReview = !!lead && canReviewLead(access, lead);
   const errReason = canReview && status === "failed" && !reason.trim() ? "Укажите причину" : null;
   const statusChanged = !!lead && (status !== lead.status || (status === "failed" && reason.trim() !== lead.statusReason));
-  const invalid = !!(errOp || errPr || errContact || errPhone || errAt || errReason);
+  const invalid = !!(errOp || errPr || errContact || errPhone || errLink || errAt || errReason);
 
   const submit = async (more: boolean) => {
     setTried(true);
@@ -172,7 +196,8 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     setBusy(true);
     const saved = await saveLead({
       id: lead?.id,
-      at,
+      at: atTouched ? at : nowStamp(),
+      link,
       client,
       phone,
       projectId: projectId || null,
@@ -193,7 +218,9 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
       setPhone("");
       setComment("");
       setDirection("");
+      setLink("");
       setAt(nowStamp());
+      setAtTouched(false);
       setTried(false);
       clientRef.current?.focus();
       return;
@@ -333,11 +360,11 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
             </Field>
           </div>
           <div className="grid2">
-            <Field label="Клиент" error={tried ? errContact : null}>
+            <Field label={isNew ? <Req>Клиент</Req> : "Клиент"} error={tried ? errContact : null}>
               <input ref={clientRef} className="inp" value={client} onChange={(e) => setClient(e.target.value)} placeholder="Имя клиента" autoFocus={!!operatorId && preset?.status !== "failed"} />
             </Field>
             <Field
-              label="Телефон"
+              label={isNew ? <Req>Телефон</Req> : "Телефон"}
               error={tried ? errPhone : null}
               hint={
                 dup ? (
@@ -358,6 +385,31 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
               />
             </Field>
           </div>
+          <Field
+            label={isNew ? <Req>Ссылка на лид</Req> : "Ссылка на лид"}
+            error={tried ? errLink : null}
+            hint={!tried || !errLink ? "Карточка лида в CRM заказчика или запись звонка — чтобы супервайзер проверил в один клик" : undefined}
+          >
+            <div className="lead-link">
+              <Icon name="link" size={15} />
+              <input
+                className="inp"
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                onBlur={() => linkNorm && setLink(linkNorm)}
+                placeholder="https://…"
+                inputMode="url"
+                spellCheck={false}
+                aria-invalid={tried && !!errLink}
+                readOnly={readOnly}
+              />
+              {linkNorm && (
+                <a className="btn btn-sm btn-ghost" href={linkNorm} target="_blank" rel="noreferrer noopener" title="Открыть в новой вкладке">
+                  Открыть <Icon name="arrowR" size={12} />
+                </a>
+              )}
+            </div>
+          </Field>
           <div className="grid2">
             {s.directionEnabled && (
               <Field label={s.directionLabel || "Направление"}>
@@ -369,9 +421,25 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
                 </datalist>
               </Field>
             )}
-            <Field label="Дата и время передачи" error={tried ? errAt : null}>
-              <DateTimeInput value={at} onChange={setAt} max={nowStamp().slice(0, 10)} />
-            </Field>
+            {timeLocked ? (
+              <Field label="Время передачи, МСК" hint={lead ? "Время записи менять нельзя" : "Ставится само в момент записи — по серверу, не по часам компьютера"}>
+                <div className="lead-time">
+                  <Icon name="clock" size={14} />
+                  {lead ? fmtStamp(lead.at) : `сейчас ${nowStamp().slice(11)}`}
+                </div>
+              </Field>
+            ) : (
+              <Field label="Дата и время передачи, МСК" error={tried ? errAt : null} hint={!lead && !atTouched ? "Не меняли — запишется время сохранения" : undefined}>
+                <DateTimeInput
+                  value={at}
+                  onChange={(v) => {
+                    setAt(v);
+                    setAtTouched(true);
+                  }}
+                  max={nowStamp().slice(0, 10)}
+                />
+              </Field>
+            )}
             {lead && (
               <Field label="Группа на момент передачи" hint="Меняется сама, если сменить оператора">
                 <Select value={groupId} options={groupOpts} onChange={setGroupId} ariaLabel="Группа" disabled={readOnly || access.isOp} />
@@ -381,6 +449,11 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
           <Field label="Комментарий оператора">
             <textarea className="inp" value={comment} onChange={(e) => setComment(e.target.value)} rows={2} placeholder="Что важно знать менеджеру" />
           </Field>
+          {missing.length > 0 && (
+            <div className="lead-missing">
+              <Icon name="alert" size={13} /> Чтобы записать лид, заполните: {missing.join(", ")}
+            </div>
+          )}
           <div style={{ fontSize: 11.5, color: "var(--dim)" }}>
             Источник: {LEAD_SOURCE}. {lead ? "" : "Новый лид попадает в статус «в работе» — доведён он или нет, отмечает супервайзер."}
             {readOnly && (canReview ? " Поля лида менять нельзя — только статус." : " Изменить эту запись нельзя: у вашего аккаунта нет прав или истекло время на исправление.")}
@@ -447,5 +520,17 @@ function StatusStamp({ lead }: { lead: Lead }) {
       )}
       {lead.statusAt && <>, {fmtStamp(lead.statusAt)} МСК</>}
     </div>
+  );
+}
+
+/** Подпись обязательного поля. */
+function Req({ children }: { children: ReactNode }) {
+  return (
+    <>
+      {children}
+      <span className="req" aria-hidden>
+        *
+      </span>
+    </>
   );
 }
