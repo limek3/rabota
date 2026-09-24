@@ -44,7 +44,7 @@ export function AuthBackdrop() {
       />
       <span
         className="auth-blob"
-        style={{ position: "absolute", bottom: "-18%", right: "6%", width: 520, height: 520, borderRadius: "50%", filter: "blur(80px)", background: "radial-gradient(circle, rgba(61, 109, 179,.14), transparent 66%)", animation: "authBlobB 19s ease-in-out infinite" }}
+        style={{ position: "absolute", bottom: "-18%", right: "6%", width: 520, height: 520, borderRadius: "50%", filter: "blur(80px)", background: "radial-gradient(circle, rgba(11, 127, 122,.14), transparent 66%)", animation: "authBlobB 19s ease-in-out infinite" }}
       />
       <span
         className="auth-blob"

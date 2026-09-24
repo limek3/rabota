@@ -24,15 +24,15 @@ const SCALE = 2;
 
 const C = {
   bg: "#ffffff",
-  text: "#28251f",
-  sub: "#6b655a",
-  dim: "#8a8478",
-  line: "#eee9e0",
-  strip: "#faf7f2",
-  brand: "#3d6db3",
-  brandSoft: "#e4edf9",
-  green: "#2e6b45",
-  red: "#ad3a33",
+  text: "#1d2429",
+  sub: "#56626a",
+  dim: "#7b878e",
+  line: "#e3e8eb",
+  strip: "#eef2f4",
+  brand: "#0b7f7a",
+  brandSoft: "#dff3f1",
+  green: "#23633a",
+  red: "#a1302a",
 };
 
 interface Handle {

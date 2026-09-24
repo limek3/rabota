@@ -44,266 +44,315 @@
 }
 
 /* ── Фирменные курсоры Vexi ─────────────────────────────────────────────
-   Одни на обе темы: средний джинсовый синий (#4a78bd) читается и на светлом, и на
+   Одни на обе темы: бирюза (#0e8f8a) читается и на светлом, и на
    тёмном фоне. Формы обычные: стрелка (везде), рука-указатель (кликабельное),
    крест (выделение в «Расписании»). Углы мягкие — stroke совпадает с fill,
    linejoin: round, так что контур не читается обводкой, а лишь скругляет углы. */
 :root {
-  --cursor-brand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M5 2.5 5 20.5 9.7 16.3 12.6 22.4 15.2 21.2 12.4 15.3 18.4 15.3 Z' fill='%234a78bd' stroke='%234a78bd' stroke-width='1.2' stroke-linejoin='round' stroke-linecap='round'/></svg>") 5 3, auto;
-  --cursor-hand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M9 2.4c.86 0 1.55.7 1.55 1.55V10.4c.35-.26.78-.42 1.25-.42.54 0 1.03.22 1.39.57.36-.3.82-.48 1.32-.48.58 0 1.11.25 1.48.66.32-.19.69-.3 1.08-.3 1.16 0 2.1.94 2.1 2.1v3.35c0 2.88-2.33 5.22-5.22 5.22h-1.24c-1.58 0-3.07-.73-4.03-1.98l-3.37-4.4c-.53-.69-.4-1.68.29-2.22.61-.48 1.47-.45 2.05.08l1.05.95V3.95c0-.85.69-1.55 1.55-1.55z' fill='%234a78bd' stroke='%234a78bd' stroke-width='0.8' stroke-linejoin='round'/></svg>") 9 2, pointer;
+  --cursor-brand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M5 2.5 5 20.5 9.7 16.3 12.6 22.4 15.2 21.2 12.4 15.3 18.4 15.3 Z' fill='%230e8f8a' stroke='%230e8f8a' stroke-width='1.2' stroke-linejoin='round' stroke-linecap='round'/></svg>") 5 3, auto;
+  --cursor-hand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M9 2.4c.86 0 1.55.7 1.55 1.55V10.4c.35-.26.78-.42 1.25-.42.54 0 1.03.22 1.39.57.36-.3.82-.48 1.32-.48.58 0 1.11.25 1.48.66.32-.19.69-.3 1.08-.3 1.16 0 2.1.94 2.1 2.1v3.35c0 2.88-2.33 5.22-5.22 5.22h-1.24c-1.58 0-3.07-.73-4.03-1.98l-3.37-4.4c-.53-.69-.4-1.68.29-2.22.61-.48 1.47-.45 2.05.08l1.05.95V3.95c0-.85.69-1.55 1.55-1.55z' fill='%230e8f8a' stroke='%230e8f8a' stroke-width='0.8' stroke-linejoin='round'/></svg>") 9 2, pointer;
   /* Открытая рука — над тем, что можно схватить (draggable-карточки). */
-  --cursor-grab: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><path d='M12 21.6c-1.6 0-3.1-.66-4.2-1.84l-3.7-4.0c-.5-.54-.47-1.38.07-1.9.53-.5 1.36-.48 1.87.04l1.34 1.37V6.2c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.3h.5V4.9c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v5.6h.5V5.6c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.9h.5V7.4c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v6.9c0 4.0-2.6 7.0-6.5 7.0z' fill='%234a78bd'/></svg>") 13 13, grab;
+  --cursor-grab: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><path d='M12 21.6c-1.6 0-3.1-.66-4.2-1.84l-3.7-4.0c-.5-.54-.47-1.38.07-1.9.53-.5 1.36-.48 1.87.04l1.34 1.37V6.2c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.3h.5V4.9c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v5.6h.5V5.6c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.9h.5V7.4c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v6.9c0 4.0-2.6 7.0-6.5 7.0z' fill='%230e8f8a'/></svg>") 13 13, grab;
   /* Сжатый кулак — пока карточку тащат. */
-  --cursor-grabbing: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><g fill='%234a78bd'><path d='M5 13c0-1.15.93-2.08 2.08-2.08h7.4c1.15 0 2.25.46 3.06 1.28l.2.2c.5.5.76 1.17.76 1.87v1.1c0 3.25-2.35 5.65-5.6 5.65h-1.5c-1.55 0-3.03-.63-4.1-1.75l-1.95-2.05c-.48-.5-.75-1.17-.75-1.87z'/><rect x='7.2' y='7.8' width='2.5' height='4.2' rx='1.25'/><rect x='10.3' y='7.0' width='2.5' height='5.0' rx='1.25'/><rect x='13.4' y='7.4' width='2.5' height='4.6' rx='1.25'/><rect x='16.4' y='9.0' width='2.4' height='3.4' rx='1.2'/></g></svg>") 13 14, grabbing;
+  --cursor-grabbing: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><g fill='%230e8f8a'><path d='M5 13c0-1.15.93-2.08 2.08-2.08h7.4c1.15 0 2.25.46 3.06 1.28l.2.2c.5.5.76 1.17.76 1.87v1.1c0 3.25-2.35 5.65-5.6 5.65h-1.5c-1.55 0-3.03-.63-4.1-1.75l-1.95-2.05c-.48-.5-.75-1.17-.75-1.87z'/><rect x='7.2' y='7.8' width='2.5' height='4.2' rx='1.25'/><rect x='10.3' y='7.0' width='2.5' height='5.0' rx='1.25'/><rect x='13.4' y='7.4' width='2.5' height='4.6' rx='1.25'/><rect x='16.4' y='9.0' width='2.4' height='3.4' rx='1.2'/></g></svg>") 13 14, grabbing;
   /* Каретка ввода (I-beam) — над текстовыми полями, тоже в акценте. */
-  --cursor-text: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22'><path d='M5.5 2.5h5M5.5 19.5h5M8 2.5v17' fill='none' stroke='%234a78bd' stroke-width='1.6' stroke-linecap='round'/></svg>") 8 11, text;
+  --cursor-text: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22'><path d='M5.5 2.5h5M5.5 19.5h5M8 2.5v17' fill='none' stroke='%230e8f8a' stroke-width='1.6' stroke-linecap='round'/></svg>") 8 11, text;
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   Тёмная тема — «тёплый графит».
-   Поверхности без холодного подтона: серый с каплей охры, как бумага в
-   сумерках. Акцент — пастельный небесный (#92b8f0): на тёмном фоне он светится
-   мягко, не режет глаз, а текст на нём тёмный (--on-brand).
+   Тема «Сетка» — тёмная.
+   Холодный графит с сине-зелёным подтоном, акцент — бирюза (#2bc4bd), текст
+   на ней тёмный. Таблицы — главное в CRM, поэтому у них своя разметка:
+   шапка с заливкой (--bg-strip), «зебра» (--row-alt), сплошная сетка ячеек.
    Слои снизу вверх: сайдбар → фон контента → панель → модалка.
    ════════════════════════════════════════════════════════════════════ */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #1c1b19;
-  --bg-sidebar: #151413;
-  --bg-panel: #232220;
-  --bg-panel-hover: #2a2926;
-  --bg-strip: #201f1c;
-  --bg-modal: #262522;
-  --text: #efece6;
-  --text-soft: #e0dcd4;
-  --text-quote: #d6d2c9;
-  --text-sub: #aca79c;
-  --text-sub2: #b4afa4;
-  --text-sub3: #918b80;
-  --dim: #7f7a70;
-  --dimmer: #5c5850;
-  --green-soft: #bcd4f7;
+  --bg: #12171a;
+  --bg-sidebar: #0c1013;
+  --bg-panel: #171d21;
+  --bg-panel-hover: #1d2428;
+  --bg-strip: #1c2429;
+  --bg-modal: #1a2125;
+  --text: #e4eaed;
+  --text-soft: #d4dcdf;
+  --text-quote: #cbd4d8;
+  --text-sub: #9aa7ae;
+  --text-sub2: #a4b0b6;
+  --text-sub3: #84919a;
+  --dim: #75828a;
+  --dimmer: #4f5a60;
+  --green-soft: #8fe3de;
   --amber: #e6b76a;
   --amber-soft: #d9bd8c;
-  --blue: #92b8f0;
-  --green: #92b8f0;
-  --green-hover: #a8c7f5;
-  --on-green: #14243c;
-  --red: #ef8f86;
-  /* Акцент — пастельный небесный. */
-  --brand: #92b8f0;
-  --brand-soft: #bcd4f7;
-  --brand-strong: #a8c7f5;
-  --on-brand: #14243c;
-  --brand-glow: rgba(146, 184, 240, 0.24);
-  --brand-tint: rgba(146, 184, 240, 0.1);
-  --brand-border: rgba(146, 184, 240, 0.4);
-  /* сплошная пастельная подложка акцента (активный пункт меню, вкладка) и текст на ней */
-  --brand-pastel: #22303f;
-  --brand-ink: #b3cff7;
-  /* поле ввода с заливкой вместо обводки */
-  --field: #2b2a27;
-  --field-hover: #312f2c;
+  --blue: #2bc4bd;
+  --green: #2bc4bd;
+  --green-hover: #4fd3cc;
+  --on-green: #062422;
+  --red: #ef7a70;
+  /* Акцент — бирюза. */
+  --brand: #2bc4bd;
+  --brand-soft: #8fe3de;
+  --brand-strong: #4fd3cc;
+  --on-brand: #062422;
+  --brand-glow: rgba(43, 196, 189, 0.24);
+  --brand-tint: rgba(43, 196, 189, 0.1);
+  --brand-border: rgba(43, 196, 189, 0.42);
+  /* сплошная подложка акцента (активная вкладка, выделение) и текст на ней */
+  --brand-pastel: #123331;
+  --brand-ink: #8fe3de;
+  /* поле ввода: заливка + тонкая рамка */
+  --field: #1d252a;
+  --field-hover: #232c31;
+  --field-bd: #29343a;
+  /* активная вкладка переключателя и активный пункт меню */
+  --seg-on: #2a363d;
+  --rail-on: #1d2a30;
   /* текст на заливке цвета статуса (выбранный статус, «верно» в тесте) */
-  --on-hue: #1c1b19;
-  --on-danger: #2b1210;
-  /* наведение на строку таблицы — непрозрачное, чтобы липкие колонки не просвечивали */
-  --row-hover: #292825;
-  --backdrop: rgba(6, 5, 3, 0.6);
-  --ink-015: rgba(255, 246, 230, 0.015);
-  --ink-03: rgba(255, 246, 230, 0.03);
-  --ink-035: rgba(255, 246, 230, 0.035);
-  --ink-04: rgba(255, 246, 230, 0.04);
-  --ink-05: rgba(255, 246, 230, 0.05);
-  --ink-06: rgba(255, 246, 230, 0.06);
-  --ink-07: rgba(255, 246, 230, 0.07);
-  --ink-08: rgba(255, 246, 230, 0.08);
-  --ink-09: rgba(255, 246, 230, 0.09);
-  --ink-10: rgba(255, 246, 230, 0.1);
-  --ink-12: rgba(255, 246, 230, 0.12);
-  --ink-15: rgba(255, 246, 230, 0.15);
-  --ink-25: rgba(255, 246, 230, 0.25);
-  --ink-35: rgba(255, 246, 230, 0.35);
+  --on-hue: #0c1013;
+  --on-danger: #2a0e0b;
+  /* строки таблиц: «зебра» и наведение — непрозрачные, чтобы липкие колонки не просвечивали */
+  --row-alt: #191f24;
+  --row-hover: #1a2a2b;
+  --backdrop: rgba(3, 6, 8, 0.62);
+  --ink-015: rgba(220, 238, 245, 0.015);
+  --ink-03: rgba(220, 238, 245, 0.03);
+  --ink-035: rgba(220, 238, 245, 0.035);
+  --ink-04: rgba(220, 238, 245, 0.04);
+  --ink-05: rgba(220, 238, 245, 0.05);
+  --ink-06: rgba(220, 238, 245, 0.06);
+  --ink-07: rgba(220, 238, 245, 0.07);
+  --ink-08: rgba(220, 238, 245, 0.08);
+  --ink-09: rgba(220, 238, 245, 0.09);
+  --ink-10: rgba(220, 238, 245, 0.1);
+  --ink-12: rgba(220, 238, 245, 0.12);
+  --ink-15: rgba(220, 238, 245, 0.15);
+  --ink-25: rgba(220, 238, 245, 0.25);
+  --ink-35: rgba(220, 238, 245, 0.35);
   --shadow-xs: none;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.34);
-  --shadow-xl: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 12px 32px rgba(0, 0, 0, 0.5);
   --shadow-brand: none;
-  --glass-core: #232220;
-  --glass-edge: rgba(35, 34, 32, 0);
+  --glass-core: #171d21;
+  --glass-edge: rgba(23, 29, 33, 0);
   --glass-bright: 1;
-  --glass-bar-bg: rgba(28, 27, 25, 0.9);
-  --glass-bar-border: rgba(255, 246, 230, 0.09);
+  --glass-bar-bg: rgba(18, 23, 26, 0.9);
+  --glass-bar-border: rgba(220, 238, 245, 0.09);
   --glass-bar-inset-strong: transparent;
   --glass-bar-inset-soft: transparent;
-  --glass-bar-shadow-a: rgba(0, 0, 0, 0.26);
-  --glass-bar-shadow-b: rgba(0, 0, 0, 0.18);
+  --glass-bar-shadow-a: rgba(0, 0, 0, 0.3);
+  --glass-bar-shadow-b: rgba(0, 0, 0, 0.2);
   --glass-bar-bright: 1;
   --crm-chip-sheen: transparent;
-  --crm-chip-border: rgba(255, 246, 230, 0.12);
-  --pill-amber-bg: #372d1c;
-  --pill-amber-fg: #ebc47e;
-  --pill-amber-border: #574629;
-  --pill-red-bg: #3d2421;
-  --pill-red-fg: #f4a097;
-  --pill-red-border: #633a34;
+  --crm-chip-border: rgba(220, 238, 245, 0.12);
+  --pill-amber-bg: #2e2714;
+  --pill-amber-fg: #f0c86b;
+  --pill-amber-border: #4d4120;
+  --pill-red-bg: #331c1c;
+  --pill-red-fg: #f4a29b;
+  --pill-red-border: #5a302d;
   --pill-shadow: none;
 
   /* ── CRM chip palette ───────────────────────────────────────────────
-     One fg/bg/border triple per hue. Пастельный текст на приглушённой
-     подложке того же тона. Каждый fg держит WCAG AA (4.5:1) и на своей
-     подложке, и на фоне страницы — проверено скриптом, не на глаз.
+     One fg/bg/border triple per hue. Каждый fg держит WCAG AA (4.5:1) и на
+     своей подложке, и на фоне страницы — проверено скриптом, не на глаз.
      Stage / status / label / tag colours all alias into this set. */
-  --c-gray-fg: #b0aa9f;
-  --c-gray-bg: #2d2b28;
-  --c-gray-bd: rgba(176, 170, 159, 0.22);
-  --c-blue-fg: #93bff0;
-  --c-blue-bg: #1e2c3c;
-  --c-blue-bd: rgba(147, 191, 240, 0.22);
-  --c-green-fg: #8fd1a0;
-  --c-green-bg: #1d3124;
-  --c-green-bd: rgba(143, 209, 160, 0.22);
-  --c-amber-fg: #ebc47e;
-  --c-amber-bg: #372d1c;
-  --c-amber-bd: rgba(235, 196, 126, 0.22);
-  --c-red-fg: #f4a097;
-  --c-red-bg: #3d2421;
-  --c-red-bd: rgba(244, 160, 151, 0.22);
-  --c-purple-fg: #c3b0f0;
-  --c-purple-bg: #2d2640;
-  --c-purple-bd: rgba(195, 176, 240, 0.22);
-  --c-pink-fg: #f0a8c5;
-  --c-pink-bg: #3a222f;
-  --c-pink-bd: rgba(240, 168, 197, 0.22);
-  --c-teal-fg: #86d0c4;
-  --c-teal-bg: #183230;
-  --c-teal-bd: rgba(134, 208, 196, 0.22);
+  --c-gray-fg: #a9b5bb;
+  --c-gray-bg: #212a2f;
+  --c-gray-bd: rgba(169, 181, 187, 0.22);
+  --c-blue-fg: #93c3f5;
+  --c-blue-bg: #16263a;
+  --c-blue-bd: rgba(147, 195, 245, 0.22);
+  --c-green-fg: #8fd6a4;
+  --c-green-bg: #15301f;
+  --c-green-bd: rgba(143, 214, 164, 0.22);
+  --c-amber-fg: #f0c86b;
+  --c-amber-bg: #2e2714;
+  --c-amber-bd: rgba(240, 200, 107, 0.22);
+  --c-red-fg: #f4a29b;
+  --c-red-bg: #331c1c;
+  --c-red-bd: rgba(244, 162, 155, 0.22);
+  --c-purple-fg: #c6b1f2;
+  --c-purple-bg: #251e3a;
+  --c-purple-bd: rgba(198, 177, 242, 0.22);
+  --c-pink-fg: #f2a6c8;
+  --c-pink-bg: #331d2b;
+  --c-pink-bd: rgba(242, 166, 200, 0.22);
+  --c-teal-fg: #7fdcd5;
+  --c-teal-bg: #10302e;
+  --c-teal-bd: rgba(127, 220, 213, 0.22);
   /* Девятый тон — под статус «Резерв». Синее пурпурного (адапт) и холоднее
      серого (без статуса): на доске он стоит между «есть знакомый» и «минусом»,
      и не должен читаться ни как тёплый, ни как тревожный. */
-  --c-indigo-fg: #a9b5ef;
-  --c-indigo-bg: #242a42;
-  --c-indigo-bd: rgba(169, 181, 239, 0.22);
+  --c-indigo-fg: #a9b6f2;
+  --c-indigo-bg: #1d2440;
+  --c-indigo-bd: rgba(169, 182, 242, 0.22);
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   Светлая тема — «сливки и деним».
-   Тёплая кремовая бумага, сайдбар цвета овсянки, чернила — тёплый графит.
-   Акцент — спокойный джинсовый синий: не спорит ни с зелёным «доведён», ни с
-   красным «не доведён», ни с жёлтым «в работе». Пастель живёт в подложках:
-   активный пункт меню, вкладка, чипы — светлые заливки без рамок.
+   Тема «Сетка» — светлая.
+   Светло-серый холодный фон, белые панели, чернила — графит с сине-зелёным
+   подтоном. Сайдбар тёмный даже в светлой теме (см. .app-rail ниже): рабочая
+   зона светлая, навигация не спорит с данными. Акцент — глубокая бирюза,
+   белый текст на ней держит AA.
    ════════════════════════════════════════════════════════════════════ */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #fffdf9;
-  --bg-sidebar: #f4f0e8;
+  --bg: #f5f7f8;
+  --bg-sidebar: #1f2a30;
   --bg-panel: #ffffff;
-  --bg-panel-hover: #faf7f1;
-  --bg-strip: #faf7f2;
+  --bg-panel-hover: #f7f9fa;
+  --bg-strip: #eef2f4;
   --bg-modal: #ffffff;
-  --text: #28251f;
-  --text-soft: #34302a;
-  --text-quote: #34302a;
-  --text-sub: #6b655a;
-  --text-sub2: #625c52;
-  --text-sub3: #7b7569;
-  --dim: #8a8478;
-  --dimmer: #bfb9ad;
-  --green-soft: #335e9c;
+  --text: #1d2429;
+  --text-soft: #273036;
+  --text-quote: #273036;
+  --text-sub: #56626a;
+  --text-sub2: #4f5b63;
+  --text-sub3: #67737a;
+  --dim: #7b878e;
+  --dimmer: #b3bcc1;
+  --green-soft: #0a6f6b;
   --amber: #9a6a14;
   --amber-soft: #9a6a14;
-  --blue: #3d6db3;
-  --green: #3d6db3;
-  --green-hover: #335e9c;
+  --blue: #0b7f7a;
+  --green: #0b7f7a;
+  --green-hover: #0a6f6b;
   --on-green: #ffffff;
-  --red: #c0433a;
-  --brand: #3d6db3;
-  --brand-soft: #8eb1e3;
-  --brand-strong: #335e9c;
+  --red: #c23b33;
+  --brand: #0b7f7a;
+  --brand-soft: #5cc9c3;
+  --brand-strong: #096d69;
   --on-brand: #ffffff;
-  --brand-glow: rgba(61, 109, 179, 0.2);
-  --brand-tint: rgba(61, 109, 179, 0.08);
-  --brand-border: rgba(61, 109, 179, 0.38);
-  --brand-pastel: #e4edf9;
-  --brand-ink: #2b5591;
-  --field: #f6f2eb;
-  --field-hover: #f0ebe2;
+  --brand-glow: rgba(11, 127, 122, 0.2);
+  --brand-tint: rgba(11, 127, 122, 0.08);
+  --brand-border: rgba(11, 127, 122, 0.4);
+  --brand-pastel: #dff3f1;
+  --brand-ink: #085c58;
+  --field: #f2f5f6;
+  --field-hover: #ebeff1;
+  --field-bd: #dfe4e7;
+  --seg-on: #ffffff;
+  --rail-on: #e6ecee;
   --on-hue: #ffffff;
   --on-danger: #ffffff;
-  --row-hover: #fbf8f2;
-  --backdrop: rgba(40, 32, 18, 0.28);
-  --ink-015: rgba(70, 56, 30, 0.022);
-  --ink-03: rgba(70, 56, 30, 0.036);
-  --ink-035: rgba(70, 56, 30, 0.042);
-  --ink-04: rgba(70, 56, 30, 0.048);
-  --ink-05: rgba(70, 56, 30, 0.058);
-  --ink-06: rgba(70, 56, 30, 0.074);
-  --ink-07: rgba(70, 56, 30, 0.088);
-  --ink-08: rgba(70, 56, 30, 0.104);
-  --ink-09: rgba(70, 56, 30, 0.118);
-  --ink-10: rgba(70, 56, 30, 0.132);
-  --ink-12: rgba(70, 56, 30, 0.15);
-  --ink-15: rgba(70, 56, 30, 0.19);
-  --ink-25: rgba(70, 56, 30, 0.28);
-  --ink-35: rgba(70, 56, 30, 0.4);
-  /* тёплые тени: холодная серая тень на кремовом фоне выглядит грязью */
-  --shadow-xs: 0 1px 2px rgba(60, 45, 20, 0.05);
-  --shadow-sm: 0 1px 2px rgba(60, 45, 20, 0.08), 0 0 0 1px rgba(60, 45, 20, 0.04);
-  --shadow-md: 0 0 0 1px rgba(60, 45, 20, 0.04), 0 2px 6px rgba(60, 45, 20, 0.07);
-  --shadow-lg: 0 0 0 1px rgba(60, 45, 20, 0.04), 0 4px 10px rgba(60, 45, 20, 0.07), 0 10px 24px rgba(60, 45, 20, 0.07);
-  --shadow-xl: 0 0 0 1px rgba(60, 45, 20, 0.05), 0 6px 14px rgba(60, 45, 20, 0.08), 0 18px 40px rgba(60, 45, 20, 0.12);
-  --shadow-brand: 0 1px 2px rgba(30, 60, 110, 0.18);
+  --row-alt: #fafbfc;
+  --row-hover: #eef8f7;
+  --backdrop: rgba(18, 28, 33, 0.32);
+  --ink-015: rgba(29, 45, 52, 0.022);
+  --ink-03: rgba(29, 45, 52, 0.035);
+  --ink-035: rgba(29, 45, 52, 0.04);
+  --ink-04: rgba(29, 45, 52, 0.046);
+  --ink-05: rgba(29, 45, 52, 0.056);
+  --ink-06: rgba(29, 45, 52, 0.07);
+  --ink-07: rgba(29, 45, 52, 0.085);
+  --ink-08: rgba(29, 45, 52, 0.1);
+  --ink-09: rgba(29, 45, 52, 0.115);
+  --ink-10: rgba(29, 45, 52, 0.13);
+  --ink-12: rgba(29, 45, 52, 0.15);
+  --ink-15: rgba(29, 45, 52, 0.19);
+  --ink-25: rgba(29, 45, 52, 0.28);
+  --ink-35: rgba(29, 45, 52, 0.4);
+  --shadow-xs: 0 1px 2px rgba(20, 35, 42, 0.05);
+  --shadow-sm: 0 1px 2px rgba(20, 35, 42, 0.1);
+  --shadow-md: 0 0 0 1px rgba(20, 35, 42, 0.04), 0 2px 6px rgba(20, 35, 42, 0.07);
+  --shadow-lg: 0 0 0 1px rgba(20, 35, 42, 0.04), 0 4px 10px rgba(20, 35, 42, 0.07), 0 10px 24px rgba(20, 35, 42, 0.07);
+  --shadow-xl: 0 0 0 1px rgba(20, 35, 42, 0.05), 0 6px 14px rgba(20, 35, 42, 0.08), 0 18px 40px rgba(20, 35, 42, 0.12);
+  --shadow-brand: 0 1px 2px rgba(6, 60, 58, 0.2);
   --glass-core: #ffffff;
   --glass-edge: rgba(255, 255, 255, 0);
   --glass-bright: 1;
-  --glass-bar-bg: rgba(255, 253, 249, 0.88);
-  --glass-bar-border: rgba(70, 56, 30, 0.09);
+  --glass-bar-bg: rgba(245, 247, 248, 0.9);
+  --glass-bar-border: rgba(29, 45, 52, 0.09);
   --glass-bar-inset-strong: transparent;
   --glass-bar-inset-soft: transparent;
-  --glass-bar-shadow-a: rgba(60, 45, 20, 0.05);
-  --glass-bar-shadow-b: rgba(60, 45, 20, 0.06);
+  --glass-bar-shadow-a: rgba(20, 35, 42, 0.05);
+  --glass-bar-shadow-b: rgba(20, 35, 42, 0.06);
   --glass-bar-bright: 1;
   --crm-chip-sheen: transparent;
-  --crm-chip-border: rgba(70, 56, 30, 0.15);
-  --pill-amber-bg: #fbefd4;
-  --pill-amber-fg: #82580c;
+  --crm-chip-border: rgba(29, 45, 52, 0.15);
+  --pill-amber-bg: #fcefcf;
+  --pill-amber-fg: #7a560a;
   --pill-amber-border: rgba(196, 140, 40, 0.3);
-  --pill-red-bg: #fce5e1;
-  --pill-red-fg: #ad3a33;
-  --pill-red-border: rgba(200, 80, 70, 0.28);
+  --pill-red-bg: #fde2e0;
+  --pill-red-fg: #a1302a;
+  --pill-red-border: rgba(200, 70, 60, 0.28);
   --pill-shadow: none;
 
-  /* CRM chip palette — light. Пастельные подложки, насыщенный текст того же
-     тона: каждый fg держит 4.5:1 на своей подложке. */
-  --c-gray-fg: #5f5a50;
-  --c-gray-bg: #efebe4;
-  --c-gray-bd: rgba(95, 90, 80, 0.18);
-  --c-blue-fg: #2b5f9e;
-  --c-blue-bg: #e3edf9;
-  --c-blue-bd: rgba(43, 95, 158, 0.18);
-  --c-green-fg: #2e6b45;
-  --c-green-bg: #e0f1e4;
-  --c-green-bd: rgba(46, 107, 69, 0.18);
-  --c-amber-fg: #7d550b;
-  --c-amber-bg: #fbefd4;
-  --c-amber-bd: rgba(125, 85, 11, 0.2);
-  --c-red-fg: #ad3a33;
-  --c-red-bg: #fce5e1;
-  --c-red-bd: rgba(173, 58, 51, 0.18);
-  --c-purple-fg: #6a4aa8;
-  --c-purple-bg: #eee8f8;
-  --c-purple-bd: rgba(106, 74, 168, 0.18);
-  --c-pink-fg: #a13866;
-  --c-pink-bg: #fbe6ef;
-  --c-pink-bd: rgba(161, 56, 102, 0.18);
-  --c-teal-fg: #1d6a63;
-  --c-teal-bg: #dcf1ed;
-  --c-teal-bd: rgba(29, 106, 99, 0.18);
-  --c-indigo-fg: #414f9c;
-  --c-indigo-bg: #e6e9f8;
-  --c-indigo-bd: rgba(65, 79, 156, 0.18);
+  /* CRM chip palette — light. Светлые подложки как в Airtable, насыщенный
+     текст того же тона: каждый fg держит 4.5:1 на своей подложке. */
+  --c-gray-fg: #56626a;
+  --c-gray-bg: #edf1f3;
+  --c-gray-bd: rgba(86, 98, 106, 0.18);
+  --c-blue-fg: #1f5a96;
+  --c-blue-bg: #e1eefb;
+  --c-blue-bd: rgba(31, 90, 150, 0.18);
+  --c-green-fg: #23633a;
+  --c-green-bg: #dcf2e2;
+  --c-green-bd: rgba(35, 99, 58, 0.18);
+  --c-amber-fg: #74520a;
+  --c-amber-bg: #fcefcf;
+  --c-amber-bd: rgba(116, 82, 10, 0.2);
+  --c-red-fg: #a1302a;
+  --c-red-bg: #fde2e0;
+  --c-red-bd: rgba(161, 48, 42, 0.18);
+  --c-purple-fg: #5b3fa3;
+  --c-purple-bg: #efe5ff;
+  --c-purple-bd: rgba(91, 63, 163, 0.18);
+  --c-pink-fg: #99305f;
+  --c-pink-bg: #fbe4ef;
+  --c-pink-bd: rgba(153, 48, 95, 0.18);
+  --c-teal-fg: #0a6560;
+  --c-teal-bg: #dcf2f1;
+  --c-teal-bd: rgba(10, 101, 96, 0.18);
+  --c-indigo-fg: #3a4a9c;
+  --c-indigo-bg: #e4e8fa;
+  --c-indigo-bd: rgba(58, 74, 156, 0.18);
+}
+
+/* Тёмный сайдбар в светлой теме: внутри .app-rail переопределяем токены на
+   «тёмные» — пункты меню, карточка плана, кнопки и аккаунт перекрашиваются
+   сами, без правок в компонентах. Выпадающие меню рендерятся в body и
+   остаются светлыми. */
+:root[data-theme="light"] .app-rail {
+  color-scheme: dark;
+  --text: #eef3f5;
+  --text-soft: #dfe6e9;
+  --text-sub: #b4c0c6;
+  --text-sub2: #bcc7cc;
+  --text-sub3: #93a2a9;
+  --dim: #8796a0;
+  --dimmer: #62727a;
+  --bg-panel: #26343b;
+  --bg-panel-hover: #2d3b43;
+  --bg: #1a242a;
+  --brand: #2bc4bd;
+  --brand-strong: #4fd3cc;
+  --on-brand: #062422;
+  --brand-tint: rgba(43, 196, 189, 0.12);
+  --brand-border: rgba(43, 196, 189, 0.45);
+  --brand-pastel: #2d3b43;
+  --brand-ink: #ffffff;
+  --rail-on: #2d3b43;
+  --field: #26343b;
+  --field-bd: #33434b;
+  --shadow-brand: none;
+  --ink-03: rgba(220, 238, 245, 0.03);
+  --ink-04: rgba(220, 238, 245, 0.045);
+  --ink-05: rgba(220, 238, 245, 0.06);
+  --ink-06: rgba(220, 238, 245, 0.07);
+  --ink-07: rgba(220, 238, 245, 0.08);
+  --ink-08: rgba(220, 238, 245, 0.1);
+  --ink-10: rgba(220, 238, 245, 0.12);
+  --ink-12: rgba(220, 238, 245, 0.14);
+  --ink-15: rgba(220, 238, 245, 0.18);
+  --c-red-bg: #3a2020;
+  --c-red-fg: #f4a29b;
+  --c-red-bd: rgba(244, 162, 155, 0.25);
+  color: var(--text);
 }
 
 :root {
@@ -357,7 +406,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   /* Фирменный курсор Vexi. Не логотип, натянутый на стрелку, а обычный
-     указатель, перекрашенный в акцент (#4a78bd) с белой обводкой и мягкими,
+     указатель, перекрашенный в акцент (#0e8f8a) с белой обводкой и мягкими,
      скруглёнными углами (stroke-linejoin: round). Белый контур держит его
      читаемым и на светлом, и на тёмном фоне. Кликабельные элементы со своим
      `cursor: pointer` по-прежнему показывают руку. */

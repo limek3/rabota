@@ -17,8 +17,8 @@
   gap: 6px;
   height: 32px;
   padding: 0 12px;
-  border-radius: 9px;
-  border: 1px solid var(--ink-10);
+  border-radius: 6px;
+  border: 1px solid var(--ink-12);
   background: var(--bg-panel);
   color: var(--text);
   box-shadow: var(--shadow-xs);
@@ -34,8 +34,8 @@
 .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--brand-glow); border-color: var(--brand-border); }
 .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 .btn svg { flex: none; }
-.btn-sm { height: 26px; padding: 0 9px; font-size: 12px; border-radius: 8px; gap: 5px; }
-.btn-lg { height: 38px; padding: 0 16px; font-size: 14px; border-radius: 10px; }
+.btn-sm { height: 26px; padding: 0 9px; font-size: 12px; border-radius: 5px; gap: 5px; }
+.btn-lg { height: 38px; padding: 0 16px; font-size: 14px; border-radius: 7px; }
 .btn-primary { background: var(--brand); border-color: transparent; color: var(--on-brand); font-weight: 600; box-shadow: var(--shadow-brand); }
 .btn-primary:hover:not(:disabled) { background: var(--brand-strong); border-color: transparent; }
 .btn-primary:active:not(:disabled) { background: var(--brand-strong); filter: brightness(.95); box-shadow: none; }
@@ -58,8 +58,8 @@
   width: 100%;
   height: 34px;
   padding: 0 10px;
-  border-radius: 9px;
-  border: 1px solid transparent;
+  border-radius: 6px;
+  border: 1px solid var(--field-bd);
   background: var(--field);
   color: var(--text);
   font: inherit;
@@ -67,9 +67,8 @@
   outline: none;
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
 }
-/* Поля с заливкой, а не с обводкой: форма читается пятнами, а не сеткой линий.
-   Рамка появляется только в фокусе. */
-.inp:hover { background: var(--field-hover); }
+/* Поля: лёгкая заливка + тонкая рамка; в фокусе — белое поле и бирюзовое кольцо. */
+.inp:hover { background: var(--field-hover); border-color: var(--ink-15); }
 .inp:focus, .inp:focus-within { background: var(--bg-panel); border-color: var(--brand-border); box-shadow: 0 0 0 3px var(--brand-tint); }
 .inp::placeholder { color: var(--dim); }
 .inp:disabled, .inp[readonly] { background: var(--ink-03); color: var(--text-sub); }
@@ -87,7 +86,7 @@ select.inp {
   background-position: right 9px center;
 }
 select.inp option { background: var(--bg-modal); color: var(--text); }
-.inp-sm { height: 28px; font-size: 12px; border-radius: 8px; padding: 0 8px; }
+.inp-sm { height: 28px; font-size: 12px; border-radius: 5px; padding: 0 8px; }
 select.inp-sm { padding-right: 24px; background-position: right 7px center; }
 input[type="date"].inp,
 input[type="datetime-local"].inp,
@@ -104,7 +103,7 @@ input[type="month"].inp { color-scheme: light; }
 .card {
   background: var(--bg-panel);
   border: 1px solid var(--ink-07);
-  border-radius: 14px;
+  border-radius: 10px;
   box-shadow: var(--shadow-xs);
   min-width: 0;
 }
@@ -117,16 +116,16 @@ input[type="month"].inp { color-scheme: light; }
   display: inline-flex;
   padding: 3px;
   gap: 2px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--field);
-  border: none;
+  border: 1px solid var(--field-bd);
   flex-wrap: wrap;
 }
 .seg > button {
   height: 26px;
   padding: 0 11px;
   border: none;
-  border-radius: 7px;
+  border-radius: 5px;
   background: transparent;
   color: var(--text-sub);
   font: inherit;
@@ -137,11 +136,11 @@ input[type="month"].inp { color-scheme: light; }
 }
 .seg > button:hover { color: var(--text); background: var(--ink-05); }
 .seg > button:active { background: var(--ink-08); }
-.seg > button[aria-pressed="true"] { background: var(--brand-pastel); color: var(--brand-ink); font-weight: 600; }
+.seg > button[aria-pressed="true"] { background: var(--seg-on); color: var(--text); box-shadow: var(--shadow-sm); font-weight: 600; }
 .seg > button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--brand-border); }
 
 /* «‹ Сентябрь 2026 ›» — один блок с заливкой, а не три отдельные кнопки */
-.stepper { display: inline-flex; align-items: center; gap: 2px; height: 32px; padding: 3px; border-radius: 10px; background: var(--field); }
+.stepper { display: inline-flex; align-items: center; gap: 2px; height: 32px; padding: 3px; border-radius: 8px; background: var(--field); border: 1px solid var(--field-bd); }
 .stepper .btn { height: 26px; border: none; background: transparent; box-shadow: none; color: var(--text-sub); }
 .stepper .btn:hover:not(:disabled) { background: var(--ink-06); color: var(--text); }
 .stepper .btn:active:not(:disabled) { background: var(--ink-08); }
@@ -153,7 +152,7 @@ input[type="month"].inp { color-scheme: light; }
   gap: 5px;
   height: 22px;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: 5px;
   font-size: 11.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -171,7 +170,7 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 
 .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 2px; flex: none; }
 
-.tbl-wrap { overflow: auto; border: 1px solid var(--ink-07); border-radius: 14px; background: var(--bg-panel); box-shadow: var(--shadow-xs); max-width: 100%; }
+.tbl-wrap { overflow: auto; border: 1px solid var(--ink-08); border-radius: 10px; background: var(--bg-panel); box-shadow: var(--shadow-xs); max-width: 100%; }
 .tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
 .tbl th {
   position: sticky;
@@ -180,7 +179,7 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
   background: var(--bg-strip);
   color: var(--text-sub);
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 650;
   text-align: left;
   padding: 9px 10px;
   border-bottom: 1px solid var(--ink-07);
@@ -195,6 +194,9 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 .tbl td.wrap { white-space: normal; min-width: 180px; max-width: 320px; }
 .tbl td.r, .tbl td.num-cell { font-variant-numeric: tabular-nums; }
 .tbl tbody tr:last-child td { border-bottom: none; }
+/* «зебра»: :where() обнуляет вес, чтобы строки-группы и выделения со своим фоном её перебивали */
+:where(.tbl:not(.learn-tbl)) tbody tr:where(:nth-child(even)) td { background: var(--row-alt); }
+.tbl tbody tr:where(:nth-child(even)) td.sticky-col { background: var(--row-alt); }
 .tbl tbody tr:hover td { background: var(--row-hover); }
 .tbl tbody tr.clickable { cursor: pointer; }
 .tbl tfoot td { position: sticky; bottom: 0; z-index: 1; background: var(--bg-strip); font-weight: 600; border-top: 1px solid var(--ink-08); border-bottom: none; }
@@ -210,7 +212,7 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 .tbl th.grp { text-align: center; border-left: 1px solid var(--ink-06); }
 .tbl .bl { border-left: 1px solid var(--ink-06); }
 /* столбцы разделены тонким пунктиром — везде, включая график (у таблиц академии свои рамки) */
-.tbl:not(.learn-tbl) :is(th, td) + :is(th, td) { border-left: 1px dashed var(--ink-08); }
+.tbl:not(.learn-tbl) :is(th, td) + :is(th, td) { border-left: 1px solid var(--ink-06); }
 /* компактные столбцы: все, кроме первого, по ширине содержимого и не уже 56px —
    цифры идут ровными узкими колонками, свободное место забирает первый (имя) */
 .tbl-fit :is(th, td):not(:first-child) { width: 1%; }
@@ -271,7 +273,7 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
   width: 100%;
   background: var(--bg-modal);
   border: 1px solid var(--ink-08);
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: var(--shadow-xl);
   animation: vexaModalIn 0.18s var(--ease);
   display: flex;
@@ -295,7 +297,7 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
   width: min(820px, calc(100vw - 16px));
   background: var(--bg-modal);
   border: 1px solid var(--ink-08);
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: var(--shadow-xl);
   display: flex;
   flex-direction: column;
@@ -396,7 +398,7 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
   align-items: center;
   gap: 11px;
   padding: 7px 12px;
-  border-radius: 9px;
+  border-radius: 6px;
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
@@ -408,7 +410,7 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 .app-rail-item:hover .rail-icon { color: var(--text-sub); }
 .app-rail-item:active { background: var(--ink-08); }
 .app-rail-item:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand-border); }
-.app-rail-item[aria-current="page"] { background: var(--brand-pastel); color: var(--brand-ink); font-weight: 600; }
+.app-rail-item[aria-current="page"] { background: var(--rail-on); color: var(--text); font-weight: 600; }
 .app-rail-item[aria-current="page"] .rail-icon { color: var(--brand); }
 .app-rail-item[aria-current="page"]::before {
   display: none;
@@ -467,7 +469,7 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
   flex-direction: column;
   background: var(--bg-modal);
   border: 1px solid var(--ink-08);
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: var(--shadow-xl);
   padding: 5px;
   outline: none;
