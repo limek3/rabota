@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
-import { sumRange, type OpRow } from "@/lib/crm/calc";
+import { goneLast, isGone, sumRange, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Empty, Field, GoneTag, Modal, MonthSwitcher, NumInput, PageHead, Seg, Switch, useWheelHScroll } from "@/components/ui/kit";
+import { Avatar, Empty, Field, GoneSepRow, GoneTag, Modal, MonthSwitcher, NumInput, PageHead, Seg, Switch, useWheelHScroll } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -70,7 +70,7 @@ export default function SchedulePage() {
         .sort((a, b) => {
           const ga = a.groupKey === NO_GROUP ? "я" : ix.groupById.get(a.groupKey)?.name ?? "";
           const gb = b.groupKey === NO_GROUP ? "я" : ix.groupById.get(b.groupKey)?.name ?? "";
-          return ga.localeCompare(gb, "ru") || a.op.name.localeCompare(b.op.name, "ru");
+          return ga.localeCompare(gb, "ru") || goneLast(a.op, b.op) || a.op.name.localeCompare(b.op.name, "ru");
         }),
     [m.ops, group, ix],
   );
@@ -333,6 +333,11 @@ export default function SchedulePage() {
                     rowIndex={i}
                     days={days}
                     groupHeader={!group && r.groupKey !== prevKey ? gName : null}
+                    goneSep={
+                      isGone(r.op) && (r.groupKey !== prevKey || !isGone(rows[i - 1].op))
+                        ? rows.filter((x) => x.groupKey === r.groupKey && isGone(x.op)).length
+                        : 0
+                    }
                     colSpan={days.length + 7}
                     showLeads={showLeads}
                     sel={sel}
@@ -393,6 +398,7 @@ function SchedRow({
   rowIndex,
   days,
   groupHeader,
+  goneSep,
   colSpan,
   showLeads,
   sel,
@@ -404,6 +410,8 @@ function SchedRow({
   rowIndex: number;
   days: DayKey[];
   groupHeader: string | null;
+  /** Первый уволенный в группе — перед ним разделитель «Уволены · N». */
+  goneSep: number;
   colSpan: number;
   showLeads: boolean;
   sel: Sel | null;
@@ -427,6 +435,7 @@ function SchedRow({
           <td colSpan={colSpan - 1} style={{ background: "var(--bg-strip)", padding: 0 }} />
         </tr>
       )}
+      {goneSep > 0 && <GoneSepRow count={goneSep} colSpan={colSpan} />}
       <tr>
         <td className="sticky-col">
           <span className="row" style={{ gap: 8 }}>
@@ -434,7 +443,7 @@ function SchedRow({
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }} title={r.op.name}>
               {shortName(r.op.name)}
             </span>
-            <GoneTag op={r.op} compact />
+            <GoneTag op={r.op} />
           </span>
         </td>
         {days.map((d, colIndex) => {

@@ -400,6 +400,12 @@ export function employmentWindow(op: Operator, month: MonthKey): Window | null {
   return { from, to };
 }
 
+/** Уволен или удалён — в списках такие идут в конце, отдельно от работающих. */
+export const isGone = (op: Pick<Operator, "status" | "deletedAt">) => op.status === "fired" || !!op.deletedAt;
+
+/** Для сортировки: работающие раньше ушедших (0, если оба одной категории). */
+export const goneLast = (a: Pick<Operator, "status" | "deletedAt">, b: Pick<Operator, "status" | "deletedAt">) => Number(isGone(a)) - Number(isGone(b));
+
 /** Работал ли оператор в штате в этом месяце (по датам приёма/увольнения и статусу). */
 export function employedIn(op: Operator, month: MonthKey): boolean {
   if (op.status === "fired" && !op.fireDate) return false;

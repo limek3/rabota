@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useCrm, type AdjustmentInput } from "@/lib/crm/store";
-import { approvePctFor, approvePctWhere, leadIncome, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
+import { approvePctFor, approvePctWhere, goneLast, isGone, leadIncome, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
 import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, payrollRow, type PayRow } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
 import { fmtInt, fmtMoney, fmtNum, fmtPct, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Drawer, Empty, Field, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Swatch, downloadText, foldRow, toCsv, useFoldGroups } from "@/components/ui/kit";
+import { Avatar, Chip, Drawer, Empty, Field, GoneSepRow, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Swatch, downloadText, foldRow, toCsv, useFoldGroups } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditPay, canTouchOp } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -110,7 +110,7 @@ export default function PayrollPage() {
     return Array.from(map.entries())
       .map(([id, list]) => {
         const g = id === NO_GROUP ? null : ix.groupById.get(id);
-        const sorted = [...list].sort((a, b) => Number(isSv(b)) - Number(isSv(a)) || a.op.name.localeCompare(b.op.name, "ru"));
+        const sorted = [...list].sort((a, b) => goneLast(a.op, b.op) || Number(isSv(b)) - Number(isSv(a)) || a.op.name.localeCompare(b.op.name, "ru"));
         return {
           id,
           name: g?.name ?? NO_GROUP_LABEL,
@@ -311,8 +311,12 @@ export default function PayrollPage() {
                     {!closed &&
                       sec.rows.map((r, i) => {
                         const f = foldRow(phase, i);
+                        // уволенные — в конце группы, за разделителем
+                        const firstGone = isGone(r.op) && (i === 0 || !isGone(sec.rows[i - 1].op));
                         return (
-                        <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""} ${f.className}`} style={f.style} onClick={() => setOpenId(r.op.id)}>
+                        <Fragment key={r.op.id}>
+                        {firstGone && <GoneSepRow count={sec.rows.filter((x) => isGone(x.op)).length} colSpan={14} indent={28} />}
+                        <tr className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""} ${f.className}`} style={f.style} onClick={() => setOpenId(r.op.id)}>
                           <td className="sticky-col" style={{ paddingLeft: 28 }}>
                             <span className="row" style={{ gap: 8 }}>
                               <Avatar name={r.op.name} id={r.op.id} size={24} />
@@ -351,6 +355,7 @@ export default function PayrollPage() {
                             )}
                           </td>
                         </tr>
+                        </Fragment>
                         );
                       })}
                   </tbody>

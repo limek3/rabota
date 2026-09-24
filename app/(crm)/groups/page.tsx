@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
-import { PACE_HUE, approvePctWhere, leadIncome, monthCal, type GroupRow } from "@/lib/crm/calc";
+import { PACE_HUE, approvePctWhere, goneLast, isGone, leadIncome, monthCal, type GroupRow } from "@/lib/crm/calc";
 import { fundStat, payroll } from "@/lib/crm/payroll";
 import { NO_GROUP } from "@/lib/crm/types";
 import { fmtMonth, monthEnd, monthStart } from "@/lib/crm/dates";
@@ -84,7 +84,7 @@ function GroupCard({ g }: { g: GroupRow }) {
   const isNone = g.key === NO_GROUP;
   const canEdit = access.isHead || access.ownGroups.has(g.key);
   const candidates = data.operators.filter((o) => !o.deletedAt && o.status !== "fired" && (o.groupId || NO_GROUP) !== g.key);
-  const members = [...g.members].sort((a, b) => b.pace.fact - a.pace.fact);
+  const members = [...g.members].sort((a, b) => goneLast(a.op, b.op) || b.pace.fact - a.pace.fact);
 
   return (
     <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14, opacity: g.group && !g.group.active ? 0.75 : 1 }}>
@@ -168,8 +168,10 @@ function GroupCard({ g }: { g: GroupRow }) {
         <Collapse open={open} innerStyle={{ paddingTop: 8 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {members.length === 0 && <div style={{ fontSize: 12.5, color: "var(--dim)" }}>В группе никого нет.</div>}
-            {members.map((r) => (
-              <div key={r.op.id} className="row" style={{ gap: 8, fontSize: 12.5 }}>
+            {members.map((r, i) => (
+              <Fragment key={r.op.id}>
+              {isGone(r.op) && (i === 0 || !isGone(members[i - 1].op)) && <div className="gone-sep-line">Уволены · {members.filter((x) => isGone(x.op)).length}</div>}
+              <div className="row" style={{ gap: 8, fontSize: 12.5 }}>
                 <Avatar name={r.op.name} id={r.op.id} size={22} />
                 <Link href={`/operators?id=${encodeURIComponent(r.op.id)}`} style={{ flex: 1, minWidth: 0, color: "var(--text)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {shortName(r.op.name)}
@@ -179,6 +181,7 @@ function GroupCard({ g }: { g: GroupRow }) {
                   {fmtInt(r.pace.fact)}/{fmtInt(r.terms.plan)}
                 </span>
               </div>
+              </Fragment>
             ))}
             <div className="row" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
               {!isNone && g.group && !g.group.deletedAt && access.can.manageOperators && canEdit && (

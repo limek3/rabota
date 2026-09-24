@@ -663,3 +663,30 @@ console.log("ALL OK");
   assert.ok(!after.attention.noShift.includes(victim.op.name), "выходной — не «нет смены»");
   console.log(`23 ok: выходной не тянет отчёт вниз — план дня ${before.total.plan.toFixed(1)} → ${after.total.plan.toFixed(1)}`);
 }
+
+/* 24. Уволенный в день отчёта без смены — не в таблице с «0%», а в событиях */
+{
+  const assert = require("assert");
+  const { buildIndex } = R("calc");
+  const { buildDemo } = R("demo");
+  const { buildReport } = R("report");
+  const today = "2026-09-18";
+  const day = "2026-09-17";
+  const st = buildDemo(today);
+  const base = buildReport(st, buildIndex(st), "day", day, "", today);
+  const victim = base.rows.find((r) => r.plan > 0 && r.hours > 0);
+  const op = st.operators.find((o) => o.id === victim.op.id);
+  op.status = "fired";
+  op.fireDate = day;
+  st.shifts = st.shifts.filter((s) => !(s.operatorId === op.id && s.date === day));
+  st.leads = st.leads.filter((l) => !(l.operatorId === op.id && l.at.startsWith(day)));
+  const r = buildReport(st, buildIndex(st), "day", day, "", today);
+  assert.ok(!r.rows.some((x) => x.op.id === op.id), "уволенного без смены нет в таблице");
+  const ev = r.events.find((e) => e.kind === "fired" && e.name === op.name);
+  assert.ok(ev && ev.day === day && ev.note.startsWith("уволен"), "увольнение — в событиях");
+  // уволенный, который успел отработать, — в конце таблицы
+  const r2 = buildReport(buildDemo(today), buildIndex(buildDemo(today)), "day", day, "", today);
+  const firedWorked = r2.rows.map((x) => x.op.status === "fired" || !!x.op.deletedAt);
+  assert.ok(firedWorked.indexOf(true) === -1 || firedWorked.slice(firedWorked.indexOf(true)).every(Boolean), "уволенные — в конце");
+  console.log(`24 ok: увольнение в событиях — ${ev.note}`);
+}

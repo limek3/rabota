@@ -1,6 +1,7 @@
 import type { DataState, DayKey, Operator } from "./types";
 import { NO_GROUP, NO_GROUP_LABEL } from "./types";
-import { WORKED_TYPES, employmentWindow, monthModel, type Index, type MonthModel, type OpRow } from "./calc";
+import { WORKED_TYPES, employmentWindow, goneLast, isGone, monthModel, probation, type Index, type MonthModel, type OpRow } from "./calc";
+import { daysBetween } from "./hiring";
 import { addDays, monthOf, rangeDays, weekStart } from "./dates";
 import { safeDiv } from "./format";
 
@@ -41,7 +42,17 @@ export interface Report {
   rows: ReportRow[];
   month: { month: string; fact: number; plan: number; rr: number; rrPct: number };
   attention: { noShift: string[]; noLeads: string[]; lowConv: { name: string; conv: number }[] };
+  /** Кадровые события периода — отдельно от цифр: приём, увольнение, закрытая стажировка. */
+  events: ReportEvent[];
   convNorm: number;
+}
+
+export interface ReportEvent {
+  kind: "hired" | "fired" | "passed";
+  day: DayKey;
+  name: string;
+  /** «в штате 23 дн., стажировка не закрыта», «за 5 дн.» */
+  note: string;
 }
 
 export function reportRange(kind: ReportKind, anchor: DayKey): { from: DayKey; to: DayKey } {
@@ -97,7 +108,10 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     const win = employmentWindow(op, mm.cal.month);
     if (!r || !win || d < win.from || d > win.to || !mm.cal.isWork(d)) return 0;
     const sh = ix.shift.get(`${d}|${op.id}`);
-    if (sh && !(WORKED_TYPES.has(sh.type) && sh.hours > 0)) return 0;
+    const worked = !!sh && WORKED_TYPES.has(sh.type) && sh.hours > 0;
+    if (sh && !worked) return 0;
+    // уволенный — план только за реально отработанные смены: в день увольнения без смены он уже не в строю
+    if (isGone(op) && !worked) return 0;
     const wd = mm.cal.workdays.filter((x) => x >= win.from && x <= win.to).length;
     return wd > 0 ? r.terms.plan / wd : 0;
   };
@@ -130,7 +144,7 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     row.conv = row.hours > 0 ? row.leads / row.hours : null;
     rows.push(row);
   }
-  rows.sort((a, b) => b.leads - a.leads || (b.conv ?? 0) - (a.conv ?? 0) || a.op.name.localeCompare(b.op.name, "ru"));
+  rows.sort((a, b) => goneLast(a.op, b.op) || b.leads - a.leads || (b.conv ?? 0) - (a.conv ?? 0) || a.op.name.localeCompare(b.op.name, "ru"));
 
   const sum = (f: (r: ReportRow) => number) => rows.reduce((a, r) => a + f(r), 0);
   const total = {
@@ -174,6 +188,25 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
   for (const r of rows) if (r.conv != null && r.hours >= 4 && r.conv < convNorm && r.leads > 0) attention.lowConv.push({ name: r.op.name, conv: r.conv });
   attention.lowConv.sort((a, b) => a.conv - b.conv);
 
+  // кадровые события периода: в таблице цифр им не место, но РОПу важно их видеть
+  const events: ReportEvent[] = [];
+  for (const op of st.operators) {
+    if (!inGroup(op.groupId) || (op.deletedAt && !byOpDay.has(op.id) && !ix.hoursOpDay.has(op.id))) continue;
+    const inPeriod = (d: string) => !!d && d >= from && d <= factTo;
+    if (inPeriod(op.hireDate)) events.push({ kind: "hired", day: op.hireDate, name: op.name, note: "принят(а) в штат" });
+    const pr = probation(op, ix, st.settings, factTo);
+    if (pr.active && pr.doneAt && inPeriod(pr.doneAt)) {
+      const days = op.hireDate ? daysBetween(op.hireDate, pr.doneAt) : null;
+      events.push({ kind: "passed", day: pr.doneAt, name: op.name, note: `закрыл(а) стажировку${days != null ? ` за ${days} дн.` : ""}` });
+    }
+    if (op.status === "fired" && inPeriod(op.fireDate)) {
+      const days = op.hireDate ? daysBetween(op.hireDate, op.fireDate) : null;
+      const bits = [days != null ? `в штате ${days} дн.` : "", pr.active && !(pr.doneAt && pr.doneAt <= op.fireDate) ? "стажировку не закрыл(а)" : ""].filter(Boolean);
+      events.push({ kind: "fired", day: op.fireDate, name: op.name, note: `уволен(а)${bits.length ? ` · ${bits.join(", ")}` : ""}` });
+    }
+  }
+  events.sort((a, b) => a.day.localeCompare(b.day) || a.name.localeCompare(b.name, "ru"));
+
   const scope = !groupId ? "Весь отдел" : groupId === NO_GROUP ? NO_GROUP_LABEL : ix.groupById.get(groupId)?.name ?? "Группа";
   return {
     kind,
@@ -186,6 +219,7 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     rows,
     month: { month: mm.cal.month, fact: pace.fact, plan: monthPlan, rr: pace.rr, rrPct: safeDiv(pace.rr, monthPlan) },
     attention,
+    events,
     convNorm,
   };
 }

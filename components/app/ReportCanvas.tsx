@@ -125,8 +125,11 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
   ctx0.font = `13px ${sans}`;
   const attnLines = attn.map((a) => wrap(ctx0, a.items.join(", "), W - P * 2 - 32).length);
   const hAttn = attn.length ? 34 + attnLines.reduce((s, n) => s + 24 + n * 19 + 12, 0) : 0;
+  // кадровые события — строкой на событие: заголовок блока + строки
+  const EV_ROW = 26;
+  const hEvents = r.events.length ? 34 + r.events.length * EV_ROW + 6 : 0;
   const hFoot = 44;
-  const H = P + hHeader + hTiles + 8 + hChart + hTable + (hAttn ? 20 + hAttn : 0) + hFoot;
+  const H = P + hHeader + hTiles + 8 + hChart + hTable + (hAttn ? 20 + hAttn : 0) + (hEvents ? 20 + hEvents : 0) + hFoot;
 
   canvas.width = W * SCALE;
   canvas.height = Math.ceil(H * SCALE);
@@ -313,6 +316,41 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
       lines.forEach((l, k) => text(l, P + 16, y + 32 + k * 19, C.text));
       y += h + 12;
       void i;
+    });
+  }
+
+  // ── события: приём, увольнение, стажировка — отдельно от цифр отчёта ──
+  if (r.events.length) {
+    y += 20;
+    font(14, 600);
+    text("События", P, y + 14);
+    y += 34;
+    const hue = { hired: C.brand, passed: C.green, fired: C.red } as const;
+    const label = { hired: "Приём", passed: "Стажировка", fired: "Увольнение" } as const;
+    r.events.forEach((e, i) => {
+      if (i) {
+        ctx.strokeStyle = C.line;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(P, y - 8.5);
+        ctx.lineTo(W - P, y - 8.5);
+        ctx.stroke();
+      }
+      ctx.fillStyle = hue[e.kind];
+      ctx.beginPath();
+      ctx.arc(P + 5, y + 5, 4, 0, Math.PI * 2);
+      ctx.fill();
+      font(12.5, 600);
+      text(label[e.kind], P + 18, y + 10, hue[e.kind]);
+      font(12.5, 400, mono);
+      text(`${e.day.slice(8, 10)}.${e.day.slice(5, 7)}`, P + 118, y + 10, C.sub);
+      font(13, 500);
+      const who = shortName(e.name);
+      text(who, P + 170, y + 10, C.text);
+      const ww = ctx.measureText(who).width;
+      font(12.5);
+      text(clip(ctx, e.note, W - P - (P + 170 + ww + 12)), P + 170 + ww + 12, y + 10, C.sub);
+      y += EV_ROW;
     });
   }
 

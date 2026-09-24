@@ -859,3 +859,9 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 @media (prefers-reduced-motion: reduce) { .clip-tip { animation: none; } }
 /* журнал лидов: плотнее по горизонтали — все колонки влезают без прокрутки на 1440 */
 .tbl-leads th, .tbl-leads td { padding-left: 7px; padding-right: 7px; }
+
+/* уволенные — в конце списка, за тонким разделителем */
+.tbl tr.gone-sep td { padding-top: 10px; padding-bottom: 4px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); background: var(--bg-panel); border-top: 1px dashed var(--ink-10); cursor: default; }
+.tbl tbody tr.gone-sep:hover td { background: var(--bg-panel); }
+.gone-sep-line { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); }
+.gone-sep-line::after { content: ""; flex: 1; border-top: 1px dashed var(--ink-10); }

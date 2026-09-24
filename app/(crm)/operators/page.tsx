@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
-import { PACE_HUE, PACE_LABEL, type OpRow, type Pace, type PaceStatus } from "@/lib/crm/calc";
+import { PACE_HUE, PACE_LABEL, goneLast, isGone, type OpRow, type Pace, type PaceStatus } from "@/lib/crm/calc";
 import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
 import { fmtMonth } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Empty, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, type FoldPhase, type SortState } from "@/components/ui/kit";
+import { Avatar, Empty, GoneSepRow, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
@@ -102,7 +102,8 @@ export default function OperatorsPage() {
       const x = val(a, sort.key);
       const y = val(b, sort.key);
       const c = typeof x === "string" ? x.localeCompare(y as string, "ru") : (x as number) - (y as number);
-      return c * sort.dir || a.op.name.localeCompare(b.op.name, "ru");
+      // уволенные — всегда в конце, при любой сортировке
+      return goneLast(a.op, b.op) || c * sort.dir || a.op.name.localeCompare(b.op.name, "ru");
     });
     return out;
   }, [rows, q, group, emp, pace, showDeleted, sort, keyOf]);
@@ -193,6 +194,15 @@ export default function OperatorsPage() {
   };
 
   const groups = data.groups.filter((g) => !g.deletedAt);
+
+  // перед первым уволенным в списке — разделитель «Уволены · N»
+  const withGoneSep = (rs: OpRow[], render: (r: OpRow, i: number) => ReactNode) =>
+    rs.map((r, i) => (
+      <Fragment key={r.op.id}>
+        {isGone(r.op) && (i === 0 || !isGone(rs[i - 1].op)) && <GoneSepRow count={rs.filter((x) => isGone(x.op)).length} colSpan={16} />}
+        {render(r, i)}
+      </Fragment>
+    ));
 
   const renderRow = (r: OpRow, i = 0, phase?: FoldPhase) => {
     const f = foldRow(phase, i);
@@ -413,12 +423,12 @@ export default function OperatorsPage() {
                       <td />
                       <td className="r num">{sec.t.hours > 0 ? fmtNum(sec.t.fact / sec.t.hours, 2) : "—"}</td>
                     </tr>
-                    {!closed && sec.rows.map((r, i) => renderRow(r, i, phase))}
+                    {!closed && withGoneSep(sec.rows, (r, i) => renderRow(r, i, phase))}
                   </tbody>
                 );
               })
             ) : (
-              <tbody>{list.map((r) => renderRow(r))}</tbody>
+              <tbody>{withGoneSep(list, (r) => renderRow(r))}</tbody>
             )}
             <tfoot>
               <tr>

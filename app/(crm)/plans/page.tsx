@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
+import { goneLast, isGone } from "@/lib/crm/calc";
 import { planId } from "@/lib/crm/ids";
 import { NO_GROUP, NO_GROUP_LABEL, type MonthPlan } from "@/lib/crm/types";
 import { fmtMonth, fmtRange, isWorkday, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, GoneTag, MonthSwitcher, PageHead, Swatch } from "@/components/ui/kit";
+import { Avatar, Chip, GoneSepRow, GoneTag, MonthSwitcher, PageHead, Swatch } from "@/components/ui/kit";
 import { canEditPlan } from "@/lib/crm/access";
 
 /** Поле плана месяца: пусто — значение по умолчанию, число — отдельный план на этот месяц. */
@@ -68,7 +69,8 @@ export default function PlansPage() {
         .sort((a, b) => {
           const ga = a.groupKey === NO_GROUP ? "я" : ix.groupById.get(a.groupKey)?.name ?? "";
           const gb = b.groupKey === NO_GROUP ? "я" : ix.groupById.get(b.groupKey)?.name ?? "";
-          return ga.localeCompare(gb, "ru") || a.op.name.localeCompare(b.op.name, "ru");
+          // уволенные — в конце всего списка, за разделителем
+          return goneLast(a.op, b.op) || ga.localeCompare(gb, "ru") || a.op.name.localeCompare(b.op.name, "ru");
         }),
     [m.ops, ix],
   );
@@ -183,12 +185,14 @@ export default function PlansPage() {
               </tr>
             </thead>
             <tbody>
-              {ops.map((r) => {
+              {ops.map((r, i) => {
                 const pr = rec(planId(month, "operator", r.op.id));
                 const def = r.op.monthlyPlan ?? s.defaultOperatorPlan;
                 const g = r.op.groupId ? ix.groupById.get(r.op.groupId) : null;
                 return (
-                  <tr key={r.op.id} className={r.op.status !== "active" ? "dim" : ""}>
+                  <Fragment key={r.op.id}>
+                  {isGone(r.op) && (i === 0 || !isGone(ops[i - 1].op)) && <GoneSepRow count={ops.filter((x) => isGone(x.op)).length} colSpan={9} />}
+                  <tr className={r.op.status !== "active" ? "dim" : ""}>
                     <td className="sticky-col">
                       <span className="row" style={{ gap: 8 }}>
                         <Avatar name={r.op.name} id={r.op.id} size={22} />
@@ -212,6 +216,7 @@ export default function PlansPage() {
                     <td className="r num bl">{fmtInt(r.pace.fact)}</td>
                     <td className="r num">{fmtPct(r.pace.pct)}</td>
                   </tr>
+                  </Fragment>
                 );
               })}
             </tbody>

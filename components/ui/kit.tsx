@@ -42,21 +42,18 @@ export function Chip({ hue = "gray", children, dot, title, style }: { hue?: stri
   );
 }
 
-/**
- * Плашка у имени: «увол. 21.09» или «удалён» — в графике, зарплате, списках.
- * compact — «ув.» / «удл.» с датой в подсказке, для узких колонок (график).
- */
-export function GoneTag({ op, compact }: { op: Pick<Operator, "status" | "fireDate" | "deletedAt">; compact?: boolean }) {
-  const small: CSSProperties = { height: 18, padding: compact ? "0 5px" : "0 6px", fontSize: 10.5, flex: "none" };
+/** Плашка у имени: «увол. 21.09» или «удалён» — в графике, зарплате, списках. */
+export function GoneTag({ op }: { op: Pick<Operator, "status" | "fireDate" | "deletedAt"> }) {
+  const small: CSSProperties = { height: 18, padding: "0 6px", fontSize: 10.5, flex: "none" };
   if (op.status === "fired") {
     const d = op.fireDate ? `${op.fireDate.slice(8, 10)}.${op.fireDate.slice(5, 7)}` : "";
     return (
       <Chip hue="red" title={op.fireDate ? `Уволен с ${d}.${op.fireDate.slice(0, 4)}` : "Уволен"} style={small}>
-        {compact ? "ув." : <>увол.{d && ` ${d}`}</>}
+        увол.{d && ` ${d}`}
       </Chip>
     );
   }
-  if (op.deletedAt) return <Chip hue="gray" title="Удалён из списков, история сохранена" style={small}>{compact ? "удл." : "удалён"}</Chip>;
+  if (op.deletedAt) return <Chip hue="gray" title="Удалён из списков, история сохранена" style={small}>удалён</Chip>;
   return null;
 }
 
@@ -116,6 +113,21 @@ export function ClipText({ text, width, full }: { text: string; width: number; f
           document.body,
         )}
     </>
+  );
+}
+
+/**
+ * Разделитель в таблице перед уволенными: «Уволены · 2». Уволенные идут в конце списка
+ * и видны, но не смешиваются с работающими.
+ */
+export function GoneSepRow({ count, colSpan, indent = 10 }: { count: number; colSpan: number; indent?: number }) {
+  return (
+    <tr className="gone-sep">
+      <td className="sticky-col" style={{ paddingLeft: indent }}>
+        Уволены · {count}
+      </td>
+      {colSpan > 1 && <td colSpan={colSpan - 1} />}
+    </tr>
   );
 }
 
