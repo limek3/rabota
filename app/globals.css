@@ -43,233 +43,267 @@
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* ── Фирменные курсоры Vexi ─────────────────────────────────────────────
+   Одни на обе темы: средний джинсовый синий (#4a78bd) читается и на светлом, и на
+   тёмном фоне. Формы обычные: стрелка (везде), рука-указатель (кликабельное),
+   крест (выделение в «Расписании»). Углы мягкие — stroke совпадает с fill,
+   linejoin: round, так что контур не читается обводкой, а лишь скругляет углы. */
+:root {
+  --cursor-brand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M5 2.5 5 20.5 9.7 16.3 12.6 22.4 15.2 21.2 12.4 15.3 18.4 15.3 Z' fill='%234a78bd' stroke='%234a78bd' stroke-width='1.2' stroke-linejoin='round' stroke-linecap='round'/></svg>") 5 3, auto;
+  --cursor-hand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M9 2.4c.86 0 1.55.7 1.55 1.55V10.4c.35-.26.78-.42 1.25-.42.54 0 1.03.22 1.39.57.36-.3.82-.48 1.32-.48.58 0 1.11.25 1.48.66.32-.19.69-.3 1.08-.3 1.16 0 2.1.94 2.1 2.1v3.35c0 2.88-2.33 5.22-5.22 5.22h-1.24c-1.58 0-3.07-.73-4.03-1.98l-3.37-4.4c-.53-.69-.4-1.68.29-2.22.61-.48 1.47-.45 2.05.08l1.05.95V3.95c0-.85.69-1.55 1.55-1.55z' fill='%234a78bd' stroke='%234a78bd' stroke-width='0.8' stroke-linejoin='round'/></svg>") 9 2, pointer;
+  /* Открытая рука — над тем, что можно схватить (draggable-карточки). */
+  --cursor-grab: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><path d='M12 21.6c-1.6 0-3.1-.66-4.2-1.84l-3.7-4.0c-.5-.54-.47-1.38.07-1.9.53-.5 1.36-.48 1.87.04l1.34 1.37V6.2c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.3h.5V4.9c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v5.6h.5V5.6c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.9h.5V7.4c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v6.9c0 4.0-2.6 7.0-6.5 7.0z' fill='%234a78bd'/></svg>") 13 13, grab;
+  /* Сжатый кулак — пока карточку тащат. */
+  --cursor-grabbing: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><g fill='%234a78bd'><path d='M5 13c0-1.15.93-2.08 2.08-2.08h7.4c1.15 0 2.25.46 3.06 1.28l.2.2c.5.5.76 1.17.76 1.87v1.1c0 3.25-2.35 5.65-5.6 5.65h-1.5c-1.55 0-3.03-.63-4.1-1.75l-1.95-2.05c-.48-.5-.75-1.17-.75-1.87z'/><rect x='7.2' y='7.8' width='2.5' height='4.2' rx='1.25'/><rect x='10.3' y='7.0' width='2.5' height='5.0' rx='1.25'/><rect x='13.4' y='7.4' width='2.5' height='4.6' rx='1.25'/><rect x='16.4' y='9.0' width='2.4' height='3.4' rx='1.2'/></g></svg>") 13 14, grabbing;
+  /* Каретка ввода (I-beam) — над текстовыми полями, тоже в акценте. */
+  --cursor-text: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22'><path d='M5.5 2.5h5M5.5 19.5h5M8 2.5v17' fill='none' stroke='%234a78bd' stroke-width='1.6' stroke-linecap='round'/></svg>") 8 11, text;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Тёмная тема — «тёплый графит».
+   Поверхности без холодного подтона: серый с каплей охры, как бумага в
+   сумерках. Акцент — пастельный небесный (#92b8f0): на тёмном фоне он светится
+   мягко, не режет глаз, а текст на нём тёмный (--on-brand).
+   Слои снизу вверх: сайдбар → фон контента → панель → модалка.
+   ════════════════════════════════════════════════════════════════════ */
 :root,
 :root[data-theme="dark"] {
-  /* Notion-dark neutral surfaces */
-  --bg: #191919;
-  --bg-sidebar: #202020;
-  --bg-panel: #252525;
-  --bg-panel-hover: #2c2c2c;
-  --bg-strip: #202020;
-  --bg-modal: #252525;
-  --text: #e6e6e4;
-  --text-soft: #d4d4d1;
-  --text-quote: #cececb;
-  --text-sub: #9b9a97;
-  --text-sub2: #a6a5a1;
-  --text-sub3: #7f7e7b;
-  --dim: #6f6e6b;
-  --dimmer: #565553;
-  --green-soft: #b48cfb;
-  --amber: #cb912f;
-  --amber-soft: #c8a878;
-  --blue: #8b68fa;
-  --green: #8b68fa;
-  --green-hover: #b48cfb;
-  --on-green: #ffffff;
-  --red: #df5452;
-  /* Единственный акцент — фиолетовый Vexi.
-     Ровно тот же тон, что на мордочке маскота (public/vexi/vexi-purple.png):
-     #8B68FA — насыщенный низ её градиента, #B48CFB — светлый верх. Раньше здесь
-     жил синий Notion; акцент и логотип спорили друг с другом на каждом экране. */
-  --brand: #8b68fa;
-  --brand-soft: #b48cfb;
-  --brand-strong: #7b4ff0;
-  --on-brand: #ffffff;
-  --brand-glow: rgba(139, 104, 250, 0.22);
-  --brand-tint: rgba(139, 104, 250, 0.12);
-  --brand-border: rgba(139, 104, 250, 0.4);
-  /* Фирменные курсоры Vexi — просто акцентный цвет, без белой обводки. Формы
-     обычные: стрелка (везде), рука-указатель (кликабельное) и крест (выделение
-     в «Расписании»). Углы мягкие — stroke совпадает с fill, linejoin: round,
-     так что контур не читается отдельной обводкой, а лишь скругляет углы. */
-  --cursor-brand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M5 2.5 5 20.5 9.7 16.3 12.6 22.4 15.2 21.2 12.4 15.3 18.4 15.3 Z' fill='%238b68fa' stroke='%238b68fa' stroke-width='1.2' stroke-linejoin='round' stroke-linecap='round'/></svg>") 5 3, auto;
-  --cursor-hand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M9 2.4c.86 0 1.55.7 1.55 1.55V10.4c.35-.26.78-.42 1.25-.42.54 0 1.03.22 1.39.57.36-.3.82-.48 1.32-.48.58 0 1.11.25 1.48.66.32-.19.69-.3 1.08-.3 1.16 0 2.1.94 2.1 2.1v3.35c0 2.88-2.33 5.22-5.22 5.22h-1.24c-1.58 0-3.07-.73-4.03-1.98l-3.37-4.4c-.53-.69-.4-1.68.29-2.22.61-.48 1.47-.45 2.05.08l1.05.95V3.95c0-.85.69-1.55 1.55-1.55z' fill='%238b68fa' stroke='%238b68fa' stroke-width='0.8' stroke-linejoin='round'/></svg>") 9 2, pointer;
-  /* Открытая рука — над тем, что можно схватить (draggable-карточки). */
-  --cursor-grab: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><path d='M12 21.6c-1.6 0-3.1-.66-4.2-1.84l-3.7-4.0c-.5-.54-.47-1.38.07-1.9.53-.5 1.36-.48 1.87.04l1.34 1.37V6.2c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.3h.5V4.9c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v5.6h.5V5.6c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.9h.5V7.4c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v6.9c0 4.0-2.6 7.0-6.5 7.0z' fill='%238b68fa'/></svg>") 13 13, grab;
-  /* Сжатый кулак — пока карточку тащат. */
-  --cursor-grabbing: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><g fill='%238b68fa'><path d='M5 13c0-1.15.93-2.08 2.08-2.08h7.4c1.15 0 2.25.46 3.06 1.28l.2.2c.5.5.76 1.17.76 1.87v1.1c0 3.25-2.35 5.65-5.6 5.65h-1.5c-1.55 0-3.03-.63-4.1-1.75l-1.95-2.05c-.48-.5-.75-1.17-.75-1.87z'/><rect x='7.2' y='7.8' width='2.5' height='4.2' rx='1.25'/><rect x='10.3' y='7.0' width='2.5' height='5.0' rx='1.25'/><rect x='13.4' y='7.4' width='2.5' height='4.6' rx='1.25'/><rect x='16.4' y='9.0' width='2.4' height='3.4' rx='1.2'/></g></svg>") 13 14, grabbing;
-  /* Каретка ввода (I-beam) — над текстовыми полями, тоже в акценте. */
-  --cursor-text: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22'><path d='M5.5 2.5h5M5.5 19.5h5M8 2.5v17' fill='none' stroke='%238b68fa' stroke-width='1.6' stroke-linecap='round'/></svg>") 8 11, text;
-  --ink-015: rgba(255, 255, 255, 0.015);
-  --ink-03: rgba(255, 255, 255, 0.03);
-  --ink-035: rgba(255, 255, 255, 0.035);
-  --ink-04: rgba(255, 255, 255, 0.04);
-  --ink-05: rgba(255, 255, 255, 0.05);
-  --ink-06: rgba(255, 255, 255, 0.06);
-  --ink-07: rgba(255, 255, 255, 0.07);
-  --ink-08: rgba(255, 255, 255, 0.08);
-  --ink-09: rgba(255, 255, 255, 0.09);
-  --ink-10: rgba(255, 255, 255, 0.1);
-  --ink-12: rgba(255, 255, 255, 0.12);
-  --ink-15: rgba(255, 255, 255, 0.15);
-  --ink-25: rgba(255, 255, 255, 0.25);
-  --ink-35: rgba(255, 255, 255, 0.35);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: rgba(0, 0, 0, 0.2) 0px 0px 0px 1px, rgba(0, 0, 0, 0.28) 0px 2px 4px;
-  --shadow-lg: rgba(0, 0, 0, 0.2) 0px 0px 0px 1px, rgba(0, 0, 0, 0.32) 0px 3px 8px;
-  --shadow-xl: rgba(0, 0, 0, 0.2) 0px 0px 0px 1px, rgba(0, 0, 0, 0.35) 0px 9px 24px;
-  --glass-core: #252525;
-  --glass-edge: rgba(37, 37, 37, 0);
+  color-scheme: dark;
+  --bg: #1c1b19;
+  --bg-sidebar: #151413;
+  --bg-panel: #232220;
+  --bg-panel-hover: #2a2926;
+  --bg-strip: #201f1c;
+  --bg-modal: #262522;
+  --text: #efece6;
+  --text-soft: #e0dcd4;
+  --text-quote: #d6d2c9;
+  --text-sub: #aca79c;
+  --text-sub2: #b4afa4;
+  --text-sub3: #918b80;
+  --dim: #7f7a70;
+  --dimmer: #5c5850;
+  --green-soft: #bcd4f7;
+  --amber: #e6b76a;
+  --amber-soft: #d9bd8c;
+  --blue: #92b8f0;
+  --green: #92b8f0;
+  --green-hover: #a8c7f5;
+  --on-green: #14243c;
+  --red: #ef8f86;
+  /* Акцент — пастельный небесный. */
+  --brand: #92b8f0;
+  --brand-soft: #bcd4f7;
+  --brand-strong: #a8c7f5;
+  --on-brand: #14243c;
+  --brand-glow: rgba(146, 184, 240, 0.24);
+  --brand-tint: rgba(146, 184, 240, 0.1);
+  --brand-border: rgba(146, 184, 240, 0.4);
+  /* сплошная пастельная подложка акцента (активный пункт меню, вкладка) и текст на ней */
+  --brand-pastel: #22303f;
+  --brand-ink: #b3cff7;
+  /* поле ввода с заливкой вместо обводки */
+  --field: #2b2a27;
+  --field-hover: #312f2c;
+  /* текст на заливке цвета статуса (выбранный статус, «верно» в тесте) */
+  --on-hue: #1c1b19;
+  --on-danger: #2b1210;
+  /* наведение на строку таблицы — непрозрачное, чтобы липкие колонки не просвечивали */
+  --row-hover: #292825;
+  --backdrop: rgba(6, 5, 3, 0.6);
+  --ink-015: rgba(255, 246, 230, 0.015);
+  --ink-03: rgba(255, 246, 230, 0.03);
+  --ink-035: rgba(255, 246, 230, 0.035);
+  --ink-04: rgba(255, 246, 230, 0.04);
+  --ink-05: rgba(255, 246, 230, 0.05);
+  --ink-06: rgba(255, 246, 230, 0.06);
+  --ink-07: rgba(255, 246, 230, 0.07);
+  --ink-08: rgba(255, 246, 230, 0.08);
+  --ink-09: rgba(255, 246, 230, 0.09);
+  --ink-10: rgba(255, 246, 230, 0.1);
+  --ink-12: rgba(255, 246, 230, 0.12);
+  --ink-15: rgba(255, 246, 230, 0.15);
+  --ink-25: rgba(255, 246, 230, 0.25);
+  --ink-35: rgba(255, 246, 230, 0.35);
+  --shadow-xs: none;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.34);
+  --shadow-xl: 0 0 0 1px rgba(0, 0, 0, 0.22), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-brand: none;
+  --glass-core: #232220;
+  --glass-edge: rgba(35, 34, 32, 0);
   --glass-bright: 1;
-  --glass-bar-bg: rgba(32, 32, 32, 0.92);
-  --glass-bar-border: rgba(255, 255, 255, 0.09);
+  --glass-bar-bg: rgba(28, 27, 25, 0.9);
+  --glass-bar-border: rgba(255, 246, 230, 0.09);
   --glass-bar-inset-strong: transparent;
   --glass-bar-inset-soft: transparent;
-  --glass-bar-shadow-a: rgba(0, 0, 0, 0.24);
-  --glass-bar-shadow-b: rgba(0, 0, 0, 0.16);
+  --glass-bar-shadow-a: rgba(0, 0, 0, 0.26);
+  --glass-bar-shadow-b: rgba(0, 0, 0, 0.18);
   --glass-bar-bright: 1;
   --crm-chip-sheen: transparent;
-  --crm-chip-border: rgba(255, 255, 255, 0.12);
-  /* Плашки напоминаний (красная/жёлтая) — непрозрачные и в тёмной теме. Раньше
-     фон был rgba с 16% альфы: сквозь него просвечивала карточка, и «!16 июл»
-     выглядел мутным пятном. Значения — те же тона, сплющенные до сплошных
-     поверх --bg (#191919), плюс чуть более плотная рамка. */
-  --pill-amber-bg: #3a2c19;
-  --pill-amber-fg: #cb912f;
-  --pill-amber-border: #574320;
-  --pill-red-bg: #3a2020;
-  --pill-red-fg: #df5452;
-  --pill-red-border: #6a3232;
+  --crm-chip-border: rgba(255, 246, 230, 0.12);
+  --pill-amber-bg: #372d1c;
+  --pill-amber-fg: #ebc47e;
+  --pill-amber-border: #574629;
+  --pill-red-bg: #3d2421;
+  --pill-red-fg: #f4a097;
+  --pill-red-border: #633a34;
   --pill-shadow: none;
 
   /* ── CRM chip palette ───────────────────────────────────────────────
-     One fg/bg/border triple per hue. Every fg clears WCAG AA (4.5:1)
-     against BOTH its own chip bg and the page bg — checked, not eyeballed.
-     Stage / status / label / tag colours all alias into this set, so a
-     hue is defined once and both themes stay in sync. */
-  --c-gray-fg: #9b9a97;
-  --c-gray-bg: #2f2f2f;
-  --c-gray-bd: rgba(155, 154, 151, 0.28);
-  --c-blue-fg: #65a7d0;
-  --c-blue-bg: #1e3a4c;
-  --c-blue-bd: rgba(101, 167, 208, 0.28);
-  --c-green-fg: #65ae7e;
-  --c-green-bg: #223b2f;
-  --c-green-bd: rgba(101, 174, 126, 0.28);
-  --c-amber-fg: #d4a047;
-  --c-amber-bg: #4a3c2a;
-  --c-amber-bd: rgba(212, 160, 71, 0.28);
-  --c-red-fg: #e67876;
-  --c-red-bg: #452a29;
-  --c-red-bd: rgba(230, 120, 118, 0.28);
-  --c-purple-fg: #a58aca;
-  --c-purple-bg: #352a44;
-  --c-purple-bd: rgba(165, 138, 202, 0.28);
-  --c-pink-fg: #d47fa8;
-  --c-pink-bg: #432a37;
-  --c-pink-bd: rgba(212, 127, 168, 0.28);
-  --c-teal-fg: #62a89d;
-  --c-teal-bg: #1e3934;
-  --c-teal-bd: rgba(98, 168, 157, 0.28);
+     One fg/bg/border triple per hue. Пастельный текст на приглушённой
+     подложке того же тона. Каждый fg держит WCAG AA (4.5:1) и на своей
+     подложке, и на фоне страницы — проверено скриптом, не на глаз.
+     Stage / status / label / tag colours all alias into this set. */
+  --c-gray-fg: #b0aa9f;
+  --c-gray-bg: #2d2b28;
+  --c-gray-bd: rgba(176, 170, 159, 0.22);
+  --c-blue-fg: #93bff0;
+  --c-blue-bg: #1e2c3c;
+  --c-blue-bd: rgba(147, 191, 240, 0.22);
+  --c-green-fg: #8fd1a0;
+  --c-green-bg: #1d3124;
+  --c-green-bd: rgba(143, 209, 160, 0.22);
+  --c-amber-fg: #ebc47e;
+  --c-amber-bg: #372d1c;
+  --c-amber-bd: rgba(235, 196, 126, 0.22);
+  --c-red-fg: #f4a097;
+  --c-red-bg: #3d2421;
+  --c-red-bd: rgba(244, 160, 151, 0.22);
+  --c-purple-fg: #c3b0f0;
+  --c-purple-bg: #2d2640;
+  --c-purple-bd: rgba(195, 176, 240, 0.22);
+  --c-pink-fg: #f0a8c5;
+  --c-pink-bg: #3a222f;
+  --c-pink-bd: rgba(240, 168, 197, 0.22);
+  --c-teal-fg: #86d0c4;
+  --c-teal-bg: #183230;
+  --c-teal-bd: rgba(134, 208, 196, 0.22);
   /* Девятый тон — под статус «Резерв». Синее пурпурного (адапт) и холоднее
      серого (без статуса): на доске он стоит между «есть знакомый» и «минусом»,
      и не должен читаться ни как тёплый, ни как тревожный. */
-  --c-indigo-fg: #7b8ec9;
-  --c-indigo-bg: #26304a;
-  --c-indigo-bd: rgba(123, 142, 201, 0.28);
+  --c-indigo-fg: #a9b5ef;
+  --c-indigo-bg: #242a42;
+  --c-indigo-bd: rgba(169, 181, 239, 0.22);
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   Светлая тема — «сливки и деним».
+   Тёплая кремовая бумага, сайдбар цвета овсянки, чернила — тёплый графит.
+   Акцент — спокойный джинсовый синий: не спорит ни с зелёным «доведён», ни с
+   красным «не доведён», ни с жёлтым «в работе». Пастель живёт в подложках:
+   активный пункт меню, вкладка, чипы — светлые заливки без рамок.
+   ════════════════════════════════════════════════════════════════════ */
 :root[data-theme="light"] {
-  /* Notion-light: warm neutral surfaces, ink text, one blue accent */
-  --bg: #ffffff;
-  --bg-sidebar: #f7f7f5;
+  color-scheme: light;
+  --bg: #fffdf9;
+  --bg-sidebar: #f4f0e8;
   --bg-panel: #ffffff;
-  --bg-panel-hover: #f7f6f3;
-  --bg-strip: #f7f7f5;
+  --bg-panel-hover: #faf7f1;
+  --bg-strip: #faf7f2;
   --bg-modal: #ffffff;
-  --text: #37352f;
-  --text-soft: #37352f;
-  --text-quote: #37352f;
-  --text-sub: #787774;
-  --text-sub2: #6f6e69;
-  --text-sub3: #9b9a97;
-  --dim: #9b9a97;
-  --dimmer: #b8b7b4;
-  --green-soft: #7b4ff0;
-  --amber: #a3721e;
-  --amber-soft: #a3721e;
-  --blue: #7b4ff0;
-  --green: #7b4ff0;
-  --green-hover: #6b3ae6;
+  --text: #28251f;
+  --text-soft: #34302a;
+  --text-quote: #34302a;
+  --text-sub: #6b655a;
+  --text-sub2: #625c52;
+  --text-sub3: #7b7569;
+  --dim: #8a8478;
+  --dimmer: #bfb9ad;
+  --green-soft: #335e9c;
+  --amber: #9a6a14;
+  --amber-soft: #9a6a14;
+  --blue: #3d6db3;
+  --green: #3d6db3;
+  --green-hover: #335e9c;
   --on-green: #ffffff;
-  --red: #c0403a;
-  /* Светлая тема берёт тон на ступень темнее (#7B4FF0 вместо #8B68FA): на белом
-     фоне белый текст на #8B68FA даёт 4.2:1 — под порогом AA. */
-  --brand: #7b4ff0;
-  --brand-soft: #6b3ae6;
-  --brand-strong: #5c2bcc;
+  --red: #c0433a;
+  --brand: #3d6db3;
+  --brand-soft: #8eb1e3;
+  --brand-strong: #335e9c;
   --on-brand: #ffffff;
-  --brand-glow: rgba(123, 79, 240, 0.16);
-  --brand-tint: rgba(123, 79, 240, 0.07);
-  --brand-border: rgba(123, 79, 240, 0.35);
-  --ink-015: rgba(55, 53, 47, 0.024);
-  --ink-03: rgba(55, 53, 47, 0.04);
-  --ink-035: rgba(55, 53, 47, 0.045);
-  --ink-04: rgba(55, 53, 47, 0.05);
-  --ink-05: rgba(55, 53, 47, 0.06);
-  --ink-06: rgba(55, 53, 47, 0.08);
-  --ink-07: rgba(55, 53, 47, 0.09);
-  --ink-08: rgba(55, 53, 47, 0.11);
-  --ink-09: rgba(55, 53, 47, 0.13);
-  --ink-10: rgba(55, 53, 47, 0.15);
-  --ink-12: rgba(55, 53, 47, 0.16);
-  --ink-15: rgba(55, 53, 47, 0.2);
-  --ink-25: rgba(55, 53, 47, 0.3);
-  --ink-35: rgba(55, 53, 47, 0.42);
-  --shadow-sm: 0 1px 2px rgba(15, 15, 15, 0.1);
-  --shadow-md: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.08) 0px 2px 4px;
-  --shadow-lg: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px, rgba(15, 15, 15, 0.1) 0px 6px 16px;
-  --shadow-xl: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px, rgba(15, 15, 15, 0.2) 0px 9px 24px;
+  --brand-glow: rgba(61, 109, 179, 0.2);
+  --brand-tint: rgba(61, 109, 179, 0.08);
+  --brand-border: rgba(61, 109, 179, 0.38);
+  --brand-pastel: #e4edf9;
+  --brand-ink: #2b5591;
+  --field: #f6f2eb;
+  --field-hover: #f0ebe2;
+  --on-hue: #ffffff;
+  --on-danger: #ffffff;
+  --row-hover: #fbf8f2;
+  --backdrop: rgba(40, 32, 18, 0.28);
+  --ink-015: rgba(70, 56, 30, 0.022);
+  --ink-03: rgba(70, 56, 30, 0.036);
+  --ink-035: rgba(70, 56, 30, 0.042);
+  --ink-04: rgba(70, 56, 30, 0.048);
+  --ink-05: rgba(70, 56, 30, 0.058);
+  --ink-06: rgba(70, 56, 30, 0.074);
+  --ink-07: rgba(70, 56, 30, 0.088);
+  --ink-08: rgba(70, 56, 30, 0.104);
+  --ink-09: rgba(70, 56, 30, 0.118);
+  --ink-10: rgba(70, 56, 30, 0.132);
+  --ink-12: rgba(70, 56, 30, 0.15);
+  --ink-15: rgba(70, 56, 30, 0.19);
+  --ink-25: rgba(70, 56, 30, 0.28);
+  --ink-35: rgba(70, 56, 30, 0.4);
+  /* тёплые тени: холодная серая тень на кремовом фоне выглядит грязью */
+  --shadow-xs: 0 1px 2px rgba(60, 45, 20, 0.05);
+  --shadow-sm: 0 1px 2px rgba(60, 45, 20, 0.08), 0 0 0 1px rgba(60, 45, 20, 0.04);
+  --shadow-md: 0 0 0 1px rgba(60, 45, 20, 0.04), 0 2px 6px rgba(60, 45, 20, 0.07);
+  --shadow-lg: 0 0 0 1px rgba(60, 45, 20, 0.04), 0 4px 10px rgba(60, 45, 20, 0.07), 0 10px 24px rgba(60, 45, 20, 0.07);
+  --shadow-xl: 0 0 0 1px rgba(60, 45, 20, 0.05), 0 6px 14px rgba(60, 45, 20, 0.08), 0 18px 40px rgba(60, 45, 20, 0.12);
+  --shadow-brand: 0 1px 2px rgba(30, 60, 110, 0.18);
   --glass-core: #ffffff;
   --glass-edge: rgba(255, 255, 255, 0);
   --glass-bright: 1;
-  --glass-bar-bg: rgba(255, 255, 255, 0.9);
-  --glass-bar-border: rgba(55, 53, 47, 0.09);
+  --glass-bar-bg: rgba(255, 253, 249, 0.88);
+  --glass-bar-border: rgba(70, 56, 30, 0.09);
   --glass-bar-inset-strong: transparent;
   --glass-bar-inset-soft: transparent;
-  --glass-bar-shadow-a: rgba(15, 15, 15, 0.05);
-  --glass-bar-shadow-b: rgba(15, 15, 15, 0.06);
+  --glass-bar-shadow-a: rgba(60, 45, 20, 0.05);
+  --glass-bar-shadow-b: rgba(60, 45, 20, 0.06);
   --glass-bar-bright: 1;
   --crm-chip-sheen: transparent;
-  --crm-chip-border: rgba(55, 53, 47, 0.16);
-  --pill-amber-bg: #fbf3db;
-  --pill-amber-fg: #a3721e;
-  --pill-amber-border: rgba(203, 145, 47, 0.28);
-  --pill-red-bg: #fbe4e4;
-  --pill-red-fg: #c0403a;
-  --pill-red-border: rgba(212, 76, 71, 0.28);
+  --crm-chip-border: rgba(70, 56, 30, 0.15);
+  --pill-amber-bg: #fbefd4;
+  --pill-amber-fg: #82580c;
+  --pill-amber-border: rgba(196, 140, 40, 0.3);
+  --pill-red-bg: #fce5e1;
+  --pill-red-fg: #ad3a33;
+  --pill-red-border: rgba(200, 80, 70, 0.28);
   --pill-shadow: none;
 
-  /* CRM chip palette — light. Same hues, re-solved against light surfaces:
-     foregrounds darkened until each clears 4.5:1 on its own chip. */
-  --c-gray-fg: #6f6e69;
-  --c-gray-bg: #f1f1ef;
-  --c-gray-bd: rgba(111, 110, 105, 0.22);
-  --c-blue-fg: #2f749b;
-  --c-blue-bg: #e9f3f8;
-  --c-blue-bd: rgba(47, 116, 155, 0.22);
-  --c-green-fg: #3f7a5a;
-  --c-green-bg: #eef3ed;
-  --c-green-bd: rgba(63, 122, 90, 0.22);
-  --c-amber-fg: #93671b;
-  --c-amber-bg: #fbf3db;
-  --c-amber-bd: rgba(147, 103, 27, 0.22);
-  --c-red-fg: #c0403a;
-  --c-red-bg: #fdebec;
-  --c-red-bd: rgba(192, 64, 58, 0.22);
-  --c-purple-fg: #6940a5;
-  --c-purple-bg: #f4f0fa;
-  --c-purple-bd: rgba(105, 64, 165, 0.22);
-  --c-pink-fg: #ad1a72;
-  --c-pink-bg: #faf1f5;
-  --c-pink-bd: rgba(173, 26, 114, 0.22);
-  --c-teal-fg: #0f796a;
-  --c-teal-bg: #e4efec;
-  --c-teal-bd: rgba(15, 121, 106, 0.22);
-  --c-indigo-fg: #3f51a3;
-  --c-indigo-bg: #eceff9;
-  --c-indigo-bd: rgba(63, 81, 163, 0.22);
+  /* CRM chip palette — light. Пастельные подложки, насыщенный текст того же
+     тона: каждый fg держит 4.5:1 на своей подложке. */
+  --c-gray-fg: #5f5a50;
+  --c-gray-bg: #efebe4;
+  --c-gray-bd: rgba(95, 90, 80, 0.18);
+  --c-blue-fg: #2b5f9e;
+  --c-blue-bg: #e3edf9;
+  --c-blue-bd: rgba(43, 95, 158, 0.18);
+  --c-green-fg: #2e6b45;
+  --c-green-bg: #e0f1e4;
+  --c-green-bd: rgba(46, 107, 69, 0.18);
+  --c-amber-fg: #7d550b;
+  --c-amber-bg: #fbefd4;
+  --c-amber-bd: rgba(125, 85, 11, 0.2);
+  --c-red-fg: #ad3a33;
+  --c-red-bg: #fce5e1;
+  --c-red-bd: rgba(173, 58, 51, 0.18);
+  --c-purple-fg: #6a4aa8;
+  --c-purple-bg: #eee8f8;
+  --c-purple-bd: rgba(106, 74, 168, 0.18);
+  --c-pink-fg: #a13866;
+  --c-pink-bg: #fbe6ef;
+  --c-pink-bd: rgba(161, 56, 102, 0.18);
+  --c-teal-fg: #1d6a63;
+  --c-teal-bg: #dcf1ed;
+  --c-teal-bd: rgba(29, 106, 99, 0.18);
+  --c-indigo-fg: #414f9c;
+  --c-indigo-bg: #e6e9f8;
+  --c-indigo-bd: rgba(65, 79, 156, 0.18);
 }
 
 :root {
@@ -323,7 +357,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   /* Фирменный курсор Vexi. Не логотип, натянутый на стрелку, а обычный
-     указатель, перекрашенный в акцент (#8b68fa) с белой обводкой и мягкими,
+     указатель, перекрашенный в акцент (#4a78bd) с белой обводкой и мягкими,
      скруглёнными углами (stroke-linejoin: round). Белый контур держит его
      читаемым и на светлом, и на тёмном фоне. Кликабельные элементы со своим
      `cursor: pointer` по-прежнему показывают руку. */
@@ -493,11 +527,19 @@ select {
   font-family: inherit;
 }
 
+/* Фокус поля — мягкое кольцо, а не жёсткая рамка в полный акцент. !important —
+   потому что многие поля задают рамку инлайном. Ползунки и галочки не трогаем:
+   у них кольцо свое. */
 input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  border-color: var(--brand) !important;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+select:focus {
+  border-color: var(--brand-border) !important;
+  box-shadow: 0 0 0 3px var(--brand-tint);
 }
 
 button,
@@ -522,14 +564,25 @@ a:focus {
   outline: none !important;
 }
 
+/* Кольцо клавиатурного фокуса. Раньше здесь же стоял border-radius: 4px — и любая
+   кнопка или поле при Tab меняли форму. Поля ввода обходятся кольцом из правила
+   выше, второй контур им не нужен. */
 button:focus-visible,
 a:focus-visible,
+[role="button"]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--brand-border);
+  outline-offset: 2px;
+}
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--brand);
+  outline: none;
+}
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--brand-border);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
 /* onboarding checklist */
@@ -1071,7 +1124,7 @@ button {
   }
   50% {
     opacity: 0.5;
-    box-shadow: 0 0 0 4px rgba(139, 104, 250, 0);
+    box-shadow: 0 0 0 4px transparent;
   }
 }
 
@@ -1160,7 +1213,7 @@ button {
     box-shadow: 0 0 0 0 var(--brand-glow);
   }
   100% {
-    box-shadow: 0 0 0 7px rgba(139, 104, 250, 0);
+    box-shadow: 0 0 0 7px transparent;
   }
 }
 
@@ -1291,16 +1344,19 @@ button {
   padding: 13px 16px;
   border-radius: 11px;
   border: none;
-  color: #fff;
+  color: var(--on-brand);
   font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
-  background: linear-gradient(180deg, var(--brand-soft), var(--brand));
-  box-shadow: 0 10px 24px var(--brand-glow);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand-soft) 30%, var(--brand)), var(--brand));
+  box-shadow: var(--shadow-brand);
   transition: filter 0.15s ease, opacity 0.15s ease;
 }
 .auth-btn:hover:not(:disabled) {
   filter: brightness(1.06);
+}
+.auth-btn:active:not(:disabled) {
+  filter: brightness(0.96);
 }
 .auth-btn:disabled {
   cursor: default;

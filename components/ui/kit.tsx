@@ -788,13 +788,15 @@ export function MonthSwitcher({ value, onChange }: { value: MonthKey; onChange: 
   const cur = currentMonth();
   return (
     <div className="row" style={{ gap: 4 }}>
-      <button className="btn btn-sm btn-icon" onClick={() => onChange(addMonths(value, -1))} aria-label="Предыдущий месяц" title="Предыдущий месяц">
-        <Icon name="chevL" size={14} />
-      </button>
-      <MonthPicker value={value} onChange={onChange} />
-      <button className="btn btn-sm btn-icon" onClick={() => onChange(addMonths(value, 1))} aria-label="Следующий месяц" title="Следующий месяц">
-        <Icon name="chevR" size={14} />
-      </button>
+      <div className="stepper">
+        <button className="btn btn-sm btn-icon" onClick={() => onChange(addMonths(value, -1))} aria-label="Предыдущий месяц" title="Предыдущий месяц">
+          <Icon name="chevL" size={14} />
+        </button>
+        <MonthPicker value={value} onChange={onChange} size="sm" />
+        <button className="btn btn-sm btn-icon" onClick={() => onChange(addMonths(value, 1))} aria-label="Следующий месяц" title="Следующий месяц">
+          <Icon name="chevR" size={14} />
+        </button>
+      </div>
       {value !== cur && (
         <button className="btn btn-sm btn-ghost" onClick={() => onChange(cur)}>
           Текущий
@@ -849,15 +851,15 @@ export function PeriodPicker({ value, onChange, today }: { value: Period; onChan
       />
       {value.mode !== "range" ? (
         <div className="row" style={{ gap: 4 }}>
-          <button className="btn btn-sm btn-icon" onClick={() => shift(-1)} aria-label="Назад">
-            <Icon name="chevL" size={14} />
-          </button>
-          <span className="btn btn-sm" style={{ minWidth: 120, pointerEvents: "none", fontWeight: 600 }}>
-            {periodLabel(value)}
-          </span>
-          <button className="btn btn-sm btn-icon" onClick={() => shift(1)} aria-label="Вперёд">
-            <Icon name="chevR" size={14} />
-          </button>
+          <div className="stepper">
+            <button className="btn btn-sm btn-icon" onClick={() => shift(-1)} aria-label="Назад">
+              <Icon name="chevL" size={14} />
+            </button>
+            <span className="stepper-label">{periodLabel(value)}</span>
+            <button className="btn btn-sm btn-icon" onClick={() => shift(1)} aria-label="Вперёд">
+              <Icon name="chevR" size={14} />
+            </button>
+          </div>
           {!(value.from <= today && value.to >= today) && (
             <button className="btn btn-sm btn-ghost" onClick={() => onChange(periodFor(value.mode, today))}>
               {value.mode === "day" ? "Сегодня" : value.mode === "week" ? "Эта неделя" : "Этот месяц"}

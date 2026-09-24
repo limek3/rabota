@@ -86,7 +86,7 @@ export function TitleBar() {
 
       {/* ── brand ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "none" }}>
-        <span style={{ width: 18, height: 18, borderRadius: 5, background: "linear-gradient(150deg, var(--brand-soft), var(--brand-strong))", color: "#fff", fontSize: 8.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ width: 18, height: 18, borderRadius: 5, background: "linear-gradient(150deg, var(--brand-soft), var(--brand))", color: "var(--on-brand)", fontSize: 8.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
           LU
         </span>
         <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text)" }}>
