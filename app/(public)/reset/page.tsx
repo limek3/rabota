@@ -118,7 +118,7 @@ export default function ResetPage() {
               )}
 
               <button onClick={go} disabled={loading} className="auth-btn" style={{ opacity: loading ? 0.85 : 1 }}>
-                {loading && <span style={{ width: 14, height: 14, border: "2px solid color-mix(in srgb, currentColor 35%, transparent)", borderTopColor: "currentColor", borderRadius: "50%", animation: "vexaSpin .7s linear infinite" }} />}
+                {loading && <span style={{ width: 14, height: 14, border: "2px solid rgba(255,255,255,.4)", borderTopColor: "#fff", borderRadius: "50%", animation: "vexaSpin .7s linear infinite" }} />}
                 {loading ? "Сохраняю…" : "Сохранить пароль"}
               </button>
 
