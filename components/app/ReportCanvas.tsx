@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Report } from "@/lib/crm/report";
 import { fmtDate, fmtDay, fmtDayShort, fmtMonth, fmtStamp, fmtWeekday, nowStamp } from "@/lib/crm/dates";
-import { fmtInt, fmtNum } from "@/lib/crm/format";
+import { fmtInt, fmtNum, shortName } from "@/lib/crm/format";
 
 /**
  * Отчёт картинкой: рисуем на canvas сами, без библиотек — поэтому то, что видно
@@ -107,10 +107,10 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
   const week = r.kind === "week";
   const rowH = 30;
   const attn = [
-    r.attention.noShift.length ? { title: "Нет смены в графике", tone: C.amber, bg: C.amberBg, items: r.attention.noShift } : null,
-    r.attention.noLeads.length ? { title: "На смене, но без лидов", tone: C.red, bg: C.redBg, items: r.attention.noLeads } : null,
+    r.attention.noShift.length ? { title: "Нет смены в графике", tone: C.amber, bg: C.amberBg, items: r.attention.noShift.map(shortName) } : null,
+    r.attention.noLeads.length ? { title: "На смене, но без лидов", tone: C.red, bg: C.redBg, items: r.attention.noLeads.map(shortName) } : null,
     r.attention.lowConv.length
-      ? { title: `Конверсия ниже нормы ${Math.round(r.convNorm * 100)}%`, tone: C.red, bg: C.redBg, items: r.attention.lowConv.map((x) => `${x.name} — ${Math.round(x.conv * 100)}%`) }
+      ? { title: `Конверсия ниже нормы ${Math.round(r.convNorm * 100)}%`, tone: C.red, bg: C.redBg, items: r.attention.lowConv.map((x) => `${shortName(x.name)} — ${Math.round(x.conv * 100)}%`) }
       : null,
   ].filter(Boolean) as { title: string; tone: string; bg: string; items: string[] }[];
 
@@ -268,7 +268,7 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
     if (i) line(y);
     const mid = y + 20;
     font(13, 500);
-    text(clip(ctx, row.op.name + (row.op.status === "fired" ? " (увол.)" : ""), cols[0].w - 24), cellX(0), mid);
+    text(clip(ctx, shortName(row.op.name) + (row.op.status === "fired" ? " (увол.)" : ""), cols[0].w - 24), cellX(0), mid);
     font(13, 400, mono);
     text(fmtNum(row.hours, 0), cellX(1), mid, row.hours ? C.text : C.dim, "right");
     font(13, 600, mono);

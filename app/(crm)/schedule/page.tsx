@@ -7,7 +7,7 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import { sumRange, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays } from "@/lib/crm/dates";
-import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv } from "@/lib/crm/format";
+import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { Avatar, Empty, Field, GoneTag, Modal, MonthSwitcher, NumInput, PageHead, Seg, Switch, useWheelHScroll } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
@@ -284,7 +284,7 @@ export default function SchedulePage() {
           >
             <thead>
               <tr>
-                <th className="sticky-col" style={{ minWidth: 220 }}>
+                <th className="sticky-col" style={{ width: 1, minWidth: 150, whiteSpace: "nowrap" }}>
                   Оператор
                 </th>
                 {days.map((d, ci) => {
@@ -431,10 +431,10 @@ function SchedRow({
         <td className="sticky-col">
           <span className="row" style={{ gap: 8 }}>
             <Avatar name={r.op.name} id={r.op.id} size={22} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", maxWidth: 208 }} title={r.op.name}>
-              {r.op.name}
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }} title={r.op.name}>
+              {shortName(r.op.name)}
             </span>
-            <GoneTag op={r.op} />
+            <GoneTag op={r.op} compact />
           </span>
         </td>
         {days.map((d, colIndex) => {
@@ -858,7 +858,7 @@ function FillModal({ rows, onClose }: { rows: OpRow[]; onClose: () => void }) {
           value={who}
           options={[
             { value: "all", label: `Всем активным в списке (${rows.filter((r) => r.op.status === "active" && !r.op.deletedAt).length})` },
-            ...rows.map<Opt>((r) => ({ value: r.op.id, label: r.op.name })),
+            ...rows.map<Opt>((r) => ({ value: r.op.id, label: shortName(r.op.name) })),
           ]}
           onChange={setWho}
           ariaLabel="Кому"

@@ -6,7 +6,7 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import { planId } from "@/lib/crm/ids";
 import { NO_GROUP, NO_GROUP_LABEL, type MonthPlan } from "@/lib/crm/types";
 import { fmtMonth, fmtRange, isWorkday, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
-import { fmtInt, fmtNum, fmtPct } from "@/lib/crm/format";
+import { fmtInt, fmtNum, fmtPct, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, GoneTag, MonthSwitcher, PageHead, Swatch } from "@/components/ui/kit";
 import { canEditPlan } from "@/lib/crm/access";
 
@@ -192,7 +192,7 @@ export default function PlansPage() {
                     <td className="sticky-col">
                       <span className="row" style={{ gap: 8 }}>
                         <Avatar name={r.op.name} id={r.op.id} size={22} />
-                        {r.op.name}
+                        {shortName(r.op.name)}
                         <GoneTag op={r.op} />
                       </span>
                     </td>

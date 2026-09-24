@@ -7,7 +7,7 @@ import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
 import { dailyRows, PACE_HUE, type PaceStatus } from "@/lib/crm/calc";
 import { addDays, fmtDay, fmtDayShort, fmtMonth, fmtRange, fmtWeekday, weekStart } from "@/lib/crm/dates";
-import { DAYS, LEADS, OPS, fmtInt, fmtNum, fmtPct, fmtSigned, fmtSignedPct, plural, safeDiv } from "@/lib/crm/format";
+import { DAYS, fmtInt, fmtNum, fmtPct, fmtSigned, fmtSignedPct, LEADS, OPS, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, Empty, Kpi, MonthSwitcher, PageHead, Progress, StatusChip, Swatch } from "@/components/ui/kit";
 import { CumulativeChart, DailyBars, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
@@ -266,7 +266,7 @@ export default function DashboardPage() {
                 </span>
                 <Avatar name={r.op.name} id={r.op.id} size={26} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "block", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.op.name}</span>
+                <span style={{ display: "block", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortName(r.op.name)}</span>
                 <span style={{ fontSize: 11.5, color: "var(--dim)" }}>
                 {r.lph != null ? `${fmtNum(r.lph, 2)} лид/час · ` : ""}
                 {fmtPct(r.pace.pct)} плана
@@ -319,7 +319,7 @@ export default function DashboardPage() {
                                 title={`${r.op.name}: ${fmtInt(r.pace.fact)} из ${fmtInt(r.terms.plan)}, к плану на дату ${fmtPct(r.pace.paceRatio)}`}
                               >
                                 <Avatar name={r.op.name} id={r.op.id} size={20} />
-                                {r.op.name.split(" ").slice(0, 2).join(" ")}
+                                {shortName(r.op.name)}
                                 <span className="num" style={{ color: "var(--dim)" }}>
                                   {fmtPct(r.pace.paceRatio)}
                                 </span>

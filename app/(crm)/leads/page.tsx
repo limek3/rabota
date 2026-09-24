@@ -8,7 +8,7 @@ import { fmtDate, rangeDays } from "@/lib/crm/dates";
 import { LEADS, fmtInt, fmtNum, fmtPhone, plural, shortName } from "@/lib/crm/format";
 import { Chip, ClipText, Empty, LeadLinkButton, LeadStatusChip, PageHead, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
-import { canEditLead, canReviewLead } from "@/lib/crm/access";
+import { canReviewLead } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 
 const PAGE = 100;
@@ -19,7 +19,7 @@ function readQuery(): Record<string, string> {
 }
 
 export default function LeadsPage() {
-  const { data, full, ix, today, openLead, deleteLead, setLeadStatus, confirm, toast, access } = useCrm();
+  const { data, ix, today, openLead, setLeadStatus, confirm, toast, access } = useCrm();
   const [period, setPeriod] = useState<Period>(() => periodFor("month", today));
   const [operatorId, setOperatorId] = useState("");
   const [groupId, setGroupId] = useState("");
@@ -84,7 +84,7 @@ export default function LeadsPage() {
     const FORMER = "Уволенные и удалённые";
     return [
       { value: "", label: "Все операторы" },
-      ...working.map<Opt>((o) => ({ value: o.id, label: o.name, group: groupName(o), hint: leadsHint(o.id) })),
+      ...working.map<Opt>((o) => ({ value: o.id, label: shortName(o.name), group: groupName(o), hint: leadsHint(o.id) })),
       ...shown.map<Opt>((o) => ({
         value: o.id,
         label: o.name,
@@ -271,7 +271,6 @@ export default function LeadsPage() {
                 <th className="c">Группа</th>
                 {data.settings.directionEnabled && <th>{data.settings.directionLabel || "Направление"}</th>}
                 <th>Комментарий</th>
-                <th />
               </tr>
             </thead>
             <tbody>
@@ -311,35 +310,6 @@ export default function LeadsPage() {
                     )}
                     <td className="muted">
                       <ClipText text={l.comment} width={130} />
-                    </td>
-                    <td className="r" onClick={(e) => e.stopPropagation()}>
-                      <span className="row-actions">
-                        {canReviewLead(access, l) && l.status !== "done" && (
-                          <button className="btn btn-ghost btn-sm btn-icon" title="Доведён" style={{ color: "var(--c-green-fg)" }} onClick={() => void setLeadStatus([l.id], "done")}>
-                            <Icon name="check" size={14} stroke={2.2} />
-                          </button>
-                        )}
-                        {canReviewLead(access, l) && l.status !== "failed" && (
-                          <button className="btn btn-ghost btn-sm btn-icon" title="Не доведён — указать причину" style={{ color: "var(--c-red-fg)" }} onClick={() => openLead(l, { status: "failed" })}>
-                            <Icon name="close" size={14} stroke={2.2} />
-                          </button>
-                        )}
-                        <button className="btn btn-ghost btn-sm btn-icon" title={canEditLead(access, l, full) ? "Изменить" : "Открыть"} onClick={() => openLead(l)}>
-                          <Icon name={canEditLead(access, l, full) ? "edit" : "info"} size={14} />
-                        </button>
-                        {canEditLead(access, l, full, true) && (
-                        <button
-                          className="btn btn-ghost btn-sm btn-icon"
-                          title="Удалить ошибочную запись"
-                          onClick={async () => {
-                            if (await confirm({ title: "Удалить лид?", text: `${l.client || fmtPhone(l.phone)} · ${op?.name ?? ""}. Удаляйте только ошибочно внесённые записи.`, ok: "Удалить", danger: true }))
-                              void deleteLead(l.id);
-                          }}
-                        >
-                          <Icon name="trash" size={14} />
-                        </button>
-                        )}
-                      </span>
                     </td>
                   </tr>
                 );

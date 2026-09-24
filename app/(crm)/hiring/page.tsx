@@ -7,7 +7,7 @@ import { CANDIDATE_STAGE_HUE, CANDIDATE_STAGE_LABEL, NO_GROUP, NO_GROUP_LABEL } 
 import { EARLY_DAYS, daysBetween, fmtTenure, hiresIn, hiringFunnel, isOpenCandidate, leaversIn, staffStat, turnoverByMonth } from "@/lib/crm/hiring";
 import { hasCandidatesTable } from "@/lib/crm/remote";
 import { addMonths, fmtDate, fmtMonth, fmtMonthShort, monthEnd, monthStart } from "@/lib/crm/dates";
-import { fmtInt, fmtNum, fmtPct, plural, safeDiv } from "@/lib/crm/format";
+import { fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { Chip, Empty, Kpi, MonthSwitcher, PageHead, Progress, Seg, downloadText, toCsv } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
@@ -43,7 +43,7 @@ export default function HiringPage() {
   const [who, setWho] = useState("");
 
   const liveGroups = useMemo(() => data.groups.filter((g) => !g.deletedAt), [data.groups]);
-  const svName = (g: Group) => (g.supervisorId ? ix.opById.get(g.supervisorId)?.name ?? "" : g.supervisorName.trim());
+  const svName = (g: Group) => shortName(g.supervisorId ? ix.opById.get(g.supervisorId)?.name ?? "" : g.supervisorName.trim());
   // «чей найм»: супервайзеры (все их группы) и отдельные группы — РОПу и тем, кто видит весь отдел
   const whoOpts = useMemo(() => {
     const bySv = new Map<string, { label: string; groups: string[] }>();
@@ -354,7 +354,7 @@ export default function HiringPage() {
                       const o = h.stint.op;
                       return (
                         <tr key={o.id} className="clickable" onClick={() => openOperator(o)}>
-                          <td style={{ fontWeight: 500 }}>{o.name}</td>
+                          <td style={{ fontWeight: 500 }}>{shortName(o.name)}</td>
                           <td className="muted">{groupName(o.groupId)}</td>
                           <td className="num">{fmtDate(h.stint.hire)}</td>
                           <td style={{ minWidth: 170 }}>
@@ -566,7 +566,7 @@ export default function HiringPage() {
                       {leavers.map((l) => (
                         <tr key={l.op.id} className="clickable" onClick={() => openOperator(l.op)}>
                           <td>
-                            <div style={{ fontWeight: 500 }}>{l.op.name}</div>
+                            <div style={{ fontWeight: 500 }}>{shortName(l.op.name)}</div>
                             <div style={{ fontSize: 12, color: "var(--dim)" }}>{groupName(l.op.groupId)}</div>
                           </td>
                           <td className="num">{fmtDate(l.hire)}</td>

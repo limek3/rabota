@@ -6,7 +6,7 @@ import { useCrm } from "@/lib/crm/store";
 import { filterLeads, pivot } from "@/lib/crm/calc";
 import { HUES } from "@/lib/crm/defaults";
 import { NO_GROUP, NO_GROUP_LABEL, type Project } from "@/lib/crm/types";
-import { fmtInt, fmtPct, safeDiv } from "@/lib/crm/format";
+import { fmtInt, fmtPct, safeDiv, shortName } from "@/lib/crm/format";
 import { Chip, Collapse, Empty, PageHead, PeriodPicker, Progress, Seg, Swatch, downloadText, hueFg, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 
@@ -34,7 +34,7 @@ export default function ProjectsPage() {
     return Array.from(pv.entries())
       .map(([key, m]) => ({
         key,
-        name: by === "operator" ? ix.opById.get(key)?.name ?? "—" : key === NO_GROUP ? NO_GROUP_LABEL : ix.groupById.get(key)?.name ?? "—",
+        name: by === "operator" ? shortName(ix.opById.get(key)?.name ?? "—") : key === NO_GROUP ? NO_GROUP_LABEL : ix.groupById.get(key)?.name ?? "—",
         m,
         total: Array.from(m.values()).reduce((a, b) => a + b, 0),
       }))

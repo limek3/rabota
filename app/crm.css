@@ -852,7 +852,10 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 
 /* обрезанный текст в узкой колонке и его подсказка целиком */
 .clip-text { display: inline-block; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.clip-tip { position: fixed; z-index: 800; max-width: 380px; padding: 8px 11px; border-radius: 9px; font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); background: var(--bg-modal); border: 1px solid var(--ink-10); box-shadow: var(--shadow-lg); transform: translateY(-100%); pointer-events: none; animation: vexaModalIn 0.1s var(--ease); }
-.clip-tip.below { transform: none; }
+.clip-tip { position: fixed; z-index: 800; max-width: 380px; padding: 8px 11px; border-radius: 9px; font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); background: var(--bg-modal); border: 1px solid var(--ink-10); box-shadow: var(--shadow-lg); pointer-events: none; animation: clipTipIn 0.16s var(--ease) both; }
+.clip-tip.up { animation-name: clipTipUp; }
+@keyframes clipTipIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes clipTipUp { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .clip-tip { animation: none; } }
 /* журнал лидов: плотнее по горизонтали — все колонки влезают без прокрутки на 1440 */
 .tbl-leads th, .tbl-leads td { padding-left: 7px; padding-right: 7px; }

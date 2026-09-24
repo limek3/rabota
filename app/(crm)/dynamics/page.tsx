@@ -5,7 +5,7 @@ import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
 import { dailyRows, weeklyRows } from "@/lib/crm/calc";
 import { fmtDay, fmtDayShort, fmtMonth, fmtRange, fmtWeekday } from "@/lib/crm/dates";
-import { fmtInt, fmtNum, fmtPct, fmtSigned, fmtSignedPct } from "@/lib/crm/format";
+import { fmtInt, fmtNum, fmtPct, fmtSigned, fmtSignedPct, shortName } from "@/lib/crm/format";
 import { MonthSwitcher, PageHead, Seg, downloadText, toCsv } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { CumulativeChart, DailyBars, Legend } from "@/components/ui/charts";
@@ -26,7 +26,7 @@ export default function DynamicsPage() {
     }
     if (scope.startsWith("o:")) {
       const r = m.ops.find((x) => x.op.id === scope.slice(2));
-      if (r) return { label: r.op.name, plan: r.terms.plan, counts: ix.opDay.get(r.op.id), hours: ix.hoursOpDay.get(r.op.id), pace: r.pace };
+      if (r) return { label: shortName(r.op.name), plan: r.terms.plan, counts: ix.opDay.get(r.op.id), hours: ix.hoursOpDay.get(r.op.id), pace: r.pace };
     }
     return { label: "Вся команда", plan: m.team.plan, counts: ix.day, hours: ix.hoursDay, pace: m.team.pace };
   }, [scope, m, ix]);
@@ -90,7 +90,7 @@ export default function DynamicsPage() {
             ...m.groups.map<Opt>((g) => ({ value: `g:${g.key}`, label: g.name, group: "Группы", icon: dot(g.color) })),
             ...[...m.ops]
               .sort((a, b) => a.op.name.localeCompare(b.op.name, "ru"))
-              .map<Opt>((r) => ({ value: `o:${r.op.id}`, label: r.op.name, group: "Операторы" })),
+              .map<Opt>((r) => ({ value: `o:${r.op.id}`, label: shortName(r.op.name), group: "Операторы" })),
           ]}
         />
         <Seg value={tab} onChange={setTab} options={[{ value: "days", label: "По дням" }, { value: "weeks", label: "По неделям" }, { value: "hours", label: "По часам" }]} />

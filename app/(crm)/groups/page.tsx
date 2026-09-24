@@ -8,7 +8,7 @@ import { PACE_HUE, approvePctWhere, leadIncome, monthCal, type GroupRow } from "
 import { fundStat, payroll } from "@/lib/crm/payroll";
 import { NO_GROUP } from "@/lib/crm/types";
 import { fmtMonth, monthEnd, monthStart } from "@/lib/crm/dates";
-import { fmtInt, fmtNum, fmtPct, fmtSigned } from "@/lib/crm/format";
+import { fmtInt, fmtNum, fmtPct, fmtSigned, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, Collapse, Empty, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
 import { Select, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
@@ -79,7 +79,8 @@ function GroupCard({ g }: { g: GroupRow }) {
   }, [access.can.viewPayroll, data, ix, month, today, g.group]);
   const [open, setOpen] = useState(false);
   const p = g.pace;
-  const sup = g.group?.supervisorId ? ix.opById.get(g.group.supervisorId)?.name : g.group?.supervisorName;
+  const supFull = g.group?.supervisorId ? ix.opById.get(g.group.supervisorId)?.name : g.group?.supervisorName;
+  const sup = supFull ? shortName(supFull) : supFull;
   const isNone = g.key === NO_GROUP;
   const canEdit = access.isHead || access.ownGroups.has(g.key);
   const candidates = data.operators.filter((o) => !o.deletedAt && o.status !== "fired" && (o.groupId || NO_GROUP) !== g.key);
@@ -171,7 +172,7 @@ function GroupCard({ g }: { g: GroupRow }) {
               <div key={r.op.id} className="row" style={{ gap: 8, fontSize: 12.5 }}>
                 <Avatar name={r.op.name} id={r.op.id} size={22} />
                 <Link href={`/operators?id=${encodeURIComponent(r.op.id)}`} style={{ flex: 1, minWidth: 0, color: "var(--text)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {r.op.name}
+                  {shortName(r.op.name)}
                 </Link>
                 <StatusChip status={r.status} />
                 <span className="num" style={{ width: 64, textAlign: "right" }}>
@@ -192,7 +193,7 @@ function GroupCard({ g }: { g: GroupRow }) {
                   value=""
                   resetOnPick
                   placeholder="Перевести сюда…"
-                  options={candidates.map<Opt>((o) => ({ value: o.id, label: o.name, hint: o.groupId ? ix.groupById.get(o.groupId)?.name ?? "" : "без группы" }))}
+                  options={candidates.map<Opt>((o) => ({ value: o.id, label: shortName(o.name), hint: o.groupId ? ix.groupById.get(o.groupId)?.name ?? "" : "без группы" }))}
                   onChange={(v) => v && void moveOperator(v, g.group!.id)}
                   ariaLabel="Перевести в группу"
                   minPopWidth={280}

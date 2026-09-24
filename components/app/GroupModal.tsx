@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCrm, type GroupInput } from "@/lib/crm/store";
+import { shortName } from "@/lib/crm/format";
 import type { Group } from "@/lib/crm/types";
 import { Field, Modal, NumInput, hueFg } from "@/components/ui/kit";
 import { Select, type Opt } from "@/components/ui/select";
@@ -70,7 +71,7 @@ export function GroupModal({ group }: { group: Group | null }) {
           <Field label="Руководитель / супервайзер">
             <Select
               value={f.supervisorId ?? ""}
-              options={[{ value: "", label: "— не из сотрудников —" }, ...people.map<Opt>((o) => ({ value: o.id, label: o.name }))]}
+              options={[{ value: "", label: "— не из сотрудников —" }, ...people.map<Opt>((o) => ({ value: o.id, label: shortName(o.name) }))]}
               onChange={(v) => setF((x) => ({ ...x, supervisorId: v || null, supervisorName: v ? "" : x.supervisorName }))}
               ariaLabel="Руководитель"
             />

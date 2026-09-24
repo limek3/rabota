@@ -6,7 +6,7 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import { PACE_HUE, PACE_LABEL, type OpRow, type Pace, type PaceStatus } from "@/lib/crm/calc";
 import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
 import { fmtMonth } from "@/lib/crm/dates";
-import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv } from "@/lib/crm/format";
+import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
 import { Avatar, Empty, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
@@ -126,7 +126,7 @@ export default function OperatorsPage() {
           key,
           name: g?.name ?? NO_GROUP_LABEL,
           color: g?.color ?? "gray",
-          supervisor: g ? (g.supervisorId ? ix.opById.get(g.supervisorId)?.name : null) ?? (g.supervisorName || null) : null,
+          supervisor: g ? shortName((g.supervisorId ? ix.opById.get(g.supervisorId)?.name : null) ?? g.supervisorName) || null : null,
           status: m.groups.find((x) => x.key === key)?.status ?? null,
           rows: rs,
           t: {
@@ -205,7 +205,7 @@ export default function OperatorsPage() {
             <Avatar name={r.op.name} id={r.op.id} size={26} />
             <span style={{ minWidth: 0 }}>
               <span style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 500 }}>
-                {r.op.name}
+                {shortName(r.op.name)}
                 {r.isLeader && <Icon name="star" size={12} stroke={2} style={{ color: "var(--c-amber-fg)" }} />}
                 <GoneTag op={r.op} />
               </span>

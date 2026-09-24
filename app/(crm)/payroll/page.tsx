@@ -8,7 +8,7 @@ import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary
 import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
-import { fmtInt, fmtMoney, fmtNum, fmtPct } from "@/lib/crm/format";
+import { fmtInt, fmtMoney, fmtNum, fmtPct, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, Drawer, Empty, Field, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Swatch, downloadText, foldRow, toCsv, useFoldGroups } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditPay, canTouchOp } from "@/lib/crm/access";
@@ -115,7 +115,7 @@ export default function PayrollPage() {
           id,
           name: g?.name ?? NO_GROUP_LABEL,
           color: g?.color ?? "gray",
-          supervisor: g ? (g.supervisorId ? ix.opById.get(g.supervisorId)?.name : null) ?? (g.supervisorName || null) : null,
+          supervisor: g ? shortName((g.supervisorId ? ix.opById.get(g.supervisorId)?.name : null) ?? g.supervisorName) || null : null,
           rows: sorted,
           total: payrollOf(sorted).total,
         };
@@ -316,7 +316,7 @@ export default function PayrollPage() {
                           <td className="sticky-col" style={{ paddingLeft: 28 }}>
                             <span className="row" style={{ gap: 8 }}>
                               <Avatar name={r.op.name} id={r.op.id} size={24} />
-                              {r.op.name}
+                              {shortName(r.op.name)}
                               {isSv(r) && <Chip hue="indigo">СВ</Chip>}
                               {r.explicitTerms && <span title="Условия месяца зафиксированы" style={{ color: "var(--brand)" }}>•</span>}
                               <GoneTag op={r.op} />
@@ -982,7 +982,7 @@ function AdjustmentModal({ opId, adj, rows, cal, onClose }: { opId: string; adj?
       <Field label="Оператор" error={tried ? errOp : null}>
         <Select
           value={f.operatorId}
-          options={rows.map<Opt>((r) => ({ value: r.op.id, label: r.op.name, icon: <Avatar name={r.op.name} id={r.op.id} size={20} /> }))}
+          options={rows.map<Opt>((r) => ({ value: r.op.id, label: shortName(r.op.name), icon: <Avatar name={r.op.name} id={r.op.id} size={20} /> }))}
           onChange={(v) => setF({ ...f, operatorId: v })}
           disabled={!!adj}
           invalid={tried && !!errOp}
@@ -1014,7 +1014,7 @@ function AdjustmentModal({ opId, adj, rows, cal, onClose }: { opId: string; adj?
       {preview && (
         <div className="adj-preview">
           <div className="adj-preview-title">
-            {preview.before.op.name} · {fmtMonth(f.month)}
+            {shortName(preview.before.op.name)} · {fmtMonth(f.month)}
           </div>
           {preview.others.length > 0 && (
             <div className="row" style={{ gap: 6, flexWrap: "wrap", marginBottom: 8 }}>

@@ -42,18 +42,21 @@ export function Chip({ hue = "gray", children, dot, title, style }: { hue?: stri
   );
 }
 
-/** Плашка у имени: «увол. 21.09» или «удалён» — в графике, зарплате, списках. */
-export function GoneTag({ op }: { op: Pick<Operator, "status" | "fireDate" | "deletedAt"> }) {
-  const small: CSSProperties = { height: 18, padding: "0 6px", fontSize: 10.5, flex: "none" };
+/**
+ * Плашка у имени: «увол. 21.09» или «удалён» — в графике, зарплате, списках.
+ * compact — «ув.» / «удл.» с датой в подсказке, для узких колонок (график).
+ */
+export function GoneTag({ op, compact }: { op: Pick<Operator, "status" | "fireDate" | "deletedAt">; compact?: boolean }) {
+  const small: CSSProperties = { height: 18, padding: compact ? "0 5px" : "0 6px", fontSize: 10.5, flex: "none" };
   if (op.status === "fired") {
     const d = op.fireDate ? `${op.fireDate.slice(8, 10)}.${op.fireDate.slice(5, 7)}` : "";
     return (
       <Chip hue="red" title={op.fireDate ? `Уволен с ${d}.${op.fireDate.slice(0, 4)}` : "Уволен"} style={small}>
-        увол.{d && ` ${d}`}
+        {compact ? "ув." : <>увол.{d && ` ${d}`}</>}
       </Chip>
     );
   }
-  if (op.deletedAt) return <Chip hue="gray" title="Удалён из списков, история сохранена" style={small}>удалён</Chip>;
+  if (op.deletedAt) return <Chip hue="gray" title="Удалён из списков, история сохранена" style={small}>{compact ? "удл." : "удалён"}</Chip>;
   return null;
 }
 
@@ -87,15 +90,18 @@ export function LeadLinkButton({ link, variant = "pill" }: { link: string; varia
  */
 export function ClipText({ text, width, full }: { text: string; width: number; full?: string }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const [tip, setTip] = useState<{ x: number; y: number; below: boolean } | null>(null);
+  // top — подсказка под текстом; bottom — над ним, если внизу окна не хватает места.
+  // Позиция задаётся top/bottom, а не transform: иначе анимация появления сбивает сдвиг
+  // и подсказка прыгает — сначала на месте текста, потом выше.
+  const [tip, setTip] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
   if (!text) return <span className="muted">—</span>;
   const show = () => {
     const el = ref.current;
     // подсказка — если текст обрезан или показан сокращённо (full — полная форма)
     if (!el || (el.scrollWidth <= el.clientWidth && (!full || full === text))) return;
     const r = el.getBoundingClientRect();
-    const below = r.top < 160;
-    setTip({ x: Math.max(8, Math.min(r.left - 10, window.innerWidth - 388)), y: below ? r.bottom + 6 : r.top - 6, below });
+    const left = Math.max(8, Math.min(r.left - 10, window.innerWidth - 388));
+    setTip(window.innerHeight - r.bottom < 140 ? { left, bottom: window.innerHeight - r.top + 6 } : { left, top: r.bottom + 6 });
   };
   return (
     <>
@@ -104,7 +110,7 @@ export function ClipText({ text, width, full }: { text: string; width: number; f
       </span>
       {tip &&
         createPortal(
-          <div className={tip.below ? "clip-tip below" : "clip-tip"} style={{ left: tip.x, top: tip.y }} role="tooltip">
+          <div className={tip.bottom != null ? "clip-tip up" : "clip-tip"} style={tip} role="tooltip">
             {full || text}
           </div>,
           document.body,

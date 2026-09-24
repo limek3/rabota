@@ -9,7 +9,7 @@ import { DateTimeInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canCreateLeadFor, canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
-import { fmtPhone, normLink, normPhone } from "@/lib/crm/format";
+import { fmtPhone, normLink, normPhone, shortName } from "@/lib/crm/format";
 import { fmtStamp, nowStamp } from "@/lib/crm/dates";
 import { hasLeadLinkColumn } from "@/lib/crm/remote";
 
@@ -104,7 +104,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     () =>
       opOptions.map((o) => ({
         value: o.id,
-        label: o.name,
+        label: shortName(o.name),
         hint: [o.groupId ? ix.groupById.get(o.groupId)?.name ?? "" : "без группы", o.deletedAt ? "удалён" : o.status === "fired" ? "уволен" : ""].filter(Boolean).join(" · "),
         icon: <Avatar name={o.name} id={o.id} size={20} />,
       })),
@@ -216,7 +216,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     if (projectId) remember(LAST_PR, projectId);
     if (more && !lead) {
       setAdded((n) => n + 1);
-      toast(`Лид записан: ${ix.opById.get(operatorId)?.name ?? ""}`);
+      toast(`Лид записан: ${shortName(ix.opById.get(operatorId)?.name ?? "")}`);
       setClient("");
       setPhone("");
       setComment("");
@@ -372,7 +372,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
               hint={
                 dup ? (
                   <span style={{ color: "var(--c-amber-fg)" }}>
-                    Этот номер уже передавали {fmtStamp(dup.at)} ({ix.opById.get(dup.operatorId)?.name ?? "—"}). Проверьте, не дубль ли.
+                    Этот номер уже передавали {fmtStamp(dup.at)} ({shortName(ix.opById.get(dup.operatorId)?.name ?? "—")}). Проверьте, не дубль ли.
                   </span>
                 ) : undefined
               }

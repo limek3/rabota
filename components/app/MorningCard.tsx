@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import type { MonthModel } from "@/lib/crm/calc";
 import { addDays, fmtDayShort, isWorkday } from "@/lib/crm/dates";
-import { fmtInt, fmtNum, fmtPct } from "@/lib/crm/format";
+import { fmtInt, fmtNum, fmtPct, shortName } from "@/lib/crm/format";
 import { Avatar } from "@/components/ui/kit";
 import { Icon, type IconName } from "@/components/ui/icons";
 
@@ -75,7 +75,7 @@ export function MorningCard({ m }: { m: MonthModel }) {
             hue="amber"
             title="Нет смены на сегодня"
             hint="в графике пусто — поставьте смену или отметьте выходной"
-            people={view.noShift.map((r) => ({ id: r.op.id, name: r.op.name }))}
+            people={view.noShift.map((r) => ({ id: r.op.id, name: shortName(r.op.name) }))}
             empty="у всех есть смена"
           />
         )}
@@ -84,7 +84,7 @@ export function MorningCard({ m }: { m: MonthModel }) {
           hue="red"
           title="На смене, но без лидов"
           hint="с начала дня ни одного переданного лида"
-          people={view.noLeads.map((r) => ({ id: r.op.id, name: r.op.name }))}
+          people={view.noLeads.map((r) => ({ id: r.op.id, name: shortName(r.op.name) }))}
           empty="лиды идут у всех"
         />
         <Bucket
@@ -94,7 +94,7 @@ export function MorningCard({ m }: { m: MonthModel }) {
           hint="конверсия лид/час ниже нормы стажировки"
           people={view.weak.map((w) => ({
             id: w.r.op.id,
-            name: w.r.op.name,
+            name: shortName(w.r.op.name),
             note: `${fmtPct(w.lph)} · ${fmtInt(w.leads)} лид. за ${fmtNum(w.hours, 0)} ч`,
           }))}
           empty="вчера все отработали в норме"
