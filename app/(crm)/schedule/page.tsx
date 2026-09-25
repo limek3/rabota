@@ -8,12 +8,25 @@ import { goneLast, isGone, sumRange, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Conv, Empty, Field, GoneSepRow, GoneTag, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg, Switch, useWheelHScroll } from "@/components/ui/kit";
+import { Avatar, Conv, Empty, Field, GoneSepRow, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg, useWheelHScroll } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 
-const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training: "purple", vacation: "amber", sick: "red" };
+const TYPE_HUE: Record<DayType, string> = { work: "purple", off: "gray", training: "indigo", vacation: "amber", sick: "red" };
+
+/**
+ * «Лента»: день в графике — отрезок полосы. Подряд идущие дни одного вида сливаются
+ * в одну полосу (как в календаре), поэтому серии смен, больничный и «дыры» видны сразу.
+ *   work  — отработанная смена (сплошная, внутри лиды крупно и часы)
+ *   plan  — смена наперёд (светлая)
+ *   train — обучение
+ *   sick / vac — больничный / отпуск
+ *   gone  — после увольнения
+ * Выходной и дни до приёма — без полосы.
+ */
+type Lane = "work" | "plan" | "train" | "sick" | "vac" | "gone";
+const LANE_TAG: Partial<Record<Lane, string>> = { sick: "Б", vac: "О", gone: "У" };
 const TYPES: DayType[] = ["work", "training", "off", "vacation", "sick"];
 
 interface Sel {
@@ -45,7 +58,6 @@ export default function SchedulePage() {
   const m = useMonthModel();
   const s = data.settings;
   const [group, setGroup] = useState("");
-  const [showLeads, setShowLeads] = useState(true);
   const [sel, setSel] = useState<Sel | null>(null);
   const [fillOpen, setFillOpen] = useState(false);
   // выделение мышью, как в таблицах: зажали и протянули по клеткам
@@ -224,7 +236,7 @@ export default function SchedulePage() {
     <div className="stack" style={{ height: "calc(100vh / var(--ui-scale, 1) - 132px)" }}>
       <PageHead
         title="График"
-        sub={`${fmtMonth(month)} · отработанные часы, нормы и выработка.${access.can.editShifts ? " Клик по клетке — записать смену." : ""}`}
+        sub={`${fmtMonth(month)}${access.can.editShifts ? " · клик по клетке — записать смену, протяните — выделить несколько" : ""}`}
         actions={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
@@ -249,21 +261,14 @@ export default function SchedulePage() {
           onChange={setGroup}
           ariaLabel="Группа"
         />
-        <Switch size="sm" checked={showLeads} onChange={setShowLeads} label="лиды в клетках" />
         <span className="spacer" />
-        <div className="row" style={{ gap: 10, fontSize: 12, color: "var(--text-sub)", flexWrap: "wrap" }}>
-          {TYPES.map((t) => (
-            <span key={t} className="row" style={{ gap: 5 }}>
-              <span style={{ width: 18, height: 16, borderRadius: 4, background: `var(--c-${TYPE_HUE[t]}-bg)`, color: `var(--c-${TYPE_HUE[t]}-fg)`, fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                {t === "work" ? s.dayHours : DAY_SHORT[t]}
-              </span>
-              {DAY_LABEL[t]}
-            </span>
-          ))}
-          <span className="row" style={{ gap: 5 }}>
-            <span style={{ width: 18, height: 16, borderRadius: 4, background: "var(--c-red-bg)", color: "var(--c-red-fg)", fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>У</span>
-            Уволен
-          </span>
+        <div className="lane-legend">
+          <span><i className="lane work first last" />смена</span>
+          <span><i className="lane plan first last" />план</span>
+          <span><i className="lane train first last" />обучение</span>
+          <span><i className="lane sick first last" />больничный</span>
+          <span><i className="lane vac first last" />отпуск</span>
+          <span><i className="lane gone first last" />уволен</span>
         </div>
       </div>
 
@@ -308,8 +313,8 @@ export default function SchedulePage() {
                       }}
                       onMouseEnter={() => dayDrag.current && setDayRange((p) => (p ? { a: p.a, b: ci } : p))}
                     >
-                      <div>{Number(d.slice(8))}</div>
-                      <div style={{ fontWeight: 400, color: "var(--dim)", fontSize: 10 }}>{fmtWeekday(d)}</div>
+                      <div className="dh-d">{Number(d.slice(8))}</div>
+                      <div>{fmtWeekday(d)}</div>
                     </th>
                   );
                 })}
@@ -317,7 +322,7 @@ export default function SchedulePage() {
                 <th className="r sum sum-h" title="Отработано часов (рабочие дни + обучение)">Часы</th>
                 <th className="r sum sum-l hl">Лиды</th>
                 <th className="r sum sum-d" title={past ? "Лиды минус план месяца" : "Лиды минус план на сегодня"}>
-                  ±
+                  ± к плану
                 </th>
                 <th className="r sum sum-c hl" title="Конверсия: лиды ÷ отработанные часы">Конв.</th>
               </tr>
@@ -333,13 +338,13 @@ export default function SchedulePage() {
                     rowIndex={i}
                     days={days}
                     groupHeader={!group && r.groupKey !== prevKey ? gName : null}
+                    groupCount={rows.filter((x) => x.groupKey === r.groupKey && !isGone(x.op)).length}
                     goneSep={
                       isGone(r.op) && (r.groupKey !== prevKey || !isGone(rows[i - 1].op))
                         ? rows.filter((x) => x.groupKey === r.groupKey && isGone(x.op)).length
                         : 0
                     }
                     colSpan={days.length + 5}
-                    showLeads={showLeads}
                     sel={sel}
                     range={range}
                     colSel={colSel}
@@ -355,13 +360,11 @@ export default function SchedulePage() {
                   <td
                     key={days[i]}
                     className={`c num ${colSel && i >= colSel.c0 && i <= colSel.c1 ? "csel" : ""}`}
-                    style={{ fontSize: 11, padding: "6px 0" }}
+                    style={{ fontSize: 11.5, padding: "5px 0", lineHeight: 1.3 }}
                     title={`${fmtDay(days[i])}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${t.h ? ` · конверсия ${fmtPct(t.n / t.h)} (${fmtNum(t.n / t.h, 2)} лид/ч)` : ""}`}
                   >
-                    <div>{t.h ? fmtNum(t.h, 0) : ""}</div>
-                    {showLeads && <div style={{ color: "var(--brand)", fontWeight: 600 }}>{t.n || ""}</div>}
-                    {/* конверсия дня: лиды ÷ часы в процентах — как «эффективность» в обучении */}
-                    <div>{t.h > 0 && t.n > 0 ? <Conv leads={t.n} hours={t.h} /> : ""}</div>
+                    <div>{t.h ? fmtNum(t.h) : ""}</div>
+                    <div style={{ color: "var(--brand)", fontWeight: 700 }}>{t.n || ""}</div>
                   </td>
                 ))}
                 <td className="r num sum sum-h">{fmtNum(tot.hours)}</td>
@@ -396,9 +399,9 @@ function SchedRow({
   rowIndex,
   days,
   groupHeader,
+  groupCount,
   goneSep,
   colSpan,
-  showLeads,
   sel,
   range,
   colSel,
@@ -408,10 +411,11 @@ function SchedRow({
   rowIndex: number;
   days: DayKey[];
   groupHeader: string | null;
+  /** Сколько работающих в группе — в заголовке «Группа · N чел.». */
+  groupCount: number;
   /** Первый уволенный в группе — перед ним разделитель «Уволены · N». */
   goneSep: number;
   colSpan: number;
-  showLeads: boolean;
   sel: Sel | null;
   range: Range | null;
   colSel: { c0: number; c1: number } | null;
@@ -423,12 +427,30 @@ function SchedRow({
   const counts = ix.opDay.get(r.op.id);
   const hire = r.op.hireDate;
   const fire = r.op.fireDate;
+  // вид дня для ленты; соседи одного вида сливаются в полосу
+  const laneOf = (d: DayKey): Lane | null => {
+    const sh = ix.shift.get(`${d}|${r.op.id}`);
+    if (sh) {
+      if (sh.type === "sick") return "sick";
+      if (sh.type === "vacation") return "vac";
+      if (sh.type === "off") return null;
+      if (sh.type === "training") return "train";
+      return d > today ? "plan" : "work";
+    }
+    if (r.op.status === "fired" && fire && d >= fire) return "gone";
+    // лиды без смены — всё равно отработанный день
+    return (counts?.get(d) ?? 0) > 0 ? "work" : null;
+  };
+  const lanes = days.map(laneOf);
+  const ddmm = (d: DayKey) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
+  const opSub =
+    r.op.status === "fired" && fire ? `уволен(а) ${ddmm(fire)}` : hire && hire > days[0] && hire <= days[days.length - 1] ? `с ${ddmm(hire)}` : "";
   return (
     <>
       {groupHeader != null && (
         <tr className="grp">
           <td className="sticky-col" style={{ background: "var(--bg-strip)", fontSize: 11.5, fontWeight: 600, color: "var(--text-sub)", padding: "6px 10px" }}>
-            {groupHeader}
+            {groupHeader} · {groupCount} чел.
           </td>
           <td colSpan={colSpan - 1} style={{ background: "var(--bg-strip)", padding: 0 }} />
         </tr>
@@ -436,12 +458,14 @@ function SchedRow({
       {goneSep > 0 && <GoneSepRow count={goneSep} colSpan={colSpan} />}
       <tr>
         <td className="sticky-col">
-          <span className="row" style={{ gap: 8 }}>
-            <Avatar name={r.op.name} id={r.op.id} size={22} />
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }} title={r.op.name}>
-              {shortName(r.op.name)}
+          <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+            <Avatar name={r.op.name} id={r.op.id} size={24} />
+            <span style={{ minWidth: 0 }}>
+              <span className="op-n" title={r.op.name}>
+                {shortName(r.op.name)}
+              </span>
+              {opSub && <span className="op-sub">{opSub}</span>}
             </span>
-            <GoneTag op={r.op} />
           </span>
         </td>
         {days.map((d, colIndex) => {
@@ -453,17 +477,14 @@ function SchedRow({
           const n = counts?.get(d) ?? 0;
           const isSel = sel?.opId === r.op.id && sel.day === d;
           const isRange = inRange(range, rowIndex, colIndex);
-          const hue = sh ? TYPE_HUE[sh.type] : null;
+          const lane = lanes[colIndex];
+          const edge = lane ? `${lanes[colIndex - 1] !== lane ? " first" : ""}${lanes[colIndex + 1] !== lane ? " last" : ""}` : "";
+          const hours = sh && (sh.type === "work" || sh.type === "training") ? sh.hours : 0;
           return (
             <td
               key={d}
               className={`cell ${off ? "off" : ""} ${d === today ? "today" : ""} ${isSel ? "sel" : ""} ${isRange ? "rng" : ""} ${colSel && colIndex >= colSel.c0 && colIndex <= colSel.c1 ? "csel" : ""}`}
-              style={{
-                // цвет клетки — как в легенде: рабочий день синий, выходной серый, больничный красный…
-                background: sh ? `var(--c-${hue}-bg)` : gone ? "var(--c-red-bg)" : outside ? "repeating-linear-gradient(135deg, transparent 0 4px, var(--ink-04) 4px 6px)" : undefined,
-                color: sh ? `var(--c-${hue}-fg)` : gone ? "var(--c-red-fg)" : undefined,
-                cursor: canEdit ? undefined : "default",
-              }}
+              style={{ cursor: canEdit ? undefined : "default" }}
               title={`${fmtDay(d)}${sh ? ` · ${DAY_LABEL[sh.type]}${sh.hours ? `, ${fmtNum(sh.hours)} ч` : ""}${sh.comment ? ` · ${sh.comment}` : ""}` : ""}${n ? ` · лидов: ${n}` : ""}${outside ? " · до даты приёма" : ""}${gone ? " · уволен" : ""}`}
               onMouseDown={(e) => {
                 if (!canEdit || e.button !== 0) return;
@@ -474,14 +495,22 @@ function SchedRow({
               data-r={rowIndex}
               data-c={colIndex}
             >
-              <div className="num" style={{ fontWeight: sh?.type === "work" ? 500 : 700, fontSize: (sh && sh.type !== "work" && !sh.hours) || gone ? 11 : 12 }}>
-                {sh ? (sh.type === "work" ? (sh.hours ? fmtNum(sh.hours) : "0") : sh.type === "training" && sh.hours ? fmtNum(sh.hours) : DAY_SHORT[sh.type]) : gone ? "У" : ""}
-              </div>
-              {showLeads && n > 0 && (
-                <div className="num" style={{ fontSize: 10, color: "var(--brand)", fontWeight: 700, lineHeight: 1 }}>
-                  {n}
+              {lane ? (
+                <div className={`lane ${lane}${edge}`}>
+                  {lane === "work" || lane === "train" ? (
+                    <>
+                      <span className="lane-h num">{fmtNum(hours)}</span>
+                      {d <= today && <span className="lane-n num">{n || "—"}</span>}
+                    </>
+                  ) : lane === "plan" ? (
+                    <span className="lane-h num">{fmtNum(hours)}</span>
+                  ) : edge.includes("first") ? (
+                    <span className="lane-tag">{LANE_TAG[lane]}</span>
+                  ) : null}
                 </div>
-              )}
+              ) : sh?.type === "off" ? (
+                <span className="lane-off">в</span>
+              ) : null}
             </td>
           );
         })}

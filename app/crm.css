@@ -326,15 +326,18 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 
 /* график смен */
 .sched { font-size: 12px; }
-.sched td.cell { padding: 0; min-width: 34px; width: 34px; height: 30px; text-align: center; cursor: pointer; font-size: 12px; }
+.sched td.cell { padding: 4px 0; min-width: 33px; width: 33px; height: 40px; text-align: center; cursor: pointer; font-size: 11px; }
 /* строка-заголовок группы — сплошная полоса, без разделителей столбцов */
 .tbl.sched tr.grp td { border-left: none; }
 .sched td.cell:hover { background: var(--brand-tint) !important; }
 .sched td.cell.sel { outline: 2px solid var(--brand); outline-offset: -2px; }
-.sched td.cell.off, .sched th.off { background: var(--ink-03); }
-.sched th.today { box-shadow: inset 0 -2px 0 var(--brand); color: var(--brand); }
-.sched td.cell.today { background-color: var(--brand-tint); }
-.sched th.day { text-align: center; padding: 6px 2px; min-width: 34px; font-size: 11px; line-height: 1.2; }
+.sched td.cell.off { background: var(--ln-we); }
+.sched th.today { color: var(--brand); }
+.sched td.cell.today { background-color: var(--ln-today); }
+.sched th.day { text-align: center; padding: 6px 0 5px; min-width: 33px; font-size: 11px; font-weight: 600; line-height: 1.15; }
+.sched th.day .dh-d { font-size: 12px; font-weight: 600; color: var(--text); }
+.sched th.day.off .dh-d { color: var(--dim); }
+.sched th.day.today .dh-d { display: inline-block; color: var(--on-brand); background: var(--brand); border-radius: 6px; padding: 1px 5px; }
 
 /* курсор-крестик и подсветка выделенного прямоугольника: клетки выделяются
    протягиванием мыши, как в таблицах */
@@ -351,10 +354,10 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 /* итоговые колонки справа: часы → лиды → ± лидов к плану → конверсия.
    right — сумма ширин колонок правее; ширины не меньше заголовков, иначе липкие колонки наедут друг на друга */
 .sched .sum { padding-left: 4px; padding-right: 4px; }
-.sched .sum-h { right: 150px; width: 50px; min-width: 50px; }
-.sched .sum-l { right: 102px; width: 48px; min-width: 48px; }
-.sched .sum-d { right: 52px; width: 50px; min-width: 50px; }
-.sched .sum-c { right: 0; width: 52px; min-width: 52px; }
+.sched .sum-h { right: 178px; width: 54px; min-width: 54px; }
+.sched .sum-l { right: 124px; width: 54px; min-width: 54px; }
+.sched .sum-d { right: 54px; width: 70px; min-width: 70px; }
+.sched .sum-c { right: 0; width: 54px; min-width: 54px; }
 /* лиды и конверсия — ключевые колонки, подложка акцента (непрозрачная: колонки липкие) */
 .sched .sum.hl { background: color-mix(in srgb, var(--brand) 6%, var(--bg-panel)); }
 .sched thead .sum.hl, .sched tfoot .sum.hl { background: color-mix(in srgb, var(--brand) 9%, var(--bg-strip)); }
@@ -907,3 +910,53 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .audit-from { background: var(--c-red-bg); color: var(--c-red-fg); text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
 .audit-to { background: var(--c-green-bg); color: var(--c-green-fg); font-weight: 600; }
 .audit-empty { color: var(--dimmer); }
+
+/* ── «Лента» в графике: день — отрезок полосы, серии дней сливаются (как в календаре) ── */
+.sched, .lane-legend {
+  --ln-plan: color-mix(in srgb, var(--brand) 24%, var(--bg-panel)); --ln-plan-fg: color-mix(in srgb, var(--brand) 55%, #fff);
+  --ln-train: color-mix(in srgb, var(--brand) 60%, var(--bg-panel));
+  --ln-sick: var(--c-red-bg); --ln-sick-fg: var(--c-red-fg);
+  --ln-vac: var(--c-amber-bg); --ln-vac-fg: var(--c-amber-fg);
+  --ln-gone1: var(--ink-06); --ln-gone2: transparent; --ln-gone-fg: var(--dimmer);
+  --ln-off: var(--dimmer); --ln-we: var(--ink-015); --ln-today: color-mix(in srgb, var(--brand) 8%, transparent);
+  --ln-line: var(--ink-05);
+}
+:root[data-theme="light"] :is(.sched, .lane-legend) {
+  --ln-plan: #e7defd; --ln-plan-fg: #5a37c9; --ln-train: #b39cf5;
+  --ln-sick: #fbe1df; --ln-sick-fg: #b33b35; --ln-vac: #fbf0d2; --ln-vac-fg: #93671b;
+  --ln-gone1: #f3f2f0; --ln-gone2: #fafaf9; --ln-gone-fg: #b8b7b4;
+  --ln-off: #cfcecb; --ln-we: #fbfbfa; --ln-today: rgba(123, 79, 240, 0.08); --ln-line: #ecebea;
+}
+/* без пунктира между днями: полосы сплошные; линия только у имени и перед итогами */
+.tbl.sched :is(th, td) + :is(th, td) { border-left: none; }
+.tbl.sched .sticky-col { border-right: 1px solid var(--ln-line); }
+.tbl.sched .sum-h { border-left: 1px solid var(--ln-line); }
+.tbl.sched tbody td { border-bottom-color: var(--ln-line); }
+.lane { position: relative; height: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; line-height: 1.05; }
+.lane.first { margin-left: 3px; border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+.lane.last { margin-right: 3px; border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+.lane.work { background: var(--brand); color: #fff; }
+.lane.train { background: var(--ln-train); color: #fff; }
+.lane.plan { background: var(--ln-plan); color: var(--ln-plan-fg); }
+.lane.sick { background: var(--ln-sick); color: var(--ln-sick-fg); font-weight: 700; }
+.lane.vac { background: var(--ln-vac); color: var(--ln-vac-fg); font-weight: 700; }
+.lane.gone { background: repeating-linear-gradient(135deg, var(--ln-gone1) 0 5px, var(--ln-gone2) 5px 10px); color: var(--ln-gone-fg); font-weight: 700; }
+.lane.work .lane-h, .lane.train .lane-h { font-weight: 700; }
+/* лиды — мелкой цифрой под часами */
+.lane-n { font-size: 9.5px; opacity: 0.8; }
+.lane-off { color: var(--ln-off); font-size: 11px; font-weight: 600; }
+/* выделение поверх ленты — рамкой, не заливкой (полосу видно) */
+.sched td.cell.sel .lane, .sched td.cell.rng .lane { box-shadow: inset 0 0 0 2px var(--text); }
+/* имя: сокращённое ФИО и строка «с 24.09» / «уволен(а) 23.09» */
+.sched .op-n { display: block; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.sched .op-sub { display: block; font-size: 11px; color: var(--dim); }
+/* итоги без подсветки колонок */
+.sched .sum { font-size: 12.5px; }
+.sched .sum.hl { background: var(--bg-panel); }
+.sched thead .sum.hl, .sched tfoot .sum.hl { background: var(--bg-strip); }
+.sched tbody tr:hover .sum.hl { background: var(--bg-panel-hover); }
+/* легенда: цветные метки */
+.lane-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 12px; color: var(--text-sub); }
+.lane-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.lane-legend .lane { display: inline-block; height: 12px; width: 22px; margin: 0; border-radius: 6px; }
+.lane-legend .lane.gone { background: repeating-linear-gradient(135deg, var(--ln-gone1) 0 4px, var(--ln-gone2) 4px 8px); }
