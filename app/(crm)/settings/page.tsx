@@ -402,20 +402,6 @@ export default function SettingsPage() {
 
       <Section title="Лиды">
         <div className="grid3">
-          <Field label="Доп. поле в лиде">
-            <Select
-              value={f.directionEnabled ? "1" : "0"}
-              options={[
-                { value: "1", label: "Используется", icon: dot("green") },
-                { value: "0", label: "Не используется", icon: dot("gray") },
-              ]}
-              onChange={(v) => set("directionEnabled", v === "1")}
-              ariaLabel="Доп. поле"
-            />
-          </Field>
-          <Field label="Название поля" hint="Город, дилерский центр, направление…">
-            <input className="inp" value={f.directionLabel} onChange={(e) => set("directionLabel", e.target.value)} disabled={!f.directionEnabled} />
-          </Field>
           <Field label="Предупреждать о повторном телефоне, дней" hint="0 — не проверять">
             <NumInput value={f.duplicateDays} onChange={(v) => set("duplicateDays", v ?? 0)} max={3650} />
           </Field>

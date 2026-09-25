@@ -154,7 +154,7 @@ export default function LeadsPage() {
   const filtered = !!(operatorId || groupId || projectId || q || status || region);
 
   const exportCsv = () => {
-    const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", data.settings.directionLabel || "Направление", "Комментарий", "Источник", "Регион", "Основа / регионы"]];
+    const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", "Комментарий", "Источник", "Регион", "Основа / регионы"]];
     for (const l of list) {
       rows.push([
         l.id,
@@ -168,7 +168,6 @@ export default function LeadsPage() {
         l.projectId ? ix.projectById.get(l.projectId)?.name ?? "" : "",
         ix.opById.get(l.operatorId)?.name ?? "",
         l.groupId ? ix.groupById.get(l.groupId)?.name ?? "" : NO_GROUP_LABEL,
-        l.direction,
         l.comment,
         l.source,
         l.region ?? "",
@@ -345,7 +344,6 @@ export default function LeadsPage() {
                 <th>Регион</th>
                 <th>Оператор</th>
                 <th className="c">Группа</th>
-                {data.settings.directionEnabled && <th>{data.settings.directionLabel || "Направление"}</th>}
                 <th>Комментарий</th>
               </tr>
             </thead>
@@ -387,11 +385,6 @@ export default function LeadsPage() {
                       <ClipText text={shortName(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} full={(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} width={130} />
                     </td>
                     <td className={g ? "c" : "c muted"}>{g ? g.name : NO_GROUP_LABEL}</td>
-                    {data.settings.directionEnabled && (
-                      <td>
-                        <ClipText text={l.direction} width={100} />
-                      </td>
-                    )}
                     <td className="muted">
                       <ClipText text={l.comment} width={130} />
                     </td>

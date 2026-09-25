@@ -605,14 +605,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       // группа — снимок на момент передачи; при правке меняется только если сменили оператора
       const groupId =
         input.groupId !== undefined ? input.groupId : prev && prev.operatorId === input.operatorId ? prev.groupId : op.groupId;
-      // Время: оператор его не выбирает — новый лид получает «сейчас» по серверу (МСК), при правке
-      // время не меняется. Руководитель может поставить время задним числом, но не в будущем.
-      const now16 = nowStamp();
-      const at = a.isOp ? prev?.at ?? now16 : input.at || now16;
-      if (at > now16) {
-        toast(`Время передачи позже текущего (${now16.slice(11)} МСК) — проверьте дату и время`, "err");
-        return null;
-      }
+      // Время никто не выбирает: новый лид — «сейчас» по Москве (по часам платформы; в Supabase его
+      // перезаписывает сервер — supabase/migrations/…_lead_time_server.sql), при правке не меняется.
+      const at = prev?.at ?? nowStamp();
       const link = normLink(input.link);
       if (input.link.trim() && !link) {
         toast("Ссылка на лид не похожа на ссылку — вставьте адрес целиком (https://…)", "err");

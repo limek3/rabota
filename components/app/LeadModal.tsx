@@ -5,7 +5,7 @@ import { useCrm, type LeadPreset } from "@/lib/crm/store";
 import type { Lead, LeadStatus } from "@/lib/crm/types";
 import { LEAD_SOURCE, LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
 import { Avatar, Field, LeadStatusChip, Modal } from "@/components/ui/kit";
-import { DateTimeInput, Select, dot, type Opt } from "@/components/ui/select";
+import { Select, dot, type Opt } from "@/components/ui/select";
 import { canCreateLeadFor, canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
@@ -70,7 +70,6 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
   const [projectId, setProjectId] = useState(initPr);
   const [client, setClient] = useState(lead?.client ?? preset?.client ?? "");
   const [phone, setPhone] = useState(lead ? fmtPhone(lead.phone) : preset?.phone ?? "");
-  const [direction, setDirection] = useState(lead?.direction ?? preset?.direction ?? "");
   const [comment, setComment] = useState(lead?.comment ?? "");
   const [link, setLink] = useState(lead?.link ?? preset?.link ?? "");
   // регион: у нового лида — последний выбранный (если он ещё в списках), у старого — свой
@@ -81,11 +80,8 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     const last = remembered(LAST_RG);
     return last && regionList.includes(last) ? last : "";
   });
-  const [at, setAt] = useState(lead?.at ?? preset?.at ?? nowStamp());
   // время нового лида, которое не трогали руками, берётся в момент записи, а не открытия окна
-  const [atTouched, setAtTouched] = useState(!!lead || !!preset?.at);
   // оператор время не выбирает: его ставит система по серверу (МСК)
-  const timeLocked = access.isOp;
   const [groupId, setGroupId] = useState<string>(lead ? lead.groupId ?? "" : "");
   const [status, setStatus] = useState<LeadStatus>(preset?.status ?? lead?.status ?? "work");
   const [reason, setReason] = useState(lead?.statusReason ?? "");
@@ -144,16 +140,6 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     return opts;
   }, [s.regions, region, regionList]);
 
-  const directions = useMemo(() => {
-    if (!s.directionEnabled) return [];
-    const seen = new Map<string, number>();
-    for (let i = data.leads.length - 1; i >= 0 && seen.size < 60; i--) {
-      const d = data.leads[i].direction;
-      if (d && !seen.has(d)) seen.set(d, i);
-    }
-    return Array.from(seen.keys());
-  }, [data.leads, s.directionEnabled]);
-
   // причины, которые уже писали, — подсказки, чтобы формулировки не расходились
   const reasons = useMemo(() => {
     const seen = new Set<string>();
@@ -165,6 +151,8 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
   }, [data.leads]);
 
   const phoneNorm = normPhone(phone);
+  // для проверки дублей: время лида (у нового — «сейчас» по Москве)
+  const at = lead?.at ?? nowStamp();
   const dup = useMemo(
     () => (phoneNorm.length >= 10 ? findDuplicate(data.leads, phoneNorm, at, s.duplicateDays, lead?.id) : null),
     [data.leads, phoneNorm, at, s.duplicateDays, lead?.id],
@@ -187,18 +175,11 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
       : null;
   const errRegion = isNew && regionList.length > 0 && !region ? "Выберите регион" : null;
   const errLink = link.trim() && !linkNorm ? "Не похоже на ссылку — вставьте адрес целиком" : isNew && !linkNorm ? "Вставьте ссылку на лид" : null;
-  const errAt = timeLocked
-    ? null
-    : !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(at)
-      ? "Укажите дату и время"
-      : atTouched && at > nowStamp()
-        ? "Время позже текущего (МСК)"
-        : null;
   const missing = isNew ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!errRegion && "регион"].filter(Boolean) : [];
   const canReview = !!lead && canReviewLead(access, lead);
   const errReason = canReview && status === "failed" && !reason.trim() ? "Укажите причину" : null;
   const statusChanged = !!lead && (status !== lead.status || (status === "failed" && reason.trim() !== lead.statusReason));
-  const invalid = !!(errOp || errPr || errContact || errPhone || errLink || errRegion || errAt || errReason);
+  const invalid = !!(errOp || errPr || errContact || errPhone || errLink || errRegion || errReason);
 
   const submit = async (more: boolean) => {
     setTried(true);
@@ -220,14 +201,16 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     setBusy(true);
     const saved = await saveLead({
       id: lead?.id,
-      at: atTouched ? at : nowStamp(),
+      // время не выбирают: новый лид — «сейчас» по Москве (ставит сервер), при правке — прежнее
+      at: lead?.at ?? nowStamp(),
       link,
       region,
       client,
       phone,
       projectId: projectId || null,
       operatorId,
-      direction: s.directionEnabled ? direction : lead?.direction ?? "",
+      // «Город / ДЦ» больше не заполняют — город задаёт регион; старое значение у лида сохраняется
+      direction: lead?.direction ?? "",
       comment,
       ...(lead ? { groupId: groupId || null } : {}),
     });
@@ -243,10 +226,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
       setClient("");
       setPhone("");
       setComment("");
-      setDirection("");
       setLink("");
-      setAt(nowStamp());
-      setAtTouched(false);
       setTried(false);
       clientRef.current?.focus();
       return;
@@ -461,35 +441,13 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
             >
               <Select value={region} options={regionOpts} onChange={setRegion} invalid={tried && !!errRegion} ariaLabel="Регион" disabled={readOnly} placeholder="Выберите регион" />
             </Field>
-            {s.directionEnabled && (
-              <Field label={s.directionLabel || "Направление"}>
-                <input className="inp" value={direction} onChange={(e) => setDirection(e.target.value)} list="lead-directions" placeholder="Необязательно" />
-                <datalist id="lead-directions">
-                  {directions.map((d) => (
-                    <option key={d} value={d} />
-                  ))}
-                </datalist>
-              </Field>
-            )}
-            {timeLocked ? (
-              <Field label="Время передачи, МСК" hint={lead ? "Время записи менять нельзя" : "Ставится само в момент записи — по серверу, не по часам компьютера"}>
-                <div className="lead-time">
-                  <Icon name="clock" size={14} />
-                  {lead ? fmtStamp(lead.at) : `сейчас ${nowStamp().slice(11)}`}
-                </div>
-              </Field>
-            ) : (
-              <Field label="Дата и время передачи, МСК" error={tried ? errAt : null} hint={!lead && !atTouched ? "Не меняли — запишется время сохранения" : undefined}>
-                <DateTimeInput
-                  value={at}
-                  onChange={(v) => {
-                    setAt(v);
-                    setAtTouched(true);
-                  }}
-                  max={nowStamp().slice(0, 10)}
-                />
-              </Field>
-            )}
+            {/* время никто не выбирает: ставит сервер по Москве в момент записи, при правке не меняется */}
+            <Field label="Время передачи, МСК" hint={lead ? "Время записи менять нельзя" : "Ставится само в момент записи — по Москве, по часам сервера"}>
+              <div className="lead-time">
+                <Icon name="clock" size={14} />
+                {lead ? fmtStamp(lead.at) : `сейчас ${nowStamp().slice(11)}`}
+              </div>
+            </Field>
             {lead && (
               <Field label="Группа на момент передачи" hint="Меняется сама, если сменить оператора">
                 <Select value={groupId} options={groupOpts} onChange={setGroupId} ariaLabel="Группа" disabled={readOnly || access.isOp} />

@@ -295,7 +295,7 @@ export default function MePage() {
                       </td>
                       <td>{l.projectId ? <Chip hue={ix.projectById.get(l.projectId)?.color ?? "gray"}>{ix.projectById.get(l.projectId)?.name}</Chip> : <span className="muted">—</span>}</td>
                       <td className="muted" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {l.direction || l.comment || ""}
+                        {l.comment || ""}
                       </td>
                     </tr>
                   ))}
