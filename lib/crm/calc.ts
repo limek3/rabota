@@ -550,6 +550,36 @@ export function incomePerLead(st: DataState, month: MonthKey, keep: (l: Lead) =>
   return n > 0 ? sum / n : leadIncome(s.leadRevenue, approvePctWhere(st, month, keep));
 }
 
+export interface SegmentIncome {
+  leads: number;
+  /** Цена лида для заказчика, ₽. */
+  price: number;
+  /** Апрув, % — у основы средневзвешенный по проектам её лидов. */
+  approve: number;
+  /** Доход = Σ цена × апрув по лидам. */
+  revenue: number;
+}
+
+/** Доход месяца по сегментам «основа» / «регионы» — для сводки в зарплате и настройках. */
+export function incomeBySegment(st: DataState, month: MonthKey, keep: (l: Lead) => boolean = () => true): { main: SegmentIncome; regional: SegmentIncome } {
+  const s = st.settings;
+  const pctOf = approveTable(st, month);
+  const main = { leads: 0, price: s.leadRevenue, approve: 0, revenue: 0 };
+  const regional = { leads: 0, price: s.regions.regionalLeadRevenue, approve: s.regions.regionalApprovePct, revenue: 0 };
+  let mainPct = 0;
+  for (const l of st.leads) {
+    if (l.status === "failed" || l.at.slice(0, 7) !== month || !keep(l)) continue;
+    const seg = isRegionalLead(l, s) ? regional : main;
+    const pct = pctOf(l);
+    seg.leads++;
+    seg.revenue += (seg.price * pct) / 100;
+    if (seg === main) mainPct += pct;
+  }
+  const fallback = st.approves.find((a) => a.month === month && !a.projectId)?.pct ?? s.svBonus.defaultApprovePct;
+  main.approve = main.leads ? Math.round((mainPct / main.leads) * 10) / 10 : fallback;
+  return { main, regional };
+}
+
 /** Доход с одного лида для ФОТ: цена лида × апрув заказчика (%). */
 export const leadIncome = (leadRevenue: number, approvePct: number) => (leadRevenue * approvePct) / 100;
 

@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useCrm, type AdjustmentInput } from "@/lib/crm/store";
-import { approvePctFor, approvePctWhere, goneLast, incomePerLead, isGone, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
+import { approvePctFor, approvePctWhere, goneLast, incomeBySegment, incomePerLead, isGone, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
 import { isRegionalLead } from "@/lib/crm/regions";
 import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, payrollRow, type PayRow } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
@@ -152,6 +152,8 @@ export default function PayrollPage() {
     [data.leads, data.settings, month],
   );
   const rg = data.settings.regions;
+  // доход месяца по сегментам — сводка в карточке «Доход и ФОТ»
+  const seg = useMemo(() => incomeBySegment(data, month), [data, month]);
   const regionNote = regionalN > 0 ? ` · регионы: ${fmtInt(regionalN)} лид. × ${fmtMoney(rg.regionalLeadRevenue)} × ${fmtNum(rg.regionalApprovePct)}%` : "";
   const fund = useMemo(() => fundStat(t.gross, t.leads, income, data.settings.payrollCapPct), [t.gross, t.leads, income, data.settings.payrollCapPct]);
   /* прогноз: фонд растёт по отработанным дням, доход — по Run Rate лидов */
@@ -431,32 +433,89 @@ export default function PayrollPage() {
             </table>
           </div>
 
-          <div className="card card-pad">
-            <div className="card-head">
-              <div>
-                <h3 className="card-title">Апрув заказчика</h3>
-                <p className="card-sub">Доля принятых лидов за месяц. Апрув по умолчанию и коэффициенты — в «Настройки → Система»</p>
-              </div>
-            </div>
-            <ApproveMonthEditor />
-          </div>
-
           {/* ФОТ по группам: фонд против дохода и норматив, который нельзя превышать */}
           <div className="card card-tbl" style={{ overflow: "hidden" }}>
             <div className="card-head" style={{ padding: "16px 18px 0" }}>
               <div>
-                <h3 className="card-title">Фонд оплаты труда</h3>
+                <h3 className="card-title">Доход и ФОТ</h3>
                 <p className="card-sub">
-                  {data.settings.leadRevenue > 0
-                    ? `Доход = лиды × ${fmtMoney(data.settings.leadRevenue)} × апрув заказчика (за месяц ${fmtNum(approve)}%)${regionNote} · норматив ФОТ — не выше ${data.settings.payrollCapPct}% дохода`
-                    : `Укажите цену лида для заказчика в настройках — без неё доход и % ФОТ не считаются · норматив — не выше ${data.settings.payrollCapPct}%`}
+                  {fmtMonth(month)} · доход = лиды × цена лида × апрув заказчика · норматив ФОТ — не выше {data.settings.payrollCapPct}% дохода
                 </p>
               </div>
               {access.can.systemSettings && (
-                <Link href="/settings?tab=system" className="btn btn-sm btn-ghost">
-                  Настроить <Icon name="chevR" size={13} />
+                <Link href="/settings?tab=system" className="btn btn-sm btn-ghost" title="Цены лидов, апрув регионов и норматив ФОТ">
+                  Цены и норматив <Icon name="chevR" size={13} />
                 </Link>
               )}
+            </div>
+            {/* откуда доход: основа и регионы — лиды, цена, апрув, доход */}
+            <div className="tbl-wrap" style={{ border: "none", borderRadius: 0, marginTop: 12 }}>
+              <table className="tbl tbl-fit">
+                <thead>
+                  <tr>
+                    <th style={{ minWidth: 180 }}>Сегмент</th>
+                    <th className="r">Лиды</th>
+                    <th className="r">Цена лида</th>
+                    <th className="r" title="Основа — средневзвешенный по проектам её лидов; регионы — из настроек">Апрув</th>
+                    <th className="r">Доход с лида</th>
+                    <th className="r">Доход</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(["main", "regional"] as const).map((k) => {
+                    const g = seg[k];
+                    if (k === "regional" && !g.leads) return null;
+                    return (
+                      <tr key={k}>
+                        <td>
+                          <span className="row" style={{ gap: 8 }}>
+                            <Chip hue={k === "main" ? "gray" : "amber"}>{k === "main" ? "основа" : "регионы"}</Chip>
+                            <span className="muted" style={{ fontSize: 12 }}>
+                              {(k === "main" ? rg.main : rg.regional).join(", ")}
+                            </span>
+                          </span>
+                        </td>
+                        <td className="r num">{fmtInt(g.leads)}</td>
+                        <td className="r num">{g.price > 0 ? fmtMoney(g.price) : <span style={{ color: "var(--c-red-fg)" }}>не задана</span>}</td>
+                        <td className="r num">{fmtNum(g.approve)}%</td>
+                        <td className="r num muted">{fmtMoney((g.price * g.approve) / 100)}</td>
+                        <td className="r num" style={{ fontWeight: 600 }}>{g.revenue ? fmtMoney(g.revenue) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td>Итого доход</td>
+                    <td className="r num">{fmtInt(seg.main.leads + seg.regional.leads)}</td>
+                    <td />
+                    <td />
+                    <td className="r num muted">{fmtMoney(income)}</td>
+                    <td className="r num">{fund.revenue ? fmtMoney(fund.revenue) : "—"}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div className="row" style={{ gap: 18, flexWrap: "wrap", padding: "12px 18px 0", fontSize: 13 }}>
+              <span>
+                ФОТ <b className="num">{fmtMoney(fund.fund)}</b>
+              </span>
+              <span>
+                ФОТ к доходу{" "}
+                <b className="num" style={{ color: fund.revenue ? (fund.ok ? "var(--c-green-fg)" : "var(--c-red-fg)") : undefined }}>
+                  {fund.revenue ? fmtPct(fund.pct) : "—"}
+                </b>{" "}
+                <span className="muted">при нормативе {data.settings.payrollCapPct}%</span>
+              </span>
+              {fund.revenue > 0 && (
+                <span>
+                  {fund.over > 0 ? "Превышение" : "Запас до норматива"}{" "}
+                  <b className="num" style={{ color: fund.over > 0 ? "var(--c-red-fg)" : undefined }}>
+                    {fmtMoney(fund.over > 0 ? fund.over : fund.revenue * fund.cap - fund.fund)}
+                  </b>
+                </span>
+              )}
+              {!data.settings.leadRevenue && <span style={{ color: "var(--c-red-fg)" }}>Укажите цену лида основы в настройках — без неё доход не считается</span>}
             </div>
             {forecast && forecast.revenue > 0 && (
               <div
@@ -533,6 +592,13 @@ export default function PayrollPage() {
                   </tr>
                 </tfoot>
               </table>
+            </div>
+            <div style={{ padding: "14px 18px 18px", borderTop: "1px solid var(--ink-06)", display: "flex", flexDirection: "column", gap: 8 }}>
+              <div>
+                <div className="card-title" style={{ fontSize: 13 }}>Апрув основы за {fmtMonth(month).toLowerCase()} — по проектам</div>
+                <div className="card-sub">Факт от заказчика: из него доход основы и коэффициент бонуса супервайзера. Регионы — свой апрув из настроек</div>
+              </div>
+              <ApproveMonthEditor />
             </div>
           </div>
         </>

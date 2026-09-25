@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import type { SvBonusGrid } from "@/lib/crm/types";
-import { approvePctFor } from "@/lib/crm/calc";
+import { approvePctFor, incomeBySegment } from "@/lib/crm/calc";
+import { isRegionalLead } from "@/lib/crm/regions";
 import { fmtMonth } from "@/lib/crm/dates";
 import { fmtInt } from "@/lib/crm/format";
-import { Chip, Field, MonthSwitcher, NumInput, SaveBar, Swatch, useDraft } from "@/components/ui/kit";
+import { Chip, Field, MonthSwitcher, NumInput, SaveBar, Swatch, hueVars, useDraft } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 
 /**
@@ -18,17 +19,22 @@ import { Icon } from "@/components/ui/icons";
  * своя кнопка «Сохранить»).
  */
 
-/** Апрув по умолчанию и коэффициенты бонуса — поля общей формы настроек. */
-export function ApproveRules({ value, onChange }: { value: SvBonusGrid; onChange: (v: SvBonusGrid) => void }) {
+/**
+ * Апрув по умолчанию и коэффициенты бонуса — поля общей формы настроек. withDefault=false —
+ * без поля «по умолчанию» (оно в таблице сегментов раздела «Доход с лидов»).
+ */
+export function ApproveRules({ value, onChange, withDefault = true }: { value: SvBonusGrid; onChange: (v: SvBonusGrid) => void; withDefault?: boolean }) {
   const steps = value.approve;
   const set = (i: number, patch: Partial<(typeof steps)[number]>) => onChange({ ...value, approve: steps.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div className="grid3">
-        <Field label="Апрув по умолчанию, %" hint="Если за месяц апрув не проставлен">
-          <NumInput value={value.defaultApprovePct} onChange={(v) => onChange({ ...value, defaultApprovePct: v ?? 0 })} max={100} step={0.5} />
-        </Field>
-      </div>
+      {withDefault && (
+        <div className="grid3">
+          <Field label="Апрув по умолчанию, %" hint="Если за месяц апрув не проставлен">
+            <NumInput value={value.defaultApprovePct} onChange={(v) => onChange({ ...value, defaultApprovePct: v ?? 0 })} max={100} step={0.5} />
+          </Field>
+        </div>
+      )}
       <div>
         <div className="field-label" style={{ marginBottom: 6 }}>
           Коэффициент бонуса супервайзера по апруву
@@ -102,15 +108,22 @@ function ApproveMonthTable({ month, switcher, onDirty }: { month: string; switch
   const { data, ix, saveApprove, deleteApprove, access, toast } = useCrm();
   const canEdit = access.can.editPayroll;
 
-  const leadsByProject = useMemo(() => {
+  // лиды основы по проектам (апрув проекта действует только на них); региональные — отдельно
+  const { leadsByProject, regionalLeads } = useMemo(() => {
     const out = new Map<string, number>();
-    for (const [pid, days] of ix.projectDay) {
-      let n = 0;
-      for (const [d, c] of days) if (d.slice(0, 7) === month) n += c;
-      if (n) out.set(pid, n);
+    let regional = 0;
+    for (const l of data.leads) {
+      if (l.status === "failed" || l.at.slice(0, 7) !== month) continue;
+      if (isRegionalLead(l, data.settings)) {
+        regional++;
+        continue;
+      }
+      const pid = l.projectId || "__none__";
+      out.set(pid, (out.get(pid) ?? 0) + 1);
     }
-    return out;
-  }, [ix, month]);
+    return { leadsByProject: out, regionalLeads: regional };
+  }, [data.leads, data.settings, month]);
+  const seg = useMemo(() => incomeBySegment(data, month), [data, month]);
 
   const recs = data.approves.filter((a) => a.month === month);
   const projects = data.projects.filter((p) => !p.deletedAt && (p.active || leadsByProject.has(p.id))).sort((a, b) => (leadsByProject.get(b.id) ?? 0) - (leadsByProject.get(a.id) ?? 0));
@@ -148,9 +161,15 @@ function ApproveMonthTable({ month, switcher, onDirty }: { month: string; switch
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
         {switcher}
-        <span style={{ fontSize: 12.5, color: "var(--text-sub)" }}>
-          Средневзвешенный по проектам за {fmtMonth(month).toLowerCase()} — идёт в бонус супервайзера
-        </span>
+        <span style={{ fontSize: 12.5, color: "var(--text-sub)" }}>За {fmtMonth(month).toLowerCase()}: основа</span>
+        <Chip hue="gray">{fmtInt(seg.main.approve)}%</Chip>
+        {regionalLeads > 0 && (
+          <>
+            <span style={{ fontSize: 12.5, color: "var(--text-sub)" }}>регионы</span>
+            <Chip hue="gray">{fmtInt(seg.regional.approve)}%</Chip>
+          </>
+        )}
+        <span style={{ fontSize: 12.5, color: "var(--text-sub)" }}>· в бонус супервайзера (всё вместе)</span>
         <Chip hue={weighted >= 30 ? "green" : weighted >= 20 ? "amber" : "red"} dot>
           {fmtInt(weighted)}%
         </Chip>
@@ -202,11 +221,24 @@ function ApproveMonthTable({ month, switcher, onDirty }: { month: string; switch
                 <td className="r num muted">{fmtInt(fallback)}%</td>
               </tr>
             )}
+            {regionalLeads > 0 && (
+              <tr>
+                <td>
+                  <span className="chip" style={{ ...hueVars("amber"), height: 20 }}>регионы</span>
+                  <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
+                    свой апрув — в настройках, раздел «Доход с лидов»
+                  </div>
+                </td>
+                <td className="r num">{fmtInt(regionalLeads)}</td>
+                <td className="r muted">—</td>
+                <td className="r num muted">{fmtInt(data.settings.regions.regionalApprovePct)}%</td>
+              </tr>
+            )}
             <tr>
               <td>
                 <b>Общий на месяц</b>
                 <div className="muted" style={{ fontSize: 11.5 }}>
-                  там, где у проекта свой не задан
+                  для основы, где у проекта свой не задан
                 </div>
               </td>
               <td className="r num">{fmtInt(Array.from(leadsByProject.values()).reduce((a, b) => a + b, 0))}</td>

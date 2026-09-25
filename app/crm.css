@@ -888,3 +888,8 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .conv { font-weight: 600; color: var(--text); }
 .conv[data-ok="true"] { color: var(--c-green-fg); }
 .conv[data-ok="false"] { color: var(--c-red-fg); }
+
+/* «Доход с лидов»: таблица сегментов с полями ввода — ячейки не сжимаются в одну строку */
+.econ-tbl td { vertical-align: top; white-space: normal; }
+.econ-tbl td .chip { margin-top: 6px; }
+.econ-tbl .inp.r { text-align: right; }

@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { PAY_HINT, PAY_LABEL, type PayType, type Settings } from "@/lib/crm/types";
 import { WEEKDAYS_SHORT, currentMonth, fmtDate, fmtMonth, fmtStamp, nowStamp } from "@/lib/crm/dates";
-import { fmtInt } from "@/lib/crm/format";
+import { fmtInt, fmtMoney } from "@/lib/crm/format";
 import { checkIntegrity, type Issue } from "@/lib/crm/validate";
 import * as db from "@/lib/crm/db";
 import { AUTH_ENABLED } from "@/lib/appMode";
-import { Chip, Field, NumInput, PageHead, SaveBar, Seg, Switch, downloadText } from "@/components/ui/kit";
+import { Chip, Field, NumInput, PageHead, SaveBar, Seg, Switch, downloadText, hueVars } from "@/components/ui/kit";
 import { DateInput, MonthPicker, Select, dot } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { AccountsTab, ProfileTab, RolesTab } from "@/components/app/AccountsSettings";
@@ -266,6 +266,90 @@ export default function SettingsPage() {
       </Section>
 
       <Section
+        title="Доход с лидов: цены, апрув, ФОТ"
+        sub="Из этого считаются доход и % ФОТ в «Зарплате»: доход = лиды × цена лида × апрув заказчика. Регион выбирают в окне лида; лиды без региона — основа"
+      >
+        <div className="tbl-wrap">
+          <table className="tbl econ-tbl">
+            <thead>
+              <tr>
+                <th style={{ width: 110 }}>Сегмент</th>
+                <th>Города</th>
+                <th className="r" style={{ width: 150 }}>Цена лида, ₽</th>
+                <th className="r" style={{ width: 150 }}>Апрув, %</th>
+                <th className="r" style={{ width: 130 }} title="Цена × апрув — сколько в среднем приносит один переданный лид">
+                  Доход с лида
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <span className="chip" style={hueVars("gray")}>основа</span>
+                </td>
+                <td>
+                  <CityList value={f.regions.main} onChange={(v) => set("regions", { ...f.regions, main: v })} />
+                </td>
+                <td className="r">
+                  <NumInput className="inp r num" value={f.leadRevenue} onChange={(v) => set("leadRevenue", v ?? 0)} max={10_000_000} />
+                </td>
+                <td className="r">
+                  <NumInput
+                    className="inp r num"
+                    value={f.svBonus.defaultApprovePct}
+                    onChange={(v) => set("svBonus", { ...f.svBonus, defaultApprovePct: v ?? 0 })}
+                    max={100}
+                    step={0.5}
+                  />
+                  <div className="field-hint" style={{ marginTop: 4, textAlign: "right" }}>по умолчанию · за месяц — ниже</div>
+                </td>
+                <td className="r num" style={{ fontWeight: 600 }}>{f.leadRevenue > 0 ? fmtMoney((f.leadRevenue * f.svBonus.defaultApprovePct) / 100) : "—"}</td>
+              </tr>
+              <tr>
+                <td>
+                  <span className="chip" style={hueVars("amber")}>регионы</span>
+                </td>
+                <td>
+                  <CityList value={f.regions.regional} onChange={(v) => set("regions", { ...f.regions, regional: v.filter((x) => !f.regions.main.includes(x)) })} />
+                </td>
+                <td className="r">
+                  <NumInput
+                    className="inp r num"
+                    value={f.regions.regionalLeadRevenue}
+                    onChange={(v) => set("regions", { ...f.regions, regionalLeadRevenue: v ?? 0 })}
+                    max={10_000_000}
+                  />
+                </td>
+                <td className="r">
+                  <NumInput
+                    className="inp r num"
+                    value={f.regions.regionalApprovePct}
+                    onChange={(v) => set("regions", { ...f.regions, regionalApprovePct: v ?? 0 })}
+                    max={100}
+                    step={0.5}
+                  />
+                  <div className="field-hint" style={{ marginTop: 4, textAlign: "right" }}>один на все месяцы</div>
+                </td>
+                <td className="r num" style={{ fontWeight: 600 }}>
+                  {f.regions.regionalLeadRevenue > 0 ? fmtMoney((f.regions.regionalLeadRevenue * f.regions.regionalApprovePct) / 100) : "—"}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="grid3">
+          <Field label="Норматив ФОТ, % от дохода" hint="Превышать нельзя; в «Зарплате» подсвечивается по группам">
+            <NumInput value={f.payrollCapPct} onChange={(v) => set("payrollCapPct", v ?? 0)} max={100} step={0.5} />
+          </Field>
+        </div>
+        <div style={{ borderTop: "1px solid var(--ink-06)", paddingTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="field-label">Апрув основы за месяц — по проектам</div>
+          <div className="field-hint">Факт от заказчика. Пустое поле у проекта — берётся общий на месяц, нет и его — «по умолчанию» из таблицы выше</div>
+          <ApproveMonthEditor monthSwitcher onDirty={setApproveDirty} />
+        </div>
+      </Section>
+
+      <Section
         title="Зарплата по умолчанию"
         sub="Подставляется новым операторам; у каждого можно задать своё"
         action={
@@ -309,12 +393,6 @@ export default function SettingsPage() {
           <Field label="Процент удержания" hint="У самозанятых — 0: налог платят сами. 13% ставим, когда оформлен ТК РФ">
             <NumInput value={f.withholdPct} onChange={(v) => set("withholdPct", v ?? 0)} max={100} step={0.1} />
           </Field>
-          <Field label="Цена лида для заказчика, ₽" hint="По договору. Доход для % ФОТ = лиды × цена лида × апрув заказчика за месяц (апрув — в «Зарплате»)">
-            <NumInput value={f.leadRevenue} onChange={(v) => set("leadRevenue", v ?? 0)} max={10_000_000} />
-          </Field>
-          <Field label="Норматив ФОТ, % от дохода" hint="Превышать нельзя; в ведомости подсвечивается по группам">
-            <NumInput value={f.payrollCapPct} onChange={(v) => set("payrollCapPct", v ?? 0)} max={100} step={0.5} />
-          </Field>
           <Field label="Оклад при неполной норме">
             <Select
               value={f.prorateSalary ? "1" : "0"}
@@ -342,34 +420,10 @@ export default function SettingsPage() {
       <SvBonusSection value={f.svBonus} onChange={(v) => set("svBonus", v)} />
 
       <Section
-        title="Апрув заказчика"
-        sub="Доля лидов, которые принял заказчик. От неё зависит бонус супервайзера: по ступеням ниже бонус умножается на коэффициент"
+        title="Апрув и бонус супервайзера"
+        sub="Чем ниже апрув заказчика за месяц, тем меньше бонус супервайзера: по ступеням бонус умножается на коэффициент. Сам апрув — в разделе «Доход с лидов»"
       >
-        <ApproveRules value={f.svBonus} onChange={(v) => set("svBonus", v)} />
-        <div style={{ borderTop: "1px solid var(--ink-06)", paddingTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-          <div className="field-label">Апрув по месяцам и проектам</div>
-          <ApproveMonthEditor monthSwitcher onDirty={setApproveDirty} />
-        </div>
-      </Section>
-
-      <Section
-        title="Регионы"
-        sub="Регион выбирают в окне лида. «Основа» — цена лида и апрув как у проектов; «Регионы» — свои цена и апрув. Лиды без региона считаются основой"
-      >
-        <div className="grid2">
-          <Field label="Основа" hint="Города через запятую">
-            <CityList value={f.regions.main} onChange={(v) => set("regions", { ...f.regions, main: v })} />
-          </Field>
-          <Field label="Регионы" hint="Города и края через запятую">
-            <CityList value={f.regions.regional} onChange={(v) => set("regions", { ...f.regions, regional: v.filter((x) => !f.regions.main.includes(x)) })} />
-          </Field>
-          <Field label="Апрув регионов, %" hint="Доля региональных лидов, которые принимает заказчик">
-            <NumInput value={f.regions.regionalApprovePct} onChange={(v) => set("regions", { ...f.regions, regionalApprovePct: v ?? 0 })} max={100} step={0.5} />
-          </Field>
-          <Field label="Цена регионального лида, ₽" hint="Доход для % ФОТ = региональные лиды × цена × апрув регионов">
-            <NumInput value={f.regions.regionalLeadRevenue} onChange={(v) => set("regions", { ...f.regions, regionalLeadRevenue: v ?? 0 })} max={10_000_000} />
-          </Field>
-        </div>
+        <ApproveRules value={f.svBonus} onChange={(v) => set("svBonus", v)} withDefault={false} />
       </Section>
 
       <Section title="Оценка выполнения" sub="Темп = факт / план на сегодня. По этим порогам операторы и группы делятся на «выше плана», «по плану», «отстаёт», «сильно отстаёт»">
