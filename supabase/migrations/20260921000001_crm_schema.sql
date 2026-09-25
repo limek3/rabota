@@ -683,6 +683,34 @@ drop trigger if exists leads_guard on public.leads;
 create trigger leads_guard before insert or update on public.leads
   for each row execute function public.crm_leads_guard();
 
+-- Ссылка на лид: новый лид без неё не сохраняется (история до 2026-09-25 — пропускается),
+-- непустую ссылку нельзя заменить пустой. То же — в 20260926000001_lead_link_required.sql.
+create or replace function public.crm_leads_link_guard() returns trigger
+language plpgsql set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    -- upsert уже существующего лида (INSERT … ON CONFLICT) сначала проходит здесь: его
+    -- пропускаем — ветка UPDATE ниже сохранит ссылку, если клиент прислал строку без неё
+    if btrim(coalesce(new.link, '')) = '' and coalesce(new.at, '') >= '2026-09-25'
+       and not exists (select 1 from public.leads where id = new.id) then
+      raise exception 'Лид без ссылки не сохраняется — вставьте ссылку на лид (обновите приложение, если поля для ссылки нет)'
+        using errcode = '23514';
+    end if;
+    return new;
+  end if;
+
+  -- правка: пустая ссылка вместо непустой — это устаревшая копия, а не намерение
+  if btrim(coalesce(new.link, '')) = '' and btrim(coalesce(old.link, '')) <> '' then
+    new.link := old.link;
+  end if;
+  return new;
+end $$;
+
+-- имя после leads_guard: триггеры BEFORE идут по алфавиту, время лида к этому моменту уже выставлено
+drop trigger if exists leads_link_guard on public.leads;
+create trigger leads_link_guard before insert or update on public.leads
+  for each row execute function public.crm_leads_link_guard();
+
 -- Аккаунты: не-РОП в своём аккаунте меняет только имя, личные настройки и время входа.
 create or replace function public.crm_accounts_guard() returns trigger
 language plpgsql set search_path = public as $$

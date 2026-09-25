@@ -623,6 +623,11 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         toast("Для лида нужны клиент, телефон и ссылка на лид", "err");
         return null;
       }
+      // в базе нет колонки для ссылки — новый лид не записываем вовсе, а не сохраняем без ссылки
+      if (!prev && db.REMOTE && !remote.hasLeadLinkColumn()) {
+        toast("Лид не сохранён: в Supabase нет колонки для ссылки. Руководителю нужно выполнить supabase/migrations/20260925000001_lead_link_time.sql", "err");
+        return null;
+      }
       const lead: Lead = {
         id: prev?.id ?? uniqueId("ld", new Set(st.leads.map((l) => l.id))),
         at,
@@ -713,7 +718,14 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       if (!recs.length) return 0;
       const byId = new Map(recs.map((r) => [r.id, r]));
       const ok = await commit(
-        () => db.putRecords("leads", recs),
+        // в Supabase — только поля статуса, чтобы старая копия лида не затёрла свежую ссылку или телефон
+        () =>
+          db.REMOTE
+            ? remote.updateLeadStatus(
+                recs.map((r) => r.id),
+                { status, statusReason: status === "failed" ? why : "", statusAt: now, statusBy: a.account.name, updatedAt: now },
+              )
+            : db.putRecords("leads", recs),
         (d) => ({ ...d, leads: d.leads.map((l) => byId.get(l.id) ?? l) }),
       );
       if (!ok) return 0;

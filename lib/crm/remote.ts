@@ -165,16 +165,54 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
     }
     return;
   }
+  if (table === "leads") return putLeads(recs);
   for (const part of chunks(recs, 500)) {
-    let rows = part.map((r) => toRow(table, r));
-    if (table === "leads" && !leadLinkReady) rows = rows.map(({ link: _link, ...rest }) => rest);
+    const rows = part.map((r) => toRow(table, r));
     // журнал — только добавление: читать его могут не все, а upsert требует права чтения
-    let { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
-    if (error && table === "leads" && isMissingLink(error)) {
-      leadLinkReady = false;
-      ({ error } = await supabase().from(table).upsert(rows.map(({ link: _link, ...rest }) => rest), { onConflict: "id" }));
-    }
+    const { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
     if (error) fail(error, table);
+  }
+}
+
+/**
+ * Лиды пишем двумя пачками: со ссылкой и без неё. У строк без ссылки колонки link
+ * в запросе нет вовсе — upsert её не трогает. Иначе клиент со старой копией лида
+ * (вкладка спала, realtime отвалился) затирал бы пустой строкой ссылку, которую
+ * оператор уже вставил. Сервер страхует то же самое триггером (…_lead_link_required.sql).
+ */
+async function putLeads(recs: object[]): Promise<void> {
+  const rows = recs.map((r) => toRow("leads", r));
+  const withLink = leadLinkReady ? rows.filter((r) => String(r.link ?? "").trim()) : [];
+  const noLink = rows.filter((r) => !withLink.includes(r)).map(({ link: _link, ...rest }) => rest);
+  for (const batch of [withLink, noLink]) {
+    for (const part of chunks(batch, 500)) {
+      let { error } = await supabase().from("leads").upsert(part, { onConflict: "id" });
+      if (error && isMissingLink(error)) {
+        leadLinkReady = false;
+        ({ error } = await supabase().from("leads").upsert(part.map(({ link: _link, ...rest }) => rest), { onConflict: "id" }));
+      }
+      if (error) fail(error, "leads");
+    }
+  }
+}
+
+/**
+ * Статус лидов — точечным UPDATE только полей статуса, а не всей строкой: проверяющий
+ * не должен перезаписывать клиента, телефон и ссылку своей (возможно, устаревшей) копией.
+ */
+export async function updateLeadStatus(
+  ids: string[],
+  f: { status: string; statusReason: string; statusAt: string; statusBy: string; updatedAt: string },
+): Promise<void> {
+  for (const part of chunks(ids, 100)) {
+    const { data, error } = await supabase()
+      .from("leads")
+      .update({ status: f.status, status_reason: f.statusReason, status_at: f.statusAt, status_by: f.statusBy, updated_at: f.updatedAt })
+      .filter("id", "in", inList(part))
+      .select("id");
+    if (error) fail(error, "leads");
+    // RLS молча пропускает чужие строки — считаем, что обновилось на самом деле
+    if ((data?.length ?? 0) < part.length) throw new Error("Нет прав поставить статус части лидов — обновите страницу");
   }
 }
 
