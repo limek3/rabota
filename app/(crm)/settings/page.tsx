@@ -509,7 +509,7 @@ function DataSection() {
         </button>
       </div>
       {notes.length > 0 && (
-        <div style={{ fontSize: 12.5, color: "var(--text-sub)", background: "var(--bg)", border: "1px solid var(--ink-07)", borderRadius: 8, padding: "10px 12px" }}>
+        <div style={{ fontSize: 12.5, color: "var(--text-sub)", background: "var(--bg)", border: "1px solid var(--ink-07)", borderRadius: 6, padding: "10px 12px" }}>
           <b>При импорте:</b>
           <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
             {notes.map((n) => (

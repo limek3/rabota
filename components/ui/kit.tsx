@@ -270,7 +270,7 @@ export function PageHead({ title, sub, actions }: { title: ReactNode; sub?: Reac
 export function Empty({ icon = "info", title, text, action }: { icon?: IconName; title: string; text?: ReactNode; action?: ReactNode }) {
   return (
     <div className="empty">
-      <span style={{ width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--brand-tint)", color: "var(--brand)" }}>
+      <span style={{ width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--brand-tint)", color: "var(--brand)" }}>
         <Icon name={icon} size={20} />
       </span>
       <div className="empty-title">{title}</div>
@@ -751,7 +751,7 @@ export function ToastHost() {
             style={{
               width: 20,
               height: 20,
-              borderRadius: 6,
+              borderRadius: 5,
               flex: "none",
               display: "flex",
               alignItems: "center",

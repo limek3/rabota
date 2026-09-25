@@ -75,7 +75,7 @@ export default function ResetPage() {
           <Mascot mood={mood} />
         </div>
 
-        <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: "var(--shadow-xl)", padding: "44px 32px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
+        <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, boxShadow: "var(--shadow-xl)", padding: "44px 32px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
           <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 6 }}>
             <h1 style={{ margin: 0, fontFamily: authDisplay, fontSize: 25, fontWeight: 700, letterSpacing: "-.02em" }}>Новый пароль</h1>
             <span style={{ fontSize: 13, color: C.sub }}>Задайте новый пароль для входа</span>

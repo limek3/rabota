@@ -897,7 +897,7 @@ function SvCard({ r }: { r: PayRow }) {
 
 function SvTile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "good" | "bad" }) {
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--ink-06)" }}>
+    <div style={{ padding: "10px 12px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--ink-06)" }}>
       <div style={{ fontSize: 11.5, color: "var(--text-sub)", lineHeight: 1.3 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 600, marginTop: 2, color: tone === "good" ? "var(--c-green-fg)" : tone === "bad" ? "var(--c-red-fg)" : "var(--text)" }}>{value}</div>
       {sub && <div style={{ fontSize: 11.5, color: "var(--dim)" }}>{sub}</div>}

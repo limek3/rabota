@@ -140,7 +140,7 @@ function Bucket({
                 key={p.id}
                 href={`/operators?id=${encodeURIComponent(p.id)}`}
                 className="row"
-                style={{ gap: 6, padding: "3px 8px 3px 3px", borderRadius: 999, border: "1px solid var(--ink-08)", textDecoration: "none", color: "var(--text)", fontSize: 12 }}
+                style={{ gap: 6, padding: "3px 8px 3px 3px", borderRadius: 6, border: "1px solid var(--ink-08)", textDecoration: "none", color: "var(--text)", fontSize: 12 }}
                 title={p.note ? `${p.name}: ${p.note}` : p.name}
               >
                 <Avatar name={p.name} id={p.id} size={20} />

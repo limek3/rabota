@@ -201,7 +201,7 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
       {live.length === 0 && <div style={{ fontSize: 13, color: "var(--dim)" }}>Проектов пока нет.</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {live.map((p, i) => (
-          <div key={p.id} className="row" style={{ gap: 8, padding: "6px 8px", borderRadius: 8, border: "1px solid var(--ink-06)", opacity: p.active ? 1 : 0.6 }}>
+          <div key={p.id} className="row" style={{ gap: 8, padding: "6px 8px", borderRadius: 6, border: "1px solid var(--ink-06)", opacity: p.active ? 1 : 0.6 }}>
             {canEdit ? (
             <button
               type="button"

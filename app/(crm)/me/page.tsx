@@ -395,7 +395,7 @@ export default function MePage() {
 
 function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "good" | "bad" }) {
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0, height: "100%" }}>
+    <div style={{ padding: "10px 12px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0, height: "100%" }}>
       <div style={{ fontSize: 11.5, color: "var(--text-sub)", lineHeight: 1.3 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 600, marginTop: 2, color: tone === "good" ? "var(--c-green-fg)" : tone === "bad" ? "var(--c-red-fg)" : "var(--text)" }}>{value}</div>
       {sub && <div style={{ fontSize: 11.5, color: "var(--dim)", lineHeight: 1.3 }}>{sub}</div>}

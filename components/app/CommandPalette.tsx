@@ -178,7 +178,7 @@ export function CommandPalette() {
                 gap: 10,
                 padding: "8px 10px",
                 border: "none",
-                borderRadius: 8,
+                borderRadius: 6,
                 background: i === sel ? "var(--brand-tint)" : "transparent",
                 color: "var(--text)",
                 font: "inherit",

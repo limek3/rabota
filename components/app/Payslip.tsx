@@ -71,7 +71,7 @@ const PayslipCanvas = forwardRef<Handle, { slip: Payslip; company: string }>(fun
       alive = false;
     };
   }, [slip, company]);
-  return <canvas ref={cv} style={{ width: "100%", maxWidth: W, height: "auto", display: "block", margin: "0 auto", borderRadius: 10, boxShadow: "var(--shadow-sm)", border: "1px solid var(--ink-07)" }} />;
+  return <canvas ref={cv} style={{ width: "100%", maxWidth: W, height: "auto", display: "block", margin: "0 auto", borderRadius: 8, boxShadow: "var(--shadow-sm)", border: "1px solid var(--ink-07)" }} />;
 });
 
 /** Рисует лист; возвращает высоту. dry — только посчитать высоту. */

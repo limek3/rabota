@@ -29,7 +29,7 @@ function Onboarding() {
           { n: 3, t: "Операторы", d: "Личный план, норма часов и схема оплаты — по умолчанию из настроек.", a: <button className="btn btn-sm" onClick={() => openOperator()}>Добавить оператора</button> },
         ].map((s) => (
           <div key={s.n} className="card" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8, background: "var(--bg)" }}>
-            <span style={{ width: 24, height: 24, borderRadius: 7, background: "var(--brand-tint)", color: "var(--brand)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12 }}>{s.n}</span>
+            <span style={{ width: 24, height: 24, borderRadius: 5, background: "var(--brand-tint)", color: "var(--brand)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12 }}>{s.n}</span>
             <div style={{ fontWeight: 600 }}>{s.t}</div>
             <div style={{ fontSize: 12.5, color: "var(--text-sub)", lineHeight: 1.5, flex: 1 }}>{s.d}</div>
             <div>{s.a}</div>
@@ -315,7 +315,7 @@ export default function DashboardPage() {
                                 key={r.op.id}
                                 href={`/operators?id=${encodeURIComponent(r.op.id)}`}
                                 className="row"
-                                style={{ gap: 6, padding: "3px 8px 3px 3px", borderRadius: 999, border: "1px solid var(--ink-08)", textDecoration: "none", color: "var(--text)", fontSize: 12 }}
+                                style={{ gap: 6, padding: "3px 8px 3px 3px", borderRadius: 6, border: "1px solid var(--ink-08)", textDecoration: "none", color: "var(--text)", fontSize: 12 }}
                                 title={`${r.op.name}: ${fmtInt(r.pace.fact)} из ${fmtInt(r.terms.plan)}, к плану на дату ${fmtPct(r.pace.paceRatio)}`}
                               >
                                 <Avatar name={r.op.name} id={r.op.id} size={20} />
@@ -388,7 +388,7 @@ export default function DashboardPage() {
 function HeroStat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "good" | "bad" | "warn" }) {
   const color = tone === "good" ? "var(--c-green-fg)" : tone === "bad" ? "var(--c-red-fg)" : tone === "warn" ? "var(--c-amber-fg)" : "var(--text)";
   return (
-    <div style={{ padding: "10px 12px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0 }}>
+    <div style={{ padding: "10px 12px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0 }}>
       <div style={{ fontSize: 11.5, color: "var(--text-sub)", lineHeight: 1.3 }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 600, color, marginTop: 2, letterSpacing: "-.01em" }}>{value}</div>
       {sub && <div style={{ fontSize: 11.5, color: "var(--dim)", marginTop: 1, lineHeight: 1.3 }}>{sub}</div>}

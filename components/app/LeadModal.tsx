@@ -302,7 +302,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
         >
           {lead &&
             (canReview ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: 10, background: "var(--bg-strip)", border: "1px solid var(--ink-07)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: 8, background: "var(--bg-strip)", border: "1px solid var(--ink-07)" }}>
                 <Field label="Статус лида">
                   <StatusPicker value={status} current={lead.status} onChange={setStatus} />
                 </Field>

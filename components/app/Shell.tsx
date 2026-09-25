@@ -28,7 +28,7 @@ function RailStatus() {
   const p = m.team.pace;
   const href = access.routes.has("/dashboard") ? "/dashboard" : "/me";
   return (
-    <Link href={href} className="rail-text" style={{ display: "block", textDecoration: "none", color: "inherit", margin: "0 10px 10px", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--ink-07)", background: "var(--bg-panel)" }}>
+    <Link href={href} className="rail-text" style={{ display: "block", textDecoration: "none", color: "inherit", margin: "0 10px 10px", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--ink-07)", background: "var(--bg-panel)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--text-sub)", marginBottom: 6 }}>
         <span>{access.isOp ? "Мой план · " : ""}{fmtMonth(currentMonth())}</span>
         <span style={{ fontWeight: 600, color: "var(--text)" }}>{fmtPct(p.pct)}</span>
@@ -85,7 +85,7 @@ function Rail() {
       <RailStatus />
 
       {!persistent && (
-        <div className="rail-text" style={{ margin: "0 10px 8px", padding: "8px 10px", borderRadius: 8, fontSize: 11.5, lineHeight: 1.4, background: "var(--c-red-bg)", color: "var(--c-red-fg)", border: "1px solid var(--c-red-bd)" }}>
+        <div className="rail-text" style={{ margin: "0 10px 8px", padding: "8px 10px", borderRadius: 6, fontSize: 11.5, lineHeight: 1.4, background: "var(--c-red-bg)", color: "var(--c-red-fg)", border: "1px solid var(--c-red-bd)" }}>
           Браузер запретил хранилище — данные живут только до закрытия вкладки. Сделайте выгрузку в Настройках.
         </div>
       )}
@@ -189,7 +189,7 @@ function Body({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <div className="stack" aria-busy aria-label="Загрузка">
-        <div style={{ height: 22, width: 220, borderRadius: 6, background: "var(--ink-06)", animation: "vexaSkeleton 1.2s ease-in-out infinite" }} />
+        <div style={{ height: 22, width: 220, borderRadius: 5, background: "var(--ink-06)", animation: "vexaSkeleton 1.2s ease-in-out infinite" }} />
         <div className="kpi-grid">
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="card" style={{ height: 78, animation: "vexaSkeleton 1.2s ease-in-out infinite" }} />
@@ -231,7 +231,7 @@ export function Shell({ children }: { children: ReactNode }) {
               overflow: "hidden",
               background: "var(--bg)",
               border: "1px solid var(--ink-07)",
-              borderRadius: 12,
+              borderRadius: 10,
               margin: 8,
               marginLeft: 0,
             }}

@@ -215,7 +215,7 @@ function GroupCard({ g }: { g: GroupRow }) {
 
 function Cell({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "good" | "bad" }) {
   return (
-    <div style={{ padding: "8px 10px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0 }}>
+    <div style={{ padding: "8px 10px", borderRadius: 6, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0 }}>
       <div style={{ fontSize: 11, color: "var(--text-sub)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
       <div className="row" style={{ columnGap: 5, rowGap: 0, alignItems: "baseline", flexWrap: "wrap" }}>
         <span style={{ fontSize: 16, fontWeight: 600, flex: "none", color: tone === "good" ? "var(--c-green-fg)" : tone === "bad" ? "var(--c-red-fg)" : undefined }}>{value}</span>

@@ -36,7 +36,7 @@
   gap: 2px;
   padding: 4px;
   border: 1px solid var(--ink-08);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg-panel);
 }
 .lrn-navg {
@@ -55,7 +55,7 @@
   width: 100%;
   padding: 7px 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: none;
   color: var(--text-sub);
   font: inherit;
@@ -74,7 +74,7 @@
 .lpg { font-size: 25px; font-weight: 650; letter-spacing: -0.4px; margin: 6px 0 10px; }
 .lrn-main .lead { font-size: 15px; line-height: 1.6; color: var(--text-sub); margin: 0 0 20px; max-width: 760px; }
 .lsec { font-size: 16px; font-weight: 650; margin: 30px 0 10px; display: flex; align-items: center; gap: 9px; }
-.lsec .cnt { font-size: 12px; font-weight: 600; color: var(--dim); background: var(--ink-05); border-radius: 20px; padding: 2px 8px; }
+.lsec .cnt { font-size: 12px; font-weight: 600; color: var(--dim); background: var(--ink-05); border-radius: 5px; padding: 2px 8px; }
 .lsub { font-size: 14px; font-weight: 600; }
 .subline { font-size: 13px; color: var(--dim); margin: -4px 0 12px; line-height: 1.55; max-width: 720px; }
 
@@ -96,7 +96,7 @@
   padding: 20px 22px;
   border: 1px solid var(--brand-border);
   background: var(--brand-tint);
-  border-radius: 14px;
+  border-radius: 12px;
   margin-bottom: 18px;
 }
 .contcard.done { border-color: var(--c-green-bd); background: var(--c-green-bg); }
@@ -114,7 +114,7 @@
 
 /* плитки */
 .ltiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0 4px; }
-.ltile { border: 1px solid var(--ink-08); border-radius: 12px; padding: 14px 16px; background: var(--bg-panel); }
+.ltile { border: 1px solid var(--ink-08); border-radius: 10px; padding: 14px 16px; background: var(--bg-panel); }
 .ltile .tl { font-size: 11.5px; font-weight: 600; color: var(--dim); margin-bottom: 8px; }
 .ltile .tv { font-size: 26px; font-weight: 650; letter-spacing: -0.5px; }
 .ltile .tu { font-size: 12.5px; color: var(--dim); margin-left: 6px; }
@@ -129,7 +129,7 @@
   text-align: left;
   padding: 15px 16px;
   border: 1px solid var(--ink-08);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg-panel);
   color: var(--text);
   font: inherit;
@@ -142,7 +142,7 @@
 .lcard .ci2 {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -167,7 +167,7 @@
   text-align: left;
   padding: 10px 12px;
   border: 1px solid var(--ink-08);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--bg-panel);
   color: var(--text);
   font: inherit;
@@ -176,15 +176,15 @@
 .lrn-row:hover:not(:disabled):not(.static) { border-color: var(--brand-border); background: var(--bg-panel-hover); }
 .lrn-row.lock { color: var(--dim); cursor: not-allowed; }
 .lrn-row.static { cursor: default; }
-.lrn-row .ri { flex: none; width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; background: var(--ink-05); color: var(--text-sub); }
+.lrn-row .ri { flex: none; width: 30px; height: 30px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; background: var(--ink-05); color: var(--text-sub); }
 .lrn-row .rt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .lrn-row .rt b { font-size: 13.5px; font-weight: 600; }
 .lrn-row .rt span { font-size: 11.5px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lrn-row .rc { flex: none; color: var(--dimmer); }
 .lrn-row .rprog { flex: none; display: flex; align-items: center; gap: 8px; width: 108px; font-size: 11.5px; color: var(--dim); }
-.lrn-empty { padding: 18px; border: 1px dashed var(--ink-10); border-radius: 10px; font-size: 13px; color: var(--dim); text-align: center; line-height: 1.55; }
+.lrn-empty { padding: 18px; border: 1px dashed var(--ink-10); border-radius: 8px; font-size: 13px; color: var(--dim); text-align: center; line-height: 1.55; }
 
-.lpill { flex: none; font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 20px; background: var(--ink-05); color: var(--text-sub); white-space: nowrap; }
+.lpill { flex: none; font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 5px; background: var(--ink-05); color: var(--text-sub); white-space: nowrap; }
 .lpill.ok { background: var(--c-green-bg); color: var(--c-green-fg); }
 .lpill.warn { background: var(--c-amber-bg); color: var(--c-amber-fg); }
 .lpill.err { background: var(--c-red-bg); color: var(--c-red-fg); }
@@ -197,14 +197,14 @@
   overflow-y: auto;
   padding: 14px;
   border: 1px solid var(--ink-08);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg-panel);
 }
 .tree > h1 { font-size: 15px; font-weight: 650; margin: 0 0 10px; }
 .tree-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
 .tree-tabs button {
   border: 1px solid var(--ink-08);
-  border-radius: 20px;
+  border-radius: 5px;
   background: transparent;
   color: var(--text-sub);
   font: inherit;
@@ -242,7 +242,7 @@
   text-align: left;
   padding: 6px 8px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: none;
   color: var(--text-sub);
   font: inherit;
@@ -296,7 +296,7 @@
   align-items: flex-start;
   padding: 12px 14px;
   border: 1px solid var(--ink-08);
-  border-radius: 11px;
+  border-radius: 8px;
   margin: 14px 0;
   font-size: 13.5px;
   line-height: 1.6;
@@ -318,7 +318,7 @@
 .tipline b { display: block; color: var(--text); }
 
 /* скрипт и диалог */
-.panel { border: 1px solid var(--ink-08); border-radius: 12px; margin: 16px 0; overflow: hidden; background: var(--bg-panel); }
+.panel { border: 1px solid var(--ink-08); border-radius: 10px; margin: 16px 0; overflow: hidden; background: var(--bg-panel); }
 .panel-h {
   display: flex;
   align-items: center;
@@ -348,7 +348,7 @@
   margin: 0 0 18px;
   padding: 9px 12px;
   border: 1px solid var(--ink-08);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--ink-03);
 }
 .modebar .seg > button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; }
@@ -366,7 +366,7 @@
   margin: 0 0 14px;
   padding: 7px 10px;
   border: 1px solid var(--ink-08);
-  border-radius: 11px;
+  border-radius: 8px;
   background: var(--bg-panel);
   box-shadow: var(--shadow-sm);
 }
@@ -377,7 +377,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid var(--ink-08);
   background: var(--bg-panel);
   font: inherit;
@@ -390,7 +390,7 @@
 .runstep {
   margin: 0 0 12px;
   border: 1px solid var(--ink-08);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--bg-panel);
   overflow: hidden;
   /* переход по номеру шага не прячет шапку под плашкой «Шаги» */
@@ -417,7 +417,7 @@
 .rsline:last-child { border-bottom: none; }
 .rsl { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
 .rsl > span { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); }
-.rsl .tm { font-weight: 600; letter-spacing: 0; text-transform: none; padding: 2px 7px; border-radius: 6px; background: var(--ink-05); }
+.rsl .tm { font-weight: 600; letter-spacing: 0; text-transform: none; padding: 2px 7px; border-radius: 5px; background: var(--ink-05); }
 .rst { margin: 0; font-size: 16px; line-height: 1.62; font-weight: 500; color: var(--text); white-space: pre-wrap; text-wrap: pretty; }
 .rsflags { display: flex; flex-direction: column; gap: 9px; padding: 12px 16px; border-top: 1px solid var(--ink-06); background: var(--brand-tint); }
 .rsflag { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.55; color: var(--text-sub); }
@@ -463,7 +463,7 @@
   text-align: left;
   padding: 10px 12px;
   border: 1px solid var(--ink-08);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--bg-panel);
   color: var(--text);
   font: inherit;
@@ -476,7 +476,7 @@
   flex: none;
   width: 18px;
   height: 18px;
-  border-radius: 6px;
+  border-radius: 5px;
   border: 1.5px solid var(--ink-12);
   display: inline-flex;
   align-items: center;
@@ -491,7 +491,7 @@
 
 /* таблицы внутри материалов */
 /* только внутри академии: в CRM у .tbl-wrap свои отступы */
-.lrn-shell .tbl-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--ink-08); border-radius: 12px; }
+.lrn-shell .tbl-wrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--ink-08); border-radius: 10px; }
 .learn-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .learn-tbl th {
   text-align: left;
@@ -520,7 +520,7 @@
   margin-top: 26px;
   padding: 10px 13px;
   border: 1px dashed var(--ink-10);
-  border-radius: 10px;
+  border-radius: 8px;
   font-size: 12.5px;
   color: var(--dim);
 }
@@ -537,7 +537,7 @@
   resize: vertical;
   padding: 12px 14px;
   border: 1px solid var(--ink-08);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -548,14 +548,14 @@
 
 /* ── тесты ─────────────────────────────────────────────────────── */
 .quiz { max-width: 780px; }
-.quiz-res { border: 1px solid var(--ink-08); border-radius: 14px; padding: 20px 22px; margin: 16px 0 22px; }
+.quiz-res { border: 1px solid var(--ink-08); border-radius: 12px; padding: 20px 22px; margin: 16px 0 22px; }
 .quiz-res.pass { border-color: var(--c-green-bd); background: var(--c-green-bg); }
 .quiz-res.fail { border-color: var(--c-amber-bd); background: var(--c-amber-bg); }
 .quiz-res .eyebrow { color: var(--dim); margin-bottom: 10px; }
 .quiz-res .big { font-size: 34px; font-weight: 650; letter-spacing: -1px; }
 .quiz-msg { margin: 12px 0 0; font-size: 14px; line-height: 1.6; color: var(--text-soft); max-width: 640px; }
 
-.qc { border: 1px solid var(--ink-08); border-radius: 12px; padding: 16px 18px; margin-bottom: 12px; background: var(--bg-panel); }
+.qc { border: 1px solid var(--ink-08); border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; background: var(--bg-panel); }
 .qn { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
 .qt { font-size: 15px; font-weight: 600; margin: 8px 0 12px; line-height: 1.5; }
 .opts { display: flex; flex-direction: column; gap: 7px; }
@@ -567,7 +567,7 @@
   text-align: left;
   padding: 10px 13px;
   border: 1px solid var(--ink-08);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--bg);
   color: var(--text);
   font: inherit;
@@ -580,7 +580,7 @@
   flex: none;
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: 5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -596,7 +596,7 @@
 .opt.wrong { border-color: var(--c-red-bd); background: var(--c-red-bg); }
 .opt.wrong .k { background: var(--c-red-fg); color: #fff; }
 .opt:disabled { cursor: default; }
-.why { margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: var(--ink-04); font-size: 13px; line-height: 1.6; color: var(--text-sub); }
+.why { margin-top: 12px; padding: 11px 13px; border-radius: 8px; background: var(--ink-04); font-size: 13px; line-height: 1.6; color: var(--text-sub); }
 .why b { color: var(--text); }
 
 .quizbar {
@@ -606,7 +606,7 @@
   flex-wrap: wrap;
   padding: 14px 16px;
   border: 1px solid var(--ink-08);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg-panel);
   position: sticky;
   bottom: 8px;
@@ -614,7 +614,7 @@
 .lprog-bar { height: 5px; border-radius: 3px; background: var(--ink-08); overflow: hidden; }
 .lprog-bar > i { display: block; height: 100%; background: var(--brand); }
 
-.redo { border: 1px solid var(--brand-border); border-radius: 12px; padding: 16px 18px; margin-bottom: 20px; background: var(--brand-tint); }
+.redo { border: 1px solid var(--brand-border); border-radius: 10px; padding: 16px 18px; margin-bottom: 20px; background: var(--brand-tint); }
 .redo-h { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 12px; font-size: 13.5px; }
 .redo-h svg { color: var(--brand); }
 .redo-h span { font-size: 11.5px; color: var(--dim); }
@@ -628,7 +628,7 @@
   padding: 0 12px;
   height: 38px;
   border: 1px solid var(--ink-08);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--bg-panel);
   margin: 4px 0 10px;
 }
@@ -636,7 +636,7 @@
 .filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .filt {
   border: 1px solid var(--ink-08);
-  border-radius: 20px;
+  border-radius: 5px;
   background: transparent;
   color: var(--text-sub);
   font: inherit;
@@ -648,7 +648,7 @@
 .filt.on { background: var(--brand-tint); border-color: var(--brand-border); color: var(--text); font-weight: 600; }
 .hl { background: var(--c-amber-bg); color: var(--c-amber-fg); border-radius: 3px; padding: 0 2px; }
 
-.strow { display: flex; gap: 16px; padding: 11px 13px; border: 1px solid var(--ink-08); border-radius: 10px; background: var(--bg-panel); }
+.strow { display: flex; gap: 16px; padding: 11px 13px; border: 1px solid var(--ink-08); border-radius: 8px; background: var(--bg-panel); }
 .strow .sn { flex: none; width: 210px; font-size: 13px; font-weight: 600; }
 .strow .sd { font-size: 13px; color: var(--text-sub); line-height: 1.55; }
 @media (max-width: 720px) {
@@ -657,7 +657,7 @@
 }
 
 .qa { display: flex; flex-direction: column; gap: 10px; }
-.qacard { border: 1px solid var(--ink-08); border-radius: 12px; overflow: hidden; background: var(--bg-panel); }
+.qacard { border: 1px solid var(--ink-08); border-radius: 10px; overflow: hidden; background: var(--bg-panel); }
 .qacard .q { padding: 12px 15px; font-size: 14px; font-weight: 600; border-bottom: 1px solid var(--ink-06); }
 .qacard .a { padding: 12px 15px; font-size: 13.5px; line-height: 1.6; color: var(--text-sub); }
 .qacard .a b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brand); margin-bottom: 4px; }
@@ -668,7 +668,7 @@
   align-items: flex-start;
   margin-top: 10px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--ink-03);
   font-size: 11.5px;
   line-height: 1.55;
@@ -678,7 +678,7 @@
 
 /* ── тренажёры ─────────────────────────────────────────────────── */
 .trainer { max-width: 720px; }
-.flip { border: 1px solid var(--ink-08); border-radius: 14px; padding: 20px 22px; background: var(--bg-panel); }
+.flip { border: 1px solid var(--ink-08); border-radius: 12px; padding: 20px 22px; background: var(--bg-panel); }
 .who2 { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
 .said { font-size: 18px; line-height: 1.5; margin-top: 10px; }
 .ans { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--ink-06); font-size: 14px; line-height: 1.6; color: var(--text-soft); }
@@ -691,7 +691,7 @@
 .calc-f { display: flex; flex-direction: column; gap: 5px; }
 .calc-f > span { font-size: 11.5px; font-weight: 600; color: var(--dim); }
 .calcout { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.ob { border: 1px solid var(--ink-08); border-radius: 12px; padding: 13px 15px; background: var(--bg-panel); }
+.ob { border: 1px solid var(--ink-08); border-radius: 10px; padding: 13px 15px; background: var(--bg-panel); }
 .ob.big { background: var(--brand-tint); border-color: var(--brand-border); }
 .ob .l { font-size: 11.5px; font-weight: 600; color: var(--dim); margin-bottom: 6px; }
 .ob .v { font-size: 20px; font-weight: 650; letter-spacing: -0.4px; }
@@ -699,7 +699,7 @@
 
 /* ── оплата ────────────────────────────────────────────────────── */
 .paygrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 12px 0 16px; }
-.paycard { border: 1px solid var(--ink-08); border-radius: 12px; padding: 14px 16px; background: var(--bg-panel); }
+.paycard { border: 1px solid var(--ink-08); border-radius: 10px; padding: 14px 16px; background: var(--bg-panel); }
 .paycard b { display: block; font-size: 19px; font-weight: 650; margin-bottom: 6px; }
 .paycard span { font-size: 12.5px; color: var(--dim); line-height: 1.55; }
 .paylist { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -711,7 +711,7 @@
   border: 1px solid var(--c-green-bd);
   background: var(--c-green-bg);
   color: var(--c-green-fg);
-  border-radius: 20px;
+  border-radius: 5px;
   font-size: 12.5px;
 }
 .shiftbar {
@@ -721,7 +721,7 @@
   flex-wrap: wrap;
   padding: 13px 16px;
   border: 1px solid var(--ink-08);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg-panel);
   margin-bottom: 14px;
 }
@@ -737,7 +737,7 @@
 .ctxbtns button {
   flex: 1;
   border: 1px solid var(--ink-08);
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-sub);
   font: inherit;
@@ -746,7 +746,7 @@
   cursor: pointer;
 }
 .ctxbtns button.on { background: var(--brand-tint); border-color: var(--brand-border); color: var(--text); font-weight: 600; }
-.acard { border: 1px solid var(--ink-08); border-radius: 12px; padding: 13px 14px; background: var(--bg-panel); }
+.acard { border: 1px solid var(--ink-08); border-radius: 10px; padding: 13px 14px; background: var(--bg-panel); }
 .acard h3 { font-size: 12.5px; font-weight: 650; margin: 0 0 3px; }
 .acard > p { margin: 0 0 9px; font-size: 11px; color: var(--dimmer); line-height: 1.45; }
 .arow {
@@ -757,7 +757,7 @@
   text-align: left;
   padding: 8px;
   border: none;
-  border-radius: 9px;
+  border-radius: 7px;
   background: none;
   color: var(--text);
   font: inherit;
@@ -768,7 +768,7 @@
   flex: none;
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -808,7 +808,7 @@
 .drw-h span { font-size: 11.5px; color: var(--dim); }
 
 /* ── сертификат ────────────────────────────────────────────────── */
-.cert { position: relative; border: 1px solid var(--ink-10); border-radius: 16px; overflow: hidden; background: var(--bg-panel); margin-top: 14px; }
+.cert { position: relative; border: 1px solid var(--ink-10); border-radius: 12px; overflow: hidden; background: var(--bg-panel); margin-top: 14px; }
 .certbar { display: block; height: 5px; background: linear-gradient(90deg, var(--brand), var(--c-green-fg)); }
 .certinner { padding: 34px 40px 30px; text-align: center; }
 .certbrand { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
@@ -821,7 +821,7 @@
 .certunder { width: 220px; height: 1px; background: var(--ink-10); margin: 0 auto 18px; }
 .certprog { font-size: 16px; font-weight: 600; margin: 6px 0 22px; }
 .certgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; text-align: left; }
-.certgrid > div { border: 1px solid var(--ink-06); border-radius: 10px; padding: 11px 13px; }
+.certgrid > div { border: 1px solid var(--ink-06); border-radius: 8px; padding: 11px 13px; }
 .certgrid span { display: block; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dimmer); margin-bottom: 4px; }
 .certgrid b { font-size: 13px; font-weight: 600; }
 .certsign { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-top: 28px; flex-wrap: wrap; }

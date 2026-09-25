@@ -99,7 +99,7 @@ export const ReportCanvas = forwardRef<ReportCanvasHandle, { report: Report; com
     };
   }, [report, company, dark]);
 
-  return <canvas ref={cv} style={{ width: "100%", maxWidth: W, height: "auto", display: "block", borderRadius: 12, boxShadow: "var(--shadow-sm)", border: "1px solid var(--ink-07)" }} />;
+  return <canvas ref={cv} style={{ width: "100%", maxWidth: W, height: "auto", display: "block", borderRadius: 10, boxShadow: "var(--shadow-sm)", border: "1px solid var(--ink-07)" }} />;
 });
 
 function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: string, mono: string, C: Palette) {

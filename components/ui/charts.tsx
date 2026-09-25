@@ -31,7 +31,7 @@ function TipBox({ children }: { children: React.ReactNode }) {
       style={{
         background: "var(--bg-modal)",
         border: "1px solid var(--ink-10)",
-        borderRadius: 8,
+        borderRadius: 6,
         boxShadow: "var(--shadow-lg)",
         padding: "8px 10px",
         fontSize: 12,

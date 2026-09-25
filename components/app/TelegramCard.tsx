@@ -399,7 +399,7 @@ function LinkBody({
       </ol>
       <div
         className="row"
-        style={{ gap: 10, padding: "12px 14px", borderRadius: 10, background: "var(--bg)", border: "1px solid var(--ink-06)", justifyContent: "space-between", flexWrap: "wrap" }}
+        style={{ gap: 10, padding: "12px 14px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--ink-06)", justifyContent: "space-between", flexWrap: "wrap" }}
       >
         <code style={{ fontFamily: "var(--font-mono)", fontSize: 22, fontWeight: 600, letterSpacing: ".04em", color: "var(--text)", userSelect: "all" }}>{cmd}</code>
         <button className="btn btn-sm" onClick={() => onCopy(cmd)}>

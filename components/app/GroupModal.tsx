@@ -107,7 +107,7 @@ export function GroupModal({ group }: { group: Group | null }) {
                 style={{
                   width: 24,
                   height: 24,
-                  borderRadius: 7,
+                  borderRadius: 5,
                   border: f.color === h ? "2px solid var(--text)" : "2px solid transparent",
                   background: hueFg(h),
                   boxShadow: "inset 0 0 0 2px var(--bg-modal)",
