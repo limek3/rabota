@@ -292,12 +292,17 @@ export default function LeadsPage() {
                       )}
                     </td>
                     <td>
+                      <ClipText text={l.client} width={120} />
+                    </td>
+                    <td className="num c">
+                      {/* ссылка на лид — слева от номера; слот фиксированной ширины держит номера на одной вертикали */}
                       <span className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
-                        <ClipText text={l.client} width={120} />
-                        <LeadLinkButton link={l.link} variant="icon" />
+                        <span style={{ width: 22, flex: "none", display: "inline-flex" }}>
+                          <LeadLinkButton link={l.link} variant="icon" />
+                        </span>
+                        {fmtPhone(l.phone) || <span className="muted">—</span>}
                       </span>
                     </td>
-                    <td className="num c">{fmtPhone(l.phone) || <span className="muted">—</span>}</td>
                     <td className="c">{p ? <Chip hue={p.color}>{p.name}</Chip> : <span className="muted">—</span>}</td>
                     <td>
                       <ClipText text={shortName(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} full={(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} width={130} />

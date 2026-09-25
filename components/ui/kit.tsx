@@ -61,7 +61,7 @@ export function GoneTag({ op }: { op: Pick<Operator, "status" | "fireDate" | "de
  * Ссылка на лид: открывает её в новой вкладке (в десктопе — в браузере). Клик не
  * открывает карточку лида под ней — строки таблиц кликабельны.
  *   pill — кнопка «↗ лид» (кабинет, карточка оператора);
- *   icon — маленький значок рядом с именем клиента (журнал лидов).
+ *   icon — маленький значок слева от номера телефона (журнал лидов).
  */
 export function LeadLinkButton({ link, variant = "pill" }: { link: string; variant?: "pill" | "icon" }) {
   if (!link) return variant === "icon" ? null : <span className="muted">—</span>;
