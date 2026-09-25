@@ -528,6 +528,16 @@ export interface AuditEntry {
   entityId: ID;
   /** Человеческая строка: «Ставка: 200 → 230 ₽». */
   summary: string;
+  /** Что именно поменялось: поле, было, стало — уже человеческими словами. У старых записей нет. */
+  changes?: AuditChange[];
+}
+
+/** Одна строка «было → стало» в журнале изменений. */
+export interface AuditChange {
+  /** Поле: «Проект», «Оклад». */
+  f: string;
+  from: string;
+  to: string;
 }
 
 export const AUDIT_LABEL: Record<AuditEntity, string> = {

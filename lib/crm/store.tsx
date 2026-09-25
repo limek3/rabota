@@ -48,7 +48,8 @@ import { AUTH_ENABLED } from "@/lib/appMode";
 import { planId, shiftId, uniqueId } from "./ids";
 import * as db from "./db";
 import * as remote from "./remote";
-import { normLink, normPhone } from "./format";
+import { diffRecords, diffSettings, type AuditCtx } from "./audit";
+import { fmtPhone, normLink, normPhone } from "./format";
 import { counts, repair, sanitize, toSnapshot } from "./validate";
 import { stripDemo } from "./purge";
 import { syncClock } from "@/lib/clock";
@@ -328,7 +329,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
    * а не памятью. Старые записи подрезаем, чтобы журнал не рос бесконечно.
    */
   const AUDIT_KEEP = 3000;
-  const log = useCallback(async (entity: AuditEntry["entity"], entityId: string, summary: string) => {
+  const log = useCallback(async (entity: AuditEntry["entity"], entityId: string, summary: string, changes?: AuditEntry["changes"]) => {
     const acc = accessRef.current.account;
     if (acc.id === "__boot__" || !summary) return;
     const rec: AuditEntry = {
@@ -339,6 +340,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       entity,
       entityId,
       summary,
+      ...(changes && changes.length ? { changes } : {}),
     };
     const old = dataRef.current.audit;
     const extra = old.length + 1 - AUDIT_KEEP;
@@ -352,6 +354,16 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     }
     setData((d) => ({ ...d, audit: [...(drop.length ? d.audit.filter((x) => !drop.includes(x.id)) : d.audit), rec] }));
   }, []);
+
+  /** Имена для «было → стало» в журнале: оператор, группа, проект, сетка ставок. */
+  const auditCtx = (): AuditCtx => ({
+    op: (id) => ixRef.current.opById.get(id)?.name,
+    group: (id) => ixRef.current.groupById.get(id)?.name,
+    project: (id) => ixRef.current.projectById.get(id)?.name,
+    grid: (id) => dataRef.current.settings.rateGrids.find((g) => g.id === id)?.name,
+  });
+  /** Изменения объекта для журнала (before = undefined — создан, after = undefined — удалён). */
+  const changesOf = (entity: AuditEntry["entity"], before: object | null | undefined, after: object | null | undefined) => diffRecords(entity, before, after, auditCtx());
 
   /** Короткое описание правки оператора: что было → что стало. */
   const opDiff = useCallback((prev: Operator | undefined, next: Operator): string => {
@@ -657,7 +669,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       );
       if (ok && prev) {
         const who = ixRef.current.opById.get(lead.operatorId)?.name ?? lead.operatorId;
-        void log("lead", lead.id, `Правка лида ${lead.phone || lead.client || lead.id} · ${who}`);
+        void log("lead", lead.id, `Правка лида ${fmtPhone(lead.phone) || lead.client || lead.id} · ${who}`, changesOf("lead", prev, lead));
       }
       // в Supabase ещё нет колонки для ссылки — лид сохранён, а ссылка нет: говорим прямо, а не молча
       if (ok && lead.region && db.REMOTE && !remote.hasLeadRegionColumn())
@@ -739,9 +751,12 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         const r = recs[0];
         const prev = targets.find((l) => l.id === r.id);
         const who = ixRef.current.opById.get(r.operatorId)?.name ?? r.operatorId;
-        void log("lead", r.id, `Статус лида ${r.phone || r.client || r.id} · ${who}: ${prev ? LEAD_STATUS_LABEL[prev.status] : "—"} → ${tail}`);
+        void log("lead", r.id, `Статус лида ${fmtPhone(r.phone) || r.client || r.id} · ${who}: ${prev ? LEAD_STATUS_LABEL[prev.status] : "—"} → ${tail}`, changesOf("lead", prev, r));
       } else {
-        void log("lead", recs.map((r) => r.id).join(","), `Статус ${recs.length} лидов → ${tail}`);
+        void log("lead", recs.map((r) => r.id).join(","), `Статус ${recs.length} лидов → ${tail}`, [
+          { f: "Статус", from: Array.from(new Set(targets.map((l) => LEAD_STATUS_LABEL[l.status]))).join(", "), to: LEAD_STATUS_LABEL[status] },
+          { f: "Лиды", from: "—", to: recs.map((r) => r.phone || r.client || r.id).slice(0, 30).join(", ") + (recs.length > 30 ? ` и ещё ${recs.length - 30}` : "") },
+        ]);
       }
       return recs.length;
     },
@@ -805,7 +820,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
           shifts: drop.length ? d.shifts.filter((s) => !drop.includes(s.id)) : d.shifts,
         }),
       );
-      if (ok) void log("operator", op.id, opDiff(prev, op) + (drop.length ? ` · снято плановых смен: ${drop.length}` : ""));
+      if (ok) void log("operator", op.id, opDiff(prev, op) + (drop.length ? ` · снято плановых смен: ${drop.length}` : ""), changesOf("operator", prev, op));
       return ok ? op : null;
     },
     [commit, toast, deny, log, opDiff, plannedAfterLeave],
@@ -837,7 +852,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         }),
       );
       if (ok) {
-        void log("operator", id, opDiff(prev, op) + (drop.length ? ` · снято плановых смен: ${drop.length}` : ""));
+        void log("operator", id, opDiff(prev, op) + (drop.length ? ` · снято плановых смен: ${drop.length}` : ""), changesOf("operator", prev, op));
         if (okText) toast(okText);
       }
     },
@@ -917,7 +932,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         }),
       );
       if (ok) {
-        void log("operator", id, `${op.name}: удалён${upd.status !== op.status ? ", уволен с сегодняшнего дня" : ""}${drop.length ? ` · снято плановых смен: ${drop.length}` : ""}`);
+        void log("operator", id, `${op.name}: удалён${upd.status !== op.status ? ", уволен с сегодняшнего дня" : ""}${drop.length ? ` · снято плановых смен: ${drop.length}` : ""}`, changesOf("operator", op, upd));
         toast(`Оператор удалён, история сохранена`, "info", {
           label: "Вернуть",
           // возвращаем и прежний статус (снятые плановые смены — нет, их проще поставить заново)
@@ -975,7 +990,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
           if (prev.monthlyPlan !== g.monthlyPlan) bits.push(`план: ${prev.monthlyPlan || "сумма"} → ${g.monthlyPlan || "сумма"}`);
           if (prev.active !== g.active) bits.push(g.active ? "включена" : "выключена");
         }
-        if (bits.length) void log("group", g.id, `Группа «${g.name}»: ${bits.join(", ")}`);
+        if (bits.length) void log("group", g.id, `Группа «${g.name}»: ${bits.join(", ")}`, changesOf("group", prev, g));
       }
       return ok ? g : null;
     },
@@ -1109,7 +1124,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       if (ok) {
         const label = (t: Shift["type"], h: number) => `${DAY_LABEL[t]}${t === "work" || t === "training" ? ` ${h} ч` : ""}`;
         const was = prev ? label(prev.type, prev.hours) : "пусто";
-        void log("shift", id, `${op?.name ?? operatorId}, ${fmtDay(date)}: ${was} → ${label(sh.type, sh.hours)}`);
+        void log("shift", id, `${op?.name ?? operatorId}, ${fmtDay(date)}: ${was} → ${label(sh.type, sh.hours)}`, changesOf("shift", prev, sh));
       }
     },
     [commit, log],
@@ -1202,7 +1217,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       if (ok) {
         const who =
           scope === "team" ? "команды" : scope === "group" ? `группы «${ixRef.current.groupById.get(targetId || "")?.name ?? targetId}»` : `${ixRef.current.opById.get(targetId || "")?.name ?? targetId}`;
-        void log("plan", id, `План ${who} на ${m}: ${prev && !prev.auto ? prev.plan : "по умолчанию"} → ${rec.plan}`);
+        void log("plan", id, `План ${who} на ${m}: ${prev && !prev.auto ? prev.plan : "по умолчанию"} → ${rec.plan}`, changesOf("plan", prev && !prev.auto ? prev : undefined, rec));
       }
     },
     [commit, log],
@@ -1240,7 +1255,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         if (prev?.salary !== rec.salary) bits.push(`оклад ${prev?.salary ?? "—"} → ${rec.salary ?? "—"}`);
         if (prev?.hourlyRate !== rec.hourlyRate) bits.push(`ставка ${prev?.hourlyRate ?? "—"} → ${rec.hourlyRate ?? "—"}`);
         if (prev?.approvePct !== rec.approvePct) bits.push(`апрув ${prev?.approvePct ?? "—"} → ${rec.approvePct ?? "—"}%`);
-        void log("payroll", id, `Условия ${m}, ${name}${bits.length ? `: ${bits.join(", ")}` : " зафиксированы"}`);
+        void log("payroll", id, `Условия ${m}, ${name}${bits.length ? `: ${bits.join(", ")}` : " зафиксированы"}`, changesOf("plan", prev, rec));
       }
     },
     [commit, log],
@@ -1273,7 +1288,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       if (ok) {
         const name = ixRef.current.opById.get(a.operatorId)?.name ?? a.operatorId;
         const what = `${ADJ_LABEL[a.type]} ${Math.round(a.amount).toLocaleString("ru-RU")} ₽`;
-        void log("payroll", a.id, `${prev ? "Изменено" : "Добавлено"}: ${what} · ${name} · ${a.month}`);
+        void log("payroll", a.id, `${prev ? "Изменено" : "Добавлено"}: ${what} · ${name} · ${a.month}`, changesOf("payroll", prev, a));
         // сразу видно, что именно записано и кому — премия не «теряется» в остатке
         toast(`${what} · ${name} — ${prev ? "изменено" : "записано"}`);
       }
@@ -1292,7 +1307,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       );
       if (ok) {
         const name = ixRef.current.opById.get(a.operatorId)?.name ?? a.operatorId;
-        void log("payroll", a.id, `Удалено начисление «${a.type}» ${Math.round(a.amount).toLocaleString("ru-RU")} ₽ · ${name} · ${a.month}`);
+        void log("payroll", a.id, `Удалено: ${ADJ_LABEL[a.type]} ${Math.round(a.amount).toLocaleString("ru-RU")} ₽ · ${name} · ${a.month}`, changesOf("payroll", a, undefined));
       }
       if (ok)
         toast("Начисление удалено", "info", {
@@ -1316,7 +1331,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       );
       if (ok) {
         const pname = projectId ? ixRef.current.projectById.get(projectId)?.name ?? projectId : "весь месяц";
-        void log("approve", id, `Апрув ${month} · ${pname}: ${prev ? `${prev.pct}%` : "—"} → ${rec.pct}%`);
+        void log("approve", id, `Апрув ${month} · ${pname}: ${prev ? `${prev.pct}%` : "—"} → ${rec.pct}%`, changesOf("approve", prev, rec));
       }
     },
     [commit, deny, log],
@@ -1331,7 +1346,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         () => db.deleteRecords("approves", [id]),
         (d) => ({ ...d, approves: d.approves.filter((a) => a.id !== id) }),
       );
-      if (ok) void log("approve", id, `Апрув ${prev.month} удалён`);
+      if (ok) void log("approve", id, `Апрув ${prev.month} удалён`, changesOf("approve", prev, undefined));
     },
     [commit, deny, log],
   );
@@ -1387,7 +1402,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
           : prev.stage !== c.stage
             ? `${c.name}: ${CANDIDATE_STAGE_LABEL[prev.stage]} → ${CANDIDATE_STAGE_LABEL[c.stage]}${c.reason ? ` (${c.reason})` : ""}`
             : `${c.name}: карточка кандидата изменена`;
-        void log("candidate", c.id, summary);
+        void log("candidate", c.id, summary, changesOf("candidate", prev, c));
       }
       return ok ? c : null;
     },
@@ -1406,7 +1421,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         (d) => ({ ...d, candidates: d.candidates.map((c) => (c.id === id ? upd : c)) }),
       );
       if (!ok) return;
-      void log("candidate", id, `Кандидат «${prev.name}» удалён`);
+      void log("candidate", id, `Кандидат «${prev.name}» удалён`, changesOf("candidate", prev, undefined));
       toast("Кандидат удалён", "info", {
         label: "Вернуть",
         run: () => void commit(() => db.putRecord("candidates", prev), (d) => ({ ...d, candidates: d.candidates.map((c) => (c.id === id ? prev : c)) })),
@@ -1481,13 +1496,10 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const ok = await commit(() => db.setKV("settings", next), (d) => ({ ...d, settings: next }));
       if (ok) {
         const changed = (Object.keys(patch) as (keyof Settings)[]).filter((k) => JSON.stringify(prev[k]) !== JSON.stringify(next[k]));
-        const bits = changed.slice(0, 4).map((k) => {
-          const a = prev[k];
-          const b = next[k];
-          const short = (v: unknown) => (typeof v === "object" ? "…" : String(v));
-          return `${k}: ${short(a)} → ${short(b)}`;
-        });
-        if (bits.length) void log("settings", "settings", `Настройки — ${bits.join(", ")}${changed.length > 4 ? ` и ещё ${changed.length - 4}` : ""}`);
+        // заголовок — из тех же человеческих строк, что «было → стало»: «Цена регионального лида: 4 000 ₽ → 4 500 ₽»
+        const ch = diffSettings(prev, next, changed);
+        const head = ch.slice(0, 2).map((c) => `${c.f}: ${c.from} → ${c.to}`);
+        if (ch.length) void log("settings", "settings", `Настройки — ${head.join("; ")}${ch.length > 2 ? ` и ещё ${ch.length - 2}` : ""}`, ch);
       }
       if (ok && patch.reportMonth !== undefined) setMonthState(next.reportMonth || currentMonth());
       return ok;

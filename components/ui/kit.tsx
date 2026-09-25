@@ -816,7 +816,7 @@ export function Modal({
   );
 }
 
-export function Drawer({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+export function Drawer({ onClose, children, width }: { onClose: () => void; children: ReactNode; width?: number }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -830,7 +830,7 @@ export function Drawer({ onClose, children }: { onClose: () => void; children: R
   return createPortal(
     <>
       <div className="drawer-back" onMouseDown={onClose} />
-      <aside className="drawer" role="dialog" aria-modal>
+      <aside className="drawer" role="dialog" aria-modal style={width ? { width: `min(${width}px, calc(100vw - 16px))` } : undefined}>
         {children}
       </aside>
     </>,

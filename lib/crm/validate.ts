@@ -339,6 +339,10 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
           : "data") as AuditEntry["entity"],
         entityId: str(a.entityId),
         summary: str(a.summary),
+        // было → стало: только корректные строки {f, from, to}
+        ...(Array.isArray(a.changes)
+          ? { changes: (a.changes as unknown[]).filter((c): c is { f: string; from: string; to: string } => !!c && typeof (c as { f?: unknown }).f === "string").map((c) => ({ f: str(c.f), from: str(c.from), to: str(c.to) })) }
+          : {}),
       })),
     "Журнал",
     warns,

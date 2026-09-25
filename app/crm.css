@@ -893,3 +893,17 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .econ-tbl td { vertical-align: top; white-space: normal; }
 .econ-tbl td .chip { margin-top: 6px; }
 .econ-tbl .inp.r { text-align: right; }
+
+/* журнал: запись — кнопка, по клику справа «было → стало» */
+.audit-click { width: 100%; border: none; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.audit-click:hover, .audit-click.is-on { background: var(--ink-04); }
+.audit-click:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand-border); }
+.audit-go { flex: none; color: var(--dimmer); transition: color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); }
+.audit-click:hover .audit-go { color: var(--text-sub); transform: translateX(2px); }
+.audit-n { color: var(--brand); font-weight: 500; }
+.audit-diff td { white-space: normal; vertical-align: top; }
+.audit-diff .audit-f { color: var(--text-sub); width: 34%; }
+.audit-from, .audit-to { display: inline; padding: 1px 6px; border-radius: 5px; line-height: 1.7; overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.audit-from { background: var(--c-red-bg); color: var(--c-red-fg); text-decoration: line-through; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+.audit-to { background: var(--c-green-bg); color: var(--c-green-fg); font-weight: 600; }
+.audit-empty { color: var(--dimmer); }

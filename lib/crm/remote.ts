@@ -52,7 +52,7 @@ const SPEC: Record<Table, Record<string, Def>> = {
     id: "", name: "", contact: "", source: "", groupId: null, stage: "new", appliedAt: "", interviewAt: "", trainingAt: "", closedAt: "",
     operatorId: null, reason: "", comment: "", createdAt: NOW, updatedAt: NOW, deletedAt: null,
   },
-  audit: { id: "", at: NOW, accountId: "", accountName: "", entity: "", entityId: "", summary: "" },
+  audit: { id: "", at: NOW, accountId: "", accountName: "", entity: "", entityId: "", summary: "", changes: OPT },
 };
 
 const snake = (k: string) => k.replace(/[A-Z]/g, (c) => "_" + c.toLowerCase());
@@ -102,6 +102,9 @@ let leadRegionReady = true;
 export const hasLeadRegionColumn = () => leadRegionReady;
 const isMissingRegion = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /region/.test(e.message);
 const dropCol = (rows: Record<string, unknown>[], col: string) => rows.map(({ [col]: _drop, ...rest }) => rest);
+/** Колонка audit.changes (было → стало) — без неё журнал пишется как раньше, одной строкой. */
+let auditChangesReady = true;
+const isMissingChanges = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /changes/.test(e.message);
 const CANDIDATES_MISSING = "В Supabase ещё нет таблицы кандидатов. Выполните supabase/migrations/20260924000001_candidates.sql в SQL Editor (повторный запуск безопасен).";
 
 const isMissingTable = (e: { message: string; code?: string } | null) => e?.code === "PGRST205" || e?.code === "PGRST202" || /schema cache/i.test(e?.message ?? "");
@@ -175,9 +178,14 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
   }
   if (table === "leads") return putLeads(recs);
   for (const part of chunks(recs, 500)) {
-    const rows = part.map((r) => toRow(table, r));
+    let rows = part.map((r) => toRow(table, r));
+    if (table === "audit" && !auditChangesReady) rows = dropCol(rows, "changes");
     // журнал — только добавление: читать его могут не все, а upsert требует права чтения
-    const { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
+    let { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
+    if (error && table === "audit" && isMissingChanges(error)) {
+      auditChangesReady = false;
+      ({ error } = await supabase().from(table).insert(dropCol(rows, "changes")));
+    }
     if (error) fail(error, table);
   }
 }

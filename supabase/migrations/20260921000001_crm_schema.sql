@@ -249,8 +249,11 @@ create table if not exists public.audit (
   account_name text not null default '',
   entity       text not null default '',
   entity_id    text not null default '',
-  summary      text not null default ''
+  summary      text not null default '',
+  -- что поменялось: [{ f, from, to }] — было → стало человеческими словами
+  changes      jsonb
 );
+alter table public.audit add column if not exists changes jsonb;
 
 -- Настройки системы: key = 'settings' (всё, кроме секретов), 'sheets' (выгрузка в Google — только РОП),
 -- 'frozenMonths' (зафиксированные месяцы).
