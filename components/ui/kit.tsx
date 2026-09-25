@@ -19,7 +19,7 @@ import {
 } from "@/lib/crm/dates";
 import type { DayKey, Lead, MonthKey, Operator } from "@/lib/crm/types";
 import { LEAD_STATUS_HUE, LEAD_STATUS_LABEL } from "@/lib/crm/types";
-import { initials } from "@/lib/crm/format";
+import { fmtInt, initials } from "@/lib/crm/format";
 import { PACE_HUE, PACE_LABEL, type PaceStatus } from "@/lib/crm/calc";
 import { DateInput, MonthPicker } from "./select";
 
@@ -290,6 +290,80 @@ export function Seg<T extends string>({ value, options, onChange, style }: { val
         </button>
       ))}
     </div>
+  );
+}
+
+/* ── постраничный вывод ───────────────────────────────────────────── */
+/** Номера страниц с многоточиями: 1 … 4 5 6 … 12. Всегда первая, последняя и соседи текущей. */
+export function pageList(cur: number, total: number): (number | "gap")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const keep = new Set([1, total, cur - 1, cur, cur + 1]);
+  if (cur <= 4) [2, 3, 4, 5].forEach((n) => keep.add(n));
+  if (cur >= total - 3) [total - 4, total - 3, total - 2, total - 1].forEach((n) => keep.add(n));
+  const nums = [...keep].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
+  const out: (number | "gap")[] = [];
+  nums.forEach((n, i) => {
+    if (i > 0 && n - nums[i - 1] > 1) out.push("gap");
+    out.push(n);
+  });
+  return out;
+}
+
+/**
+ * Панель под таблицей: слева «1–25 из 58», посередине страницы, справа размер
+ * страницы. Страница считается с 1.
+ */
+export function Pager({
+  page,
+  size,
+  total,
+  sizes = [25, 50, 75, 100],
+  onPage,
+  onSize,
+}: {
+  page: number;
+  size: number;
+  total: number;
+  sizes?: number[];
+  onPage: (p: number) => void;
+  onSize: (s: number) => void;
+}) {
+  const pages = Math.max(1, Math.ceil(total / size));
+  const from = total ? (page - 1) * size + 1 : 0;
+  const to = Math.min(total, page * size);
+  return (
+    <nav className="pager" aria-label="Страницы">
+      <span className="pager-info num">
+        {fmtInt(from)}–{fmtInt(to)} из {fmtInt(total)}
+      </span>
+      <span className="pager-pages">
+        {pages > 1 && (
+          <>
+            <button type="button" onClick={() => onPage(page - 1)} disabled={page <= 1} aria-label="Предыдущая страница">
+              <Icon name="chevL" size={14} />
+            </button>
+            {pageList(page, pages).map((p, i) =>
+              p === "gap" ? (
+                <span key={`g${i}`} className="pager-gap">
+                  …
+                </span>
+              ) : (
+                <button key={p} type="button" className="num" aria-current={p === page ? "page" : undefined} onClick={() => onPage(p)}>
+                  {p}
+                </button>
+              ),
+            )}
+            <button type="button" onClick={() => onPage(page + 1)} disabled={page >= pages} aria-label="Следующая страница">
+              <Icon name="chevR" size={14} />
+            </button>
+          </>
+        )}
+      </span>
+      <span className="pager-size">
+        По
+        <Seg<string> value={String(size)} options={sizes.map((s) => ({ value: String(s), label: s }))} onChange={(v) => onSize(Number(v))} />
+      </span>
+    </nav>
   );
 }
 

@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { filterLeads } from "@/lib/crm/calc";
 import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type LeadStatus } from "@/lib/crm/types";
 import { fmtDate, rangeDays } from "@/lib/crm/dates";
 import { LEADS, fmtInt, fmtNum, fmtPhone, plural, shortName } from "@/lib/crm/format";
-import { Chip, ClipText, Empty, LeadLinkButton, LeadStatusChip, PageHead, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { Chip, ClipText, Empty, LeadLinkButton, LeadStatusChip, PageHead, Pager, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canReviewLead } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 
-const PAGE = 100;
+/** Размеры страницы журнала; выбор запоминается в этом браузере. */
+const SIZES = [25, 50, 75, 100];
+const SIZE_KEY = "leadup.leads.pageSize";
 
 function readQuery(): Record<string, string> {
   if (typeof window === "undefined") return {};
@@ -26,7 +28,30 @@ export default function LeadsPage() {
   const [projectId, setProjectId] = useState("");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<LeadStatus | "">("");
-  const [limit, setLimit] = useState(PAGE);
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(25);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem(SIZE_KEY));
+      if (SIZES.includes(v)) setSize(v);
+    } catch {
+      /* хранилище недоступно — остаёмся на 25 */
+    }
+  }, []);
+  const changeSize = (v: number) => {
+    setSize(v);
+    try {
+      localStorage.setItem(SIZE_KEY, String(v));
+    } catch {
+      /* не запомнили — не страшно */
+    }
+  };
+  const goPage = (p: number) => {
+    setPage(p);
+    wrapRef.current?.scrollTo({ top: 0 });
+  };
 
   // переход из карточки оператора / группы / проекта: /leads?op=…&from=…&to=…
   useEffect(() => {
@@ -38,7 +63,8 @@ export default function LeadsPage() {
     if (qp.from && qp.to) setPeriod({ mode: "range", from: qp.from, to: qp.to });
   }, []);
 
-  useEffect(() => setLimit(PAGE), [period, operatorId, groupId, projectId, q, status]);
+  // новый фильтр или размер страницы — снова с первой страницы
+  useEffect(() => setPage(1), [period, operatorId, groupId, projectId, q, status, size]);
 
   // без фильтра по статусу — для счётчиков «в работе / доведён / не доведён»
   const base = useMemo(
@@ -46,6 +72,9 @@ export default function LeadsPage() {
     [data.leads, period, operatorId, groupId, projectId, q],
   );
   const list = useMemo(() => (status ? base.filter((l) => l.status === status) : base), [base, status]);
+  // лид могли удалить или сменить статус — не остаёмся на пустой странице
+  const pageCount = Math.max(1, Math.ceil(list.length / size));
+  const cur = Math.min(page, pageCount);
   const byStatus = useMemo(() => {
     const m: Record<LeadStatus, number> = { work: 0, done: 0, failed: 0 };
     for (const l of base) m[l.status]++;
@@ -258,7 +287,8 @@ export default function LeadsPage() {
           />
         </div>
       ) : (
-        <div className="tbl-wrap" style={{ maxHeight: "max(300px, calc(100vh / var(--ui-scale, 1) - 330px))" }}>
+        <>
+        <div ref={wrapRef} className="tbl-wrap" style={{ maxHeight: "max(300px, calc(100vh / var(--ui-scale, 1) - 380px))" }}>
           <table className="tbl tbl-leads">
             <thead>
               <tr>
@@ -274,7 +304,7 @@ export default function LeadsPage() {
               </tr>
             </thead>
             <tbody>
-              {list.slice(0, limit).map((l) => {
+              {list.slice((cur - 1) * size, cur * size).map((l) => {
                 const op = ix.opById.get(l.operatorId);
                 const g = l.groupId ? ix.groupById.get(l.groupId) : null;
                 const p = l.projectId ? ix.projectById.get(l.projectId) : null;
@@ -321,14 +351,9 @@ export default function LeadsPage() {
               })}
             </tbody>
           </table>
-          {list.length > limit && (
-            <div style={{ padding: 12, textAlign: "center", borderTop: "1px solid var(--ink-06)" }}>
-              <button className="btn btn-sm" onClick={() => setLimit((n) => n + PAGE * 3)}>
-                Показать ещё · осталось {fmtInt(list.length - limit)}
-              </button>
-            </div>
-          )}
         </div>
+        <Pager page={cur} size={size} total={list.length} sizes={SIZES} onPage={goPage} onSize={changeSize} />
+        </>
       )}
     </div>
   );
