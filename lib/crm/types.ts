@@ -160,6 +160,11 @@ export interface Lead {
   direction: string;
   /** Ссылка на лид (карточка в CRM заказчика, запись звонка) — обязательна для новых лидов. */
   link: string;
+  /**
+   * Регион лида — из списков «Основа» и «Регионы» в настройках. От него зависят цена лида
+   * и апрув в расчёте дохода. Пусто — лиды до появления регионов: считаются основой.
+   */
+  region?: string;
   comment: string;
   source: "Скорозвон";
   /** Оператор записал — «в работе»; супервайзер ставит «доведён» или «не доведён» (с причиной). */
@@ -289,6 +294,20 @@ export interface Settings {
   access: AccessSettings;
   /** Выгрузка базы в Google Таблицу через веб-приложение Apps Script. */
   sheets: SheetsSync;
+  regions: RegionSettings;
+}
+
+/**
+ * Регионы: «Основа» — города с обычной ценой лида и апрувом по проектам; «Регионы» —
+ * свои цена и апрув (заказчик платит по-другому). Лид без региона считается основой.
+ */
+export interface RegionSettings {
+  main: string[];
+  regional: string[];
+  /** Апрув заказчика по региональным лидам, %. */
+  regionalApprovePct: number;
+  /** Цена регионального лида для заказчика, ₽. */
+  regionalLeadRevenue: number;
 }
 
 export interface SheetsSync {

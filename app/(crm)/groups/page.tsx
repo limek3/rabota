@@ -1,15 +1,15 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
-import { PACE_HUE, approvePctWhere, goneLast, isGone, leadIncome, monthCal, type GroupRow } from "@/lib/crm/calc";
+import { PACE_HUE, goneLast, incomePerLead, isGone, monthCal, type GroupRow } from "@/lib/crm/calc";
 import { fundStat, payroll } from "@/lib/crm/payroll";
 import { NO_GROUP } from "@/lib/crm/types";
 import { fmtMonth, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Collapse, Empty, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
+import { Avatar, Chip, Collapse, Conv, Empty, LeadN, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
 import { Select, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 
@@ -72,10 +72,9 @@ function GroupCard({ g }: { g: GroupRow }) {
     const rows = pr.rows.filter((r) => r.op.groupId === g.group!.id);
     const gross = rows.reduce((a, r) => a + r.gross, 0);
     const leads = rows.reduce((a, r) => a + r.leads, 0);
-    // доход = лиды × цена лида × апрув заказчика по проектам лидов группы
+    // доход = лиды × цена лида × апрув: основа — по проектам, регионы — по своим цене и апруву
     const ids = new Set(rows.map((r) => r.op.id));
-    const approve = approvePctWhere(data, month, (l) => ids.has(l.operatorId));
-    return fundStat(gross, leads, leadIncome(data.settings.leadRevenue, approve), data.settings.payrollCapPct);
+    return fundStat(gross, leads, incomePerLead(data, month, (l) => ids.has(l.operatorId)), data.settings.payrollCapPct);
   }, [access.can.viewPayroll, data, ix, month, today, g.group]);
   const [open, setOpen] = useState(false);
   const p = g.pace;
@@ -149,7 +148,7 @@ function GroupCard({ g }: { g: GroupRow }) {
         <Cell label="Неделя" value={fmtInt(p.thisWeek)} sub={`пр. ${fmtInt(p.prevWeek)}`} />
         <Cell label="Активных" value={fmtInt(g.headcount)} sub={`${fmtNum(g.avgPerOp)} на чел.`} />
         <Cell label="Часы группы" value={fmtNum(g.hours, 0)} />
-        <Cell label="Лидов на час" value={g.lph == null ? "—" : fmtNum(g.lph, 2)} />
+        <Cell label="Конверсия" value={<Conv value={g.lph} />} />
         <Cell label="RR" value={fmtInt(p.rr)} sub="к концу мес." tone={g.plan > 0 ? (p.rr >= g.plan ? "good" : "bad") : undefined} />
         {access.can.viewPayroll && fund && (
           <Cell
@@ -213,7 +212,7 @@ function GroupCard({ g }: { g: GroupRow }) {
   );
 }
 
-function Cell({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "good" | "bad" }) {
+function Cell({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: string; tone?: "good" | "bad" }) {
   return (
     <div style={{ padding: "8px 10px", borderRadius: 6, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0 }}>
       <div style={{ fontSize: 11, color: "var(--text-sub)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
@@ -247,7 +246,7 @@ function GroupTable({ groups, past }: { groups: GroupRow[]; past: boolean }) {
             <th className="r">Активных</th>
             <th className="r">На чел.</th>
             <th className="r bl">Часы</th>
-            <th className="r">Лид/час</th>
+            <th className="r" title="Конверсия: лиды ÷ отработанные часы">Конв.</th>
           </tr>
         </thead>
         <tbody>
@@ -263,7 +262,7 @@ function GroupTable({ groups, past }: { groups: GroupRow[]; past: boolean }) {
                 <StatusChip status={g.status} />
               </td>
               <td className="r num">{fmtInt(g.plan)}</td>
-              <td className="r num" style={{ fontWeight: 600 }}>{fmtInt(g.pace.fact)}</td>
+              <td className="r num"><LeadN n={g.pace.fact} /></td>
               <td>
                 <div className="row" style={{ gap: 8 }}>
                   <Progress value={g.pace.pct} marker={!past && g.plan > 0 ? g.pace.planToDate / g.plan : undefined} hue={PACE_HUE[g.status]} style={{ flex: 1, minWidth: 50 }} />
@@ -281,7 +280,7 @@ function GroupTable({ groups, past }: { groups: GroupRow[]; past: boolean }) {
               <td className="r num">{g.headcount}</td>
               <td className="r num">{fmtNum(g.avgPerOp)}</td>
               <td className="r num bl">{fmtNum(g.hours, 0)}</td>
-              <td className="r num">{g.lph == null ? "—" : fmtNum(g.lph, 2)}</td>
+              <td className="r num"><Conv value={g.lph} /></td>
             </tr>
           ))}
         </tbody>

@@ -30,7 +30,7 @@ const SPEC: Record<Table, Record<string, Def>> = {
   groups: { id: "", name: "", supervisorId: null, supervisorName: "", monthlyPlan: 0, active: true, color: "gray", createdAt: NOW, updatedAt: NOW, deletedAt: null },
   projects: { id: "", name: "", active: true, color: "gray", sort: 0, createdAt: NOW, updatedAt: NOW, deletedAt: null },
   leads: {
-    id: "", at: "", client: "", phone: "", projectId: null, operatorId: "", groupId: null, direction: "", link: "", comment: "", source: "Скорозвон",
+    id: "", at: "", client: "", phone: "", projectId: null, operatorId: "", groupId: null, direction: "", link: "", region: "", comment: "", source: "Скорозвон",
     status: "work", statusReason: "", statusAt: OPT, statusBy: OPT, createdAt: NOW, updatedAt: NOW,
   },
   shifts: { id: "", date: "", operatorId: "", groupId: null, hours: 0, type: "work", comment: "", updatedAt: NOW },
@@ -97,6 +97,11 @@ export const hasCandidatesTable = () => candidatesReady;
 let leadLinkReady = true;
 export const hasLeadLinkColumn = () => leadLinkReady;
 const isMissingLink = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /link/.test(e.message);
+/** Колонка leads.region (регион лида) — ещё позже. Без неё лиды пишутся без региона. */
+let leadRegionReady = true;
+export const hasLeadRegionColumn = () => leadRegionReady;
+const isMissingRegion = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /region/.test(e.message);
+const dropCol = (rows: Record<string, unknown>[], col: string) => rows.map(({ [col]: _drop, ...rest }) => rest);
 const CANDIDATES_MISSING = "В Supabase ещё нет таблицы кандидатов. Выполните supabase/migrations/20260924000001_candidates.sql в SQL Editor (повторный запуск безопасен).";
 
 const isMissingTable = (e: { message: string; code?: string } | null) => e?.code === "PGRST205" || e?.code === "PGRST202" || /schema cache/i.test(e?.message ?? "");
@@ -136,7 +141,10 @@ export async function loadAll(): Promise<{ state: DataState; persistent: boolean
   });
   // колонки link нет — видно уже по загруженным строкам, не дожидаясь неудачного сохранения
   const leadRows = rows[TABLES.indexOf("leads")];
-  if (leadRows.length) leadLinkReady = "link" in leadRows[0];
+  if (leadRows.length) {
+    leadLinkReady = "link" in leadRows[0];
+    leadRegionReady = "region" in leadRows[0];
+  }
   const val = (key: string) => kv.find((r) => r.key === key)?.value as unknown;
   // секреты выгрузки лежат отдельно (читает только РОП) — собираем настройки обратно
   const settings = (val("settings") ?? {}) as Partial<Settings>;
@@ -181,17 +189,24 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
  * оператор уже вставил. Сервер страхует то же самое триггером (…_lead_link_required.sql).
  */
 async function putLeads(recs: object[]): Promise<void> {
-  const rows = recs.map((r) => toRow("leads", r));
+  let rows = recs.map((r) => toRow("leads", r));
+  if (!leadRegionReady) rows = dropCol(rows, "region");
   const withLink = leadLinkReady ? rows.filter((r) => String(r.link ?? "").trim()) : [];
-  const noLink = rows.filter((r) => !withLink.includes(r)).map(({ link: _link, ...rest }) => rest);
+  const noLink = dropCol(rows.filter((r) => !withLink.includes(r)), "link");
   for (const batch of [withLink, noLink]) {
-    for (const part of chunks(batch, 500)) {
-      let { error } = await supabase().from("leads").upsert(part, { onConflict: "id" });
-      if (error && isMissingLink(error)) {
-        leadLinkReady = false;
-        ({ error } = await supabase().from("leads").upsert(part.map(({ link: _link, ...rest }) => rest), { onConflict: "id" }));
+    for (let part of chunks(batch, 500)) {
+      // колонки, которых в базе ещё нет, убираем и повторяем — запись лидов не встаёт из-за невыполненного SQL
+      for (let attempt = 0; ; attempt++) {
+        const { error } = await supabase().from("leads").upsert(part, { onConflict: "id" });
+        if (!error) break;
+        if (attempt < 2 && isMissingLink(error)) {
+          leadLinkReady = false;
+          part = dropCol(part, "link");
+        } else if (attempt < 2 && isMissingRegion(error)) {
+          leadRegionReady = false;
+          part = dropCol(part, "region");
+        } else fail(error, "leads");
       }
-      if (error) fail(error, "leads");
     }
   }
 }

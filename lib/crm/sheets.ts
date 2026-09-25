@@ -14,6 +14,7 @@ import {
   TRACK_LABEL,
 } from "./types";
 import { fmtPhone } from "./format";
+import { SEGMENT_LABEL, regionSegment } from "./regions";
 import { appStamp } from "./dates";
 
 /**
@@ -51,7 +52,7 @@ export function buildSheets(st: DataState, exportedAt = new Date()): SheetData[]
   const sheets: SheetData[] = [
     {
       name: "Лиды",
-      header: ["ID", "Дата", "Время", "Статус", "Причина", "Кто проверил", "Когда проверил", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", dir, "Комментарий", "Источник", "Создан", "Изменён"],
+      header: ["ID", "Дата", "Время", "Статус", "Причина", "Кто проверил", "Когда проверил", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", dir, "Комментарий", "Источник", "Создан", "Изменён", "Регион", "Основа / регионы"],
       rows: [...st.leads].sort(byDate).map((l) => [
         l.id,
         l.at.slice(0, 10),
@@ -71,6 +72,11 @@ export function buildSheets(st: DataState, exportedAt = new Date()): SheetData[]
         l.source,
         localTime(l.createdAt),
         localTime(l.updatedAt),
+        l.region ?? "",
+        (() => {
+          const seg = regionSegment(l.region, s);
+          return seg ? SEGMENT_LABEL[seg] : "";
+        })(),
       ]),
     },
     {

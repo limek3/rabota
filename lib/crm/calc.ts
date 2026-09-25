@@ -28,6 +28,7 @@ import {
   weekStart,
 } from "./dates";
 import { planId } from "./ids";
+import { isRegionalLead } from "./regions";
 import { safeDiv } from "./format";
 
 /**
@@ -499,39 +500,54 @@ export function approvePctFor(st: DataState, ix: Index, month: MonthKey): number
   }
   const hit = cache.get(month);
   if (hit != null) return hit;
-
-  const fallback = st.approves.find((a) => a.month === month && !a.projectId)?.pct ?? st.settings.svBonus.defaultApprovePct;
-  const byProject = new Map(st.approves.filter((a) => a.month === month && a.projectId).map((a) => [a.projectId, a.pct]));
-  let sum = 0;
-  let weight = 0;
-  for (const [projectId, days] of ix.projectDay) {
-    let leads = 0;
-    for (const [d, n] of days) if (d.slice(0, 7) === month) leads += n;
-    if (!leads) continue;
-    sum += (byProject.get(projectId) ?? fallback) * leads;
-    weight += leads;
-  }
-  const out = weight > 0 ? Math.round((sum / weight) * 10) / 10 : fallback;
+  const out = approvePctWhere(st, month, () => true);
   cache.set(month, out);
   return out;
+}
+
+/** Апрув проектов месяца: по проекту, иначе общий на месяц, иначе по умолчанию из сетки супервайзера. */
+function approveTable(st: DataState, month: MonthKey) {
+  const fallback = st.approves.find((a) => a.month === month && !a.projectId)?.pct ?? st.settings.svBonus.defaultApprovePct;
+  const byProject = new Map(st.approves.filter((a) => a.month === month && a.projectId).map((a) => [a.projectId, a.pct]));
+  return (l: Lead) => (isRegionalLead(l, st.settings) ? st.settings.regions.regionalApprovePct : (l.projectId ? byProject.get(l.projectId) : undefined) ?? fallback);
 }
 
 /**
  * Апрув для части лидов месяца (группа, зона супервайзера): те же проценты по проектам,
  * что в approvePctFor, но взвешенные по лидам именно этой части. Лиды — как в расчётах
- * (без «не доведён»).
+ * (без «не доведён»). Региональные лиды — со своим апрувом из настроек.
  */
 export function approvePctWhere(st: DataState, month: MonthKey, keep: (l: Lead) => boolean): number {
+  const pctOf = approveTable(st, month);
   const fallback = st.approves.find((a) => a.month === month && !a.projectId)?.pct ?? st.settings.svBonus.defaultApprovePct;
-  const byProject = new Map(st.approves.filter((a) => a.month === month && a.projectId).map((a) => [a.projectId, a.pct]));
   let sum = 0;
   let weight = 0;
   for (const l of st.leads) {
     if (l.status === "failed" || l.at.slice(0, 7) !== month || !keep(l)) continue;
-    sum += (l.projectId ? byProject.get(l.projectId) : undefined) ?? fallback;
+    sum += pctOf(l);
     weight++;
   }
   return weight > 0 ? Math.round((sum / weight) * 10) / 10 : fallback;
+}
+
+/**
+ * Средний доход с лида части месяца для ФОТ: основа — цена лида × апрув проекта,
+ * регионы — цена регионального лида × апрув регионов. Без региональных лидов равно
+ * leadIncome(leadRevenue, approvePctWhere(…)) — как было до регионов.
+ */
+export function incomePerLead(st: DataState, month: MonthKey, keep: (l: Lead) => boolean = () => true): number {
+  const s = st.settings;
+  const pctOf = approveTable(st, month);
+  let sum = 0;
+  let n = 0;
+  for (const l of st.leads) {
+    if (l.status === "failed" || l.at.slice(0, 7) !== month || !keep(l)) continue;
+    const price = isRegionalLead(l, s) ? s.regions.regionalLeadRevenue : s.leadRevenue;
+    sum += (price * pctOf(l)) / 100;
+    n++;
+  }
+  // лидов ещё нет — доход с будущего лида по основе, как раньше
+  return n > 0 ? sum / n : leadIncome(s.leadRevenue, approvePctWhere(st, month, keep));
 }
 
 /** Доход с одного лида для ФОТ: цена лида × апрув заказчика (%). */

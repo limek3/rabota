@@ -690,3 +690,34 @@ console.log("ALL OK");
   assert.ok(firedWorked.indexOf(true) === -1 || firedWorked.slice(firedWorked.indexOf(true)).every(Boolean), "уволенные — в конце");
   console.log(`24 ok: увольнение в событиях — ${ev.note}`);
 }
+
+/* 25. Регионы: доход с лида и апрув по сегментам; без региональных лидов — всё как раньше */
+{
+  const assert = require("assert");
+  const { buildIndex, approvePctFor, incomePerLead, leadIncome } = R("calc");
+  const { buildDemo } = R("demo");
+  const { normalizeSettings } = R("defaults");
+  const today = "2026-09-18";
+  const month = "2026-09";
+  const st = buildDemo(today);
+  st.settings = normalizeSettings({ ...st.settings, leadRevenue: 3000 });
+  // до регионов: доход с лида = цена × апрув (как было)
+  const before = incomePerLead(st, month);
+  assert.ok(Math.abs(before - leadIncome(3000, approvePctFor(st, buildIndex(st), month))) < 0.01, "без регионов — прежняя формула");
+  // старые лиды без региона и лиды «основы» считаются одинаково
+  const inMonth = st.leads.filter((l) => l.status !== "failed" && l.at.startsWith(month));
+  inMonth.forEach((l, i) => (l.region = i % 2 ? "Москва" : ""));
+  assert.ok(Math.abs(incomePerLead(st, month) - before) < 0.01, "основа = лиды без региона");
+  // половина лидов — регионы: 4000 × 10% = 400 ₽ с лида
+  inMonth.forEach((l, i) => (l.region = i % 2 ? "Челябинск" : "Москва"));
+  const nReg = inMonth.filter((l) => l.region === "Челябинск").length;
+  const mixed = incomePerLead(st, month);
+  const expect = (before * (inMonth.length - nReg) + 400 * nReg) / inMonth.length;
+  assert.ok(Math.abs(mixed - expect) < 0.01, `смешанный доход ${mixed} ≈ ${expect}`);
+  const ap = approvePctFor(st, buildIndex(st), month);
+  assert.ok(ap < approvePctFor(buildDemo(today), buildIndex(buildDemo(today)), month), "апрув регионов 10% тянет общий вниз");
+  // города не могут быть сразу в основе и регионах
+  const s2 = normalizeSettings({ regions: { main: ["Москва", "Челябинск"], regional: ["Челябинск", "Волгоград"] } });
+  assert.deepStrictEqual(s2.regions.regional, ["Волгоград"]);
+  console.log(`25 ok: регионы — доход с лида ${Math.round(before)} → ${Math.round(mixed)} ₽ (регион 400 ₽), апрув ${ap}%`);
+}

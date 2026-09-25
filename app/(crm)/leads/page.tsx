@@ -6,10 +6,11 @@ import { filterLeads } from "@/lib/crm/calc";
 import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type LeadStatus } from "@/lib/crm/types";
 import { fmtDate, rangeDays } from "@/lib/crm/dates";
 import { LEADS, fmtInt, fmtNum, fmtPhone, plural, shortName } from "@/lib/crm/format";
-import { Chip, ClipText, Empty, LeadLinkButton, LeadStatusChip, PageHead, Pager, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { Chip, ClipText, Empty, RegionTag, LeadLinkButton, LeadStatusChip, PageHead, Pager, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canReviewLead } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
+import { SEGMENT_HUE, SEGMENT_LABEL, regionSegment, type RegionSegment } from "@/lib/crm/regions";
 
 /** Размеры страницы журнала; выбор запоминается в этом браузере. */
 const SIZES = [25, 50, 75, 100];
@@ -28,6 +29,8 @@ export default function LeadsPage() {
   const [projectId, setProjectId] = useState("");
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<LeadStatus | "">("");
+  // регион: "" — все, "seg:main" / "seg:regional" — сегмент, иначе — конкретный город
+  const [region, setRegion] = useState("");
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(25);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -64,13 +67,21 @@ export default function LeadsPage() {
   }, []);
 
   // новый фильтр или размер страницы — снова с первой страницы
-  useEffect(() => setPage(1), [period, operatorId, groupId, projectId, q, status, size]);
+  useEffect(() => setPage(1), [period, operatorId, groupId, projectId, q, status, region, size]);
 
   // без фильтра по статусу — для счётчиков «в работе / доведён / не доведён»
-  const base = useMemo(
-    () => filterLeads(data.leads, { from: period.from, to: period.to, operatorId, groupId, projectId, q }).sort((a, b) => b.at.localeCompare(a.at)),
-    [data.leads, period, operatorId, groupId, projectId, q],
-  );
+  const s = data.settings;
+  const base = useMemo(() => {
+    const all = filterLeads(data.leads, { from: period.from, to: period.to, operatorId, groupId, projectId, q });
+    // лид без региона — основа (так же считает доход)
+    const segOf = (r?: string): RegionSegment => regionSegment(r, s) ?? "main";
+    const byRegion = !region
+      ? all
+      : region.startsWith("seg:")
+        ? all.filter((l) => segOf(l.region) === region.slice(4))
+        : all.filter((l) => (l.region ?? "") === region);
+    return byRegion.sort((a, b) => b.at.localeCompare(a.at));
+  }, [data.leads, period, operatorId, groupId, projectId, q, region, s]);
   const list = useMemo(() => (status ? base.filter((l) => l.status === status) : base), [base, status]);
   // лид могли удалить или сменить статус — не остаёмся на пустой странице
   const pageCount = Math.max(1, Math.ceil(list.length / size));
@@ -82,6 +93,22 @@ export default function LeadsPage() {
   }, [base]);
   // что этот аккаунт может разом отметить доведёнными
   const reviewable = useMemo(() => list.filter((l) => l.status === "work" && canReviewLead(access, l)), [list, access]);
+
+  const bySegment = useMemo(() => {
+    const m: Record<RegionSegment, number> = { main: 0, regional: 0 };
+    for (const l of list) m[regionSegment(l.region, s) ?? "main"]++;
+    return m;
+  }, [list, s]);
+  const regionOptions = useMemo<Opt[]>(
+    () => [
+      { value: "", label: "Все регионы" },
+      { value: "seg:main", label: "Вся основа", group: "Сегмент", hint: s.regions.main.join(", ") },
+      { value: "seg:regional", label: "Все регионы", group: "Сегмент", hint: s.regions.regional.join(", ") },
+      ...s.regions.main.map<Opt>((r) => ({ value: r, label: r, group: "Основа" })),
+      ...s.regions.regional.map<Opt>((r) => ({ value: r, label: r, group: "Регионы" })),
+    ],
+    [s.regions],
+  );
 
   const byProject = useMemo(() => {
     const m = new Map<string, number>();
@@ -124,10 +151,10 @@ export default function LeadsPage() {
     ];
   }, [operators, data.leads, period.from, period.to, operatorId, ix]);
   const projects = useMemo(() => [...data.projects].sort((a, b) => a.sort - b.sort), [data.projects]);
-  const filtered = !!(operatorId || groupId || projectId || q || status);
+  const filtered = !!(operatorId || groupId || projectId || q || status || region);
 
   const exportCsv = () => {
-    const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", data.settings.directionLabel || "Направление", "Комментарий", "Источник"]];
+    const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", data.settings.directionLabel || "Направление", "Комментарий", "Источник", "Регион", "Основа / регионы"]];
     for (const l of list) {
       rows.push([
         l.id,
@@ -144,6 +171,8 @@ export default function LeadsPage() {
         l.direction,
         l.comment,
         l.source,
+        l.region ?? "",
+        SEGMENT_LABEL[regionSegment(l.region, s) ?? "main"],
       ]);
     }
     downloadText(`leads_${period.from}_${period.to}.csv`, toCsv(rows), "text/csv;charset=utf-8");
@@ -205,6 +234,7 @@ export default function LeadsPage() {
             onChange={setProjectId}
             ariaLabel="Проект"
           />
+          <Select width={170} value={region} options={regionOptions} onChange={setRegion} ariaLabel="Регион" minPopWidth={260} />
           {filtered && (
             <button
               className="btn btn-ghost"
@@ -214,6 +244,7 @@ export default function LeadsPage() {
                 setProjectId("");
                 setQ("");
                 setStatus("");
+                setRegion("");
               }}
             >
               Сбросить
@@ -259,6 +290,20 @@ export default function LeadsPage() {
               <Icon name="check" size={13} /> Все в списке — доведён
             </button>
           )}
+          {list.length > 0 && <span style={{ width: 1, height: 16, background: "var(--ink-08)" }} />}
+          {(["main", "regional"] as RegionSegment[]).map((seg) => (
+            <button
+              key={seg}
+              type="button"
+              className="chip"
+              style={hueVars(SEGMENT_HUE[seg])}
+              aria-pressed={region.startsWith("seg:") ? region === `seg:${seg}` : undefined}
+              onClick={() => setRegion((cur) => (cur === `seg:${seg}` ? "" : `seg:${seg}`))}
+              title={seg === "main" ? `Основа: ${s.regions.main.join(", ")} и лиды без региона` : `Регионы: ${s.regions.regional.join(", ")}`}
+            >
+              {SEGMENT_LABEL[seg]} · {fmtInt(bySegment[seg])}
+            </button>
+          ))}
           {byProject.length > 0 && <span style={{ width: 1, height: 16, background: "var(--ink-08)" }} />}
           {byProject.map(([pid, n]) => {
             const p = ix.projectById.get(pid);
@@ -297,6 +342,7 @@ export default function LeadsPage() {
                 <th>Клиент</th>
                 <th className="c">Телефон</th>
                 <th className="c">Проект</th>
+                <th>Регион</th>
                 <th>Оператор</th>
                 <th className="c">Группа</th>
                 {data.settings.directionEnabled && <th>{data.settings.directionLabel || "Направление"}</th>}
@@ -334,6 +380,9 @@ export default function LeadsPage() {
                       </span>
                     </td>
                     <td className="c">{p ? <Chip hue={p.color}>{p.name}</Chip> : <span className="muted">—</span>}</td>
+                    <td>
+                      <RegionTag region={l.region} />
+                    </td>
                     <td>
                       <ClipText text={shortName(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} full={(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} width={130} />
                     </td>

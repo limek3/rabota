@@ -11,10 +11,12 @@ import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
 import { fmtPhone, normLink, normPhone, shortName } from "@/lib/crm/format";
 import { fmtStamp, nowStamp } from "@/lib/crm/dates";
-import { hasLeadLinkColumn } from "@/lib/crm/remote";
+import { hasLeadLinkColumn, hasLeadRegionColumn } from "@/lib/crm/remote";
+import { SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
 
 const LAST_OP = "leadup.lastOperator";
 const LAST_PR = "leadup.lastProject";
+const LAST_RG = "leadup.lastRegion";
 
 function remembered(key: string): string {
   try {
@@ -71,6 +73,14 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
   const [direction, setDirection] = useState(lead?.direction ?? preset?.direction ?? "");
   const [comment, setComment] = useState(lead?.comment ?? "");
   const [link, setLink] = useState(lead?.link ?? preset?.link ?? "");
+  // регион: у нового лида — последний выбранный (если он ещё в списках), у старого — свой
+  const regionList = useMemo(() => [...s.regions.main, ...s.regions.regional], [s.regions]);
+  const [region, setRegion] = useState(() => {
+    if (lead) return lead.region ?? "";
+    if (preset?.region) return preset.region;
+    const last = remembered(LAST_RG);
+    return last && regionList.includes(last) ? last : "";
+  });
   const [at, setAt] = useState(lead?.at ?? preset?.at ?? nowStamp());
   // время нового лида, которое не трогали руками, берётся в момент записи, а не открытия окна
   const [atTouched, setAtTouched] = useState(!!lead || !!preset?.at);
@@ -124,6 +134,16 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     [data.groups, lead?.groupId],
   );
 
+  const regionOpts = useMemo<Opt[]>(() => {
+    const opts: Opt[] = [
+      ...s.regions.main.map((r) => ({ value: r, label: r, group: "Основа", hint: SEGMENT_LABEL.main })),
+      ...s.regions.regional.map((r) => ({ value: r, label: r, group: "Регионы", hint: SEGMENT_LABEL.regional })),
+    ];
+    // у старого лида регион могли убрать из списков — всё равно показываем его
+    if (region && !regionList.includes(region)) opts.push({ value: region, label: region, group: "Прочее" });
+    return opts;
+  }, [s.regions, region, regionList]);
+
   const directions = useMemo(() => {
     if (!s.directionEnabled) return [];
     const seen = new Map<string, number>();
@@ -165,6 +185,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     : phone.trim() && phoneNorm.length < 6
       ? "Слишком короткий номер"
       : null;
+  const errRegion = isNew && regionList.length > 0 && !region ? "Выберите регион" : null;
   const errLink = link.trim() && !linkNorm ? "Не похоже на ссылку — вставьте адрес целиком" : isNew && !linkNorm ? "Вставьте ссылку на лид" : null;
   const errAt = timeLocked
     ? null
@@ -173,11 +194,11 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
       : atTouched && at > nowStamp()
         ? "Время позже текущего (МСК)"
         : null;
-  const missing = isNew ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка"].filter(Boolean) : [];
+  const missing = isNew ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!errRegion && "регион"].filter(Boolean) : [];
   const canReview = !!lead && canReviewLead(access, lead);
   const errReason = canReview && status === "failed" && !reason.trim() ? "Укажите причину" : null;
   const statusChanged = !!lead && (status !== lead.status || (status === "failed" && reason.trim() !== lead.statusReason));
-  const invalid = !!(errOp || errPr || errContact || errPhone || errLink || errAt || errReason);
+  const invalid = !!(errOp || errPr || errContact || errPhone || errLink || errRegion || errAt || errReason);
 
   const submit = async (more: boolean) => {
     setTried(true);
@@ -201,6 +222,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
       id: lead?.id,
       at: atTouched ? at : nowStamp(),
       link,
+      region,
       client,
       phone,
       projectId: projectId || null,
@@ -214,6 +236,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     if (!saved) return;
     remember(LAST_OP, operatorId);
     if (projectId) remember(LAST_PR, projectId);
+    if (region) remember(LAST_RG, region);
     if (more && !lead) {
       setAdded((n) => n + 1);
       toast(`Лид записан: ${shortName(ix.opById.get(operatorId)?.name ?? "")}`);
@@ -420,6 +443,24 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
             </div>
           </Field>
           <div className="grid2">
+            <Field
+              label={isNew ? <Req>Регион</Req> : "Регион"}
+              error={tried ? errRegion : null}
+              hint={
+                remote && !hasLeadRegionColumn() ? (
+                  <span style={{ color: "var(--c-red-fg)" }}>Регион пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260926000002_lead_region.sql</span>
+                ) : region ? (
+                  (() => {
+                    const seg = regionSegment(region, s);
+                    return seg === "regional"
+                      ? `Регионы: апрув ${s.regions.regionalApprovePct}%, ${s.regions.regionalLeadRevenue.toLocaleString("ru-RU")} ₽ за лид`
+                      : "Основа: цена и апрув — как у проекта";
+                  })()
+                ) : undefined
+              }
+            >
+              <Select value={region} options={regionOpts} onChange={setRegion} invalid={tried && !!errRegion} ariaLabel="Регион" disabled={readOnly} placeholder="Выберите регион" />
+            </Field>
             {s.directionEnabled && (
               <Field label={s.directionLabel || "Направление"}>
                 <input className="inp" value={direction} onChange={(e) => setDirection(e.target.value)} list="lead-directions" placeholder="Необязательно" />

@@ -124,6 +124,8 @@ create table if not exists public.leads (
 
 -- колонка появилась позже — в уже созданную таблицу добавляем
 alter table public.leads add column if not exists link text not null default '';
+-- регион лида: «Основа» / «Регионы» (списки и экономика — в настройках CRM)
+alter table public.leads add column if not exists region text not null default '';
 
 -- Смены: одна запись на оператора в день, id = 'YYYY-MM-DD|<operator_id>'.
 create table if not exists public.shifts (
@@ -688,6 +690,12 @@ create trigger leads_guard before insert or update on public.leads
 create or replace function public.crm_leads_link_guard() returns trigger
 language plpgsql set search_path = public as $$
 begin
+  -- служебные роли (восстановление копии crm_replace_all, SQL Editor) — без проверки:
+  -- копия должна подниматься целиком, как есть
+  if current_user in ('postgres', 'service_role', 'supabase_admin') then
+    return new;
+  end if;
+
   if tg_op = 'INSERT' then
     -- upsert уже существующего лида (INSERT … ON CONFLICT) сначала проходит здесь: его
     -- пропускаем — ветка UPDATE ниже сохранит ссылку, если клиент прислал строку без неё

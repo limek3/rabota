@@ -1,4 +1,4 @@
-import type { AccessSettings, Account, AccountPrefs, AccountRole, DataState, ID, PayType, RateGrid, RateTier, Settings, SvBonusGrid } from "./types";
+import type { AccessSettings, Account, AccountPrefs, AccountRole, DataState, ID, PayType, RateGrid, RateTier, RegionSettings, Settings, SvBonusGrid } from "./types";
 
 export const DEFAULT_ACCESS: AccessSettings = {
   supervisor: {
@@ -62,6 +62,14 @@ export const DEFAULT_SV_BONUS: SvBonusGrid = {
   defaultApprovePct: 30,
 };
 
+/** Регионы и их экономика — как задал руководитель: регион — апрув 10%, 4 000 ₽ за лид. */
+export const DEFAULT_REGIONS: RegionSettings = {
+  main: ["Москва", "Санкт-Петербург", "Екатеринбург"],
+  regional: ["Челябинск", "Волгоград", "Краснодарский край", "Ставрополь"],
+  regionalApprovePct: 10,
+  regionalLeadRevenue: 4000,
+};
+
 export const DEFAULT_SETTINGS: Settings = {
   companyName: "Отдел лидогенерации",
   reportMonth: "",
@@ -102,6 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
   backupsKeep: 15,
   access: DEFAULT_ACCESS,
   sheets: { url: "", token: "", auto: false },
+  regions: DEFAULT_REGIONS,
 };
 
 /** Палитра для групп и проектов — алиасы на токены чипов из globals.css. */
@@ -253,6 +262,7 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   s.probationLeads = Math.round(num(s.probationLeads, 10, 0, 1000));
   s.probationHours = Math.round(num(s.probationHours, 15, 0, 1000));
   s.convNormPct = num(s.convNormPct, DEFAULT_SETTINGS.convNormPct, 0, 1000);
+  s.regions = normalizeRegions(raw?.regions);
   const sh = (raw?.sheets ?? {}) as Partial<Settings["sheets"]>;
   s.sheets = { url: typeof sh.url === "string" ? sh.url.trim() : "", token: typeof sh.token === "string" ? sh.token : "", auto: sh.auto === true };
   s.rateGrids = normalizeGrids(raw?.rateGrids);
@@ -290,4 +300,23 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   op.editOwnLeadsHours = Math.round(num(a.operator?.editOwnLeadsHours, op.editOwnLeadsHours, 0, 24 * 31));
   s.access = { supervisor: sup, operator: op };
   return s;
+}
+
+/** Списки городов без пустых и повторов; город не может быть сразу в «Основе» и в «Регионах». */
+export function normalizeRegions(raw: Partial<RegionSettings> | null | undefined): RegionSettings {
+  const r = raw || {};
+  const list = (v: unknown, d: string[]) =>
+    Array.isArray(v) ? Array.from(new Set(v.map((x) => String(x ?? "").trim()).filter(Boolean))) : [...d];
+  const main = list(r.main, DEFAULT_REGIONS.main);
+  const regional = list(r.regional, DEFAULT_REGIONS.regional).filter((x) => !main.includes(x));
+  const n = (v: unknown, d: number, max: number) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? Math.min(max, Math.max(0, x)) : d;
+  };
+  return {
+    main,
+    regional,
+    regionalApprovePct: n(r.regionalApprovePct, DEFAULT_REGIONS.regionalApprovePct, 100),
+    regionalLeadRevenue: n(r.regionalLeadRevenue, DEFAULT_REGIONS.regionalLeadRevenue, 10_000_000),
+  };
 }

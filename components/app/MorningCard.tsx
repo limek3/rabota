@@ -91,7 +91,7 @@ export function MorningCard({ m }: { m: MonthModel }) {
           icon="trend"
           hue="purple"
           title={`Вчера ниже нормы · ${fmtDayShort(view.yest)}`}
-          hint="конверсия лид/час ниже нормы стажировки"
+          hint="конверсия (лиды ÷ часы) ниже нормы стажировки"
           people={view.weak.map((w) => ({
             id: w.r.op.id,
             name: shortName(w.r.op.name),

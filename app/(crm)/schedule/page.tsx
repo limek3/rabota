@@ -8,7 +8,7 @@ import { goneLast, isGone, sumRange, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Empty, Field, GoneSepRow, GoneTag, Modal, MonthSwitcher, NumInput, PageHead, Seg, Switch, useWheelHScroll } from "@/components/ui/kit";
+import { Avatar, Conv, Empty, Field, GoneSepRow, GoneTag, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg, Switch, useWheelHScroll } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -94,9 +94,10 @@ export default function SchedulePage() {
 
   const tot = useMemo(() => {
     const hours = rows.reduce((a, r) => a + r.hours, 0);
-    const norm = rows.reduce((a, r) => a + r.norm, 0);
     const leads = rows.reduce((a, r) => a + r.pace.fact, 0);
-    return { hours, norm, leads };
+    const planToDate = rows.reduce((a, r) => a + r.pace.planToDate, 0);
+    const plan = rows.reduce((a, r) => a + r.pace.plan, 0);
+    return { hours, leads, planToDate, plan };
   }, [rows]);
 
   // итоги выделенных дат — по тем же строкам, что на экране (учитывает фильтр группы)
@@ -312,14 +313,13 @@ export default function SchedulePage() {
                     </th>
                   );
                 })}
+                {/* итоги: часы → лиды → сколько лидов не хватает до плана → конверсия (лиды ÷ часы) */}
                 <th className="r sum sum-h" title="Отработано часов (рабочие дни + обучение)">Часы</th>
-                <th className="r sum sum-n" title="Месячная норма">Норма</th>
-                <th className="r sum sum-p">%</th>
-                <th className="r sum sum-d" title={past ? "Часы минус норма месяца" : "Часы минус норма на сегодня"}>
+                <th className="r sum sum-l hl">Лиды</th>
+                <th className="r sum sum-d" title={past ? "Лиды минус план месяца" : "Лиды минус план на сегодня"}>
                   ±
                 </th>
-                <th className="r sum sum-l">Лиды</th>
-                <th className="r sum sum-c" title="Конверсия: лидов на отработанный час">Лид/ч</th>
+                <th className="r sum sum-c hl" title="Конверсия: лиды ÷ отработанные часы">Конв.</th>
               </tr>
             </thead>
             <tbody>
@@ -338,7 +338,7 @@ export default function SchedulePage() {
                         ? rows.filter((x) => x.groupKey === r.groupKey && isGone(x.op)).length
                         : 0
                     }
-                    colSpan={days.length + 7}
+                    colSpan={days.length + 5}
                     showLeads={showLeads}
                     sel={sel}
                     range={range}
@@ -361,15 +361,13 @@ export default function SchedulePage() {
                     <div>{t.h ? fmtNum(t.h, 0) : ""}</div>
                     {showLeads && <div style={{ color: "var(--brand)", fontWeight: 600 }}>{t.n || ""}</div>}
                     {/* конверсия дня: лиды ÷ часы в процентах — как «эффективность» в обучении */}
-                    <div style={{ color: "var(--dimmer)", fontWeight: 500 }}>{t.h > 0 && t.n > 0 ? fmtPct(t.n / t.h) : ""}</div>
+                    <div>{t.h > 0 && t.n > 0 ? <Conv leads={t.n} hours={t.h} /> : ""}</div>
                   </td>
                 ))}
                 <td className="r num sum sum-h">{fmtNum(tot.hours)}</td>
-                <td className="r num sum sum-n">{fmtNum(tot.norm, 0)}</td>
-                <td className="r num sum sum-p">{fmtPct(safeDiv(tot.hours, tot.norm))}</td>
-                <td className="sum sum-d" />
-                <td className="r num sum sum-l">{fmtInt(tot.leads)}</td>
-                <td className="r num sum sum-c">{tot.hours > 0 ? fmtNum(tot.leads / tot.hours, 2) : "—"}</td>
+                <td className="r num sum sum-l hl"><LeadN n={tot.leads} /></td>
+                <LeadsDelta fact={tot.leads} plan={tot.plan} planToDate={tot.planToDate} />
+                <td className="r num sum sum-c hl"><Conv leads={tot.leads} hours={tot.hours} /></td>
               </tr>
             </tfoot>
           </table>
@@ -488,16 +486,27 @@ function SchedRow({
           );
         })}
         <td className="r num sum sum-h">{fmtNum(r.hours)}</td>
-        <td className="r num muted sum sum-n">{fmtNum(r.norm, 0)}</td>
-        <td className="r num sum sum-p">{fmtPct(r.normPct)}</td>
-        <td className="r num sum sum-d" style={{ color: r.hoursDelta < -0.05 ? "var(--c-red-fg)" : r.hoursDelta > 0.05 ? "var(--c-green-fg)" : undefined }}>
-          {r.hoursDelta > 0.05 ? "+" : r.hoursDelta < -0.05 ? "−" : ""}
-          {fmtNum(Math.abs(r.hoursDelta))}
-        </td>
-        <td className="r num sum sum-l">{fmtInt(r.pace.fact)}</td>
-        <td className="r num sum sum-c">{r.lph == null ? "—" : fmtNum(r.lph, 2)}</td>
+        <td className="r num sum sum-l hl"><LeadN n={r.pace.fact} /></td>
+        <LeadsDelta fact={r.pace.fact} plan={r.pace.plan} planToDate={r.pace.planToDate} />
+        <td className="r num sum sum-c hl"><Conv leads={r.pace.fact} hours={r.hours} /></td>
       </tr>
     </>
+  );
+}
+
+/** «±» в итогах графика: лиды минус план на дату (в прошедшем месяце — минус план месяца). Нет плана — прочерк. */
+function LeadsDelta({ fact, plan, planToDate }: { fact: number; plan: number; planToDate: number }) {
+  if (plan <= 0) return <td className="r num muted sum sum-d">—</td>;
+  const d = Math.round(fact - planToDate);
+  return (
+    <td
+      className="r num sum sum-d"
+      style={{ color: d < 0 ? "var(--c-red-fg)" : d > 0 ? "var(--c-green-fg)" : undefined, fontWeight: 600 }}
+      title={d < 0 ? `Не хватает ${fmtInt(-d)} лид. до плана на дату (${fmtInt(Math.round(planToDate))})` : `План на дату (${fmtInt(Math.round(planToDate))}) выполнен`}
+    >
+      {d > 0 ? "+" : d < 0 ? "−" : ""}
+      {fmtInt(Math.abs(d))}
+    </td>
   );
 }
 
@@ -533,7 +542,7 @@ function DayTip({
         <span>Лидов</span>
         <b className="num" style={{ color: "var(--brand)" }}>{fmtInt(st.leads)}</b>
         <span>Конверсия</span>
-        <b className="num">{conv == null ? "—" : `${fmtPct(conv)} · ${fmtNum(conv, 2)} лид/ч`}</b>
+        <b>{conv == null ? "—" : <Conv value={conv} />}</b>
         <span>Смен</span>
         <b className="num">{fmtInt(st.shifts)}</b>
       </div>
@@ -926,7 +935,7 @@ function FillModal({ rows, onClose }: { rows: OpRow[]; onClose: () => void }) {
             ) : (
               <>
                 <b>Не хватает часов на дневной план.</b> Выходит ≈ {fmtNum(coverage.leads, 0)} лидов в день при плане {fmtNum(coverage.dailyPlan)}:
-                нужно {fmtNum(coverage.needHours, 0)} ч на смену вместо {fmtNum(coverage.avgHours, 0)} (конверсия {fmtNum(coverage.lph, 2)} лид/ч).
+                нужно {fmtNum(coverage.needHours, 0)} ч на смену вместо {fmtNum(coverage.avgHours, 0)} (конверсия {fmtPct(coverage.lph)} лид/ч).
               </>
             )}
           </span>

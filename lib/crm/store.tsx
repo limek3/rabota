@@ -623,6 +623,13 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         toast("Для лида нужны клиент, телефон и ссылка на лид", "err");
         return null;
       }
+      // регион — из списков «Основа» / «Регионы»; у нового лида обязателен (от него зависят цена и апрув)
+      const region = (input.region ?? prev?.region ?? "").trim();
+      const regionList = [...st.settings.regions.main, ...st.settings.regions.regional];
+      if (!prev && regionList.length && !region) {
+        toast("Выберите регион лида", "err");
+        return null;
+      }
       // в базе нет колонки для ссылки — новый лид не записываем вовсе, а не сохраняем без ссылки
       if (!prev && db.REMOTE && !remote.hasLeadLinkColumn()) {
         toast("Лид не сохранён: в Supabase нет колонки для ссылки. Руководителю нужно выполнить supabase/migrations/20260925000001_lead_link_time.sql", "err");
@@ -638,6 +645,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         groupId: groupId ?? null,
         direction: (input.direction || "").trim(),
         link: link || (prev?.link ?? ""),
+        region,
         comment: (input.comment || "").trim(),
         source: LEAD_SOURCE,
         // новый лид — «в работе»; правка полей статус не меняет
@@ -657,6 +665,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         void log("lead", lead.id, `Правка лида ${lead.phone || lead.client || lead.id} · ${who}`);
       }
       // в Supabase ещё нет колонки для ссылки — лид сохранён, а ссылка нет: говорим прямо, а не молча
+      if (ok && lead.region && db.REMOTE && !remote.hasLeadRegionColumn())
+        toast("Лид сохранён, но регион — нет: в Supabase нет колонки для него. Выполните supabase/migrations/20260926000002_lead_region.sql", "err");
       if (ok && lead.link && db.REMOTE && !remote.hasLeadLinkColumn())
         toast("Лид сохранён, но ссылка — нет: в Supabase нет колонки для неё. Выполните supabase/migrations/20260925000001_lead_link_time.sql", "err");
       return ok ? lead : null;

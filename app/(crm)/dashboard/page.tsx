@@ -8,7 +8,7 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import { dailyRows, PACE_HUE, type PaceStatus } from "@/lib/crm/calc";
 import { addDays, fmtDay, fmtDayShort, fmtMonth, fmtRange, fmtWeekday, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, fmtSigned, fmtSignedPct, LEADS, OPS, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Empty, Kpi, MonthSwitcher, PageHead, Progress, StatusChip, Swatch } from "@/components/ui/kit";
+import { Avatar, Chip, Conv, Empty, Kpi, LeadN, MonthSwitcher, PageHead, Progress, StatusChip, Swatch } from "@/components/ui/kit";
 import { CumulativeChart, DailyBars, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
 import { MorningCard } from "@/components/app/MorningCard";
@@ -149,7 +149,7 @@ export default function DashboardPage() {
               title="Изменение среднего числа лидов в рабочий день относительно предыдущей недели"
             />
             <Kpi label="Прошлая неделя" value={fmtInt(p.prevWeek)} sub={fmtRange(addDays(weekStart(cal.ref), -7), addDays(weekStart(cal.ref), -1))} />
-            <Kpi label="Лидов на час" title="Лидов на отработанный час" value={t.lph == null ? "—" : fmtNum(t.lph, 2)} sub={`${fmtNum(t.hours, 0)} ч отработано за месяц`} onClick={() => router.push("/schedule")} />
+            <Kpi label="Конверсия" title="Лиды ÷ отработанные часы" value={<Conv value={t.lph} />} sub={`${fmtNum(t.hours, 0)} ч отработано за месяц`} onClick={() => router.push("/schedule")} />
             <Kpi label="В штате" title="Активных операторов" value={fmtInt(t.headcount)} sub={`в среднем ${fmtNum(attendance)} на смене`} onClick={() => router.push("/operators")} />
           </div>
 
@@ -211,7 +211,7 @@ export default function DashboardPage() {
               <th className="r" title="Run Rate — прогноз на конец месяца">Прогноз</th>
               <th className="r">Нужно/день</th>
               <th className="r">Людей</th>
-              <th className="r" title="Лидов на отработанный час">Лид/час</th>
+              <th className="r" title="Конверсия: лиды ÷ отработанные часы">Конв.</th>
               </tr>
               </thead>
               <tbody>
@@ -225,7 +225,7 @@ export default function DashboardPage() {
               </td>
               <td className="r num">{fmtInt(g.plan)}</td>
               <td className="r num" style={{ fontWeight: 600 }}>
-              {fmtInt(g.pace.fact)}
+              <LeadN n={g.pace.fact} />
               </td>
               <td>
               <div className="row" style={{ gap: 8 }}>
@@ -240,7 +240,7 @@ export default function DashboardPage() {
               </td>
               <td className="r num">{g.pace.needPerDay == null ? "—" : fmtNum(g.pace.needPerDay)}</td>
               <td className="r num">{g.headcount}</td>
-              <td className="r num">{g.lph == null ? "—" : fmtNum(g.lph, 2)}</td>
+              <td className="r num"><Conv value={g.lph} /></td>
               </tr>
               ))}
               </tbody>
@@ -268,7 +268,7 @@ export default function DashboardPage() {
                 <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{shortName(r.op.name)}</span>
                 <span style={{ fontSize: 11.5, color: "var(--dim)" }}>
-                {r.lph != null ? `${fmtNum(r.lph, 2)} лид/час · ` : ""}
+                {r.lph != null ? `конв. ${fmtPct(r.lph)} · ` : ""}
                 {fmtPct(r.pace.pct)} плана
                 </span>
                 </span>

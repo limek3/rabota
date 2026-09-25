@@ -6,7 +6,7 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import { dailyRows, weeklyRows } from "@/lib/crm/calc";
 import { fmtDay, fmtDayShort, fmtMonth, fmtRange, fmtWeekday } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, fmtSignedPct, shortName } from "@/lib/crm/format";
-import { MonthSwitcher, PageHead, Seg, downloadText, toCsv } from "@/components/ui/kit";
+import { Conv, LeadN, MonthSwitcher, PageHead, Seg, downloadText, toCsv } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { CumulativeChart, DailyBars, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
@@ -51,8 +51,8 @@ export default function DynamicsPage() {
 
   const exportCsv = () => {
     if (tab === "days") {
-      const head = ["Дата", "День недели", "Рабочий", "Лиды", "Накоп. факт", "Накоп. план", "Отклонение", "Средний темп", "Нужный темп", "Часы", "Лид/час"];
-      const body = days.filter((d) => !d.future).map((d) => [d.day, fmtWeekday(d.day), d.isWork ? "да" : "нет", d.count, d.cum, Math.round(d.cumPlan * 10) / 10, Math.round(d.deviation * 10) / 10, d.avgPace == null ? "" : Math.round(d.avgPace * 10) / 10, d.needPace == null ? "" : Math.round(d.needPace * 10) / 10, d.hours, d.hours > 0 ? Math.round((d.count / d.hours) * 100) / 100 : ""]);
+      const head = ["Дата", "День недели", "Рабочий", "Лиды", "Накоп. факт", "Накоп. план", "Отклонение", "Средний темп", "Нужный темп", "Часы", "Конверсия, %"];
+      const body = days.filter((d) => !d.future).map((d) => [d.day, fmtWeekday(d.day), d.isWork ? "да" : "нет", d.count, d.cum, Math.round(d.cumPlan * 10) / 10, Math.round(d.deviation * 10) / 10, d.avgPace == null ? "" : Math.round(d.avgPace * 10) / 10, d.needPace == null ? "" : Math.round(d.needPace * 10) / 10, d.hours, d.hours > 0 ? Math.round((d.count / d.hours) * 100) : ""]);
       downloadText(`dynamics_days_${month}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
     } else {
       const head = ["С", "По", "План недели", "Факт", "% выполнения", "Среднее в день", "Изменение к прошлой неделе, %"];
@@ -128,7 +128,7 @@ export default function DynamicsPage() {
                 <th className="r" title="Накопленный факт / прошедшие рабочие дни">Средний темп</th>
                 <th className="r" title="Сколько нужно в рабочий день дальше, чтобы выполнить план">Нужный темп</th>
                 <th className="r bl">Часы</th>
-                <th className="r">Лид/час</th>
+                <th className="r" title="Конверсия: лиды ÷ отработанные часы">Конв.</th>
               </tr>
             </thead>
             <tbody>
@@ -138,14 +138,14 @@ export default function DynamicsPage() {
                     <span className="num">{fmtDayShort(d.day)}</span> <span className="muted">{fmtWeekday(d.day)}</span>
                     {!d.isWork && <span className="muted"> · вых.</span>}
                   </td>
-                  <td className="r num" style={{ fontWeight: 600 }}>{d.future ? "" : fmtInt(d.count)}</td>
+                  <td className="r num">{d.future ? "" : <LeadN n={d.count} />}</td>
                   <td className="r num">{d.future ? "" : fmtInt(d.cum)}</td>
                   <td className="r num muted">{fmtNum(d.cumPlan)}</td>
                   <td className="r num" style={{ color: d.future ? undefined : d.deviation >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{d.future ? "" : fmtSigned(d.deviation, 1)}</td>
                   <td className="r num">{d.future || d.avgPace == null ? "" : fmtNum(d.avgPace)}</td>
                   <td className="r num">{d.future || d.needPace == null ? "" : fmtNum(d.needPace)}</td>
                   <td className="r num bl">{d.hours ? fmtNum(d.hours) : ""}</td>
-                  <td className="r num">{d.hours > 0 && !d.future ? fmtNum(d.count / d.hours, 2) : ""}</td>
+                  <td className="r num">{d.hours > 0 && !d.future ? <Conv leads={d.count} hours={d.hours} /> : ""}</td>
                 </tr>
               ))}
             </tbody>

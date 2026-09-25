@@ -67,6 +67,7 @@ export function plural(n: number, forms: [string, string, string]): string {
 export const LEADS: [string, string, string] = ["лид", "лида", "лидов"];
 export const OPS: [string, string, string] = ["оператор", "оператора", "операторов"];
 export const DAYS: [string, string, string] = ["день", "дня", "дней"];
+export const PAYOUTS: [string, string, string] = ["выплата", "выплаты", "выплат"];
 
 /** Нормализация телефона: только цифры, 8XXXXXXXXXX → 7XXXXXXXXXX. */
 export function normPhone(raw: string): string {

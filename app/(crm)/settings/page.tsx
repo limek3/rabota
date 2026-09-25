@@ -352,6 +352,26 @@ export default function SettingsPage() {
         </div>
       </Section>
 
+      <Section
+        title="Регионы"
+        sub="Регион выбирают в окне лида. «Основа» — цена лида и апрув как у проектов; «Регионы» — свои цена и апрув. Лиды без региона считаются основой"
+      >
+        <div className="grid2">
+          <Field label="Основа" hint="Города через запятую">
+            <CityList value={f.regions.main} onChange={(v) => set("regions", { ...f.regions, main: v })} />
+          </Field>
+          <Field label="Регионы" hint="Города и края через запятую">
+            <CityList value={f.regions.regional} onChange={(v) => set("regions", { ...f.regions, regional: v.filter((x) => !f.regions.main.includes(x)) })} />
+          </Field>
+          <Field label="Апрув регионов, %" hint="Доля региональных лидов, которые принимает заказчик">
+            <NumInput value={f.regions.regionalApprovePct} onChange={(v) => set("regions", { ...f.regions, regionalApprovePct: v ?? 0 })} max={100} step={0.5} />
+          </Field>
+          <Field label="Цена регионального лида, ₽" hint="Доход для % ФОТ = региональные лиды × цена × апрув регионов">
+            <NumInput value={f.regions.regionalLeadRevenue} onChange={(v) => set("regions", { ...f.regions, regionalLeadRevenue: v ?? 0 })} max={10_000_000} />
+          </Field>
+        </div>
+      </Section>
+
       <Section title="Оценка выполнения" sub="Темп = факт / план на сегодня. По этим порогам операторы и группы делятся на «выше плана», «по плану», «отстаёт», «сильно отстаёт»">
         <div className="grid4">
           <Field label="Выше плана, от %" error={thresholdsBad ? "Пороги должны убывать" : null}>
@@ -698,4 +718,16 @@ function AboutSection() {
       </div>
     </Section>
   );
+}
+
+/** Список городов строкой через запятую: правим свободно, в настройки уходит по уходу с поля. */
+function CityList({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const [draft, setDraft] = useState(value.join(", "));
+  useEffect(() => setDraft(value.join(", ")), [value]);
+  const commit = () => {
+    const next = Array.from(new Set(draft.split(/[,;]/).map((x) => x.trim()).filter(Boolean)));
+    if (next.join("|") !== value.join("|")) onChange(next);
+    else setDraft(value.join(", "));
+  };
+  return <input className="inp" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />;
 }

@@ -15,6 +15,12 @@
 create or replace function public.crm_leads_link_guard() returns trigger
 language plpgsql set search_path = public as $$
 begin
+  -- служебные роли (восстановление копии crm_replace_all, SQL Editor) — без проверки:
+  -- копия должна подниматься целиком, как есть
+  if current_user in ('postgres', 'service_role', 'supabase_admin') then
+    return new;
+  end if;
+
   if tg_op = 'INSERT' then
     -- upsert уже существующего лида (INSERT … ON CONFLICT) сначала проходит здесь: его
     -- пропускаем — ветка UPDATE ниже сохранит ссылку, если клиент прислал строку без неё

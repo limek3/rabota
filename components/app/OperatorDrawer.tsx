@@ -7,7 +7,8 @@ import { dailyRows, monthCal, probation, type OpRow } from "@/lib/crm/calc";
 import { NO_GROUP_LABEL, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, type OperatorStatus } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, fmtStamp, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned } from "@/lib/crm/format";
-import { Avatar, Chip, Drawer, Kpi, LeadLinkButton, LeadStatusChip, Progress, StatusChip } from "@/components/ui/kit";
+import { PayoutHistory } from "@/components/app/PayoutHistory";
+import { Avatar, Chip, Conv, Drawer, Kpi, LeadLinkButton, LeadStatusChip, Progress, StatusChip } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canManageOperator } from "@/lib/crm/access";
 import { CumulativeChart, Legend } from "@/components/ui/charts";
@@ -183,11 +184,11 @@ export function OperatorStats({ row, wide = false }: { row: OpRow; wide?: boolea
         <Kpi label="Сегодня / вчера" value={`${fmtInt(p.today)} / ${fmtInt(p.yesterday)}`} sub="лидов за день" />
         <Kpi label="Неделя / прошлая" value={`${fmtInt(p.thisWeek)} / ${fmtInt(p.prevWeek)}`} sub="лидов за неделю" />
         <Kpi
-          label="Часы / норма"
-          value={`${fmtNum(row.hours, 0)} / ${fmtNum(row.norm, 0)}`}
-          sub={`${fmtPct(row.normPct)} нормы · ${row.hoursDelta >= 0 ? "+" : "−"}${fmtNum(Math.abs(row.hoursDelta))} ч к дате`}
+          label="Часы"
+          value={fmtNum(row.hours, 0)}
+          sub={`норма ${fmtNum(row.norm, 0)} ч`}
         />
-        <Kpi label="Лидов на час" value={row.lph == null ? "—" : fmtNum(row.lph, 2)} sub={`${row.daysWorked} смен · отсутствий ${row.absentDays}`} />
+        <Kpi label="Конверсия" title="Лиды ÷ отработанные часы" value={<Conv value={row.lph} />} sub={`${row.daysWorked} смен · отсутствий ${row.absentDays}`} />
       </div>
 
       <div className={wide ? "cols-main" : "stack"} style={{ gap: 16 }}>
@@ -290,6 +291,18 @@ export function OperatorStats({ row, wide = false }: { row: OpRow; wide?: boolea
           )}
         </div>
       </div>
+
+      {canPayView && (
+        <div className="card card-pad">
+          <div className="card-head" style={{ marginBottom: 8 }}>
+            <div>
+              <h3 className="card-title">История выплат</h3>
+              <p className="card-sub">Авансы и выплаты по всем месяцам</p>
+            </div>
+          </div>
+          <PayoutHistory opId={op.id} compact />
+        </div>
+      )}
     </>
   );
 }

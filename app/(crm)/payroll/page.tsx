@@ -3,18 +3,20 @@
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useCrm, type AdjustmentInput } from "@/lib/crm/store";
-import { approvePctFor, approvePctWhere, goneLast, isGone, leadIncome, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
+import { approvePctFor, approvePctWhere, goneLast, incomePerLead, isGone, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
+import { isRegionalLead } from "@/lib/crm/regions";
 import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, payrollRow, type PayRow } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
-import { fmtInt, fmtMoney, fmtNum, fmtPct, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Drawer, Empty, Field, GoneSepRow, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Swatch, downloadText, foldRow, toCsv, useFoldGroups } from "@/components/ui/kit";
+import { PAYOUTS, fmtInt, fmtMoney, fmtNum, fmtPct, plural, shortName } from "@/lib/crm/format";
+import { Avatar, Chip, Drawer, Empty, Field, GoneSepRow, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Seg, Swatch, downloadText, foldRow, toCsv, useFoldGroups } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditPay, canTouchOp } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 import { ApproveMonthEditor } from "@/components/app/ApproveSettings";
 import { PayslipModal } from "@/components/app/Payslip";
+import { PayoutHistory, usePayouts } from "@/components/app/PayoutHistory";
 
 const ADJ_TYPES: AdjustmentType[] = ["accrual", "bonus", "compensation", "correction", "deduction", "advance", "payout"];
 const ADJ_HUE: Record<AdjustmentType, string> = {
@@ -64,7 +66,9 @@ function payrollOf(rows: PayRow[]) {
 }
 
 export default function PayrollPage() {
-  const { data, ix, month, setMonth, today, saveTerms, toast, confirm, access } = useCrm();
+  const { data, ix, month, setMonth, today, saveTerms, saveAdjustment, toast, confirm, access } = useCrm();
+  // «Ведомость» — начисления месяца; «История выплат» — выплаты по всем месяцам
+  const [view, setView] = useState<"sheet" | "payouts">("sheet");
   const cal = useMemo(() => monthCal(month, data.settings, today), [month, data.settings, today]);
   const prAll = useMemo(() => payroll(data, ix, cal), [data, ix, cal]);
   // супервайзер, видящий все группы, всё равно смотрит зарплату только своих
@@ -139,9 +143,16 @@ export default function PayrollPage() {
   const t = pr.total;
   const unfixed = pr.rows.filter((r) => !r.explicitTerms).length;
 
-  /* ФОТ: фонд против дохода, доход = лиды × цена лида × апрув заказчика (по проектам, взвешенный по лидам) */
+  /* ФОТ: фонд против дохода. Доход = лиды × цена × апрув: основа — цена лида и апрув по проектам,
+     регионы — цена регионального лида и апрув регионов из настроек */
   const approve = useMemo(() => approvePctFor(data, ix, month), [data, ix, month]);
-  const income = leadIncome(data.settings.leadRevenue, approve);
+  const income = useMemo(() => incomePerLead(data, month), [data, month]);
+  const regionalN = useMemo(
+    () => data.leads.filter((l) => l.status !== "failed" && l.at.slice(0, 7) === month && isRegionalLead(l, data.settings)).length,
+    [data.leads, data.settings, month],
+  );
+  const rg = data.settings.regions;
+  const regionNote = regionalN > 0 ? ` · регионы: ${fmtInt(regionalN)} лид. × ${fmtMoney(rg.regionalLeadRevenue)} × ${fmtNum(rg.regionalApprovePct)}%` : "";
   const fund = useMemo(() => fundStat(t.gross, t.leads, income, data.settings.payrollCapPct), [t.gross, t.leads, income, data.settings.payrollCapPct]);
   /* прогноз: фонд растёт по отработанным дням, доход — по Run Rate лидов */
   const forecast = useMemo(() => {
@@ -168,10 +179,26 @@ export default function PayrollPage() {
       .map(([id, v]) => {
         // апрув группы — по проектам её лидов
         const approve = approvePctWhere(data, month, (l) => v.ops.has(l.operatorId));
-        return { id, ...v, approve, stat: fundStat(v.gross, v.leads, leadIncome(data.settings.leadRevenue, approve), data.settings.payrollCapPct) };
+        return { id, ...v, approve, stat: fundStat(v.gross, v.leads, incomePerLead(data, month, (l) => v.ops.has(l.operatorId)), data.settings.payrollCapPct) };
       })
       .sort((a, b) => b.gross - a.gross);
   }, [pr.rows, ix, groupOf, data, month]);
+
+  /**
+   * Выплатить остаток одной кнопкой: запись «Выплата» на сумму остатка ведомости, датой сегодня.
+   * Ведомость и история пересчитываются сразу — остаток становится 0.
+   */
+  const payRest = async (r: PayRow) => {
+    const sum = Math.round(r.toPay * 100) / 100;
+    if (sum <= 0) return;
+    const ok = await confirm({
+      title: `Выплатить ${fmtMoney(sum)}?`,
+      text: `${r.op.name} · остаток по ведомости за ${fmtMonth(month).toLowerCase()}. Запишется выплата датой ${fmtDate(today)} — остаток станет 0 ₽, выплата появится в истории.`,
+      ok: "Выплатить",
+    });
+    if (!ok) return;
+    await saveAdjustment({ month, operatorId: r.op.id, type: "payout", amount: sum, date: today, comment: "Остаток по ведомости" });
+  };
 
   const freezeAll = async () => {
     const ok = await confirm({
@@ -224,6 +251,20 @@ export default function PayrollPage() {
         }
       />
 
+      <Seg<"sheet" | "payouts">
+        value={view}
+        onChange={setView}
+        options={[
+          { value: "sheet", label: "Ведомость" },
+          { value: "payouts", label: "История выплат" },
+        ]}
+        style={{ alignSelf: "flex-start" }}
+      />
+
+      {view === "payouts" ? (
+        <PayoutsView month={month} toPay={t.toPay} q={q} setQ={setQ} />
+      ) : (
+      <>
       <div className="kpi-grid">
         <Kpi label="Начислено" value={fmtMoney(t.gross)} sub={`база ${fmtMoney(t.base)} · бонусы ${fmtMoney(t.leadPay)}`} />
         <Kpi label="Удержано" value={fmtMoney(t.withhold + t.deductions)} sub={`${data.settings.withholdPct}% — ${fmtMoney(t.withhold)}`} />
@@ -236,7 +277,7 @@ export default function PayrollPage() {
           value={fund.revenue > 0 ? fmtPct(fund.pct) : "—"}
           sub={fund.revenue > 0 ? `норматив ${data.settings.payrollCapPct}% · апрув ${fmtNum(approve)}% · доход ${fmtMoney(fund.revenue)}` : data.settings.leadRevenue > 0 ? "апрув заказчика 0%" : "укажите цену лида в настройках"}
           tone={fund.revenue > 0 ? (fund.ok ? "good" : "bad") : undefined}
-          title={`Фонд оплаты труда ${fmtMoney(fund.fund)} против дохода: ${fmtInt(t.leads)} лидов × ${fmtMoney(data.settings.leadRevenue)} × апрув ${fmtNum(approve)}% = ${fmtMoney(fund.revenue)}`}
+          title={`Фонд оплаты труда ${fmtMoney(fund.fund)} против дохода ${fmtMoney(fund.revenue)}: основа — лиды × ${fmtMoney(data.settings.leadRevenue)} × апрув по проектам${regionNote}`}
         />
       </div>
 
@@ -348,6 +389,11 @@ export default function PayrollPage() {
                           <td className="r" onClick={(e) => e.stopPropagation()}>
                             {canEditPay(access, r.op.id) && (
                               <span className="row-actions">
+                                {r.toPay > 0.005 && (
+                                  <button className="btn btn-ghost btn-sm" title={`Выплатить остаток ${fmtMoney(r.toPay)}`} onClick={() => void payRest(r)}>
+                                    <Icon name="wallet" size={13} /> Выплатить
+                                  </button>
+                                )}
                                 <button className="btn btn-ghost btn-sm btn-icon" title="Добавить начисление/выплату" onClick={() => setAdjFor({ opId: r.op.id })}>
                                   <Icon name="plus" size={14} />
                                 </button>
@@ -402,7 +448,7 @@ export default function PayrollPage() {
                 <h3 className="card-title">Фонд оплаты труда</h3>
                 <p className="card-sub">
                   {data.settings.leadRevenue > 0
-                    ? `Доход = лиды × ${fmtMoney(data.settings.leadRevenue)} × апрув заказчика (за месяц ${fmtNum(approve)}%) · норматив ФОТ — не выше ${data.settings.payrollCapPct}% дохода`
+                    ? `Доход = лиды × ${fmtMoney(data.settings.leadRevenue)} × апрув заказчика (за месяц ${fmtNum(approve)}%)${regionNote} · норматив ФОТ — не выше ${data.settings.payrollCapPct}% дохода`
                     : `Укажите цену лида для заказчика в настройках — без неё доход и % ФОТ не считаются · норматив — не выше ${data.settings.payrollCapPct}%`}
                 </p>
               </div>
@@ -491,8 +537,10 @@ export default function PayrollPage() {
           </div>
         </>
       )}
+      </>
+      )}
 
-      {openRow && <PayDrawer row={openRow} planValue={termsPlan(openRow)} onClose={() => setOpenId(null)} onAdj={(adj) => setAdjFor({ opId: openRow.op.id, adj })} />}
+      {openRow && <PayDrawer row={openRow} planValue={termsPlan(openRow)} onClose={() => setOpenId(null)} onAdj={(adj) => setAdjFor({ opId: openRow.op.id, adj })} onPay={() => void payRest(openRow)} />}
       {adjFor && <AdjustmentModal opId={adjFor.opId} adj={adjFor.adj} rows={pr.rows} cal={cal} onClose={() => setAdjFor(null)} />}
     </div>
   );
@@ -513,7 +561,7 @@ function Line({ label, formula, value, strong, neg }: { label: string; formula?:
   );
 }
 
-function PayDrawer({ row: r, planValue, onClose, onAdj }: { row: PayRow; planValue: number; onClose: () => void; onAdj: (a?: Adjustment) => void }) {
+function PayDrawer({ row: r, planValue, onClose, onAdj, onPay }: { row: PayRow; planValue: number; onClose: () => void; onAdj: (a?: Adjustment) => void; onPay: () => void }) {
   const { data, month, saveTerms, deleteAdjustment, confirm, access, today } = useCrm();
   const canEdit = canEditPay(access, r.op.id);
   const [edit, setEdit] = useState(false);
@@ -589,9 +637,14 @@ function PayDrawer({ row: r, planValue, onClose, onAdj }: { row: PayRow; planVal
           <Line label="К выплате всего" value={r.net} strong />
           {r.adj.advance !== 0 && <Line label="Аванс" value={r.adj.advance} neg />}
           {r.adj.payout !== 0 && <Line label="Выплачено" value={r.adj.payout} neg />}
-          <div className="row" style={{ paddingTop: 10, fontSize: 15, fontWeight: 700 }}>
+          <div className="row" style={{ paddingTop: 10, fontSize: 15, fontWeight: 700, gap: 10 }}>
             <span style={{ flex: 1 }}>Остаток к выплате</span>
             <span className="num">{fmtMoney(r.toPay)}</span>
+            {canEdit && r.toPay > 0.005 && (
+              <button className="btn btn-sm btn-primary" onClick={onPay} title="Записать выплату на весь остаток, датой сегодня">
+                <Icon name="wallet" size={13} /> Выплатить
+              </button>
+            )}
           </div>
         </div>
 
@@ -679,6 +732,16 @@ function PayDrawer({ row: r, planValue, onClose, onAdj }: { row: PayRow; planVal
               </tbody>
             </table>
           )}
+        </div>
+
+        <div className="card card-pad">
+          <div className="card-head" style={{ marginBottom: 8 }}>
+            <div>
+              <h3 className="card-title">История выплат</h3>
+              <p className="card-sub">Все авансы и выплаты сотруднику, по всем месяцам</p>
+            </div>
+          </div>
+          <PayoutHistory opId={r.op.id} compact />
         </div>
 
         <div className="card card-pad">
@@ -840,7 +903,7 @@ function SvCard({ r }: { r: PayRow }) {
     const leads = rows.reduce((a, x) => a + x.leads, 0);
     const ids = new Set(rows.map((x) => x.op.id));
     const approve = approvePctWhere(data, month, (l) => ids.has(l.operatorId));
-    return { ...fundStat(gross, leads, leadIncome(data.settings.leadRevenue, approve), data.settings.payrollCapPct), people: rows.length, approve };
+    return { ...fundStat(gross, leads, incomePerLead(data, month, (l) => ids.has(l.operatorId)), data.settings.payrollCapPct), people: rows.length, approve };
   }, [data, ix, month, today, r.op.id]);
   return (
     <div className="card card-pad">
@@ -1040,5 +1103,50 @@ function AdjustmentModal({ opId, adj, rows, cal, onClose }: { opId: string; adj?
         </div>
       )}
     </Modal>
+  );
+}
+
+/**
+ * «История выплат» на странице зарплаты: выплаты зоны по всем месяцам — сверху итоги
+ * выбранного месяца (по дате выплаты), ниже — таблица с поиском и страницами.
+ */
+function PayoutsView({ month, toPay, q, setQ }: { month: string; toPay: number; q: string; setQ: (v: string) => void }) {
+  const { ix } = useCrm();
+  const all = usePayouts();
+  const [scope, setScope] = useState<"month" | "all">("month");
+  const list = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return all.filter(
+      (a) => (scope === "all" || a.date.slice(0, 7) === month) && (!needle || (ix.opById.get(a.operatorId)?.name ?? "").toLowerCase().includes(needle)),
+    );
+  }, [all, scope, month, q, ix]);
+  const inMonth = useMemo(() => all.filter((a) => a.date.slice(0, 7) === month), [all, month]);
+  const sum = (xs: Adjustment[]) => xs.reduce((acc, a) => acc + a.amount, 0);
+  const people = new Set(inMonth.map((a) => a.operatorId)).size;
+  return (
+    <>
+      <div className="kpi-grid">
+        <Kpi label={`Выплачено · ${fmtMonth(month)}`} value={fmtMoney(sum(inMonth))} sub={`${fmtInt(inMonth.length)} ${plural(inMonth.length, PAYOUTS)} · ${fmtInt(people)} чел.`} />
+        <Kpi label="Авансы" value={fmtMoney(sum(inMonth.filter((a) => a.type === "advance")))} sub="за этот месяц" />
+        <Kpi label="Выплаты" value={fmtMoney(sum(inMonth.filter((a) => a.type === "payout")))} sub="за этот месяц" />
+        <Kpi label="Остаток по ведомости" value={fmtMoney(toPay)} sub={`ещё не выплачено за ${fmtMonth(month).toLowerCase()}`} tone={toPay > 0.5 ? "warn" : "good"} />
+      </div>
+      <div className="toolbar">
+        <div style={{ position: "relative", width: 260 }}>
+          <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: 10, color: "var(--dim)" }} />
+          <input className="inp" style={{ paddingLeft: 30 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Сотрудник" />
+        </div>
+        <Seg<"month" | "all">
+          value={scope}
+          onChange={setScope}
+          options={[
+            { value: "month", label: fmtMonth(month) },
+            { value: "all", label: "Все месяцы" },
+          ]}
+        />
+        <span style={{ fontSize: 12, color: "var(--dim)" }}>По дате выплаты · «Выплатить» в ведомости записывает остаток одной кнопкой</span>
+      </div>
+      <PayoutHistory list={list} />
+    </>
   );
 }

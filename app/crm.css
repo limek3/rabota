@@ -348,15 +348,17 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 .sched thead .sum { z-index: 4; background: var(--bg-strip); }
 .sched tfoot .sum { z-index: 3; background: var(--bg-strip); }
 .sched tbody tr:hover .sum { background: var(--bg-panel-hover); }
-/* итоговые колонки справа — узкие, чтобы дням оставалось больше места (было 348px, стало 272px).
+/* итоговые колонки справа: часы → лиды → ± лидов к плану → конверсия.
    right — сумма ширин колонок правее; ширины не меньше заголовков, иначе липкие колонки наедут друг на друга */
 .sched .sum { padding-left: 4px; padding-right: 4px; }
-.sched .sum-h { right: 226px; width: 46px; min-width: 46px; }
-.sched .sum-n { right: 178px; width: 48px; min-width: 48px; }
-.sched .sum-p { right: 138px; width: 40px; min-width: 40px; }
-.sched .sum-d { right: 92px; width: 46px; min-width: 46px; }
-.sched .sum-l { right: 46px; width: 46px; min-width: 46px; }
-.sched .sum-c { right: 0; width: 46px; min-width: 46px; }
+.sched .sum-h { right: 150px; width: 50px; min-width: 50px; }
+.sched .sum-l { right: 102px; width: 48px; min-width: 48px; }
+.sched .sum-d { right: 52px; width: 50px; min-width: 50px; }
+.sched .sum-c { right: 0; width: 52px; min-width: 52px; }
+/* лиды и конверсия — ключевые колонки, подложка акцента (непрозрачная: колонки липкие) */
+.sched .sum.hl { background: color-mix(in srgb, var(--brand) 6%, var(--bg-panel)); }
+.sched thead .sum.hl, .sched tfoot .sum.hl { background: color-mix(in srgb, var(--brand) 9%, var(--bg-strip)); }
+.sched tbody tr:hover .sum.hl { background: color-mix(in srgb, var(--brand) 9%, var(--bg-panel-hover)); }
 
 /* боковое меню */
 .app-rail-item {
@@ -880,3 +882,9 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
   .pager { grid-template-columns: 1fr; justify-items: center; }
   .pager-size { justify-self: center; }
 }
+
+/* ключевые показатели — лиды и конверсия лид/ч — выделены везде одинаково */
+.lead-n { color: var(--brand); font-weight: 600; }
+.conv { font-weight: 600; color: var(--text); }
+.conv[data-ok="true"] { color: var(--c-green-fg); }
+.conv[data-ok="false"] { color: var(--c-red-fg); }

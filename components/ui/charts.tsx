@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import type { DayRow } from "@/lib/crm/calc";
 import { fmtDay, fmtWeekday } from "@/lib/crm/dates";
-import { fmtInt, fmtNum, fmtSigned } from "@/lib/crm/format";
+import { fmtInt, fmtNum, fmtPct, fmtSigned } from "@/lib/crm/format";
 
 /**
  * Два графика вместо одного с двумя осями: накопительный итог и дневные
@@ -182,7 +182,7 @@ export function DailyBars({ rows, dailyPlan, height = 200 }: { rows: DayRow[]; d
                   <TipRow label="Передано" value={p.count == null ? "—" : fmtInt(p.count)} />
                   {p.isWork && <TipRow label="Дневной план" value={fmtNum(dailyPlan)} />}
                   {p.hours > 0 && <TipRow label="Часы" value={fmtNum(p.hours)} />}
-                  {p.hours > 0 && p.count != null && <TipRow label="Лидов в час" value={fmtNum(p.count / p.hours, 2)} />}
+                  {p.hours > 0 && p.count != null && <TipRow label="Конверсия" value={fmtPct(p.count / p.hours)} />}
                 </TipBox>
               );
             }}

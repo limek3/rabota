@@ -19,8 +19,9 @@ import {
 } from "@/lib/crm/dates";
 import type { DayKey, Lead, MonthKey, Operator } from "@/lib/crm/types";
 import { LEAD_STATUS_HUE, LEAD_STATUS_LABEL } from "@/lib/crm/types";
-import { fmtInt, initials } from "@/lib/crm/format";
+import { fmtInt, fmtNum, fmtPct, initials } from "@/lib/crm/format";
 import { PACE_HUE, PACE_LABEL, type PaceStatus } from "@/lib/crm/calc";
+import { SEGMENT_HUE, SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
 import { DateInput, MonthPicker } from "./select";
 
 /* ── цвет по тону палитры чипов ───────────────────────────────────── */
@@ -281,6 +282,53 @@ export function Empty({ icon = "info", title, text, action }: { icon?: IconName;
 }
 
 /* ── сегменты ─────────────────────────────────────────────────────── */
+/* ── регион лида ───────────────────────────────────────────────────── */
+/** Регион и плашка «основа» / «регионы». Без региона — прочерк (старые лиды считаются основой). */
+export function RegionTag({ region, short }: { region?: string; short?: boolean }) {
+  const { data } = useCrm();
+  const seg = regionSegment(region, data.settings);
+  if (!seg) return <span className="muted">—</span>;
+  return (
+    <span className="row" style={{ gap: 6, flexWrap: "nowrap", display: "inline-flex" }}>
+      {!short && <span>{region}</span>}
+      <Chip hue={SEGMENT_HUE[seg]} style={{ height: 18, padding: "0 6px", fontSize: 10.5 }}>
+        {short ? region : SEGMENT_LABEL[seg]}
+      </Chip>
+    </span>
+  );
+}
+
+/* ── ключевые показатели: лиды и конверсия ─────────────────────────── */
+/** Норма конверсии из настроек, в лидах на час (в настройках хранится ×100). */
+export function useConvNorm(): number {
+  return useCrm().data.settings.convNormPct / 100;
+}
+
+/**
+ * Конверсия = лиды ÷ отработанные часы, везде одинаково — в процентах: 0,61 лид/ч → «61%».
+ * Цвет — относительно нормы из настроек: не ниже нормы — зелёный, ниже — красный.
+ */
+export function Conv({ leads, hours, value, style }: { leads?: number; hours?: number; value?: number | null; style?: CSSProperties }) {
+  const norm = useConvNorm();
+  const v = value !== undefined ? value : hours && hours > 0 ? (leads ?? 0) / hours : null;
+  if (v == null) return <span className="muted">—</span>;
+  const ok = norm > 0 ? v >= norm : undefined;
+  return (
+    <span className="conv num" data-ok={ok === undefined ? undefined : String(ok)} style={style} title={`Лиды ÷ часы: ${fmtNum(v, 2)} лид/ч${norm > 0 ? ` · норма ${fmtPct(norm)}` : ""}`}>
+      {fmtPct(v)}
+    </span>
+  );
+}
+
+/** Число лидов — выделено акцентом, чтобы в строке цифр читалось первым. */
+export function LeadN({ n, style }: { n: number; style?: CSSProperties }) {
+  return (
+    <span className="lead-n num" style={style}>
+      {fmtInt(n)}
+    </span>
+  );
+}
+
 export function Seg<T extends string>({ value, options, onChange, style }: { value: T; options: { value: T; label: ReactNode }[]; onChange: (v: T) => void; style?: CSSProperties }) {
   return (
     <div className="seg" role="group" style={style}>

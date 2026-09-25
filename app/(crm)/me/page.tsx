@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
@@ -10,11 +10,12 @@ import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { NO_GROUP_LABEL, type RateTier } from "@/lib/crm/types";
 import { addDays, fmtDay, fmtMonth, fmtWeekday, monthEnd, monthStart, nowHour } from "@/lib/crm/dates";
 import { LEADS, fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, plural, safeDiv, surnameAndName } from "@/lib/crm/format";
-import { Avatar, Chip, Empty, Kpi, LeadLinkButton, LeadStatusChip, MonthSwitcher, PageHead, Progress, StatusChip } from "@/components/ui/kit";
+import { Avatar, Chip, Conv, Empty, Kpi, LeadLinkButton, LeadStatusChip, MonthSwitcher, PageHead, Progress, StatusChip } from "@/components/ui/kit";
 import { DailyBars } from "@/components/ui/charts";
 import { LearnCard } from "@/components/learn/Progress";
 import { Icon } from "@/components/ui/icons";
 import { TelegramCard } from "@/components/app/TelegramCard";
+import { PayoutHistory } from "@/components/app/PayoutHistory";
 import { PayslipModal } from "@/components/app/Payslip";
 
 /**
@@ -170,7 +171,7 @@ export default function MePage() {
           <Tile label="К плану на сегодня" value={fmtSigned(p.deviation)} tone={p.deviation >= 0 ? "good" : "bad"} sub={`должно быть ${fmtNum(p.planToDate, 0)}`} />
           <Tile label="Прогноз месяца" value={fmtInt(p.rr)} sub={`${fmtPct(p.rrPct)} плана`} />
           <Tile label="Мой темп" value={fmtNum(row.avgPerWorkday)} sub="лидов за смену" />
-          <Tile label="Лидов в час" value={row.lph == null ? "—" : fmtNum(row.lph, 2)} sub={`${fmtNum(row.hours, 0)} ч за месяц`} />
+          <Tile label="Конверсия" value={<Conv value={row.lph} />} sub={`лиды ÷ ${fmtNum(row.hours, 0)} ч за месяц`} />
         </div>
       </div>
 
@@ -205,7 +206,7 @@ export default function MePage() {
         <Kpi label="Вчера" value={fmtInt(p.yesterday)} sub={`${fmtDay(addDays(today, -1))}, ${fmtWeekday(addDays(today, -1))}`} />
         <Kpi label="Эта неделя" value={fmtInt(p.thisWeek)} sub={`прошлая ${fmtInt(p.prevWeek)}`} />
         <Kpi label="Смен отработано" value={fmtInt(row.daysWorked)} sub={row.absentDays ? `отпуск/больничный: ${row.absentDays}` : undefined} />
-        <Kpi label="Часы / норма" value={`${fmtNum(row.hours, 0)} / ${fmtNum(row.norm, 0)}`} sub={`${fmtPct(row.normPct)} нормы`} />
+        <Kpi label="Часы" value={fmtNum(row.hours, 0)} sub={`норма ${fmtNum(row.norm, 0)} ч`} />
         <Kpi label="Оценка темпа" value={<StatusChip status={row.status} />} sub={`порог «по плану» — ${s.normalPct}%`} />
       </div>
 
@@ -372,6 +373,18 @@ export default function MePage() {
             </div>
           )}
 
+          {pay && (
+            <div className="card card-pad">
+              <div className="card-head" style={{ marginBottom: 8 }}>
+                <div>
+                  <h3 className="card-title">Мои выплаты</h3>
+                  <p className="card-sub">Авансы и выплаты по всем месяцам</p>
+                </div>
+              </div>
+              <PayoutHistory opId={pay.op.id} compact />
+            </div>
+          )}
+
           <div className="card card-pad" style={{ fontSize: 12.5, color: "var(--text-sub)", lineHeight: 1.6 }}>
             <div className="row" style={{ gap: 10, marginBottom: 8 }}>
               <Avatar name={me.name} id={me.id} size={34} />
@@ -393,7 +406,7 @@ export default function MePage() {
   );
 }
 
-function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "good" | "bad" }) {
+function Tile({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: string; tone?: "good" | "bad" }) {
   return (
     <div style={{ padding: "10px 12px", borderRadius: 8, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0, height: "100%" }}>
       <div style={{ fontSize: 11.5, color: "var(--text-sub)", lineHeight: 1.3 }}>{label}</div>

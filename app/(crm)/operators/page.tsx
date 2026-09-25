@@ -7,13 +7,13 @@ import { PACE_HUE, PACE_LABEL, goneLast, isGone, type OpRow, type Pace, type Pac
 import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
 import { fmtMonth } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Empty, GoneSepRow, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, type FoldPhase, type SortState } from "@/components/ui/kit";
+import { Avatar, Conv, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
 
 type Emp = "work" | "active" | "pause" | "fired" | "all";
-type SortKey = "name" | "plan" | "fact" | "pct" | "dev" | "rr" | "left" | "need" | "today" | "week" | "prev" | "avg" | "hours" | "norm" | "lph";
+type SortKey = "name" | "plan" | "fact" | "pct" | "dev" | "rr" | "left" | "need" | "today" | "week" | "prev" | "avg" | "hours" | "lph";
 
 const val = (r: OpRow, k: SortKey): number | string => {
   switch (k) {
@@ -30,7 +30,6 @@ const val = (r: OpRow, k: SortKey): number | string => {
     case "prev": return r.pace.prevWeek;
     case "avg": return r.avgPerWorkday;
     case "hours": return r.hours;
-    case "norm": return r.normPct;
     case "lph": return r.lph ?? -1;
   }
 };
@@ -166,7 +165,7 @@ export default function OperatorsPage() {
   const openRow = openId ? rows.find((r) => r.op.id === openId) ?? null : null;
 
   const exportCsv = () => {
-    const head = ["ФИО", "Группа", "Роль", "Статус", "Оценка темпа", "План", "Факт", "% плана", "К плану на дату", "Прогноз RR", "Прогноз %", "Осталось", "Нужно в день", "Сегодня", "Неделя", "Пр. неделя", "Ср. в раб. день", "Часы", "Норма", "% нормы", "Лидов/час"];
+    const head = ["ФИО", "Группа", "Роль", "Статус", "Оценка темпа", "План", "Факт", "% плана", "К плану на дату", "Прогноз RR", "Прогноз %", "Осталось", "Нужно в день", "Сегодня", "Неделя", "Пр. неделя", "Ср. в раб. день", "Часы", "Конверсия, %"];
     const body = list.map((r) => [
       r.op.name,
       r.op.groupId ? ix.groupById.get(r.op.groupId)?.name ?? "" : NO_GROUP_LABEL,
@@ -186,9 +185,7 @@ export default function OperatorsPage() {
       r.pace.prevWeek,
       Math.round(r.avgPerWorkday * 10) / 10,
       r.hours,
-      r.norm,
-      Math.round(r.normPct * 1000) / 10,
-      r.lph == null ? "" : Math.round(r.lph * 100) / 100,
+      r.lph == null ? "" : Math.round(r.lph * 100),
     ]);
     downloadText(`operators_${month}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
   };
@@ -199,7 +196,7 @@ export default function OperatorsPage() {
   const withGoneSep = (rs: OpRow[], render: (r: OpRow, i: number) => ReactNode) =>
     rs.map((r, i) => (
       <Fragment key={r.op.id}>
-        {isGone(r.op) && (i === 0 || !isGone(rs[i - 1].op)) && <GoneSepRow count={rs.filter((x) => isGone(x.op)).length} colSpan={16} />}
+        {isGone(r.op) && (i === 0 || !isGone(rs[i - 1].op)) && <GoneSepRow count={rs.filter((x) => isGone(x.op)).length} colSpan={15} />}
         {render(r, i)}
       </Fragment>
     ));
@@ -234,7 +231,7 @@ export default function OperatorsPage() {
           {fmtInt(r.terms.plan)}
           {r.terms.explicit && <span title="План задан для этого месяца" style={{ color: "var(--brand)" }}>•</span>}
         </td>
-        <td className="r num" style={{ fontWeight: 600 }}>{fmtInt(p.fact)}</td>
+        <td className="r num"><LeadN n={p.fact} /></td>
         <td>
           <div className="row" style={{ gap: 8 }}>
             <Progress value={p.pct} marker={!past && r.terms.plan > 0 ? p.planToDate / r.terms.plan : undefined} hue={PACE_HUE[r.status]} style={{ flex: 1, minWidth: 50 }} />
@@ -252,10 +249,7 @@ export default function OperatorsPage() {
         <td className="r num muted">{fmtInt(p.prevWeek)}</td>
         <td className="r num">{fmtNum(r.avgPerWorkday)}</td>
         <td className="r num bl">{fmtNum(r.hours)}</td>
-        <td className="r num" title={`Норма ${fmtNum(r.norm)} ч; к дате ${fmtNum(r.normToDate)} ч`}>
-          <span style={{ color: r.hoursDelta < -0.5 ? "var(--c-red-fg)" : undefined }}>{fmtPct(r.normPct)}</span>
-        </td>
-        <td className="r num">{r.lph == null ? "—" : fmtNum(r.lph, 2)}</td>
+        <td className="r num"><Conv value={r.lph} /></td>
       </tr>
     );
   };
@@ -380,8 +374,7 @@ export default function OperatorsPage() {
                 <SortTh k="prev" sort={sort} setSort={setSort} className="r">Пр. нед.</SortTh>
                 <SortTh k="avg" sort={sort} setSort={setSort} className="r" title="Среднее лидов в отработанный день">Ср./день</SortTh>
                 <SortTh k="hours" sort={sort} setSort={setSort} className="r bl">Часы</SortTh>
-                <SortTh k="norm" sort={sort} setSort={setSort} className="r" title="Отработано от месячной нормы">Норма</SortTh>
-                <SortTh k="lph" sort={sort} setSort={setSort} className="r" title="Переданные лиды / отработанные часы">Лид/час</SortTh>
+                <SortTh k="lph" sort={sort} setSort={setSort} className="r" title="Конверсия: переданные лиды ÷ отработанные часы">Конв.</SortTh>
               </tr>
             </thead>
             {grouped ? (
@@ -404,7 +397,7 @@ export default function OperatorsPage() {
                       </td>
                       <td>{sec.status && <StatusChip status={sec.status} />}</td>
                       <td className="r num">{fmtInt(sec.t.plan)}</td>
-                      <td className="r num">{fmtInt(sec.t.fact)}</td>
+                      <td className="r num"><LeadN n={sec.t.fact} /></td>
                       <td>
                         <div className="row" style={{ gap: 8 }}>
                           <Progress value={pct} marker={!past && sec.t.plan > 0 ? sec.t.planToDate / sec.t.plan : undefined} hue={sec.status ? PACE_HUE[sec.status] : undefined} style={{ flex: 1, minWidth: 50 }} />
@@ -420,8 +413,7 @@ export default function OperatorsPage() {
                       <td className="r num">{fmtInt(sec.t.prev)}</td>
                       <td />
                       <td className="r num bl">{fmtNum(sec.t.hours)}</td>
-                      <td />
-                      <td className="r num">{sec.t.hours > 0 ? fmtNum(sec.t.fact / sec.t.hours, 2) : "—"}</td>
+                      <td className="r num"><Conv leads={sec.t.fact} hours={sec.t.hours} /></td>
                     </tr>
                     {!closed && withGoneSep(sec.rows, (r, i) => renderRow(r, i, phase))}
                   </tbody>
@@ -435,7 +427,7 @@ export default function OperatorsPage() {
                 <td className="sticky-col">Итого · {list.length}</td>
                 <td />
                 <td className="r num">{fmtInt(totals.plan)}</td>
-                <td className="r num">{fmtInt(totals.fact)}</td>
+                <td className="r num"><LeadN n={totals.fact} /></td>
                 <td className="num">{fmtPct(safeDiv(totals.fact, totals.plan))}</td>
                 <td colSpan={4} />
                 <td className="r num bl">{fmtInt(totals.today)}</td>
@@ -443,8 +435,7 @@ export default function OperatorsPage() {
                 <td className="r num">{fmtInt(totals.prev)}</td>
                 <td />
                 <td className="r num bl">{fmtNum(totals.hours)}</td>
-                <td />
-                <td className="r num">{totals.hours > 0 ? fmtNum(totals.fact / totals.hours, 2) : "—"}</td>
+                <td className="r num"><Conv leads={totals.fact} hours={totals.hours} /></td>
               </tr>
             </tfoot>
           </table>
