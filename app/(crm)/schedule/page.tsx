@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
@@ -67,6 +67,31 @@ export default function SchedulePage() {
   // колесо листает дни вправо-влево без Shift
   const scrollRef = useRef<HTMLDivElement>(null);
   useWheelHScroll(scrollRef);
+  // цельные полосы (больничный, отпуск, «уволен», «до приёма») рисуются в первой клетке серии и
+  // накрывают остальные. Столбцы дней бывают разной ширины (таблица тянет их под итоги), поэтому
+  // ширину полосы меряем по настоящим клеткам: от первой до последней клетки серии.
+  useLayoutEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    const fit = () => {
+      root.querySelectorAll<HTMLElement>(".lane-span").forEach((el) => {
+        const anchor = el.parentElement;
+        const td = el.closest("td");
+        const tr = td?.parentElement;
+        if (!anchor || !td || !tr) return;
+        const span = Number(el.style.getPropertyValue("--span")) || 1;
+        const end = tr.querySelector<HTMLElement>(`td.cell[data-c="${Number(td.dataset.c) + span - 1}"]`);
+        if (!end) return;
+        const gapRight = el.classList.contains("to-end") ? 5 : 2;
+        el.style.width = `${end.getBoundingClientRect().right - gapRight - anchor.getBoundingClientRect().left - 2}px`;
+      });
+    };
+    fit();
+    const table = root.querySelector("table");
+    const ro = new ResizeObserver(fit);
+    if (table) ro.observe(table);
+    return () => ro.disconnect();
+  });
   const lastRect = useRef<{ left: number; top: number; bottom: number }>({ left: 0, top: 0, bottom: 0 });
   // выделение дат по заголовкам: протянули мышью — рядом с курсором итоги за эти дни
   const [dayRange, setDayRange] = useState<{ a: number; b: number } | null>(null);
