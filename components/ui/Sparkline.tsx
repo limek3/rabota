@@ -4,79 +4,74 @@ import { fmtDay, fmtWeekday } from "@/lib/crm/dates";
 import type { DayKey } from "@/lib/crm/types";
 import { fmtNum, fmtPct } from "@/lib/crm/format";
 
-/** Одна точка мини-графика: лиды за смену; null — смены не было (выходной, больничный, до приёма). */
+/** Один день мини-графика: лиды за смену; null — смены не было (выходной, больничный, до приёма). */
 export interface SparkPoint {
   day: DayKey;
   leads: number | null;
   hours: number;
 }
 
-const W = 132;
-const H = 30;
+const SLOT = 7; // ширина дня
+const BAR = 5; // ширина столбика
+const H = 24;
 
 /**
- * Мини-график лидов по сменам (таблица «Операторы»). Дни без смены — пропуск в линии, а не ноль:
- * иначе у каждого была бы «пила» из выходных. Последняя смена — точкой. Наведение на день —
- * подсказка (общая система подсказок CRM берёт её из title).
+ * Мини-график «Операторов»: столбик на каждый день из 14. Дни стоят на одних и тех же местах во всех
+ * строках, а высота — в общем масштабе таблицы (max), поэтому людей можно сравнивать между собой.
+ * Нет смены — пусто; смена без лидов — короткая красная черта; последний день — ярче.
+ * Подсказка по дню — через общую систему подсказок CRM (атрибут title).
  */
-export function Sparkline({ points }: { points: SparkPoint[] }) {
-  const n = points.length;
-  const vals = points.map((p) => p.leads).filter((v): v is number => v != null);
-  const max = Math.max(4, ...vals);
-  const x = (i: number) => 4 + (i * (W - 8)) / Math.max(1, n - 1);
-  const y = (v: number) => H - 3 - (v * (H - 8)) / max;
-  const pts = points.map((p, i) => (p.leads == null ? null : { x: x(i), y: y(p.leads), i })).filter((p): p is { x: number; y: number; i: number } => !!p);
-  const d = pts.map((p, k) => `${k ? "L" : "M"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
-  const last = pts[pts.length - 1];
+export function Sparkline({ points, max }: { points: SparkPoint[]; max: number }) {
+  const W = points.length * SLOT;
+  const top = Math.max(4, max);
+  const last = points.length - 1;
   return (
-    <svg className="spark" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden>
-      <line x1={4} x2={W - 4} y1={H - 3} y2={H - 3} className="spark-base" strokeDasharray={pts.length ? undefined : "3 3"} />
-      {pts.length > 1 && (
-        <>
-          <path d={`${d} L${last.x.toFixed(1)} ${H - 3} L${pts[0].x.toFixed(1)} ${H - 3} Z`} className="spark-area" />
-          <path d={d} className="spark-line" />
-        </>
-      )}
-      {pts.map((p) => (
-        <circle key={p.i} cx={p.x} cy={p.y} r={p === last ? 3.2 : 1.6} className={p === last ? "spark-dot last" : "spark-dot"} />
-      ))}
-      {points.map((p, i) => (
-        <rect
-          key={p.day}
-          x={x(i) - (W - 8) / (2 * Math.max(1, n - 1))}
-          y={0}
-          width={(W - 8) / Math.max(1, n - 1)}
-          height={H}
-          fill="transparent"
-          // подсказка по дню
-          {...{ title: `${fmtDay(p.day)}, ${fmtWeekday(p.day)} · ${p.leads == null ? "нет смены" : `${p.leads} лид.${p.hours ? ` за ${fmtNum(p.hours)} ч` : ""}`}` }}
-        />
-      ))}
+    <svg className="spark" width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+      <line x1={0} x2={W} y1={H - 0.5} y2={H - 0.5} className="spark-base" />
+      {points.map((p, i) => {
+        const x = i * SLOT + (SLOT - BAR) / 2;
+        const tip = `${fmtDay(p.day)}, ${fmtWeekday(p.day)} · ${p.leads == null ? "нет смены" : `${p.leads} лид.${p.hours ? ` за ${fmtNum(p.hours)} ч` : ""}`}`;
+        let bar = null;
+        if (p.leads != null && p.leads > 0) {
+          const h = Math.max(3, Math.round((p.leads / top) * (H - 2)));
+          bar = <rect x={x} y={H - 1 - h} width={BAR} height={h} rx={1.5} className={i === last ? "spark-bar now" : "spark-bar"} />;
+        } else if (p.leads === 0) {
+          bar = <rect x={x} y={H - 3} width={BAR} height={2} rx={1} className="spark-zero" />;
+        }
+        return (
+          <g key={p.day}>
+            {bar}
+            {/* зона наведения на весь день */}
+            <rect x={i * SLOT} y={0} width={SLOT} height={H} fill="transparent" {...{ title: tip }} />
+          </g>
+        );
+      })}
     </svg>
   );
 }
 
 /**
  * Тренд: средние лиды за смену за последние 7 дней против предыдущих 7.
- * Сравнивать не с чем (в предыдущей неделе меньше двух смен) — «новый», если человек недавно
- * в штате, иначе прочерк.
+ * Сравнивать не с чем (в одной из недель меньше двух смен) — ничего не показываем.
  */
-export function SparkTrend({ points, isNew }: { points: SparkPoint[]; isNew: boolean }) {
+export function SparkTrend({ points }: { points: SparkPoint[] }) {
   const half = Math.floor(points.length / 2);
   const avg = (ps: SparkPoint[]) => {
     const v = ps.map((p) => p.leads).filter((x): x is number => x != null);
-    return v.length ? { a: v.reduce((s, x) => s + x, 0) / v.length, n: v.length } : null;
+    return v.length >= 2 ? v.reduce((s, x) => s + x, 0) / v.length : null;
   };
   const prev = avg(points.slice(0, half));
   const last = avg(points.slice(half));
-  if (!last) return <span className="spark-trend muted">—</span>;
-  if (!prev || prev.n < 2) return isNew ? <span className="spark-new">новый</span> : <span className="spark-trend muted">—</span>;
-  const d = prev.a === 0 ? 1 : (last.a - prev.a) / prev.a;
-  const up = d >= 0;
+  if (prev == null || last == null) return <span className="spark-trend" />;
+  const d = prev === 0 ? (last > 0 ? 1 : 0) : (last - prev) / prev;
+  const flat = Math.abs(d) < 0.05;
+  const up = d > 0;
   return (
-    <span className={`spark-trend ${up ? "up" : "down"}`} title={`В среднем за смену: ${fmtNum(prev.a, 1)} → ${fmtNum(last.a, 1)} лида (7 дней против предыдущих 7)`}>
-      {up ? "↑" : "↓"} {up ? "+" : "−"}
-      {fmtPct(Math.abs(d))}
+    <span
+      className={`spark-trend ${flat ? "flat" : up ? "up" : "down"}`}
+      title={`В среднем за смену: ${fmtNum(prev, 1)} → ${fmtNum(last, 1)} лида (последние 7 дней против предыдущих 7)`}
+    >
+      {flat ? "≈ 0%" : `${up ? "↑" : "↓"} ${fmtPct(Math.abs(d))}`}
     </span>
   );
 }

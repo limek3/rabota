@@ -1171,15 +1171,14 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .seg > button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); box-shadow: 0 1px 3px var(--brand-glow); }
 .seg > button[aria-pressed="true"]:hover { color: var(--on-brand); }
 
-/* «Операторы»: мини-график лидов за 14 дней и тренд */
-.spark-cell { display: inline-flex; align-items: center; gap: 10px; }
-.spark { display: block; overflow: visible; }
-.spark-base { stroke: var(--sch-grid); stroke-width: 1; }
-.spark-area { fill: color-mix(in srgb, var(--sch-we-label) 12%, transparent); }
-.spark-line { fill: none; stroke: var(--sch-we-label); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
-.spark-dot { fill: var(--bg-panel); stroke: var(--sch-we-label); stroke-width: 1.2; }
-.spark-dot.last { fill: var(--sch-we-label); stroke: none; }
-.spark-trend { min-width: 58px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* «Операторы»: мини-график лидов за 14 дней (столбик на день, общий масштаб) и тренд */
+.spark-th { white-space: nowrap; }
+.spark-cell { display: inline-flex; align-items: center; gap: 10px; vertical-align: middle; }
+.spark { display: block; }
+.spark-base { stroke: var(--sch-grid-strong); stroke-width: 1; }
+.spark-bar { fill: color-mix(in srgb, var(--sch-we-label) 55%, transparent); }
+.spark-bar.now { fill: var(--sch-we-label); }
+.spark-zero { fill: color-mix(in srgb, var(--c-red-fg) 70%, transparent); }
+.spark-trend { display: inline-block; width: 52px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; color: var(--dim); }
 .spark-trend.up { color: var(--c-green-fg); }
 .spark-trend.down { color: var(--c-red-fg); }
-.spark-new { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; font-size: 11px; font-weight: 600; background: var(--brand-tint); color: var(--text-sub); }

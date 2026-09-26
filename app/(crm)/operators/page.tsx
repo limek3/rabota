@@ -65,6 +65,12 @@ export default function OperatorsPage() {
       // смена была — часы или лиды; иначе пропуск в линии (выходной, больничный, до приёма)
       return { day: d, hours, leads: d <= today && (hours > 0 || leads > 0) ? leads : null };
     });
+  // общий масштаб столбиков: максимум лидов за день среди всех на экране
+  const sparkMax = useMemo(() => {
+    let mx = 0;
+    for (const r of m.ops) for (const d of sparkDays) mx = Math.max(mx, ix.opDay.get(r.op.id)?.get(d) ?? 0);
+    return mx;
+  }, [m.ops, sparkDays, ix]);
   const [q, setQ] = useState("");
   const [group, setGroup] = useState("");
   const [emp, setEmp] = useState<Emp>("work");
@@ -248,17 +254,6 @@ export default function OperatorsPage() {
             <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(p.pct)}</span>
           </div>
         </td>
-        <td>
-          {(() => {
-            const pts = sparkOf(r.op.id);
-            return (
-              <span className="spark-cell">
-                <Sparkline points={pts} />
-                <SparkTrend points={pts} isNew={!!r.op.hireDate && r.op.hireDate > sparkDays[0]} />
-              </span>
-            );
-          })()}
-        </td>
         <td className="r num" style={{ color: p.deviation >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(p.deviation)}</td>
         <td className="r num">
           {fmtInt(p.rr)} <span className="muted">{fmtPct(p.rrPct)}</span>
@@ -271,6 +266,17 @@ export default function OperatorsPage() {
         <td className="r num">{fmtNum(r.avgPerWorkday)}</td>
         <td className="r num bl">{fmtNum(r.hours)}</td>
         <td className="r num"><Conv value={r.lph} /></td>
+        <td className="bl">
+          {(() => {
+            const pts = sparkOf(r.op.id);
+            return (
+              <span className="spark-cell">
+                <Sparkline points={pts} max={sparkMax} />
+                <SparkTrend points={pts} />
+              </span>
+            );
+          })()}
+        </td>
       </tr>
     );
   };
@@ -388,7 +394,6 @@ export default function OperatorsPage() {
                 <SortTh k="plan" sort={sort} setSort={setSort} className="r">План</SortTh>
                 <SortTh k="fact" sort={sort} setSort={setSort} className="r">Факт</SortTh>
                 <SortTh k="pct" sort={sort} setSort={setSort} style={{ minWidth: 120 }}>Выполнение</SortTh>
-                <th title={`Лиды по сменам за 14 дней (${fmtDayShort(sparkDays[0])} – ${fmtDayShort(sparkDays[sparkDays.length - 1])}) и тренд: 7 дней против предыдущих 7`}>14 дней</th>
                 <SortTh k="dev" sort={sort} setSort={setSort} className="r" title="Факт минус план на сегодня">К дате</SortTh>
                 <SortTh k="rr" sort={sort} setSort={setSort} className="r" title="Run Rate: прогноз на конец месяца по текущему темпу">Прогноз</SortTh>
                 <SortTh k="left" sort={sort} setSort={setSort} className="r">Осталось</SortTh>
@@ -399,6 +404,9 @@ export default function OperatorsPage() {
                 <SortTh k="avg" sort={sort} setSort={setSort} className="r" title="Среднее лидов в отработанный день">Ср./день</SortTh>
                 <SortTh k="hours" sort={sort} setSort={setSort} className="r bl">Часы</SortTh>
                 <SortTh k="lph" sort={sort} setSort={setSort} className="r" title="Конверсия: переданные лиды ÷ отработанные часы">Конв.</SortTh>
+                <th className="bl spark-th" title="Лиды по дням за последние 14 дней — у всех в одном масштабе. Справа — средние лиды за смену: последние 7 дней против предыдущих 7">
+                  14 дней <span className="muted">· {fmtDayShort(sparkDays[0])} – {fmtDayShort(sparkDays[sparkDays.length - 1])}</span>
+                </th>
               </tr>
             </thead>
             {grouped ? (
@@ -428,7 +436,6 @@ export default function OperatorsPage() {
                           <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(pct)}</span>
                         </div>
                       </td>
-                      <td />
                       <td className="r num" style={{ color: sec.t.dev >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(sec.t.dev)}</td>
                       <td className="r num">{fmtInt(sec.t.rr)}</td>
                       <td className="r num">{fmtInt(sec.t.left)}</td>
@@ -439,6 +446,7 @@ export default function OperatorsPage() {
                       <td />
                       <td className="r num bl">{fmtNum(sec.t.hours)}</td>
                       <td className="r num"><Conv leads={sec.t.fact} hours={sec.t.hours} /></td>
+                      <td className="bl" />
                     </tr>
                     {!closed && withGoneSep(sec.rows, (r, i) => renderRow(r, i, phase))}
                   </tbody>
@@ -454,13 +462,14 @@ export default function OperatorsPage() {
                 <td className="r num">{fmtInt(totals.plan)}</td>
                 <td className="r num"><LeadN n={totals.fact} /></td>
                 <td className="num">{fmtPct(safeDiv(totals.fact, totals.plan))}</td>
-                <td colSpan={5} />
+                <td colSpan={4} />
                 <td className="r num bl">{fmtInt(totals.today)}</td>
                 <td className="r num">{fmtInt(totals.week)}</td>
                 <td className="r num">{fmtInt(totals.prev)}</td>
                 <td />
                 <td className="r num bl">{fmtNum(totals.hours)}</td>
                 <td className="r num"><Conv leads={totals.fact} hours={totals.hours} /></td>
+                <td className="bl" />
               </tr>
             </tfoot>
           </table>
