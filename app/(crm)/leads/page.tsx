@@ -540,14 +540,28 @@ function PhonesExport({
         </Field>
       </div>
       <Switch checked={onlyNew} onChange={setOnlyNew} label="Только ещё не выгруженные" />
-      <div className="note-line" style={{ fontSize: 13 }}>
-        С номером: <b className="num">{fmtInt(withPhone.length)}</b> · уже выгружали:{" "}
-        <b className="num">
-          {fmtInt(done)} <Icon name="check" size={12} stroke={2.4} style={{ color: "var(--c-green-fg)", verticalAlign: -1 }} />
-        </b>{" "}
-        · в файл: <b className="num">{fmtInt(out.rows.length)}</b>
-        {out.leads.length > out.rows.length && <span className="muted"> (повторы номеров убраны)</span>}
+      <div className="exp-stats">
+        <div className="exp-stat">
+          <span className="exp-stat-l">Лидов с номером</span>
+          <span className="exp-stat-v num">{fmtInt(withPhone.length)}</span>
+        </div>
+        <div className="exp-stat">
+          <span className="exp-stat-l">Уже выгружали</span>
+          <span className="exp-stat-v num">
+            {fmtInt(done)}
+            <Icon name="check" size={15} stroke={2.4} style={{ color: "var(--c-green-fg)" }} />
+          </span>
+        </div>
+        <div className="exp-stat main">
+          <span className="exp-stat-l">Пойдёт в файл</span>
+          <span className="exp-stat-v num">{fmtInt(out.rows.length)}</span>
+        </div>
       </div>
+      {out.leads.length > out.rows.length && (
+        <div className="exp-note">
+          Одинаковые номера записаны один раз: {fmtInt(out.leads.length - out.rows.length)} {plural(out.leads.length - out.rows.length, NUMBERS)} — повторы.
+        </div>
+      )}
       {data.leadExportLog.length > 0 && (
         <div className="stack" style={{ gap: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-sub)" }}>Последние выгрузки</span>

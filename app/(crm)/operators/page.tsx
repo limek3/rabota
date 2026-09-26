@@ -7,7 +7,7 @@ import { PACE_HUE, PACE_LABEL, goneLast, isGone, type OpRow, type Pace, type Pac
 import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
 import { fmtMonth } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Conv, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, type FoldPhase, type SortState } from "@/components/ui/kit";
+import { Avatar, Conv, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
@@ -255,6 +255,8 @@ export default function OperatorsPage() {
   };
 
   const past = m.cal.phase === "past";
+  // колесо мыши листает широкую таблицу вбок (если она влезла по высоте или курсор на шапке)
+  useWheelHScroll(wrapRef, { auto: true, watch: list.length > 0 });
 
   return (
     <div className="stack">

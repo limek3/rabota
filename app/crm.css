@@ -1103,16 +1103,18 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .lane.lane-span { position: absolute; top: 0; left: 2px; z-index: 0; height: 100%; margin: 0; width: calc(var(--span) * 100% + (var(--span) - 1) * 1px - 4px); flex-direction: row; justify-content: flex-start; align-items: center; padding-left: calc(var(--sch-col) / 2 - 6px); pointer-events: none; }
 
 /* ── еле красная штриховка — как «уволен» в «Графике»: уволенные в зарплате, «не доведён» в лидах,
-   «не доведено» в динамике по часам. В строке таблицы узор привязан к окну (fixed), поэтому
-   идёт по всей строке без швов между ячейками, включая закреплённую колонку. */
+   «не доведено» в динамике по часам (столбики и метка в легенде — полной штриховкой, там нет текста). */
 :root { --stripe-red: repeating-linear-gradient(-45deg, var(--sch-gone-bg) 0 5px, var(--sch-gone-line) 5px 9px), var(--sch-gone-bg); }
+/* текст поверх полной штриховки читается плохо, поэтому в строках и плитках штриховка — только
+   полоской-меткой у левого края, а под текстом — ровная еле красная подложка */
 .tbl tbody tr.row-stripe > td,
-.tbl tbody tr.row-stripe:hover > td {
-  background-color: var(--sch-gone-bg);
-  background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, var(--sch-gone-line) 5px, var(--sch-gone-line) 9px);
-  background-attachment: fixed;
+.tbl tbody tr.row-stripe:hover > td { background: var(--sch-gone-bg); }
+.tbl tbody tr.row-stripe > td:first-child,
+.tbl tbody tr.row-stripe:hover > td:first-child {
+  background: repeating-linear-gradient(-45deg, transparent 0 3px, color-mix(in srgb, var(--sch-sick) 55%, transparent) 3px 5px) left top / 6px 100% no-repeat, var(--sch-gone-bg);
 }
-.hs-tile.bad { background-color: var(--sch-gone-bg); background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, var(--sch-gone-line) 5px, var(--sch-gone-line) 9px); border-color: var(--c-red-bd); }
+.hs-tile.bad { padding-left: 20px; border-color: var(--c-red-bd); background: repeating-linear-gradient(-45deg, transparent 0 3px, color-mix(in srgb, var(--sch-sick) 55%, transparent) 3px 5px) left top / 7px 100% no-repeat, var(--sch-gone-bg); }
+.hs-tile.bad .hs-tile-sub { color: var(--text-sub); }
 
 /* окно «Выгрузка номеров»: последние выгрузки */
 .exp-log { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
@@ -1146,3 +1148,12 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .hue-pick-i::after { content: ""; position: absolute; inset: 0; margin: auto; width: 45%; height: 45%; border-radius: 3px; background: var(--hp-fg); }
 .hue-pick-i:hover { transform: translateY(-1px); }
 .hue-pick-i[aria-checked="true"] { box-shadow: 0 0 0 2px var(--bg-modal), 0 0 0 4px var(--hp-fg); }
+
+/* окно «Выгрузка номеров»: три показателя ровной сеткой */
+.exp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.exp-stat { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 8px; background: var(--bg-strip); border: 1px solid var(--line); min-width: 0; }
+.exp-stat-l { font-size: 12px; color: var(--text-sub); }
+.exp-stat-v { display: inline-flex; align-items: center; gap: 6px; font-size: 18px; font-weight: 600; color: var(--text); }
+.exp-stat.main { background: var(--brand-tint); border-color: var(--brand-border); }
+.exp-stat.main .exp-stat-v { color: var(--brand); }
+.exp-note { font-size: 12px; color: var(--text-sub); }

@@ -755,8 +755,13 @@ export function foldRow(phase: FoldPhase, index: number): { className: string; s
  * Колесо мыши листает широкую таблицу вправо-влево без Shift (график на месяц).
  * Плавно: колесо двигает цель, прокрутка догоняет её. Упёрлись в край — колесо снова
  * крутит страницу вертикально. Тачпад с горизонтальным жестом и Ctrl+колесо (масштаб) не трогаем.
+ *
+ * auto — для таблиц, которые могут прокручиваться и вниз (операторы, зарплата): колесо листает
+ * вбок, только если таблица целиком влезла по высоте или курсор на шапке таблицы; иначе — обычная
+ * вертикальная прокрутка. watch — перевесить обработчик, когда таблица появилась (пустой список → строки).
  */
-export function useWheelHScroll(ref: RefObject<HTMLElement>) {
+export function useWheelHScroll(ref: RefObject<HTMLElement>, opts: { auto?: boolean; watch?: unknown } = {}) {
+  const { auto = false, watch } = opts;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -776,6 +781,7 @@ export function useWheelHScroll(ref: RefObject<HTMLElement>) {
       if (e.ctrlKey || e.shiftKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
       const max = el.scrollWidth - el.clientWidth;
       if (max <= 0) return;
+      if (auto && el.scrollHeight > el.clientHeight + 1 && !(e.target as HTMLElement | null)?.closest?.("thead")) return;
       if (!raf) target = el.scrollLeft; // пока стояли, таблицу могли сдвинуть полосой прокрутки
       const unit = e.deltaMode === 1 ? 32 : e.deltaMode === 2 ? el.clientWidth : 1;
       const next = Math.max(0, Math.min(max, target + e.deltaY * unit));
@@ -793,7 +799,7 @@ export function useWheelHScroll(ref: RefObject<HTMLElement>) {
       el.removeEventListener("wheel", onWheel);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [ref]);
+  }, [ref, auto, watch]);
 }
 
 /* ── модальное окно ───────────────────────────────────────────────── */

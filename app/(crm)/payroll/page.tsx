@@ -10,7 +10,7 @@ import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
 import { PAYOUTS, fmtInt, fmtMoney, fmtNum, fmtPct, plural, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Drawer, Empty, Field, GoneSepRow, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Seg, Swatch, downloadText, foldRow, toCsv, useFoldGroups } from "@/components/ui/kit";
+import { Avatar, Chip, Drawer, Empty, Field, GoneSepRow, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Seg, Swatch, downloadText, foldRow, toCsv, useFoldGroups, useWheelHScroll } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditPay, canTouchOp } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -227,6 +227,8 @@ export default function PayrollPage() {
     body.push(["ИТОГО", "", t.hours, "", t.leads, t.base, t.leadPay, t.adj.accrual, t.adj.bonus, t.adj.compensation, t.adj.correction, t.gross, t.withhold, t.deductions, t.net, t.adj.advance, t.adj.payout, t.toPay]);
     downloadText(`payroll_${month}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
   };
+  // колесо мыши листает широкую ведомость вбок (если она влезла по высоте или курсор на шапке)
+  useWheelHScroll(wrapRef, { auto: true, watch: pr.rows.length > 0 });
 
   return (
     <div className="stack">
