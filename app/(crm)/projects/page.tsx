@@ -51,7 +51,7 @@ export default function ProjectsPage() {
     <div className="stack">
       <PageHead title="Проекты" sub="Справочник направлений, по которым передаются лиды, и количество лидов по ним за любой период" />
 
-      <div className="cols-main" style={{ gridTemplateColumns: "minmax(0, 1.7fr) minmax(300px, 1fr)" }}>
+      <div className="cols-main" style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(360px, 1fr)" }}>
         <div className="stack">
           <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <PeriodPicker value={period} onChange={setPeriod} today={today} />
@@ -248,14 +248,16 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
                 }}
               />
             ) : (
-              <span style={{ flex: 1, minWidth: 0, fontSize: 13 }} onDoubleClick={() => (setEditId(p.id), setEditName(p.name))}>
-                {p.name}
-                {!p.active && <span className="muted"> · скрыт</span>}
+              // название и под ним число лидов: так название помещается целиком рядом с кнопками
+              <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.3 }} onDoubleClick={() => (setEditId(p.id), setEditName(p.name))}>
+                <span style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.name}>
+                  {p.name}
+                </span>
+                <span className="num" style={{ fontSize: 11.5, color: "var(--dim)" }}>
+                  {fmtInt(totals.get(p.id) ?? 0)} лид. всего{!p.active && " · скрыт"}
+                </span>
               </span>
             )}
-            <span className="num" style={{ fontSize: 12, color: "var(--dim)" }} title="Всего лидов">
-              {fmtInt(totals.get(p.id) ?? 0)}
-            </span>
             {canEdit && (
             <>
             <button className="btn btn-ghost btn-sm btn-icon" title="Выше" disabled={i === 0} onClick={() => void move(p, -1)}>

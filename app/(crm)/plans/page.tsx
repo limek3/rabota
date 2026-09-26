@@ -84,17 +84,14 @@ export default function PlansPage() {
       />
 
       <div className="card card-pad">
-        <div className="row" style={{ gap: 24, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div>
-            <div className="field-label" style={{ marginBottom: 6 }}>
-              План команды на месяц
-            </div>
-            <div className="row" style={{ gap: 8 }}>
+        {/* показатели одной сеткой: подпись → значение (высотой с поле ввода) → пояснение */}
+        <div className="stat-row">
+          <div className="stat">
+            <div className="stat-l">План команды на месяц</div>
+            <div className="stat-v">
               <PlanInput value={teamRec ? teamRec.plan : null} placeholder={String(teamDefault)} onSave={(v) => void savePlan(month, "team", null, v)} disabled={!access.can.editTeamPlan} />
-              <span style={{ fontSize: 12, color: "var(--dim)" }}>
-                {teamRec ? "задан на месяц" : s.teamPlan > 0 ? "из настроек" : "сумма планов групп"}
-              </span>
             </div>
+            <div className="stat-s">{teamRec ? "задан на месяц" : s.teamPlan > 0 ? "из настроек" : "сумма планов групп"}</div>
           </div>
           <Stat label="Сейчас в расчёте" value={fmtInt(m.team.plan)} />
           <Stat label="В рабочий день" value={fmtNum(share(m.team.plan).day)} sub={`${cal.W} раб. дней`} />
@@ -229,10 +226,10 @@ export default function PlansPage() {
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div>
-      <div className="field-label">{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 600, marginTop: 2 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11.5, color: "var(--dim)" }}>{sub}</div>}
+    <div className="stat">
+      <div className="stat-l">{label}</div>
+      <div className="stat-v num">{value}</div>
+      <div className="stat-s">{sub ?? "\u00a0"}</div>
     </div>
   );
 }

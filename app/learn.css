@@ -113,7 +113,7 @@
 .contcard.done .eyebrow { color: var(--c-green-fg); }
 
 /* плитки */
-.ltiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0 4px; }
+.ltiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 18px 0 4px; }
 .ltile { border: 1px solid var(--ink-08); border-radius: 10px; padding: 14px 16px; background: var(--bg-panel); }
 .ltile .tl { font-size: 11.5px; font-weight: 600; color: var(--dim); margin-bottom: 8px; }
 .ltile .tv { font-size: 26px; font-weight: 650; letter-spacing: -0.5px; }
@@ -852,3 +852,9 @@
   .lrn-nav, .lrn-aside, .tree, .docnav, .btn { display: none !important; }
   .cert { border-color: #ddd; }
 }
+
+/* плитки: подпись, число и пояснение у всех плиток ряда на одних уровнях (subgrid),
+   даже если у одной подпись в две строки */
+.ltiles { grid-auto-rows: auto; }
+.ltile { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; align-content: start; }
+.ltile .tl { align-self: end; }

@@ -9,7 +9,7 @@ import { DAY_LABEL, DAY_SHORT, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayTy
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { Avatar, Conv, Empty, Field, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg, useWheelHScroll } from "@/components/ui/kit";
-import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
+import { DateInput, Select, dot, uiZoom, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 
@@ -32,7 +32,7 @@ const TYPES: DayType[] = ["work", "training", "off", "vacation", "sick"];
 interface Sel {
   opId: string;
   day: DayKey;
-  rect: { left: number; top: number; bottom: number };
+  rect: { left: number; top: number; bottom: number; width: number };
 }
 
 /** Прямоугольное выделение клеток: строка (оператор) × колонка (день). */
@@ -50,6 +50,12 @@ const inRange = (rng: Range | null, r: number, c: number) =>
   r <= Math.max(rng.a.r, rng.b.r) &&
   c >= Math.min(rng.a.c, rng.b.c) &&
   c <= Math.max(rng.a.c, rng.b.c);
+/** Клетка на экране — в координатах страницы с учётом масштаба интерфейса (для всплывающих редакторов). */
+const cellRect = (el: HTMLElement) => {
+  const r = el.getBoundingClientRect();
+  const z = uiZoom();
+  return { left: r.left / z, top: r.top / z, bottom: r.bottom / z, width: r.width / z };
+};
 const rangeSize = (rng: Range) =>
   (Math.abs(rng.a.r - rng.b.r) + 1) * (Math.abs(rng.a.c - rng.b.c) + 1);
 
@@ -62,7 +68,7 @@ export default function SchedulePage() {
   const [fillOpen, setFillOpen] = useState(false);
   // выделение мышью, как в таблицах: зажали и протянули по клеткам
   const [range, setRange] = useState<Range | null>(null);
-  const [bulk, setBulk] = useState<{ rect: { left: number; top: number; bottom: number }; cells: { opId: string; day: DayKey }[] } | null>(null);
+  const [bulk, setBulk] = useState<{ rect: { left: number; top: number; bottom: number; width: number }; cells: { opId: string; day: DayKey }[] } | null>(null);
   const dragging = useRef(false);
   // колесо листает дни вправо-влево без Shift
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -92,7 +98,7 @@ export default function SchedulePage() {
     if (table) ro.observe(table);
     return () => ro.disconnect();
   });
-  const lastRect = useRef<{ left: number; top: number; bottom: number }>({ left: 0, top: 0, bottom: 0 });
+  const lastRect = useRef<{ left: number; top: number; bottom: number; width: number }>({ left: 0, top: 0, bottom: 0, width: 0 });
   // выделение дат по заголовкам: протянули мышью — рядом с курсором итоги за эти дни
   const [dayRange, setDayRange] = useState<{ a: number; b: number } | null>(null);
   const [tipAt, setTipAt] = useState<{ x: number; y: number } | null>(null);
@@ -239,7 +245,7 @@ export default function SchedulePage() {
   useEffect(() => {
     if (!dayRange) return;
     const move = (e: MouseEvent) => {
-      if (dayDrag.current) setTipAt({ x: e.clientX, y: e.clientY });
+      if (dayDrag.current) setTipAt({ x: e.clientX / uiZoom(), y: e.clientY / uiZoom() });
     };
     const up = () => {
       dayDrag.current = false;
@@ -268,7 +274,7 @@ export default function SchedulePage() {
   const past = m.cal.phase === "past";
 
   /* протягивание мышью: старт на клетке, расширение при наведении, итог по отпусканию */
-  const startCell = (r: number, c: number, rect: { left: number; top: number; bottom: number }) => {
+  const startCell = (r: number, c: number, rect: { left: number; top: number; bottom: number; width: number }) => {
     clearDays();
     dragging.current = true;
     lastRect.current = rect;
@@ -276,7 +282,7 @@ export default function SchedulePage() {
     setBulk(null);
     setRange({ a: { r, c }, b: { r, c } });
   };
-  const extendCell = (r: number, c: number, rect: { left: number; top: number; bottom: number }) => {
+  const extendCell = (r: number, c: number, rect: { left: number; top: number; bottom: number; width: number }) => {
     if (!dragging.current) return;
     lastRect.current = rect;
     setRange((prev) => (prev ? { a: prev.a, b: { r, c } } : prev));
@@ -380,8 +386,7 @@ export default function SchedulePage() {
               if (!dragging.current) return;
               const td = (e.target as HTMLElement).closest?.("td.cell") as HTMLElement | null;
               if (!td?.dataset.r) return;
-              const rc = td.getBoundingClientRect();
-              extendCell(Number(td.dataset.r), Number(td.dataset.c), { left: rc.left, top: rc.top, bottom: rc.bottom });
+              extendCell(Number(td.dataset.r), Number(td.dataset.c), cellRect(td));
             }}
           >
             <thead>
@@ -406,7 +411,7 @@ export default function SchedulePage() {
                         setRange(null);
                         dayDrag.current = true;
                         setDayRange({ a: ci, b: ci });
-                        setTipAt({ x: e.clientX, y: e.clientY });
+                        setTipAt({ x: e.clientX / uiZoom(), y: e.clientY / uiZoom() });
                       }}
                       onMouseEnter={() => dayDrag.current && setDayRange((p) => (p ? { a: p.a, b: ci } : p))}
                     >
@@ -549,7 +554,7 @@ function SchedRow({
   sel: Sel | null;
   range: Range | null;
   colSel: { c0: number; c1: number } | null;
-  onDown: (r: number, c: number, rect: { left: number; top: number; bottom: number }) => void;
+  onDown: (r: number, c: number, rect: { left: number; top: number; bottom: number; width: number }) => void;
 }) {
   const { ix, data, today, access } = useCrm();
   const s = data.settings;
@@ -615,8 +620,7 @@ function SchedRow({
             onMouseDown={(e) => {
               if (!canEdit || e.button !== 0) return;
               e.preventDefault(); // иначе браузер начинает выделять текст
-              const rc = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              onDown(rowIndex, colIndex, { left: rc.left, top: rc.top, bottom: rc.bottom });
+              onDown(rowIndex, colIndex, cellRect(e.currentTarget as HTMLElement));
             }}
             data-r={rowIndex}
             data-c={colIndex}
@@ -721,8 +725,10 @@ function DayTip({
   const W = 240;
   const H = 170;
   // справа-снизу от курсора; у края экрана — с другой стороны
-  const left = at.x + 16 + W > window.innerWidth - 8 ? at.x - W - 16 : at.x + 16;
-  const top = at.y + 18 + H > window.innerHeight - 8 ? at.y - H - 12 : at.y + 18;
+  const vw = window.innerWidth / uiZoom();
+  const vh = window.innerHeight / uiZoom();
+  const left = at.x + 16 + W > vw - 8 ? at.x - W - 16 : at.x + 16;
+  const top = at.y + 18 + H > vh - 8 ? at.y - H - 12 : at.y + 18;
   const conv = st.hours > 0 ? st.leads / st.hours : null;
   return createPortal(
     <div className="card day-tip" role="status" style={{ left: Math.max(8, left), top: Math.max(8, top), width: W }}>
@@ -755,7 +761,7 @@ function RangeEditor({
   cells,
   onClose,
 }: {
-  rect: { left: number; top: number; bottom: number };
+  rect: { left: number; top: number; bottom: number; width: number };
   cells: { opId: string; day: DayKey }[];
   onClose: () => void;
 }) {
@@ -797,9 +803,11 @@ function RangeEditor({
   };
 
   const W = 320;
-  const left = Math.min(Math.max(8, rect.left - W / 2 + 17), window.innerWidth - W - 8);
-  const below = rect.bottom + 300 < window.innerHeight;
-  const style: React.CSSProperties = below ? { top: rect.bottom + 6 } : { bottom: window.innerHeight - rect.top + 6 };
+  const vw = window.innerWidth / uiZoom();
+  const vh = window.innerHeight / uiZoom();
+  const left = Math.min(Math.max(8, rect.left + rect.width / 2 - W / 2), vw - W - 8);
+  const below = rect.bottom + 300 < vh;
+  const style: React.CSSProperties = below ? { top: rect.bottom + 6 } : { bottom: vh - rect.top + 6 };
 
   return createPortal(
     <div
@@ -895,9 +903,11 @@ function CellEditor({ sel, onClose }: { sel: Sel; onClose: () => void }) {
   };
 
   const W = 300;
-  const left = Math.min(Math.max(8, sel.rect.left - W / 2 + 17), window.innerWidth - W - 8);
-  const below = sel.rect.bottom + 330 < window.innerHeight;
-  const style: React.CSSProperties = below ? { top: sel.rect.bottom + 6 } : { bottom: window.innerHeight - sel.rect.top + 6 };
+  const vw = window.innerWidth / uiZoom();
+  const vh = window.innerHeight / uiZoom();
+  const left = Math.min(Math.max(8, sel.rect.left + sel.rect.width / 2 - W / 2), vw - W - 8);
+  const below = sel.rect.bottom + 330 < vh;
+  const style: React.CSSProperties = below ? { top: sel.rect.bottom + 6 } : { bottom: vh - sel.rect.top + 6 };
 
   return createPortal(
     <div

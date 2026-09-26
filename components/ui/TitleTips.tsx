@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { uiZoom } from "./select";
 
 /**
  * Все всплывающие подсказки CRM — в одном стиле с подсказками журнала лидов (.clip-tip):
@@ -15,10 +16,22 @@ import { createPortal } from "react-dom";
 const DELAY = 300;
 const GAP = 8;
 
-type Tip = { text: string; left: number; top?: number; bottom?: number };
+// cx — центр элемента: подсказка ставится по центру под ним (ширину меряем до отрисовки)
+type Tip = { text: string; cx: number; top?: number; bottom?: number };
 
 export function TitleTips() {
   const [tip, setTip] = useState<Tip | null>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // по центру под элементом, но в пределах окна — до отрисовки, без мигания
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (!tip || !box) return;
+    const z = uiZoom();
+    const w = box.getBoundingClientRect().width / z;
+    const vw = window.innerWidth / z;
+    box.style.left = `${Math.max(8, Math.min(tip.cx - w / 2, vw - w - 8))}px`;
+  }, [tip]);
 
   useEffect(() => {
     let timer = 0;
@@ -43,11 +56,14 @@ export function TitleTips() {
     };
 
     const place = (el: HTMLElement, text: string) => {
+      // экранные координаты → координаты страницы с учётом масштаба интерфейса
+      const z = uiZoom();
       const r = el.getBoundingClientRect();
-      const left = Math.max(8, Math.min(r.left, window.innerWidth - 388));
+      const cx = (r.left + r.width / 2) / z;
+      const vh = window.innerHeight / z;
       // под элементом; у нижнего края окна — над ним
-      if (window.innerHeight - r.bottom < 90) setTip({ text, left, bottom: window.innerHeight - r.top + GAP });
-      else setTip({ text, left, top: r.bottom + GAP });
+      if (vh - r.bottom / z < 90) setTip({ text, cx, bottom: vh - r.top / z + GAP });
+      else setTip({ text, cx, top: r.bottom / z + GAP });
     };
 
     const over = (e: PointerEvent) => {
@@ -92,9 +108,9 @@ export function TitleTips() {
   }, []);
 
   if (!tip) return null;
-  const { text, ...pos } = tip;
+  const { text, cx, ...pos } = tip;
   return createPortal(
-    <div className={pos.bottom != null ? "clip-tip up" : "clip-tip"} style={pos} role="tooltip">
+    <div ref={boxRef} className={pos.bottom != null ? "clip-tip up" : "clip-tip"} style={{ ...pos, left: cx }} role="tooltip">
       {text}
     </div>,
     document.body,

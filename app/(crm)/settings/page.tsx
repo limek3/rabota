@@ -174,12 +174,13 @@ export default function SettingsPage() {
             <input className="inp" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} />
           </Field>
           <Field label="Отчётный месяц" hint={f.reportMonth ? `Приложение открывается на ${fmtMonth(f.reportMonth)}` : "Всегда текущий календарный месяц"}>
-            <div className="row">
+            {/* месяц тянется по ширине поля, переключатель — справа в одну строку */}
+            <div className="row" style={{ flexWrap: "nowrap" }}>
               {f.reportMonth ? (
-                <MonthPicker value={f.reportMonth} onChange={(m) => set("reportMonth", m)} size="md" minWidth={170} />
+                <MonthPicker value={f.reportMonth} onChange={(m) => set("reportMonth", m)} size="md" minWidth={0} />
               ) : (
-                <span className="btn" style={{ minWidth: 170, pointerEvents: "none", color: "var(--dim)" }}>
-                  {fmtMonth(currentMonth())} · текущий
+                <span className="btn" style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", pointerEvents: "none", color: "var(--dim)", justifyContent: "flex-start" }}>
+                  {fmtMonth(currentMonth())}
                 </span>
               )}
               <Switch
@@ -187,6 +188,7 @@ export default function SettingsPage() {
                 checked={!f.reportMonth}
                 onChange={(v) => set("reportMonth", v ? "" : currentMonth())}
                 label="всегда текущий"
+                style={{ flex: "none", whiteSpace: "nowrap" }}
               />
             </div>
           </Field>

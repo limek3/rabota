@@ -51,10 +51,22 @@ interface Anchor {
   width: number;
 }
 
+/**
+ * Масштаб интерфейса (zoom на body, «Настройки → Масштаб»). Координаты из getBoundingClientRect —
+ * экранные, а left/top у position: fixed внутри body умножаются на zoom. Без деления на масштаб
+ * всплывашка при 115% уезжала вправо и обрезалась краем окна.
+ */
+export function uiZoom(): number {
+  if (typeof document === "undefined") return 1;
+  const z = parseFloat(getComputedStyle(document.body).zoom);
+  return Number.isFinite(z) && z > 0 ? z : 1;
+}
+
 function readAnchor(el: HTMLElement | null): Anchor | null {
   if (!el) return null;
   const r = el.getBoundingClientRect();
-  return { left: r.left, top: r.top, bottom: r.bottom, right: r.right, width: r.width };
+  const z = uiZoom();
+  return { left: r.left / z, top: r.top / z, bottom: r.bottom / z, right: r.right / z, width: r.width / z };
 }
 
 /** Позиция всплывашки: под полем или над ним, в пределах окна. */
@@ -74,7 +86,10 @@ export function usePopover(open: boolean, anchorRef: React.RefObject<HTMLElement
   useLayoutEffect(() => {
     if (!open || !popRef.current) return;
     const r = popRef.current.getBoundingClientRect();
-    if (r.width !== size.w || r.height !== size.h) setSize({ w: r.width, h: r.height });
+    const z = uiZoom();
+    const w = r.width / z;
+    const h = r.height / z;
+    if (Math.abs(w - size.w) > 0.5 || Math.abs(h - size.h) > 0.5) setSize({ w, h });
   });
 
   useEffect(() => {
@@ -100,13 +115,15 @@ export function usePopover(open: boolean, anchorRef: React.RefObject<HTMLElement
 
   let style: CSSProperties = { position: "fixed", visibility: "hidden", left: 0, top: 0 };
   if (anchor && typeof window !== "undefined") {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    const z = uiZoom();
+    const vw = window.innerWidth / z;
+    const vh = window.innerHeight / z;
     const h = size.h || 280;
     const w = Math.max(size.w, anchor.width);
     const below = vh - anchor.bottom - 8;
     const up = below < h && anchor.top - 8 > below;
-    const left = Math.max(8, Math.min(anchor.left, vw - w - 8));
+    // по центру под полем (шире поля — поровну в обе стороны), но в пределах окна
+    const left = Math.max(8, Math.min(anchor.left + anchor.width / 2 - w / 2, vw - w - 8));
     style = {
       position: "fixed",
       left,
@@ -691,7 +708,8 @@ export function MonthPicker({ value, onChange, size = "sm", minWidth = 150 }: { 
               }
             }}
           >
-            <div className="cal-head">
+            {/* шапка — та же сетка из 4 столбцов, что и месяцы: стрелки ровно над «янв» и «апр» */}
+            <div className="cal-head month-head">
               <button type="button" className="btn btn-ghost btn-sm btn-icon" onClick={() => setYear((y) => y - 1)} aria-label="Предыдущий год">
                 <Icon name="chevL" size={14} />
               </button>

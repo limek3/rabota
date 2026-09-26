@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useCrm, type AccountInput } from "@/lib/crm/store";
 import { NAV } from "@/lib/crm/nav";
 import { computeAccess, supervisorGroups } from "@/lib/crm/access";
@@ -20,6 +20,7 @@ import { RoleChip } from "./AccountMenu";
 import { AUTH_ENABLED } from "@/lib/appMode";
 import { TelegramCard } from "./TelegramCard";
 import { setLogin } from "@/lib/crm/remote";
+import { fileToAvatar } from "@/lib/avatar";
 
 function Section({ title, sub, children, action }: { title: string; sub?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -82,17 +83,52 @@ export function ProfileTab() {
   const pages = NAV.filter((n) => access.routes.has(n.href));
   const projects = data.projects.filter((p) => !p.deletedAt && p.active).sort((a, b) => a.sort - b.sort);
   const dirty = name !== me.name || login !== me.login;
+  // своя аватарка: выбрали файл → обрезали в квадрат и сжали в браузере → сохранили в настройках аккаунта
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const pickPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setPhotoBusy(true);
+    try {
+      await saveMyProfile({ avatar: await fileToAvatar(file) });
+      toast("Фото обновлено");
+    } catch (e) {
+      toast(`Не получилось поставить фото: ${e instanceof Error ? e.message : String(e)}`, "err");
+    } finally {
+      setPhotoBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   return (
     <div className="stack">
       <Section title="Мой профиль" sub="Как вас видят в системе. Смена пароля появится вместе с включённым входом.">
         <div className="row" style={{ gap: 14 }}>
-          <Avatar name={me.name} id={me.id} size={52} />
-          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-            <RoleChip role={me.role} />
-            <Chip hue="gray">{access.scopeLabel}</Chip>
-            {op && <Chip hue="blue">Карточка сотрудника: {op.name}</Chip>}
+          <button type="button" className="avatar-pick" onClick={() => fileRef.current?.click()} disabled={photoBusy} title="Загрузить своё фото">
+            <Avatar name={me.name} id={me.id} size={64} />
+            <span className="avatar-pick-cam" aria-hidden>
+              <Icon name="edit" size={12} />
+            </span>
+          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+              <RoleChip role={me.role} />
+              <Chip hue="gray">{access.scopeLabel}</Chip>
+              {op && <Chip hue="blue">Карточка сотрудника: {op.name}</Chip>}
+            </div>
+            <div className="row" style={{ gap: 6 }}>
+              <button type="button" className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={photoBusy}>
+                <Icon name="upload" size={13} /> {photoBusy ? "Загружаю…" : me.prefs.avatar ? "Сменить фото" : "Загрузить фото"}
+              </button>
+              {me.prefs.avatar && (
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => void saveMyProfile({ avatar: undefined })} disabled={photoBusy}>
+                  Убрать
+                </button>
+              )}
+              <span style={{ fontSize: 12, color: "var(--dim)" }}>JPG, PNG или WebP — обрежем в квадрат по центру</span>
+            </div>
           </div>
+          <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={(e) => void pickPhoto(e.target.files?.[0])} />
         </div>
         <div className="grid2">
           <Field label="Имя">

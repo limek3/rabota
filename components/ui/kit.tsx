@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Icon, type IconName } from "./icons";
-import { useCrm } from "@/lib/crm/store";
+import { useCrm, useCrmOptional } from "@/lib/crm/store";
 import {
   addDays,
   addMonths,
@@ -23,7 +23,7 @@ import { LEAD_STATUS_HUE, LEAD_STATUS_LABEL } from "@/lib/crm/types";
 import { fmtInt, fmtNum, fmtPct, initials } from "@/lib/crm/format";
 import { PACE_HUE, PACE_LABEL, type PaceStatus } from "@/lib/crm/calc";
 import { SEGMENT_HUE, SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
-import { DateInput, MonthPicker } from "./select";
+import { DateInput, MonthPicker, uiZoom } from "./select";
 
 /* ── цвет по тону палитры чипов ───────────────────────────────────── */
 export function hueVars(hue: string): CSSProperties {
@@ -98,9 +98,14 @@ export function ClipText({ text, width, full }: { text: string; width: number; f
     const el = ref.current;
     // подсказка — если текст обрезан или показан сокращённо (full — полная форма)
     if (!el || (el.scrollWidth <= el.clientWidth && (!full || full === text))) return;
-    const r = el.getBoundingClientRect();
-    const left = Math.max(8, Math.min(r.left - 10, window.innerWidth - 388));
-    setTip(window.innerHeight - r.bottom < 140 ? { left, bottom: window.innerHeight - r.top + 6 } : { left, top: r.bottom + 6 });
+    // экранные координаты → координаты страницы с учётом масштаба интерфейса
+    const z = uiZoom();
+    const b = el.getBoundingClientRect();
+    const r = { left: b.left / z, top: b.top / z, bottom: b.bottom / z };
+    const vw = window.innerWidth / z;
+    const vh = window.innerHeight / z;
+    const left = Math.max(8, Math.min(r.left - 10, vw - 388));
+    setTip(vh - r.bottom < 140 ? { left, bottom: vh - r.top + 6 } : { left, top: r.bottom + 6 });
   };
   return (
     <>
@@ -182,7 +187,31 @@ export function HuePicker({ value, onChange, size = 24 }: { value: string; onCha
 
 /* ── аватар ───────────────────────────────────────────────────────── */
 const AV_HUES = ["blue", "green", "amber", "purple", "teal", "pink", "indigo"];
-export function Avatar({ name, id, size = 26 }: { name: string; id: string; size?: number }) {
+
+/** Свои аватарки аккаунтов: id аккаунта и id его карточки сотрудника → картинка. Одна карта на список аккаунтов. */
+const avatarMaps = new WeakMap<object, Map<string, string>>();
+function avatarOf(accounts: { id: string; operatorId?: string | null; deletedAt?: string | null; prefs?: { avatar?: string } }[], id: string): string | undefined {
+  let m = avatarMaps.get(accounts);
+  if (!m) {
+    m = new Map();
+    for (const a of accounts) {
+      const src = a.prefs?.avatar;
+      if (!src || a.deletedAt) continue;
+      m.set(a.id, src);
+      if (a.operatorId) m.set(a.operatorId, src);
+    }
+    avatarMaps.set(accounts, m);
+  }
+  return m.get(id);
+}
+
+/** Аватарка: своё фото, если человек его поставил в профиле (id аккаунта или карточки сотрудника), иначе инициалы. */
+export function Avatar({ name, id, size = 26, src }: { name: string; id: string; size?: number; src?: string }) {
+  const crm = useCrmOptional();
+  const photo = src ?? (crm ? avatarOf(crm.data.accounts, id) : undefined);
+  if (photo) {
+    return <img src={photo} alt="" aria-hidden width={size} height={size} className="avatar-img" style={{ width: size, height: size }} />;
+  }
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
   const hue = AV_HUES[h % AV_HUES.length];

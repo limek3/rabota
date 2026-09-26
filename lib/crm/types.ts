@@ -340,6 +340,8 @@ export interface AccountPrefs {
   defaultProjectId: ID | null;
   /** Плотные таблицы. */
   compact: boolean;
+  /** Своя аватарка: картинка 160×160 в data URL (сжата в браузере). Нет — инициалы. */
+  avatar?: string;
 }
 
 /**

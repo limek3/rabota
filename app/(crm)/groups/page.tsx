@@ -152,6 +152,7 @@ function GroupCard({ g }: { g: GroupRow }) {
         <Cell label="RR" value={fmtInt(p.rr)} sub="к концу мес." tone={g.plan > 0 ? (p.rr >= g.plan ? "good" : "bad") : undefined} />
         {access.can.viewPayroll && fund && (
           <Cell
+            wide
             label="ФОТ к доходу"
             value={fund.revenue ? fmtPct(fund.pct) : "—"}
             sub={`норма ≤ ${data.settings.payrollCapPct}%`}
@@ -212,9 +213,10 @@ function GroupCard({ g }: { g: GroupRow }) {
   );
 }
 
-function Cell({ label, value, sub, tone }: { label: string; value: ReactNode; sub?: string; tone?: "good" | "bad" }) {
+function Cell({ label, value, sub, tone, wide }: { label: string; value: ReactNode; sub?: string; tone?: "good" | "bad"; wide?: boolean }) {
   return (
-    <div style={{ padding: "8px 10px", borderRadius: 6, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0 }}>
+    // wide — плитка на всю строку (последняя одиночная плитка не висит хвостом)
+    <div style={{ padding: "8px 10px", borderRadius: 6, background: "var(--bg)", border: "1px solid var(--ink-06)", minWidth: 0, gridColumn: wide ? "1 / -1" : undefined }}>
       <div style={{ fontSize: 11, color: "var(--text-sub)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
       <div className="row" style={{ columnGap: 5, rowGap: 0, alignItems: "baseline", flexWrap: "wrap" }}>
         <span style={{ fontSize: 16, fontWeight: 600, flex: "none", color: tone === "good" ? "var(--c-green-fg)" : tone === "bad" ? "var(--c-red-fg)" : undefined }}>{value}</span>

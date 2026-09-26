@@ -220,6 +220,11 @@ export function useCrm(): Store {
   return s;
 }
 
+/** То же, но без ошибки вне CrmProvider (для общих компонентов вроде аватарки). */
+export function useCrmOptional(): Store | null {
+  return useContext(Ctx);
+}
+
 const TAB_ID = Math.random().toString(36).slice(2);
 const CHANNEL = "leadup-crm";
 const THEME_KEY = "leadup.theme";

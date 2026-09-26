@@ -218,9 +218,9 @@ export default function LeadsPage() {
 
       <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <PeriodPicker value={period} onChange={setPeriod} today={today} />
-        <div className="toolbar">
-          <div style={{ position: "relative", flex: "1 1 220px", maxWidth: 320 }}>
-            <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: 10, color: "var(--dim)" }} />
+        <div className="toolbar filters">
+          <div className="filters-search" style={{ position: "relative" }}>
+            <Icon name="search" size={14} style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "var(--dim)" }} />
             <input className="inp" style={{ paddingLeft: 30 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Телефон, клиент, комментарий" />
           </div>
           <Select
@@ -257,6 +257,7 @@ export default function LeadsPage() {
           {filtered && (
             <button
               className="btn btn-ghost"
+              style={{ flex: "none" }}
               onClick={() => {
                 setOperatorId("");
                 setGroupId("");
