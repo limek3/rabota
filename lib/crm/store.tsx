@@ -13,6 +13,7 @@ import type {
   Group,
   ID,
   Lead,
+  LeadExportLogEntry,
   LeadStatus,
   MonthKey,
   MonthPlan,
@@ -29,7 +30,7 @@ import type {
 } from "./types";
 import { ADJ_LABEL, CANDIDATE_STAGE_LABEL, DAY_LABEL, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
 import { buildIndex, freezePastMonths, type Index } from "./calc";
-import { currentMonth, fmtDay, isoNow, monthOf, nowStamp, todayKey } from "./dates";
+import { currentMonth, fmtDate, fmtDay, isoNow, monthOf, nowStamp, todayKey } from "./dates";
 import { emptyState, newAccount, normalizePrefs, normalizeSettings } from "./defaults";
 import {
   canCreateLeadFor,
@@ -49,8 +50,8 @@ import { planId, shiftId, uniqueId } from "./ids";
 import * as db from "./db";
 import * as remote from "./remote";
 import { diffRecords, diffSettings, type AuditCtx } from "./audit";
-import { fmtPhone, normLink, normPhone } from "./format";
-import { counts, repair, sanitize, toSnapshot } from "./validate";
+import { LEADS, fmtPhone, normLink, normPhone, plural } from "./format";
+import { cleanLeadExportLog, cleanLeadExports, counts, repair, sanitize, toSnapshot } from "./validate";
 import { stripDemo } from "./purge";
 import { syncClock } from "@/lib/clock";
 
@@ -162,6 +163,8 @@ interface Store {
   deleteLead: (id: ID) => Promise<void>;
   /** Статус лидов: «доведён» / «не доведён» (причина обязательна) / вернуть «в работе». Возвращает число изменённых. */
   setLeadStatus: (ids: ID[], status: LeadStatus, reason?: string) => Promise<number>;
+  /** Номера этих лидов выгружены в Excel: отметка с датой и строка в истории выгрузок (РОП и супервайзер). */
+  markLeadsExported: (ids: ID[], period: { from: DayKey; to: DayKey; count: number }) => Promise<boolean>;
   saveOperator: (input: OperatorInput) => Promise<Operator | null>;
   /** Перевести всех операторов на сетку «ставка и бонус по числу лидов в смене». */
   applyGridPay: () => Promise<number>;
@@ -701,6 +704,36 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         });
     },
     [commit, toast, deny],
+  );
+
+  const markLeadsExported = useCallback<Store["markLeadsExported"]>(
+    async (ids, period) => {
+      const a = accessRef.current;
+      if (!a.isHead && !a.isSup) {
+        deny();
+        return false;
+      }
+      if (!ids.length) return true;
+      const now = isoNow();
+      const entry: LeadExportLogEntry = { at: now, by: a.account.name, count: period.count, from: period.from, to: period.to };
+      let next: Record<ID, string> = {};
+      let nextLog: LeadExportLogEntry[] = [];
+      const ok = await commit(
+        async () => {
+          // берём свежие значения из базы: пока страница была открыта, выгружать мог кто-то ещё
+          next = { ...dataRef.current.leadExports, ...cleanLeadExports(await db.getKV("leadExports")) };
+          for (const id of ids) next[id] = now;
+          nextLog = [entry, ...cleanLeadExportLog(await db.getKV("leadExportLog"))].slice(0, 200);
+          await db.setKV("leadExports", next);
+          await db.setKV("leadExportLog", nextLog);
+        },
+        (d) => ({ ...d, leadExports: next, leadExportLog: nextLog }),
+        "Не удалось отметить выгрузку",
+      );
+      if (ok) void log("lead", ids.slice(0, 50).join(","), `Выгружены номера: ${period.count} · ${fmtDate(period.from)}–${fmtDate(period.to)}`);
+      return ok;
+    },
+    [commit, deny, log],
   );
 
   const setLeadStatus = useCallback<Store["setLeadStatus"]>(
@@ -1922,6 +1955,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     setPaletteOpen,
     saveLead,
     setLeadStatus,
+    markLeadsExported,
     deleteLead,
     saveOperator,
     applyGridPay,

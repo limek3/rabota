@@ -359,7 +359,7 @@ export default function PayrollPage() {
                         return (
                         <Fragment key={r.op.id}>
                         {firstGone && <GoneSepRow count={sec.rows.filter((x) => isGone(x.op)).length} colSpan={14} indent={28} />}
-                        <tr className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""} ${f.className}`} style={f.style} onClick={() => setOpenId(r.op.id)}>
+                        <tr className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""} ${r.op.status === "fired" ? "row-stripe" : ""} ${f.className}`} style={f.style} onClick={() => setOpenId(r.op.id)}>
                           <td className="sticky-col" style={{ paddingLeft: 28 }}>
                             <span className="row" style={{ gap: 8 }}>
                               <Avatar name={r.op.name} id={r.op.id} size={24} />

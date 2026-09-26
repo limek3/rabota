@@ -18,6 +18,7 @@ import {
   weekStart,
 } from "@/lib/crm/dates";
 import type { DayKey, Lead, MonthKey, Operator } from "@/lib/crm/types";
+import { HUES, HUE_LABEL } from "@/lib/crm/defaults";
 import { LEAD_STATUS_HUE, LEAD_STATUS_LABEL } from "@/lib/crm/types";
 import { fmtInt, fmtNum, fmtPct, initials } from "@/lib/crm/format";
 import { PACE_HUE, PACE_LABEL, type PaceStatus } from "@/lib/crm/calc";
@@ -153,6 +154,30 @@ export function StatusChip({ status }: { status: PaceStatus }) {
 
 export function Swatch({ hue, size = 8 }: { hue: string; size?: number }) {
   return <span className="swatch" style={{ background: hueFg(hue), width: size, height: size }} />;
+}
+
+/**
+ * Выбор цвета из пастельной палитры (проекты, группы). Квадрат — заливка тона
+ * с тонкой рамкой; выбранный — обводкой. Подсказка — название цвета.
+ */
+export function HuePicker({ value, onChange, size = 24 }: { value: string; onChange: (hue: string) => void; size?: number }) {
+  return (
+    <div className="hue-pick" role="radiogroup" aria-label="Цвет">
+      {HUES.map((h) => (
+        <button
+          key={h}
+          type="button"
+          role="radio"
+          aria-checked={value === h}
+          aria-label={HUE_LABEL[h]}
+          title={HUE_LABEL[h]}
+          className="hue-pick-i"
+          onClick={() => onChange(h)}
+          style={{ width: size, height: size, ["--hp-bg" as string]: `var(--c-${h}-bg)`, ["--hp-fg" as string]: `var(--c-${h}-fg)`, ["--hp-bd" as string]: `var(--c-${h}-bd)` }}
+        />
+      ))}
+    </div>
+  );
 }
 
 /* ── аватар ───────────────────────────────────────────────────────── */

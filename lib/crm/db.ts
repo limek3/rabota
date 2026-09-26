@@ -2,6 +2,7 @@
 
 import type { Backup, DataState } from "./types";
 import { emptyState, normalizeSettings } from "./defaults";
+import { cleanLeadExportLog, cleanLeadExports } from "./validate";
 import { supabaseReady } from "@/lib/supabase";
 import * as remote from "./remote";
 
@@ -153,6 +154,8 @@ export async function loadLocal(): Promise<{ state: DataState; persistent: boole
     const kv = mem(KV);
     st.settings = normalizeSettings(kv.get("settings") as never);
     st.frozenMonths = (kv.get("frozenMonths") as string[]) ?? [];
+    st.leadExports = cleanLeadExports(kv.get("leadExports"));
+    st.leadExportLog = cleanLeadExportLog(kv.get("leadExportLog"));
     return { state: st, persistent: false };
   }
   const tx = db.transaction([...ENTITY_STORES, KV], "readonly");
@@ -162,8 +165,12 @@ export async function loadLocal(): Promise<{ state: DataState; persistent: boole
   });
   const settings = await reqP(tx.objectStore(KV).get("settings"));
   const frozen = await reqP(tx.objectStore(KV).get("frozenMonths"));
+  const exported = await reqP(tx.objectStore(KV).get("leadExports"));
+  const exportLog = await reqP(tx.objectStore(KV).get("leadExportLog"));
   st.settings = normalizeSettings((settings as { value?: never })?.value);
   st.frozenMonths = ((frozen as { value?: string[] })?.value ?? []).filter((m) => typeof m === "string");
+  st.leadExports = cleanLeadExports((exported as { value?: unknown })?.value);
+  st.leadExportLog = cleanLeadExportLog((exportLog as { value?: unknown })?.value);
   return { state: st, persistent: true };
 }
 
@@ -232,6 +239,16 @@ export async function applyBatch(ops: { store: EntityStore; put?: Rec[]; del?: s
   await txDone(tx);
 }
 
+/** Свежее значение строки настроек прямо из хранилища (чтобы не затереть чужие изменения). */
+export async function getKV(key: string): Promise<unknown> {
+  if (REMOTE) return remote.getKV(key);
+  const db = await openDb();
+  if (!db) return structuredClone(mem(KV).get(key));
+  const tx = db.transaction(KV, "readonly");
+  const row = await reqP(tx.objectStore(KV).get(key));
+  return (row as { value?: unknown } | undefined)?.value;
+}
+
 export async function setKV(key: string, value: unknown): Promise<void> {
   if (REMOTE) return remote.setKV(key, value);
   const db = await openDb();
@@ -256,6 +273,8 @@ export async function replaceAll(state: DataState): Promise<void> {
     }
     mem(KV).set("settings", structuredClone(state.settings));
     mem(KV).set("frozenMonths", [...state.frozenMonths]);
+    mem(KV).set("leadExports", { ...state.leadExports });
+    mem(KV).set("leadExportLog", [...state.leadExportLog]);
     return;
   }
   const tx = db.transaction([...ENTITY_STORES, KV], "readwrite");
@@ -266,6 +285,8 @@ export async function replaceAll(state: DataState): Promise<void> {
   }
   tx.objectStore(KV).put({ key: "settings", value: state.settings });
   tx.objectStore(KV).put({ key: "frozenMonths", value: state.frozenMonths });
+  tx.objectStore(KV).put({ key: "leadExports", value: state.leadExports });
+  tx.objectStore(KV).put({ key: "leadExportLog", value: state.leadExportLog });
   await txDone(tx);
 }
 

@@ -183,6 +183,15 @@ export const LEAD_STATUSES: LeadStatus[] = ["work", "done", "failed"];
 export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = { work: "В работе", done: "Доведён", failed: "Не доведён" };
 export const LEAD_STATUS_HUE: Record<LeadStatus, "amber" | "green" | "red"> = { work: "amber", done: "green", failed: "red" };
 
+/** Одна выгрузка номеров в Excel: кто, когда, сколько и за какие даты. */
+export interface LeadExportLogEntry {
+  at: string;
+  by: string;
+  count: number;
+  from: DayKey;
+  to: DayKey;
+}
+
 /** Смена: одна запись на оператора в день (id = `${date}|${operatorId}`). */
 export interface Shift {
   id: ID;
@@ -446,6 +455,10 @@ export interface Snapshot {
   candidates: Candidate[];
   audit: AuditEntry[];
   frozenMonths: MonthKey[];
+  /** Выгрузка номеров: id лида → когда его номер последний раз выгружали в Excel (ISO). */
+  leadExports: Record<ID, string>;
+  /** История выгрузок номеров — свежие сверху. */
+  leadExportLog: LeadExportLogEntry[];
 }
 
 /**
@@ -570,6 +583,10 @@ export interface DataState {
   candidates: Candidate[];
   audit: AuditEntry[];
   frozenMonths: MonthKey[];
+  /** Выгрузка номеров: id лида → когда его номер последний раз выгружали в Excel (ISO). */
+  leadExports: Record<ID, string>;
+  /** История выгрузок номеров — свежие сверху. */
+  leadExportLog: LeadExportLogEntry[];
 }
 
 /* ── подписи ───────────────────────────────────────────────────────── */

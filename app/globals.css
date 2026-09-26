@@ -83,14 +83,14 @@
      обычные: стрелка (везде), рука-указатель (кликабельное) и крест (выделение
      в «Расписании»). Углы мягкие — stroke совпадает с fill, linejoin: round,
      так что контур не читается отдельной обводкой, а лишь скругляет углы. */
-  --cursor-brand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M5 2.5 5 20.5 9.7 16.3 12.6 22.4 15.2 21.2 12.4 15.3 18.4 15.3 Z' fill='%238b68fa' stroke='%238b68fa' stroke-width='1.2' stroke-linejoin='round' stroke-linecap='round'/></svg>") 5 3, auto;
-  --cursor-hand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M9 2.4c.86 0 1.55.7 1.55 1.55V10.4c.35-.26.78-.42 1.25-.42.54 0 1.03.22 1.39.57.36-.3.82-.48 1.32-.48.58 0 1.11.25 1.48.66.32-.19.69-.3 1.08-.3 1.16 0 2.1.94 2.1 2.1v3.35c0 2.88-2.33 5.22-5.22 5.22h-1.24c-1.58 0-3.07-.73-4.03-1.98l-3.37-4.4c-.53-.69-.4-1.68.29-2.22.61-.48 1.47-.45 2.05.08l1.05.95V3.95c0-.85.69-1.55 1.55-1.55z' fill='%238b68fa' stroke='%238b68fa' stroke-width='0.8' stroke-linejoin='round'/></svg>") 9 2, pointer;
+  --cursor-brand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M5 2.5 5 20.5 9.7 16.3 12.6 22.4 15.2 21.2 12.4 15.3 18.4 15.3 Z' fill='%2356688f' stroke='%2356688f' stroke-width='1.2' stroke-linejoin='round' stroke-linecap='round'/></svg>") 5 3, auto;
+  --cursor-hand: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26'><path d='M9 2.4c.86 0 1.55.7 1.55 1.55V10.4c.35-.26.78-.42 1.25-.42.54 0 1.03.22 1.39.57.36-.3.82-.48 1.32-.48.58 0 1.11.25 1.48.66.32-.19.69-.3 1.08-.3 1.16 0 2.1.94 2.1 2.1v3.35c0 2.88-2.33 5.22-5.22 5.22h-1.24c-1.58 0-3.07-.73-4.03-1.98l-3.37-4.4c-.53-.69-.4-1.68.29-2.22.61-.48 1.47-.45 2.05.08l1.05.95V3.95c0-.85.69-1.55 1.55-1.55z' fill='%2356688f' stroke='%2356688f' stroke-width='0.8' stroke-linejoin='round'/></svg>") 9 2, pointer;
   /* Открытая рука — над тем, что можно схватить (draggable-карточки). */
-  --cursor-grab: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><path d='M12 21.6c-1.6 0-3.1-.66-4.2-1.84l-3.7-4.0c-.5-.54-.47-1.38.07-1.9.53-.5 1.36-.48 1.87.04l1.34 1.37V6.2c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.3h.5V4.9c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v5.6h.5V5.6c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.9h.5V7.4c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v6.9c0 4.0-2.6 7.0-6.5 7.0z' fill='%238b68fa'/></svg>") 13 13, grab;
+  --cursor-grab: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><path d='M12 21.6c-1.6 0-3.1-.66-4.2-1.84l-3.7-4.0c-.5-.54-.47-1.38.07-1.9.53-.5 1.36-.48 1.87.04l1.34 1.37V6.2c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.3h.5V4.9c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v5.6h.5V5.6c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v4.9h.5V7.4c0-.72.58-1.3 1.3-1.3s1.3.58 1.3 1.3v6.9c0 4.0-2.6 7.0-6.5 7.0z' fill='%2356688f'/></svg>") 13 13, grab;
   /* Сжатый кулак — пока карточку тащат. */
-  --cursor-grabbing: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><g fill='%238b68fa'><path d='M5 13c0-1.15.93-2.08 2.08-2.08h7.4c1.15 0 2.25.46 3.06 1.28l.2.2c.5.5.76 1.17.76 1.87v1.1c0 3.25-2.35 5.65-5.6 5.65h-1.5c-1.55 0-3.03-.63-4.1-1.75l-1.95-2.05c-.48-.5-.75-1.17-.75-1.87z'/><rect x='7.2' y='7.8' width='2.5' height='4.2' rx='1.25'/><rect x='10.3' y='7.0' width='2.5' height='5.0' rx='1.25'/><rect x='13.4' y='7.4' width='2.5' height='4.6' rx='1.25'/><rect x='16.4' y='9.0' width='2.4' height='3.4' rx='1.2'/></g></svg>") 13 14, grabbing;
+  --cursor-grabbing: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='26' height='26' viewBox='0 0 24 24'><g fill='%2356688f'><path d='M5 13c0-1.15.93-2.08 2.08-2.08h7.4c1.15 0 2.25.46 3.06 1.28l.2.2c.5.5.76 1.17.76 1.87v1.1c0 3.25-2.35 5.65-5.6 5.65h-1.5c-1.55 0-3.03-.63-4.1-1.75l-1.95-2.05c-.48-.5-.75-1.17-.75-1.87z'/><rect x='7.2' y='7.8' width='2.5' height='4.2' rx='1.25'/><rect x='10.3' y='7.0' width='2.5' height='5.0' rx='1.25'/><rect x='13.4' y='7.4' width='2.5' height='4.6' rx='1.25'/><rect x='16.4' y='9.0' width='2.4' height='3.4' rx='1.2'/></g></svg>") 13 14, grabbing;
   /* Каретка ввода (I-beam) — над текстовыми полями, тоже в акценте. */
-  --cursor-text: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22'><path d='M5.5 2.5h5M5.5 19.5h5M8 2.5v17' fill='none' stroke='%238b68fa' stroke-width='1.6' stroke-linecap='round'/></svg>") 8 11, text;
+  --cursor-text: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22'><path d='M5.5 2.5h5M5.5 19.5h5M8 2.5v17' fill='none' stroke='%2356688f' stroke-width='1.6' stroke-linecap='round'/></svg>") 8 11, text;
   --ink-015: rgba(255, 255, 255, 0.015);
   --ink-03: rgba(255, 255, 255, 0.03);
   --ink-035: rgba(255, 255, 255, 0.035);
@@ -323,7 +323,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   /* Фирменный курсор Vexi. Не логотип, натянутый на стрелку, а обычный
-     указатель, перекрашенный в акцент (#8b68fa) с белой обводкой и мягкими,
+     указатель, перекрашенный в акцент (#56688f) с белой обводкой и мягкими,
      скруглёнными углами (stroke-linejoin: round). Белый контур держит его
      читаемым и на светлом, и на тёмном фоне. Кликабельные элементы со своим
      `cursor: pointer` по-прежнему показывают руку. */
@@ -1071,7 +1071,7 @@ button {
   }
   50% {
     opacity: 0.5;
-    box-shadow: 0 0 0 4px rgba(139, 104, 250, 0);
+    box-shadow: 0 0 0 4px rgba(86, 104, 143, 0);
   }
 }
 
@@ -1160,7 +1160,7 @@ button {
     box-shadow: 0 0 0 0 var(--brand-glow);
   }
   100% {
-    box-shadow: 0 0 0 7px rgba(139, 104, 250, 0);
+    box-shadow: 0 0 0 7px rgba(86, 104, 143, 0);
   }
 }
 
@@ -1363,4 +1363,245 @@ button {
   .auth-twinkle {
     animation: none !important;
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ГРАФИТОВАЯ СИСТЕМА — одна палитра на всё приложение, в обеих темах.
+   Акцент — графитово-синий, как у кнопки «Лид передан». Статусы — мягкие,
+   как в «Графике»: больничный (красный), отпуск (жёлтый), шалфейный зелёный.
+   Тёмная тема — те же роли и та же иерархия, пересчитанные под тёмный фон.
+   Блок стоит последним и переопределяет прежние палитры выше.
+   ════════════════════════════════════════════════════════════════════ */
+:root,
+:root[data-theme="dark"] {
+  /* поверхности: графитовый, не чёрный */
+  --bg: #15171c;
+  --bg-sidebar: #1a1d23;
+  --bg-panel: #1e2128;
+  --bg-panel-hover: #242831;
+  --bg-strip: #1a1d23;
+  --bg-modal: #1e2128;
+  --line: #2c313b;
+  --ctrl-border: #353a45;
+  --ctrl-border-hover: #424856;
+
+  /* текст */
+  --text: #e7e9ef;
+  --text-soft: #d5d9e2;
+  --text-quote: #c9cedb;
+  --text-sub: #9aa3b7;
+  --text-sub2: #a5adbf;
+  --text-sub3: #7f889c;
+  --dim: #6b7388;
+  --dimmer: #525a6d;
+
+  /* акцент */
+  --brand: #6b7daa;
+  --brand-soft: #8190ba;
+  --brand-strong: #7a8bb6;
+  --on-brand: #ffffff;
+  --brand-glow: rgba(107, 125, 170, 0.22);
+  --brand-tint: rgba(107, 125, 170, 0.14);
+  --brand-border: rgba(107, 125, 170, 0.45);
+  --action-dark: var(--brand);
+  --action-dark-hover: var(--brand-strong);
+
+  --blue: var(--brand);
+  --green: #8fc0a3;
+  --green-soft: #9fcab1;
+  --green-hover: #7fb396;
+  --on-green: #ffffff;
+  --red: #d9989a;
+  --amber: #d6b88c;
+  --amber-soft: #cdaa7e;
+
+  --ink-015: rgba(255, 255, 255, 0.015);
+  --ink-03: rgba(255, 255, 255, 0.03);
+  --ink-035: rgba(255, 255, 255, 0.035);
+  --ink-04: rgba(255, 255, 255, 0.04);
+  --ink-05: rgba(255, 255, 255, 0.05);
+  --ink-06: rgba(255, 255, 255, 0.06);
+  --ink-07: rgba(255, 255, 255, 0.07);
+  --ink-08: rgba(255, 255, 255, 0.08);
+  --ink-09: rgba(255, 255, 255, 0.09);
+  --ink-10: rgba(255, 255, 255, 0.1);
+  --ink-12: rgba(255, 255, 255, 0.12);
+  --ink-15: rgba(255, 255, 255, 0.15);
+  --ink-25: rgba(255, 255, 255, 0.25);
+  --ink-35: rgba(255, 255, 255, 0.35);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 3px 12px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.32);
+  --shadow-xl: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 16px 38px rgba(0, 0, 0, 0.38);
+  --glass-core: #1e2128;
+  --glass-edge: rgba(30, 33, 40, 0);
+  --glass-bar-bg: rgba(26, 29, 35, 0.92);
+  --glass-bar-border: rgba(255, 255, 255, 0.08);
+
+  /* напоминания */
+  --pill-amber-bg: #342c21;
+  --pill-amber-fg: #d6b88c;
+  --pill-amber-border: #4f4331;
+  --pill-red-bg: #372628;
+  --pill-red-fg: #d9989a;
+  --pill-red-border: #553a3d;
+
+  /* статусные тона (чипы, «хорошо / плохо» в показателях) */
+  --c-gray-fg: #a5adbf; --c-gray-bg: #262a33; --c-gray-bd: #353a45;
+  --c-blue-fg: #9aaad4; --c-blue-bg: #262d40; --c-blue-bd: #37415c;
+  --c-green-fg: #8fc0a3; --c-green-bg: #20302a; --c-green-bd: #2f4a3d;
+  --c-amber-fg: #d6b88c; --c-amber-bg: #342c21; --c-amber-bd: #4f4331;
+  --c-red-fg: #d9989a; --c-red-bg: #372628; --c-red-bd: #553a3d;
+  --c-purple-fg: #b1a6d9; --c-purple-bg: #2c2840; --c-purple-bd: #423c60;
+  --c-pink-fg: #d98eaf; --c-pink-bg: #3b2933; --c-pink-bd: #583847;
+  --c-teal-fg: #72bfae; --c-teal-bg: #213934; --c-teal-bd: #31554c;
+  --c-indigo-fg: #9a9fd8; --c-indigo-bg: #2a2d46; --c-indigo-bd: #3f4368;
+  /* пастельные тона для проектов и групп */
+  --c-slate-fg: #a9b4cc; --c-slate-bg: #272c37; --c-slate-bd: #3a4150;
+  --c-sky-fg: #8cc3e3; --c-sky-bg: #1f3140; --c-sky-bd: #2f4a5e;
+  --c-peach-fg: #e0a888; --c-peach-bg: #3a2a22; --c-peach-bd: #58402f;
+
+  /* «График» */
+  --sch-head: #1a1d23;
+  --sch-group: #232730;
+  --sch-grid: #2a2e37;
+  --sch-grid-strong: #323744;
+  --sch-weekend: #21252d;
+  --sch-we-label: #8c9bc0;
+  --sch-hover: #242831;
+  --sch-we-hover: #282c35;
+  --sch-today-col: rgba(107, 125, 170, 0.08);
+  --sch-sel: #8c9bc0;
+  --sch-foot: #1b1e24;
+  --sch-foot-we: #20242c;
+  --sch-foot-border: #343947;
+  --sch-work: linear-gradient(180deg, #5a6c96 0%, #4a5b84 100%);
+  --sch-plan: #3f4a63;
+  --sch-plan-fg: #c9d0e0;
+  --sch-train: linear-gradient(180deg, #6a7fb3 0%, #5a6ea3 100%);
+  --sch-sick: #9e5f61;
+  --sch-vac: #9c8158;
+  --sch-block-fg: #ffffff;
+  --sch-gone-bg: #221f24;
+  --sch-gone-line: rgba(194, 127, 128, 0.17);
+  --sch-gone-fg: #9a7173;
+  --sch-off: #525a6d;
+  --sch-cross: rgba(140, 155, 192, 0.07);
+}
+
+:root[data-theme="light"] {
+  /* поверхности: не совсем белая страница, белые панели */
+  --bg: #f5f6f9;
+  --bg-sidebar: #f1f3f7;
+  --bg-panel: #ffffff;
+  --bg-panel-hover: #f6f7fa;
+  --bg-strip: #f3f4f8;
+  --bg-modal: #ffffff;
+  --line: #e5e8ef;
+  --ctrl-border: #dde2ea;
+  --ctrl-border-hover: #cfd5e0;
+
+  --text: #17213a;
+  --text-soft: #25304b;
+  --text-quote: #34405d;
+  --text-sub: #65708c;
+  --text-sub2: #768099;
+  --text-sub3: #8c96aa;
+  --dim: #9aa3b7;
+  --dimmer: #b7becd;
+
+  /* акцент — цвет кнопки «Лид передан» */
+  --brand: #314163;
+  --brand-soft: #41527b;
+  --brand-strong: #253555;
+  --on-brand: #ffffff;
+  --brand-glow: rgba(49, 65, 99, 0.16);
+  --brand-tint: rgba(49, 65, 99, 0.07);
+  --brand-border: rgba(49, 65, 99, 0.3);
+  --action-dark: var(--brand);
+  --action-dark-hover: var(--brand-strong);
+
+  --blue: var(--brand);
+  --green: #4f8166;
+  --green-soft: #7fa88e;
+  --green-hover: #426f57;
+  --on-green: #ffffff;
+  --red: #b25f62;
+  --amber: #9c7646;
+  --amber-soft: #cdaa7e;
+
+  --ink-015: rgba(23, 33, 58, 0.018);
+  --ink-03: rgba(23, 33, 58, 0.03);
+  --ink-035: rgba(23, 33, 58, 0.035);
+  --ink-04: rgba(23, 33, 58, 0.04);
+  --ink-05: rgba(23, 33, 58, 0.055);
+  --ink-06: rgba(23, 33, 58, 0.065);
+  --ink-07: rgba(23, 33, 58, 0.075);
+  --ink-08: rgba(23, 33, 58, 0.09);
+  --ink-09: rgba(23, 33, 58, 0.105);
+  --ink-10: rgba(23, 33, 58, 0.12);
+  --ink-12: rgba(23, 33, 58, 0.14);
+  --ink-15: rgba(23, 33, 58, 0.18);
+  --ink-25: rgba(23, 33, 58, 0.28);
+  --ink-35: rgba(23, 33, 58, 0.4);
+
+  --shadow-xs: 0 1px 2px rgba(25, 35, 60, 0.03);
+  --shadow-sm: 0 1px 2px rgba(25, 35, 60, 0.035);
+  --shadow-md: 0 0 0 1px rgba(23, 33, 58, 0.045), 0 3px 12px rgba(25, 35, 60, 0.045);
+  --shadow-lg: 0 0 0 1px rgba(23, 33, 58, 0.045), 0 8px 24px rgba(25, 35, 60, 0.065);
+  --shadow-xl: 0 0 0 1px rgba(23, 33, 58, 0.05), 0 16px 38px rgba(25, 35, 60, 0.1);
+  --glass-core: #ffffff;
+  --glass-edge: rgba(255, 255, 255, 0);
+  --glass-bar-bg: rgba(255, 255, 255, 0.9);
+  --glass-bar-border: rgba(23, 33, 58, 0.08);
+
+  --pill-amber-bg: #f8f1e7;
+  --pill-amber-fg: #9c7646;
+  --pill-amber-border: #eadcc6;
+  --pill-red-bg: #f8ecec;
+  --pill-red-fg: #b25f62;
+  --pill-red-border: #edd3d4;
+
+  /* мягкие статусы: красный — как «больничный», жёлтый — как «отпуск», зелёный — шалфей */
+  --c-gray-fg: #65708c; --c-gray-bg: #f1f3f7; --c-gray-bd: #e2e5ec;
+  --c-blue-fg: #4f6593; --c-blue-bg: #edf0f6; --c-blue-bd: #dce2ee;
+  --c-green-fg: #4f8166; --c-green-bg: #eaf3ee; --c-green-bd: #cfe3d7;
+  --c-amber-fg: #9c7646; --c-amber-bg: #f8f1e7; --c-amber-bd: #eadcc6;
+  --c-red-fg: #b25f62; --c-red-bg: #f8ecec; --c-red-bd: #edd3d4;
+  --c-purple-fg: #6e5baa; --c-purple-bg: #efedf7; --c-purple-bd: #ddd8ee;
+  --c-pink-fg: #a8517c; --c-pink-bg: #f8eaf1; --c-pink-bd: #efcfe0;
+  --c-teal-fg: #2f7f6c; --c-teal-bg: #e5f4f0; --c-teal-bd: #c9e9e0;
+  --c-indigo-fg: #5358a3; --c-indigo-bg: #eceaf8; --c-indigo-bd: #dad6ef;
+  --c-slate-fg: #56688f; --c-slate-bg: #eef1f6; --c-slate-bd: #d9dfea;
+  --c-sky-fg: #3f7fa6; --c-sky-bg: #e8f3f9; --c-sky-bd: #cde4f1;
+  --c-peach-fg: #b0714f; --c-peach-bg: #fbefe8; --c-peach-bd: #f0d6c7;
+
+  /* «График» */
+  --sch-head: #f9fafc;
+  --sch-group: #eef0f5;
+  --sch-grid: #eceef3;
+  --sch-grid-strong: #e2e5ec;
+  --sch-weekend: #f4f5f9;
+  --sch-we-label: #56688f;
+  --sch-hover: #f6f7fa;
+  --sch-we-hover: #eceef4;
+  --sch-today-col: rgba(49, 65, 99, 0.045);
+  --sch-sel: #56688f;
+  --sch-foot: #fafafc;
+  --sch-foot-we: #f0f2f6;
+  --sch-foot-border: #dfe3ea;
+  --sch-work: linear-gradient(180deg, #56688f 0%, #46577f 100%);
+  --sch-plan: #8a97b6;
+  --sch-plan-fg: #ffffff;
+  --sch-train: linear-gradient(180deg, #7f93c6 0%, #6d80b4 100%);
+  --sch-sick: #c27f80;
+  --sch-vac: #cdaa7e;
+  --sch-block-fg: #ffffff;
+  --sch-gone-bg: #fdf8f8;
+  --sch-gone-line: rgba(194, 127, 128, 0.2);
+  --sch-gone-fg: #c49698;
+  --sch-off: #b7becd;
+  --sch-cross: rgba(49, 65, 99, 0.045);
 }

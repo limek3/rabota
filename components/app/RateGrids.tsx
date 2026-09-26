@@ -117,7 +117,7 @@ export function RateGridsSection({
                 aria-label="Название сетки"
               />
               {isDefault ? (
-                <Chip hue="purple">По умолчанию</Chip>
+                <Chip hue="blue">По умолчанию</Chip>
               ) : (
                 <button className="btn btn-sm btn-ghost" onClick={() => write(grids, g.id)}>
                   Сделать основной

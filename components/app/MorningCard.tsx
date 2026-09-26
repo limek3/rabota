@@ -89,7 +89,7 @@ export function MorningCard({ m }: { m: MonthModel }) {
         />
         <Bucket
           icon="trend"
-          hue="purple"
+          hue="amber"
           title={`Вчера ниже нормы · ${fmtDayShort(view.yest)}`}
           hint="конверсия (лиды ÷ часы) ниже нормы стажировки"
           people={view.weak.map((w) => ({

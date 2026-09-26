@@ -114,7 +114,22 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 /** Палитра для групп и проектов — алиасы на токены чипов из globals.css. */
-export const HUES = ["blue", "green", "amber", "purple", "teal", "pink", "indigo", "red", "gray"] as const;
+/** Пастельная палитра проектов и групп — в тон графитовой теме; порядок = порядок в выборе цвета. */
+export const HUES = ["slate", "blue", "sky", "teal", "green", "amber", "peach", "red", "pink", "purple", "indigo", "gray"] as const;
+export const HUE_LABEL: Record<Hue, string> = {
+  slate: "Графит",
+  blue: "Синий",
+  sky: "Небесный",
+  teal: "Бирюзовый",
+  green: "Шалфей",
+  amber: "Песочный",
+  peach: "Персиковый",
+  red: "Пыльная роза",
+  pink: "Розовый",
+  purple: "Лавандовый",
+  indigo: "Индиго",
+  gray: "Серый",
+};
 export type Hue = (typeof HUES)[number];
 
 export function emptyState(): DataState {
@@ -133,6 +148,8 @@ export function emptyState(): DataState {
     candidates: [],
     audit: [],
     frozenMonths: [],
+    leadExports: {},
+    leadExportLog: [],
   };
 }
 

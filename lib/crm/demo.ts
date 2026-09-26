@@ -230,6 +230,8 @@ export function buildDemo(today: DayKey): DataState {
     candidates: [],
     audit: [],
     frozenMonths: [],
+    leadExports: {},
+    leadExportLog: [],
   };
 }
 

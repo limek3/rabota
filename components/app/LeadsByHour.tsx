@@ -119,7 +119,7 @@ export function LeadsByHour({ leads, month, dayHours, scopeLabel }: { leads: Lea
               <Legend
                 items={[
                   { color: "var(--brand)", label: "В факт", bar: true },
-                  { color: "var(--c-red-fg)", label: "Не доведено", bar: true },
+                  { color: "var(--stripe-red)", label: "Не доведено", bar: true },
                   ...(win ? [{ color: "color-mix(in srgb, var(--brand) 22%, transparent)", label: "Лучшая смена", bar: true }] : []),
                 ]}
               />
@@ -225,7 +225,14 @@ function HourBars({ points, win }: { points: HourPoint[]; win: { from: number; t
             }}
           />
           <Bar dataKey="okAvg" stackId="h" fill="var(--brand)" isAnimationActive={false} maxBarSize={34} />
-          <Bar dataKey="failedAvg" stackId="h" fill="var(--c-red-fg)" fillOpacity={0.55} radius={[4, 4, 0, 0]} isAnimationActive={false} maxBarSize={34} />
+          {/* «не доведено» — еле красная штриховка, как «уволен» в «Графике» */}
+          <defs>
+            <pattern id="lbh-failed" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="7" height="7" fill="var(--sch-sick)" fillOpacity={0.16} />
+              <rect width="3" height="7" fill="var(--sch-sick)" fillOpacity={0.6} />
+            </pattern>
+          </defs>
+          <Bar dataKey="failedAvg" stackId="h" fill="url(#lbh-failed)" stroke="var(--sch-sick)" strokeOpacity={0.5} radius={[4, 4, 0, 0]} isAnimationActive={false} maxBarSize={34} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

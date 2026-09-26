@@ -13,7 +13,7 @@ import { signOut } from "@/lib/auth";
 /** Логин под именем: почту показываем как есть, короткий логин — с «@». */
 const loginOf = (a: { login: string }): string => (!a.login ? "" : a.login.includes("@") ? a.login : `@${a.login}`);
 
-export const ROLE_HUE: Record<AccountRole, string> = { head: "purple", supervisor: "teal", operator: "blue" };
+export const ROLE_HUE: Record<AccountRole, string> = { head: "blue", supervisor: "teal", operator: "gray" };
 
 export function RoleChip({ role }: { role: AccountRole }) {
   return (

@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
 import { goneLast, isGone, sumRange, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
-import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays } from "@/lib/crm/dates";
+import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Conv, Empty, Field, GoneSepRow, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg, useWheelHScroll } from "@/components/ui/kit";
+import { Avatar, Conv, Empty, Field, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg, useWheelHScroll } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 
-const TYPE_HUE: Record<DayType, string> = { work: "purple", off: "gray", training: "indigo", vacation: "amber", sick: "red" };
+const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training: "indigo", vacation: "amber", sick: "red" };
 
 /**
  * «Лента»: день в графике — отрезок полосы. Подряд идущие дни одного вида сливаются
@@ -104,6 +104,48 @@ export default function SchedulePage() {
     [days, rows, ix],
   );
 
+  // секции таблицы: работающие группы и её уволенные — отдельными сворачиваемыми блоками с итогами
+  const sections = useMemo(() => {
+    const out: Section[] = [];
+    rows.forEach((r, i) => {
+      const gone = isGone(r.op);
+      const key = `${r.groupKey}|${gone ? "gone" : "on"}`;
+      let sec = out[out.length - 1];
+      if (!sec || sec.key !== key) {
+        const gName = r.groupKey === NO_GROUP ? NO_GROUP_LABEL : ix.groupById.get(r.groupKey)?.name ?? "";
+        sec = { key, title: gone ? "Уволены" : gName, gone, idx: [] };
+        out.push(sec);
+      }
+      sec.idx.push(i);
+    });
+    return out;
+  }, [rows, ix]);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const toggleSection = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  // строки свёрнутых секций не попадают в выделение протягиванием
+  const hiddenRows = useMemo(() => {
+    const h = new Set<number>();
+    for (const sec of sections) if (collapsed.has(sec.key)) sec.idx.forEach((i) => h.add(i));
+    return h;
+  }, [sections, collapsed]);
+  // «–» в итогах дня — начиная с первого дня, когда в графике кто-то работал
+  const firstActive = dayTotals.findIndex((t) => t.h > 0 || t.n > 0);
+
+  // подсветка «крестом»: столбец под курсором — CSS по номеру столбца, без перерисовки таблицы
+  const crossCss = useMemo(
+    () =>
+      days
+        .map((_, i) => `.sched:has(td.cell[data-c="${i}"]:hover) :is(td.cell, th.day, td.day-tot)[data-c="${i}"]:not(.sel):not(.rng){box-shadow:inset 0 0 0 100px var(--sch-cross)}`)
+        .join(""),
+    [days],
+  );
+
   const tot = useMemo(() => {
     const hours = rows.reduce((a, r) => a + r.hours, 0);
     const leads = rows.reduce((a, r) => a + r.pace.fact, 0);
@@ -111,6 +153,33 @@ export default function SchedulePage() {
     const plan = rows.reduce((a, r) => a + r.pace.plan, 0);
     return { hours, leads, planToDate, plan };
   }, [rows]);
+
+  // план дня: план месяца строк на экране ÷ рабочие дни месяца; в выходные плана нет
+  const dayPlan = tot.plan > 0 ? tot.plan / m.cal.W : 0;
+  const planOf = (d: DayKey) => (dayPlan > 0 && m.cal.isWork(d) ? dayPlan : 0);
+
+  // итоги по неделям (пн–вс; первая и последняя неделя месяца — неполные)
+  const weeks = useMemo(() => {
+    const out: { from: DayKey; to: DayKey; c0: number; span: number; h: number; n: number; plan: number; past: boolean }[] = [];
+    days.forEach((d, i) => {
+      const t = dayTotals[i];
+      let w = out[out.length - 1];
+      if (!w || weekStart(d) !== weekStart(w.from)) {
+        w = { from: d, to: d, c0: i, span: 0, h: 0, n: 0, plan: 0, past: false };
+        out.push(w);
+      }
+      w.to = d;
+      w.span++;
+      w.plan += planOf(d);
+      // факт недели — только по прошедшим дням, чтобы плановые часы будущего не портили конверсию
+      if (d <= today) {
+        w.h += t.h;
+        w.n += t.n;
+        w.past = true;
+      }
+    });
+    return out;
+  }, [days, dayTotals, dayPlan, today, m.cal]);
 
   // итоги выделенных дат — по тем же строкам, что на экране (учитывает фильтр группы)
   const dayStats = useMemo(() => {
@@ -203,7 +272,7 @@ export default function SchedulePage() {
         const cells: { opId: string; day: DayKey }[] = [];
         for (let r = Math.min(rng.a.r, rng.b.r); r <= Math.max(rng.a.r, rng.b.r); r++) {
           const row = rows[r];
-          if (!row || !canEditShift(access, row.op.id)) continue;
+          if (!row || hiddenRows.has(r) || !canEditShift(access, row.op.id)) continue;
           for (let c = Math.min(rng.a.c, rng.b.c); c <= Math.max(rng.a.c, rng.b.c); c++) {
             const day = days[c];
             if (!day) continue;
@@ -228,12 +297,13 @@ export default function SchedulePage() {
       window.removeEventListener("mouseup", up);
       window.removeEventListener("keydown", esc);
     };
-  }, [rows, days, access]);
+  }, [rows, days, access, hiddenRows]);
 
   return (
     // таблица по высоте содержимого: «Итого по дням» идёт сразу под строками;
     // когда строк много, таблица упирается в высоту окна и прокручивается, а итог остаётся на виду
     <div className="stack" style={{ height: "calc(100vh / var(--ui-scale, 1) - 132px)" }}>
+      <style>{crossCss}</style>
       <PageHead
         title="График"
         sub={`${fmtMonth(month)}${access.can.editShifts ? " · клик по клетке — записать смену, протяните — выделить несколько" : ""}`}
@@ -241,7 +311,7 @@ export default function SchedulePage() {
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
             {access.can.editShifts && (
-              <button className="btn" onClick={() => setFillOpen(true)} disabled={!rows.length}>
+              <button className="btn btn-primary" onClick={() => setFillOpen(true)} disabled={!rows.length}>
                 <Icon name="fill" size={14} /> Заполнить
               </button>
             )}
@@ -251,7 +321,7 @@ export default function SchedulePage() {
 
       <div className="toolbar">
         <Select
-          width={190}
+          width={248}
           value={group}
           options={[
             { value: "", label: "Все группы" },
@@ -300,6 +370,7 @@ export default function SchedulePage() {
                     <th
                       key={d}
                       className={`day ${off ? "off" : ""} ${d === today ? "today" : ""} ${on ? "csel" : ""}`}
+                      data-c={ci}
                       title={dayRange ? undefined : `${fmtDay(d)}, ${fmtWeekday(d)}${off ? " · выходной" : ""} — протяните по датам, чтобы увидеть итоги`}
                       onMouseDown={(e) => {
                         if (e.button !== 0) return;
@@ -320,57 +391,100 @@ export default function SchedulePage() {
                 })}
                 {/* итоги: часы → лиды → сколько лидов не хватает до плана → конверсия (лиды ÷ часы) */}
                 <th className="r sum sum-h" title="Отработано часов (рабочие дни + обучение)">Часы</th>
-                <th className="r sum sum-l hl">Лиды</th>
+                <th className="r sum sum-l">Лиды</th>
                 <th className="r sum sum-d" title={past ? "Лиды минус план месяца" : "Лиды минус план на сегодня"}>
                   ± к плану
                 </th>
-                <th className="r sum sum-c hl" title="Конверсия: лиды ÷ отработанные часы">Конв.</th>
+                <th className="r sum sum-c" title="Конверсия: лиды ÷ отработанные часы">Конв.</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => {
-                const prevKey = i > 0 ? rows[i - 1].groupKey : null;
-                const gName = r.groupKey === NO_GROUP ? NO_GROUP_LABEL : ix.groupById.get(r.groupKey)?.name ?? "";
+              {sections.map((sec) => {
+                const shut = collapsed.has(sec.key);
                 return (
-                  <SchedRow
-                    key={r.op.id}
-                    r={r}
-                    rowIndex={i}
-                    days={days}
-                    groupHeader={!group && r.groupKey !== prevKey ? gName : null}
-                    groupCount={rows.filter((x) => x.groupKey === r.groupKey && !isGone(x.op)).length}
-                    goneSep={
-                      isGone(r.op) && (r.groupKey !== prevKey || !isGone(rows[i - 1].op))
-                        ? rows.filter((x) => x.groupKey === r.groupKey && isGone(x.op)).length
-                        : 0
-                    }
-                    colSpan={days.length + 5}
-                    sel={sel}
-                    range={range}
-                    colSel={colSel}
-                    onDown={startCell}
-                  />
+                  <Fragment key={sec.key}>
+                    <SectionRow sec={sec} rows={rows} dayCount={days.length} shut={shut} onToggle={() => toggleSection(sec.key)} />
+                    {!shut &&
+                      sec.idx.map((i) => (
+                        <SchedRow key={rows[i].op.id} r={rows[i]} rowIndex={i} days={days} sel={sel} range={range} colSel={colSel} onDown={startCell} />
+                      ))}
+                  </Fragment>
                 );
               })}
             </tbody>
             <tfoot>
-              <tr>
+              <tr className="day-row">
                 <td className="sticky-col">Итого по дням</td>
-                {dayTotals.map((t, i) => (
-                  <td
-                    key={days[i]}
-                    className={`c num ${colSel && i >= colSel.c0 && i <= colSel.c1 ? "csel" : ""}`}
-                    style={{ fontSize: 11.5, padding: "5px 0", lineHeight: 1.3 }}
-                    title={`${fmtDay(days[i])}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${t.h ? ` · конверсия ${fmtPct(t.n / t.h)} (${fmtNum(t.n / t.h, 2)} лид/ч)` : ""}`}
-                  >
-                    <div>{t.h ? fmtNum(t.h) : ""}</div>
-                    <div style={{ color: "var(--brand)", fontWeight: 700 }}>{t.n || ""}</div>
-                  </td>
-                ))}
+                {dayTotals.map((t, i) => {
+                  const d = days[i];
+                  const p = planOf(d);
+                  const pr = Math.round(p);
+                  // факт к плану — только за прошедшие дни: зелёный, если план дня выполнен
+                  const tone = p > 0 && d <= today && (t.h > 0 || t.n > 0) ? (t.n >= p ? "ok" : "bad") : "";
+                  return (
+                    <td
+                      key={d}
+                      data-c={i}
+                      className={`c num day-tot ${isWorkday(d, s) ? "" : "off"} ${colSel && i >= colSel.c0 && i <= colSel.c1 ? "csel" : ""}`}
+                      title={`${fmtDay(d)}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${p ? ` · план дня ${fmtNum(p, 1)}` : ""}${t.h ? ` · конверсия ${fmtPct(t.n / t.h)} (${fmtNum(t.n / t.h, 2)} лид/ч)` : ""}`}
+                    >
+                      {t.h || t.n ? (
+                        <>
+                          <div>{fmtNum(t.h)}</div>
+                          <div className={`day-tot-l ${tone}`}>
+                            {d <= today ? t.n : ""}
+                            {pr > 0 && <span className="day-tot-p">/{pr}</span>}
+                          </div>
+                          {/* конверсия дня (лиды ÷ часы): ниже нормы из настроек — красным, от нормы — зелёным; у будущих дней не считаем */}
+                          {t.h > 0 && d <= today && (
+                            <div className="day-tot-c">
+                              <Conv leads={t.n} hours={t.h} />
+                            </div>
+                          )}
+                        </>
+                      ) : firstActive >= 0 && i >= firstActive ? (
+                        <span className="day-tot-none">–</span>
+                      ) : null}
+                    </td>
+                  );
+                })}
                 <td className="r num sum sum-h">{fmtNum(tot.hours)}</td>
-                <td className="r num sum sum-l hl"><LeadN n={tot.leads} /></td>
+                <td className="r num sum sum-l"><LeadN n={tot.leads} /></td>
                 <LeadsDelta fact={tot.leads} plan={tot.plan} planToDate={tot.planToDate} />
-                <td className="r num sum sum-c hl"><Conv leads={tot.leads} hours={tot.hours} /></td>
+                <td className="r num sum sum-c"><Conv leads={tot.leads} hours={tot.hours} /></td>
+              </tr>
+              <tr className="week-row">
+                <td className="sticky-col">По неделям</td>
+                {weeks.map((w) => {
+                  const pr = Math.round(w.plan);
+                  const tone = pr > 0 && w.past ? (w.n >= w.plan ? "ok" : "bad") : "";
+                  const range = w.from === w.to ? fmtDay(w.from) : fmtRange(w.from, w.to);
+                  return (
+                    <td
+                      key={w.from}
+                      colSpan={w.span}
+                      className="week-tot num"
+                      title={`${range}: ${fmtNum(w.h)} ч, ${w.n} лид.${pr ? ` из ${fmtNum(w.plan, 1)} по плану` : ""}${w.h ? ` · конверсия ${fmtPct(w.n / w.h)}` : ""}`}
+                    >
+                      {w.past && (w.h > 0 || w.n > 0) ? (
+                        <span className="week-tot-in">
+                          <b className={`week-tot-l ${tone}`}>
+                            {w.n}
+                            {pr > 0 && <span className="day-tot-p">/{pr}</span>}
+                          </b>
+                          {w.span >= 3 && <span className="week-tot-h">{fmtNum(w.h)} ч</span>}
+                          {w.span >= 2 && w.h > 0 && <Conv leads={w.n} hours={w.h} />}
+                        </span>
+                      ) : pr > 0 && w.span >= 2 ? (
+                        <span className="week-tot-in muted">план {pr}</span>
+                      ) : null}
+                    </td>
+                  );
+                })}
+                <td className="sum sum-h" />
+                <td className="sum sum-l" />
+                <td className="sum sum-d" />
+                <td className="sum sum-c" />
               </tr>
             </tfoot>
           </table>
@@ -398,10 +512,6 @@ function SchedRow({
   r,
   rowIndex,
   days,
-  groupHeader,
-  groupCount,
-  goneSep,
-  colSpan,
   sel,
   range,
   colSel,
@@ -410,12 +520,6 @@ function SchedRow({
   r: OpRow;
   rowIndex: number;
   days: DayKey[];
-  groupHeader: string | null;
-  /** Сколько работающих в группе — в заголовке «Группа · N чел.». */
-  groupCount: number;
-  /** Первый уволенный в группе — перед ним разделитель «Уволены · N». */
-  goneSep: number;
-  colSpan: number;
   sel: Sel | null;
   range: Range | null;
   colSel: { c0: number; c1: number } | null;
@@ -446,80 +550,118 @@ function SchedRow({
   const opSub =
     r.op.status === "fired" && fire ? `уволен(а) ${ddmm(fire)}` : hire && hire > days[0] && hire <= days[days.length - 1] ? `с ${ddmm(hire)}` : "";
   return (
-    <>
-      {groupHeader != null && (
-        <tr className="grp">
-          <td className="sticky-col" style={{ background: "var(--bg-strip)", fontSize: 11.5, fontWeight: 600, color: "var(--text-sub)", padding: "6px 10px" }}>
-            {groupHeader} · {groupCount} чел.
-          </td>
-          <td colSpan={colSpan - 1} style={{ background: "var(--bg-strip)", padding: 0 }} />
-        </tr>
-      )}
-      {goneSep > 0 && <GoneSepRow count={goneSep} colSpan={colSpan} />}
-      <tr>
-        <td className="sticky-col">
-          <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
-            <Avatar name={r.op.name} id={r.op.id} size={24} />
-            <span style={{ minWidth: 0 }}>
-              <span className="op-n" title={r.op.name}>
-                {shortName(r.op.name)}
-              </span>
-              {opSub && <span className="op-sub">{opSub}</span>}
+    <tr className="sch-row">
+      <td className="sticky-col">
+        <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+          <Avatar name={r.op.name} id={r.op.id} size={28} />
+          <span style={{ minWidth: 0 }}>
+            <span className="op-n" title={r.op.name}>
+              {shortName(r.op.name)}
             </span>
+            {opSub && <span className="op-sub">{opSub}</span>}
           </span>
-        </td>
-        {days.map((d, colIndex) => {
-          const sh = ix.shift.get(`${d}|${r.op.id}`);
-          const off = !isWorkday(d, s);
-          // уволен: с даты увольнения — «У» (если смены в этот день нет); до приёма — штриховка
-          const gone = r.op.status === "fired" && !!fire && d >= fire && !sh;
-          const outside = !!hire && d < hire;
-          const n = counts?.get(d) ?? 0;
-          const isSel = sel?.opId === r.op.id && sel.day === d;
-          const isRange = inRange(range, rowIndex, colIndex);
-          const lane = lanes[colIndex];
-          const edge = lane ? `${lanes[colIndex - 1] !== lane ? " first" : ""}${lanes[colIndex + 1] !== lane ? " last" : ""}` : "";
-          const hours = sh && (sh.type === "work" || sh.type === "training") ? sh.hours : 0;
-          return (
-            <td
-              key={d}
-              className={`cell ${off ? "off" : ""} ${d === today ? "today" : ""} ${isSel ? "sel" : ""} ${isRange ? "rng" : ""} ${colSel && colIndex >= colSel.c0 && colIndex <= colSel.c1 ? "csel" : ""}`}
-              style={{ cursor: canEdit ? undefined : "default" }}
-              title={`${fmtDay(d)}${sh ? ` · ${DAY_LABEL[sh.type]}${sh.hours ? `, ${fmtNum(sh.hours)} ч` : ""}${sh.comment ? ` · ${sh.comment}` : ""}` : ""}${n ? ` · лидов: ${n}` : ""}${outside ? " · до даты приёма" : ""}${gone ? " · уволен" : ""}`}
-              onMouseDown={(e) => {
-                if (!canEdit || e.button !== 0) return;
-                e.preventDefault(); // иначе браузер начинает выделять текст
-                const rc = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                onDown(rowIndex, colIndex, { left: rc.left, top: rc.top, bottom: rc.bottom });
-              }}
-              data-r={rowIndex}
-              data-c={colIndex}
-            >
-              {lane ? (
-                <div className={`lane ${lane}${edge}`}>
-                  {lane === "work" || lane === "train" ? (
-                    <>
-                      <span className="lane-h num">{fmtNum(hours)}</span>
-                      {d <= today && <span className="lane-n num">{n || "—"}</span>}
-                    </>
-                  ) : lane === "plan" ? (
-                    <span className="lane-h num">{fmtNum(hours)}</span>
-                  ) : edge.includes("first") ? (
-                    <span className="lane-tag">{LANE_TAG[lane]}</span>
-                  ) : null}
+        </span>
+      </td>
+      {days.map((d, colIndex) => {
+        const sh = ix.shift.get(`${d}|${r.op.id}`);
+        const off = !isWorkday(d, s);
+        // уволен: с даты увольнения — «У» (если смены в этот день нет); до приёма — штриховка
+        const gone = r.op.status === "fired" && !!fire && d >= fire && !sh;
+        const outside = !!hire && d < hire;
+        const n = counts?.get(d) ?? 0;
+        const isSel = sel?.opId === r.op.id && sel.day === d;
+        const isRange = inRange(range, rowIndex, colIndex);
+        const lane = lanes[colIndex];
+        const edge = lane ? `${lanes[colIndex - 1] !== lane ? " first" : ""}${lanes[colIndex + 1] !== lane ? " last" : ""}` : "";
+        // больничный, отпуск, «уволен» — одним цельным блоком на всю серию: рисуем в первой клетке, остальные пустые
+        const solid = lane === "sick" || lane === "vac" || lane === "gone";
+        let span = 0;
+        if (solid && edge.includes("first")) while (lanes[colIndex + span] === lane) span++;
+        const hours = sh && (sh.type === "work" || sh.type === "training") ? sh.hours : 0;
+        return (
+          <td
+            key={d}
+            className={`cell ${off ? "off" : ""} ${d === today ? "today" : ""} ${isSel ? "sel" : ""} ${isRange ? "rng" : ""} ${colSel && colIndex >= colSel.c0 && colIndex <= colSel.c1 ? "csel" : ""}`}
+            style={{ cursor: canEdit ? undefined : "default" }}
+            title={`${fmtDay(d)}${sh ? ` · ${DAY_LABEL[sh.type]}${sh.hours ? `, ${fmtNum(sh.hours)} ч` : ""}${sh.comment ? ` · ${sh.comment}` : ""}` : ""}${n ? ` · лидов: ${n}` : ""}${outside ? " · до даты приёма" : ""}${gone ? " · уволен" : ""}`}
+            onMouseDown={(e) => {
+              if (!canEdit || e.button !== 0) return;
+              e.preventDefault(); // иначе браузер начинает выделять текст
+              const rc = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              onDown(rowIndex, colIndex, { left: rc.left, top: rc.top, bottom: rc.bottom });
+            }}
+            data-r={rowIndex}
+            data-c={colIndex}
+          >
+            {solid ? (
+              span > 0 && (
+                <div className="lane-anchor">
+                  <div className={`lane ${lane} first last lane-span`} style={{ ["--span" as string]: span }}>
+                    <span className="lane-tag">{LANE_TAG[lane!]}</span>
+                  </div>
                 </div>
-              ) : sh?.type === "off" ? (
-                <span className="lane-off">в</span>
-              ) : null}
-            </td>
-          );
-        })}
-        <td className="r num sum sum-h">{fmtNum(r.hours)}</td>
-        <td className="r num sum sum-l hl"><LeadN n={r.pace.fact} /></td>
-        <LeadsDelta fact={r.pace.fact} plan={r.pace.plan} planToDate={r.pace.planToDate} />
-        <td className="r num sum sum-c hl"><Conv leads={r.pace.fact} hours={r.hours} /></td>
-      </tr>
-    </>
+              )
+            ) : lane ? (
+              <div className={`lane ${lane}${edge}`}>
+                {lane === "work" || lane === "train" ? (
+                  <>
+                    <span className="lane-h num">{fmtNum(hours)}</span>
+                    {d <= today && <span className="lane-n num">{n || "–"}</span>}
+                  </>
+                ) : (
+                  <span className="lane-h num">{fmtNum(hours)}</span>
+                )}
+              </div>
+            ) : sh?.type === "off" ? (
+              <span className="lane-off">В</span>
+            ) : null}
+          </td>
+        );
+      })}
+      <td className="r num sum sum-h">{fmtNum(r.hours)}</td>
+      <td className="r num sum sum-l"><LeadN n={r.pace.fact} /></td>
+      <LeadsDelta fact={r.pace.fact} plan={r.pace.plan} planToDate={r.pace.planToDate} />
+      <td className="r num sum sum-c"><Conv leads={r.pace.fact} hours={r.hours} /></td>
+    </tr>
+  );
+}
+
+interface Section {
+  key: string;
+  title: string;
+  gone: boolean;
+  /** Индексы строк в общем списке (по ним работает выделение). */
+  idx: number[];
+}
+
+/** Заголовок секции: «Группа · N чел.» / «Уволены · N», свернуть-развернуть, итоги секции справа. */
+function SectionRow({ sec, rows, dayCount, shut, onToggle }: { sec: Section; rows: OpRow[]; dayCount: number; shut: boolean; onToggle: () => void }) {
+  let hours = 0;
+  let leads = 0;
+  let plan = 0;
+  let planToDate = 0;
+  for (const i of sec.idx) {
+    const r = rows[i];
+    hours += r.hours;
+    leads += r.pace.fact;
+    plan += r.pace.plan;
+    planToDate += r.pace.planToDate;
+  }
+  return (
+    <tr className="grp-head sch-grp">
+      <td className="sticky-col">
+        <button type="button" className="sch-grp-btn" onClick={onToggle} aria-expanded={!shut}>
+          <Icon name="chevD" size={15} stroke={2} className={shut ? "shut" : undefined} />
+          {sec.title} · {sec.idx.length}
+          {sec.gone ? "" : " чел."}
+        </button>
+      </td>
+      <td colSpan={dayCount} />
+      <td className="r num sum sum-h">{fmtNum(hours)}</td>
+      <td className="r num sum sum-l"><LeadN n={leads} /></td>
+      <LeadsDelta fact={leads} plan={plan} planToDate={planToDate} />
+      <td className="r num sum sum-c"><Conv leads={leads} hours={hours} /></td>
+    </tr>
   );
 }
 
@@ -529,8 +671,7 @@ function LeadsDelta({ fact, plan, planToDate }: { fact: number; plan: number; pl
   const d = Math.round(fact - planToDate);
   return (
     <td
-      className="r num sum sum-d"
-      style={{ color: d < 0 ? "var(--c-red-fg)" : d > 0 ? "var(--c-green-fg)" : undefined, fontWeight: 600 }}
+      className={`r num sum sum-d ${d < 0 ? "neg" : d > 0 ? "pos" : ""}`}
       title={d < 0 ? `Не хватает ${fmtInt(-d)} лид. до плана на дату (${fmtInt(Math.round(planToDate))})` : `План на дату (${fmtInt(Math.round(planToDate))}) выполнен`}
     >
       {d > 0 ? "+" : d < 0 ? "−" : ""}

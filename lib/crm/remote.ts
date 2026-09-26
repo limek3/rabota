@@ -2,6 +2,7 @@
 
 import type { DataState, Settings } from "./types";
 import { emptyState, normalizeSettings } from "./defaults";
+import { cleanLeadExportLog, cleanLeadExports } from "./validate";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -154,6 +155,8 @@ export async function loadAll(): Promise<{ state: DataState; persistent: boolean
   const sheets = val("sheets") as Settings["sheets"] | undefined;
   st.settings = normalizeSettings({ ...settings, ...(sheets ? { sheets } : {}) });
   st.frozenMonths = ((val("frozenMonths") as string[] | undefined) ?? []).filter((m) => typeof m === "string");
+  st.leadExports = cleanLeadExports(val("leadExports"));
+  st.leadExportLog = cleanLeadExportLog(val("leadExportLog"));
   return { state: st, persistent: true };
 }
 
@@ -249,6 +252,12 @@ export async function deleteRecords(table: Table, ids: string[]): Promise<void> 
   }
 }
 
+export async function getKV(key: string): Promise<unknown> {
+  const { data, error } = await supabase().from("kv").select("value").eq("key", key).maybeSingle();
+  if (error) fail(error);
+  return (data as { value?: unknown } | null)?.value;
+}
+
 export async function setKV(key: string, value: unknown): Promise<void> {
   const rows: { key: string; value: unknown; updated_at: string }[] = [];
   const now = new Date().toISOString();
@@ -272,6 +281,9 @@ export async function replaceAll(state: DataState): Promise<void> {
   payload.frozenMonths = state.frozenMonths;
   const { error } = await supabase().rpc("crm_replace_all", { p: payload });
   if (error) fail(error);
+  // отметки выгрузки номеров функция замены не знает — отдельной строкой настроек
+  await setKV("leadExports", state.leadExports ?? {});
+  await setKV("leadExportLog", state.leadExportLog ?? []);
 }
 
 /**
@@ -298,6 +310,8 @@ export async function mergeUpload(state: DataState, myEmail: string): Promise<Re
   }
   await setKV("settings", state.settings);
   if (state.frozenMonths.length) await setKV("frozenMonths", state.frozenMonths);
+  if (Object.keys(state.leadExports ?? {}).length) await setKV("leadExports", state.leadExports);
+  if (state.leadExportLog?.length) await setKV("leadExportLog", state.leadExportLog);
   return counts;
 }
 

@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { filterLeads } from "@/lib/crm/calc";
-import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type LeadStatus } from "@/lib/crm/types";
-import { fmtDate, rangeDays } from "@/lib/crm/dates";
+import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type DayKey, type Lead, type LeadStatus } from "@/lib/crm/types";
+import { fmtDate, fmtStamp, rangeDays } from "@/lib/crm/dates";
 import { LEADS, fmtInt, fmtNum, fmtPhone, plural, shortName } from "@/lib/crm/format";
-import { Chip, ClipText, Empty, RegionTag, LeadLinkButton, LeadStatusChip, PageHead, Pager, PeriodPicker, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
-import { Select, dot, type Opt } from "@/components/ui/select";
+import { Chip, ClipText, Empty, Field, Modal, RegionTag, LeadLinkButton, LeadStatusChip, PageHead, Pager, PeriodPicker, Switch, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canReviewLead } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 import { SEGMENT_HUE, SEGMENT_LABEL, regionSegment, type RegionSegment } from "@/lib/crm/regions";
+import { buildXlsx, downloadBlob } from "@/lib/xlsx";
 
 /** Размеры страницы журнала; выбор запоминается в этом браузере. */
 const SIZES = [25, 50, 75, 100];
@@ -33,6 +34,10 @@ export default function LeadsPage() {
   const [region, setRegion] = useState("");
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(25);
+  const [phonesOpen, setPhonesOpen] = useState(false);
+  // только лиды с номером, который ещё не выгружали в Excel
+  const [notExported, setNotExported] = useState(false);
+  const canExport = access.isHead || access.isSup;
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,22 +72,32 @@ export default function LeadsPage() {
   }, []);
 
   // новый фильтр или размер страницы — снова с первой страницы
-  useEffect(() => setPage(1), [period, operatorId, groupId, projectId, q, status, region, size]);
+  useEffect(() => setPage(1), [period, operatorId, groupId, projectId, q, status, region, size, notExported]);
 
   // без фильтра по статусу — для счётчиков «в работе / доведён / не доведён»
   const s = data.settings;
-  const base = useMemo(() => {
-    const all = filterLeads(data.leads, { from: period.from, to: period.to, operatorId, groupId, projectId, q });
-    // лид без региона — основа (так же считает доход)
-    const segOf = (r?: string): RegionSegment => regionSegment(r, s) ?? "main";
-    const byRegion = !region
-      ? all
-      : region.startsWith("seg:")
-        ? all.filter((l) => segOf(l.region) === region.slice(4))
-        : all.filter((l) => (l.region ?? "") === region);
-    return byRegion.sort((a, b) => b.at.localeCompare(a.at));
-  }, [data.leads, period, operatorId, groupId, projectId, q, region, s]);
-  const list = useMemo(() => (status ? base.filter((l) => l.status === status) : base), [base, status]);
+  // все фильтры страницы, кроме статуса, за любые даты — и для списка, и для выгрузки номеров
+  const pick = useCallback(
+    (from: DayKey, to: DayKey) => {
+      const all = filterLeads(data.leads, { from, to, operatorId, groupId, projectId, q });
+      // лид без региона — основа (так же считает доход)
+      const segOf = (r?: string): RegionSegment => regionSegment(r, s) ?? "main";
+      const byRegion = !region
+        ? all
+        : region.startsWith("seg:")
+          ? all.filter((l) => segOf(l.region) === region.slice(4))
+          : all.filter((l) => (l.region ?? "") === region);
+      return byRegion.sort((a, b) => b.at.localeCompare(a.at));
+    },
+    [data.leads, operatorId, groupId, projectId, q, region, s],
+  );
+  const base = useMemo(() => pick(period.from, period.to), [pick, period]);
+  const byStatusList = useMemo(() => (status ? base.filter((l) => l.status === status) : base), [base, status]);
+  const notExportedCount = useMemo(() => byStatusList.filter((l) => l.phone && !data.leadExports[l.id]).length, [byStatusList, data.leadExports]);
+  const list = useMemo(
+    () => (notExported ? byStatusList.filter((l) => l.phone && !data.leadExports[l.id]) : byStatusList),
+    [byStatusList, notExported, data.leadExports],
+  );
   // лид могли удалить или сменить статус — не остаёмся на пустой странице
   const pageCount = Math.max(1, Math.ceil(list.length / size));
   const cur = Math.min(page, pageCount);
@@ -151,7 +166,7 @@ export default function LeadsPage() {
     ];
   }, [operators, data.leads, period.from, period.to, operatorId, ix]);
   const projects = useMemo(() => [...data.projects].sort((a, b) => a.sort - b.sort), [data.projects]);
-  const filtered = !!(operatorId || groupId || projectId || q || status || region);
+  const filtered = !!(operatorId || groupId || projectId || q || status || region || notExported);
 
   const exportCsv = () => {
     const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", "Комментарий", "Источник", "Регион", "Основа / регионы"]];
@@ -187,6 +202,11 @@ export default function LeadsPage() {
             <button className="btn" onClick={exportCsv} disabled={!list.length}>
               <Icon name="download" size={14} /> CSV
             </button>
+            {canExport && (
+              <button className="btn" onClick={() => setPhonesOpen(true)} disabled={!data.leads.length} title="Имя и телефон в Excel, с отметкой, что уже выгружали">
+                <Icon name="download" size={14} /> Номера
+              </button>
+            )}
             {access.can.createLeads && (
               <button className="btn btn-primary" onClick={() => openLead()}>
                 <Icon name="plus" size={14} stroke={2.2} /> Лид передан
@@ -244,6 +264,7 @@ export default function LeadsPage() {
                 setQ("");
                 setStatus("");
                 setRegion("");
+                setNotExported(false);
               }}
             >
               Сбросить
@@ -269,6 +290,18 @@ export default function LeadsPage() {
               {LEAD_STATUS_LABEL[st]} · {fmtInt(byStatus[st])}
             </button>
           ))}
+          {canExport && (
+            <button
+              type="button"
+              className="chip"
+              style={hueVars("blue")}
+              aria-pressed={notExported || undefined}
+              onClick={() => setNotExported((v) => !v)}
+              title={notExported ? "Показать все лиды" : "Только лиды с номером, который ещё не выгружали в Excel"}
+            >
+              Не выгружены · {fmtInt(notExportedCount)}
+            </button>
+          )}
           {status === "work" && reviewable.length > 0 && (
             <button
               className="btn btn-sm"
@@ -353,7 +386,7 @@ export default function LeadsPage() {
                 const g = l.groupId ? ix.groupById.get(l.groupId) : null;
                 const p = l.projectId ? ix.projectById.get(l.projectId) : null;
                 return (
-                  <tr key={l.id} className="clickable" onClick={() => openLead(l)}>
+                  <tr key={l.id} className={l.status === "failed" ? "clickable row-stripe" : "clickable"} onClick={() => openLead(l)}>
                     <td className="num c" title={`${fmtDate(l.at.slice(0, 10))} ${l.at.slice(11, 16)} МСК`}>
                       {l.at.slice(0, 4) === today.slice(0, 4) ? fmtDate(l.at.slice(0, 10)).slice(0, 5) : fmtDate(l.at.slice(0, 10))} <span className="muted">{l.at.slice(11, 16)}</span>
                     </td>
@@ -366,7 +399,7 @@ export default function LeadsPage() {
                       )}
                     </td>
                     <td>
-                      <ClipText text={l.client} width={120} />
+                      <ClipText text={l.client} width={160} />
                     </td>
                     <td className="num c">
                       {/* ссылка на лид — слева от номера; слот фиксированной ширины держит номера на одной вертикали */}
@@ -375,6 +408,11 @@ export default function LeadsPage() {
                           <LeadLinkButton link={l.link} variant="icon" />
                         </span>
                         {fmtPhone(l.phone) || <span className="muted">—</span>}
+                        {data.leadExports[l.id] && (
+                          <span className="lead-exported" title={`Номер выгружен ${fmtStamp(data.leadExports[l.id])}`}>
+                            <Icon name="check" size={14} stroke={2.4} />
+                          </span>
+                        )}
                       </span>
                     </td>
                     <td className="c">{p ? <Chip hue={p.color}>{p.name}</Chip> : <span className="muted">—</span>}</td>
@@ -386,7 +424,7 @@ export default function LeadsPage() {
                     </td>
                     <td className={g ? "c" : "c muted"}>{g ? g.name : NO_GROUP_LABEL}</td>
                     <td className="muted">
-                      <ClipText text={l.comment} width={130} />
+                      <ClipText text={l.comment} width={280} />
                     </td>
                   </tr>
                 );
@@ -397,6 +435,136 @@ export default function LeadsPage() {
         <Pager page={cur} size={size} total={list.length} sizes={SIZES} onPage={goPage} onSize={changeSize} />
         </>
       )}
+      {phonesOpen && (
+        <PhonesExport
+          from={period.from}
+          to={period.to > today ? today : period.to}
+          pick={(from, to) => (status ? pick(from, to).filter((l) => l.status === status) : pick(from, to))}
+          filtered={filtered}
+          onClose={() => setPhonesOpen(false)}
+        />
+      )}
     </div>
+  );
+}
+
+/** «номер / номера / номеров» */
+const NUMBERS: [string, string, string] = ["номер", "номера", "номеров"];
+
+/** Номер для файла: +7XXXXXXXXXX — так его понимают и Excel, и звонилки. */
+const filePhone = (p: string) => {
+  const d = (p || "").replace(/\D+/g, "");
+  return d.length === 11 && d.startsWith("7") ? `+${d}` : (p || "").trim();
+};
+
+/**
+ * Выгрузка номеров в Excel: две колонки — имя и телефон, за выбранные даты.
+ * Выгруженные лиды получают отметку (галочка у номера в журнале), поэтому
+ * по умолчанию в файл идут только те, что ещё не выгружали.
+ */
+function PhonesExport({
+  from: from0,
+  to: to0,
+  pick,
+  filtered,
+  onClose,
+}: {
+  from: DayKey;
+  to: DayKey;
+  pick: (from: DayKey, to: DayKey) => Lead[];
+  filtered: boolean;
+  onClose: () => void;
+}) {
+  const { data, today, markLeadsExported, toast } = useCrm();
+  const [from, setFrom] = useState<DayKey>(from0);
+  const [to, setTo] = useState<DayKey>(to0 < from0 ? from0 : to0);
+  const [onlyNew, setOnlyNew] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const withPhone = useMemo(() => (from <= to ? pick(from, to) : []).filter((l) => filePhone(l.phone)), [pick, from, to]);
+  const done = useMemo(() => withPhone.filter((l) => data.leadExports[l.id]).length, [withPhone, data.leadExports]);
+  const out = useMemo(() => {
+    const src = (onlyNew ? withPhone.filter((l) => !data.leadExports[l.id]) : withPhone).slice().sort((a, b) => a.at.localeCompare(b.at));
+    // один номер — одна строка, даже если лид по нему передавали дважды
+    const seen = new Set<string>();
+    const rows: string[][] = [];
+    for (const l of src) {
+      const ph = filePhone(l.phone);
+      if (seen.has(ph)) continue;
+      seen.add(ph);
+      rows.push([l.client.trim(), ph]);
+    }
+    return { leads: src, rows };
+  }, [withPhone, onlyNew, data.leadExports]);
+
+  const download = async () => {
+    setBusy(true);
+    const span = from === to ? fmtDate(from) : `${fmtDate(from)}–${fmtDate(to)}`;
+    downloadBlob(`Номера ${span}.xlsx`, buildXlsx([["Имя", "Телефон"], ...out.rows], { sheet: "Номера", widths: [34, 18] }));
+    const ok = await markLeadsExported(
+      out.leads.map((l) => l.id),
+      { from, to, count: out.rows.length },
+    );
+    setBusy(false);
+    if (!ok) return;
+    toast(`Выгружено номеров: ${fmtInt(out.rows.length)}`);
+    onClose();
+  };
+
+  return (
+    <Modal
+      title="Выгрузка номеров"
+      onClose={onClose}
+      width={460}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            Отмена
+          </button>
+          <button className="btn btn-primary" onClick={() => void download()} disabled={busy || !out.rows.length}>
+            <Icon name="download" size={14} /> Скачать Excel{out.rows.length ? ` (${fmtInt(out.rows.length)})` : ""}
+          </button>
+        </>
+      }
+    >
+      <div style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>
+        Файл Excel: две колонки — имя и телефон. Выгруженные номера отмечаются галочкой в журнале лидов.
+        {filtered && " Учитываются фильтры страницы."}
+      </div>
+      <div className="grid2">
+        <Field label="С">
+          <DateInput value={from} onChange={(d) => d && setFrom(d)} max={today} ariaLabel="С" />
+        </Field>
+        <Field label="По">
+          <DateInput value={to} onChange={(d) => d && setTo(d)} min={from} max={today} ariaLabel="По" />
+        </Field>
+      </div>
+      <Switch checked={onlyNew} onChange={setOnlyNew} label="Только ещё не выгруженные" />
+      <div className="note-line" style={{ fontSize: 13 }}>
+        С номером: <b className="num">{fmtInt(withPhone.length)}</b> · уже выгружали:{" "}
+        <b className="num">
+          {fmtInt(done)} <Icon name="check" size={12} stroke={2.4} style={{ color: "var(--c-green-fg)", verticalAlign: -1 }} />
+        </b>{" "}
+        · в файл: <b className="num">{fmtInt(out.rows.length)}</b>
+        {out.leads.length > out.rows.length && <span className="muted"> (повторы номеров убраны)</span>}
+      </div>
+      {data.leadExportLog.length > 0 && (
+        <div className="stack" style={{ gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-sub)" }}>Последние выгрузки</span>
+          <div className="exp-log">
+            {data.leadExportLog.slice(0, 8).map((e) => (
+              <div key={e.at + e.by} className="exp-log-row">
+                <span className="num">{fmtStamp(e.at)}</span>
+                <span className="exp-log-by">{e.by}</span>
+                <b className="num">
+                  {fmtInt(e.count)} {plural(e.count, NUMBERS)}
+                </b>
+                <span className="muted num">{e.from === e.to ? fmtDate(e.from) : `${fmtDate(e.from).slice(0, 5)}–${fmtDate(e.to).slice(0, 5)}`}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }

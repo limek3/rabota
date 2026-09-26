@@ -13,6 +13,7 @@ import type {
   Approve,
   AuditEntry,
   Candidate,
+  LeadExportLogEntry,
 } from "./types";
 import { CANDIDATE_STAGES, LEAD_SOURCE, LEAD_STATUSES } from "./types";
 import { normalizePrefs, normalizeSettings, normalizeTiers } from "./defaults";
@@ -363,6 +364,8 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
     candidates,
     audit,
     frozenMonths: Array.isArray(src.frozenMonths) ? (src.frozenMonths as unknown[]).filter(isMonthKey) : [],
+    leadExports: cleanLeadExports(src.leadExports),
+    leadExportLog: cleanLeadExportLog(src.leadExportLog),
   };
   const fixed = repair(state);
   return { state: fixed.state, warnings: [...warns, ...fixed.notes] };
@@ -526,7 +529,28 @@ export function toSnapshot(st: DataState): Snapshot {
     candidates: st.candidates,
     audit: st.audit,
     frozenMonths: st.frozenMonths,
+    leadExports: st.leadExports,
+    leadExportLog: st.leadExportLog,
   };
+}
+
+/** Отметки выгрузки номеров: только пары «id лида → строка-дата». */
+export function cleanLeadExports(v: unknown): Record<string, string> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, at] of Object.entries(v as Record<string, unknown>)) if (typeof at === "string" && at) out[k] = at;
+  return out;
+}
+
+/** История выгрузок: только целые записи, не больше 200 последних. */
+export function cleanLeadExportLog(v: unknown): LeadExportLogEntry[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter(
+      (e): e is LeadExportLogEntry =>
+        !!e && typeof e === "object" && typeof e.at === "string" && typeof e.by === "string" && typeof e.count === "number" && typeof e.from === "string" && typeof e.to === "string",
+    )
+    .slice(0, 200);
 }
 
 export function counts(st: DataState): Record<string, number> {

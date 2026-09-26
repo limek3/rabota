@@ -608,8 +608,6 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 @media (max-width: 900px) { .acc-btn { justify-content: center; padding: 6px 0; } }
 
 /* плотные таблицы — личная настройка аккаунта */
-:root[data-density="compact"] .tbl td { padding-top: 5px; padding-bottom: 5px; }
-:root[data-density="compact"] .tbl th { padding-top: 7px; padding-bottom: 7px; }
 :root[data-density="compact"] .kpi { padding: 10px 12px; }
 :root[data-density="compact"] .kpi-value { font-size: 19px; }
 
@@ -911,52 +909,240 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .audit-to { background: var(--c-green-bg); color: var(--c-green-fg); font-weight: 600; }
 .audit-empty { color: var(--dimmer); }
 
-/* ── «Лента» в графике: день — отрезок полосы, серии дней сливаются (как в календаре) ── */
-.sched, .lane-legend {
-  --ln-plan: color-mix(in srgb, var(--brand) 24%, var(--bg-panel)); --ln-plan-fg: color-mix(in srgb, var(--brand) 55%, #fff);
-  --ln-train: color-mix(in srgb, var(--brand) 60%, var(--bg-panel));
-  --ln-sick: var(--c-red-bg); --ln-sick-fg: var(--c-red-fg);
-  --ln-vac: var(--c-amber-bg); --ln-vac-fg: var(--c-amber-fg);
-  --ln-gone1: var(--ink-06); --ln-gone2: transparent; --ln-gone-fg: var(--dimmer);
-  --ln-off: var(--dimmer); --ln-we: var(--ink-015); --ln-today: color-mix(in srgb, var(--brand) 8%, transparent);
-  --ln-line: var(--ink-05);
+/* ════════════════════════════════════════════════════════════════════
+   Графитовая система — общие компоненты и «График».
+   Все цвета — токены из globals.css (одинаковые роли в светлой и тёмной теме),
+   поэтому тёмная тема повторяет светлую, а не живёт своей жизнью.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── одна шкала размеров на все страницы; «компактно» ужимает всё вместе, график тоже ── */
+:root {
+  --ctl-h: 38px;
+  --th-py: 10px;
+  --td-py: 10px;
+  --sch-row: 48px;
+  --sch-lane: 36px;
+  --sch-col: 42px;
+  --sch-head-h: 52px;
+  --sch-grp-h: 38px;
+  --sch-foot-h: 60px;
+  --sch-week-h: 38px;
 }
-:root[data-theme="light"] :is(.sched, .lane-legend) {
-  --ln-plan: #e7defd; --ln-plan-fg: #5a37c9; --ln-train: #b39cf5;
-  --ln-sick: #fbe1df; --ln-sick-fg: #b33b35; --ln-vac: #fbf0d2; --ln-vac-fg: #93671b;
-  --ln-gone1: #f3f2f0; --ln-gone2: #fafaf9; --ln-gone-fg: #b8b7b4;
-  --ln-off: #cfcecb; --ln-we: #fbfbfa; --ln-today: rgba(123, 79, 240, 0.08); --ln-line: #ecebea;
+:root[data-density="compact"] {
+  --ctl-h: 34px;
+  --th-py: 7px;
+  --td-py: 6px;
+  --sch-row: 40px;
+  --sch-lane: 30px;
+  --sch-col: 38px;
+  --sch-head-h: 46px;
+  --sch-grp-h: 34px;
+  --sch-foot-h: 54px;
+  --sch-week-h: 32px;
 }
-/* без пунктира между днями: полосы сплошные; линия только у имени и перед итогами */
-.tbl.sched :is(th, td) + :is(th, td) { border-left: none; }
-.tbl.sched .sticky-col { border-right: 1px solid var(--ln-line); }
-.tbl.sched .sum-h { border-left: 1px solid var(--ln-line); }
-.tbl.sched tbody td { border-bottom-color: var(--ln-line); }
-.lane { position: relative; height: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; line-height: 1.05; }
-.lane.first { margin-left: 3px; border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
-.lane.last { margin-right: 3px; border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-.lane.work { background: var(--brand); color: #fff; }
-.lane.train { background: var(--ln-train); color: #fff; }
-.lane.plan { background: var(--ln-plan); color: var(--ln-plan-fg); }
-.lane.sick { background: var(--ln-sick); color: var(--ln-sick-fg); font-weight: 700; }
-.lane.vac { background: var(--ln-vac); color: var(--ln-vac-fg); font-weight: 700; }
-.lane.gone { background: repeating-linear-gradient(135deg, var(--ln-gone1) 0 5px, var(--ln-gone2) 5px 10px); color: var(--ln-gone-fg); font-weight: 700; }
-.lane.work .lane-h, .lane.train .lane-h { font-weight: 700; }
-/* лиды — мелкой цифрой под часами */
-.lane-n { font-size: 9.5px; opacity: 0.8; }
-.lane-off { color: var(--ln-off); font-size: 11px; font-weight: 600; }
-/* выделение поверх ленты — рамкой, не заливкой (полосу видно) */
+
+/* ── общие компоненты ── */
+.card { border-color: var(--line); border-radius: 11px; box-shadow: var(--shadow-xs); }
+.btn { border-radius: 8px; border-color: var(--ctrl-border); background: var(--bg-panel); color: var(--text-soft); box-shadow: var(--shadow-xs); }
+.btn:hover:not(:disabled) { background: var(--bg-panel-hover); border-color: var(--ctrl-border-hover); }
+.btn-sm { border-radius: 6px; }
+.btn-ghost { background: transparent; border-color: transparent; box-shadow: none; }
+.btn-ghost:hover:not(:disabled) { background: var(--ink-05); border-color: transparent; }
+.btn-primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); box-shadow: 0 2px 6px var(--brand-glow); }
+.btn-primary:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); color: var(--on-brand); }
+.btn-danger { box-shadow: none; }
+.inp { border-color: var(--ctrl-border); background: var(--bg-panel); border-radius: 8px; }
+.inp:hover { border-color: var(--ctrl-border-hover); }
+/* статусы, проекты, регионы, счётчики — прямоугольные, с лёгким скруглением (не «таблетки») */
+.chip { border-radius: 5px; box-shadow: none; }
+
+/* ── «График»: шапка страницы и панель ── */
+.stack:has(.sched) { gap: 12px; }
+.stack:has(.sched) .page-head { margin-bottom: 10px; align-items: flex-start; }
+.stack:has(.sched) .page-title { font-size: 34px; line-height: 1.05; font-weight: 700; letter-spacing: -0.8px; color: var(--text); }
+.stack:has(.sched) .page-sub { margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text-sub); }
+.stack:has(.sched) .page-head .toolbar { gap: 8px; }
+.stack:has(.sched) .page-head .btn-primary { font-weight: 600; }
+.stack:has(.sched) > .toolbar { min-height: 42px; gap: 10px; margin-bottom: 0; }
+.stack:has(.sched) > .toolbar .sel-trigger { border-radius: 8px; }
+
+/* ── таблица: одна сетка, ровные 1px линии ── */
+.tbl-wrap:has(.sched) { border: 1px solid var(--line); border-radius: 11px; background: var(--bg-panel); box-shadow: var(--shadow-xs); }
+.tbl.sched { font-size: 12px; color: var(--text); }
+.tbl.sched :is(th, td) + :is(th, td) { border-left: 1px solid var(--sch-grid); }
+.tbl.sched .sticky-col { border-right: 1px solid var(--sch-grid-strong); }
+.tbl.sched .sticky-col + :is(th, td) { border-left: none; }
+.tbl.sched .sum-h { border-left: 1px solid var(--sch-grid-strong); }
+.tbl.sched tbody td { border-bottom: 1px solid var(--sch-grid); }
+
+/* шапка дней */
+.sched thead th { height: var(--sch-head-h); padding-top: 6px; padding-bottom: 5px; background: var(--sch-head); color: var(--text-sub); font-weight: 600; border-bottom: 1px solid var(--line); }
+.sched thead th.sticky-col { min-width: 196px; width: 196px; padding-left: 16px; text-align: left; color: var(--text-quote); }
+.sched th.day { min-width: var(--sch-col); width: var(--sch-col); padding: 6px 0 5px; font-size: 10px; font-weight: 500; line-height: 1.1; color: var(--text-sub); background: var(--sch-head); }
+.sched th.day .dh-d { font-size: 12.5px; line-height: 16px; font-weight: 600; color: var(--text); }
+.sched th.day.off, .sched td.cell.off { background: var(--sch-weekend); }
+.sched th.day.off, .sched th.day.off .dh-d { color: var(--sch-we-label); }
+.sched th.day.today .dh-d { min-width: 26px; height: 22px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; color: var(--on-brand); background: var(--brand); border-radius: 7px; box-shadow: 0 3px 8px var(--brand-glow); }
+.sched th.day.csel { background: var(--brand-tint); }
+
+/* клетки дней */
+.sched td.cell { min-width: var(--sch-col); width: var(--sch-col); height: var(--sch-row); padding: 1px 0; font-size: 11px; background-color: var(--bg-panel); }
+.sched td.cell.today { background-color: var(--sch-today-col); }
+.sched td.cell:hover { background: var(--sch-hover) !important; }
+.sched td.cell.off:hover { background: var(--sch-we-hover) !important; }
+.sched td.cell.sel { outline: 2px solid var(--sch-sel); outline-offset: -2px; }
+.sched td.cell.rng { background: var(--brand-tint) !important; box-shadow: inset 0 0 0 1px var(--brand-border); }
+
+/* ── блоки смен: подряд идущие дни одного вида сливаются в полосу ── */
+.lane { position: relative; height: var(--sch-lane); margin: 1px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; line-height: 1.05; color: var(--sch-block-fg); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12); }
+.lane.first { margin-left: 2px; border-top-left-radius: 7px; border-bottom-left-radius: 7px; }
+.lane.last { margin-right: 2px; border-top-right-radius: 7px; border-bottom-right-radius: 7px; }
+.lane.work { background: var(--sch-work); }
+.lane.plan { background: var(--sch-plan); color: var(--sch-plan-fg); }
+.lane.train { background: var(--sch-train); }
+.lane.sick { background: var(--sch-sick); }
+.lane.vac { background: var(--sch-vac); }
+.lane.gone { background-color: var(--sch-gone-bg); background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, var(--sch-gone-line) 5px, var(--sch-gone-line) 9px); color: var(--sch-gone-fg); box-shadow: none; }
+.lane-h { font-weight: 600; }
+.lane-n { margin-top: 2px; font-size: 10px; line-height: 10px; font-weight: 500; opacity: 0.92; }
+.lane-tag { font-size: 12px; font-weight: 600; }
+.lane-off { color: var(--sch-off); font-size: 11px; font-weight: 500; }
+/* выделение поверх полосы — рамкой, полосу видно */
 .sched td.cell.sel .lane, .sched td.cell.rng .lane { box-shadow: inset 0 0 0 2px var(--text); }
-/* имя: сокращённое ФИО и строка «с 24.09» / «уволен(а) 23.09» */
-.sched .op-n { display: block; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
-.sched .op-sub { display: block; font-size: 11px; color: var(--dim); }
-/* итоги без подсветки колонок */
-.sched .sum { font-size: 12.5px; }
-.sched .sum.hl { background: var(--bg-panel); }
-.sched thead .sum.hl, .sched tfoot .sum.hl { background: var(--bg-strip); }
-.sched tbody tr:hover .sum.hl { background: var(--bg-panel-hover); }
-/* легенда: цветные метки */
-.lane-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 12px; color: var(--text-sub); }
-.lane-legend > span { display: inline-flex; align-items: center; gap: 6px; }
-.lane-legend .lane { display: inline-block; height: 12px; width: 22px; margin: 0; border-radius: 6px; }
-.lane-legend .lane.gone { background: repeating-linear-gradient(135deg, var(--ln-gone1) 0 4px, var(--ln-gone2) 4px 8px); }
+
+/* ── столбец операторов ── */
+.sched tbody tr.sch-row > td.sticky-col { min-width: 196px; width: 196px; height: var(--sch-row); padding: 4px 14px; background: var(--bg-panel); }
+.sched .op-n { display: block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; line-height: 17px; font-weight: 600; color: var(--text); }
+.sched .op-sub { display: block; margin-top: 1px; font-size: 11.5px; line-height: 14px; color: var(--text-sub); }
+/* строка: минимальный ховер — реагирует только имя */
+.tbl.sched tbody tr.sch-row:hover td:not(.cell):not(.sticky-col) { background: var(--bg-panel); }
+.tbl.sched tbody tr.sch-row:hover td.sticky-col { background: var(--sch-hover); }
+
+/* ── секции: группа / уволенные — шеврон, свернуть, итоги справа ── */
+.tbl.sched tr.sch-grp td { height: var(--sch-grp-h); padding-top: 0; padding-bottom: 0; background: var(--sch-group); color: var(--text-quote); border-bottom: 1px solid var(--sch-grid-strong); font-size: 14px; font-weight: 600; }
+.tbl.sched tbody tr.sch-grp:hover td { background: var(--sch-group); }
+.tbl.sched tr.sch-grp td.sticky-col { padding-left: 16px; }
+.sched tr.sch-grp td[colspan] { border-left: none !important; }
+.sched .sch-grp-btn { display: inline-flex; align-items: center; gap: 8px; height: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
+.sched .sch-grp-btn svg { color: var(--text-sub); transition: transform 150ms ease; }
+.sched .sch-grp-btn svg.shut { transform: rotate(-90deg); }
+
+/* ── итоги справа: часы → лиды → ± к плану → конверсия ── */
+.sched .sum { font-size: 13px; font-weight: 600; background: var(--bg-panel); }
+.sched thead .sum { background: var(--sch-head); color: var(--text-sub); font-size: 11px; }
+.sched tr.sch-grp .sum { background: var(--sch-group); }
+.tbl.sched tbody tr.sch-row:hover .sum { background: var(--bg-panel); }
+.sched .sum-h { right: 204px; width: 60px; min-width: 60px; color: var(--text); }
+.sched .sum-l { right: 144px; width: 60px; min-width: 60px; }
+.sched .sum-d { right: 68px; width: 76px; min-width: 76px; }
+.sched .sum-c { right: 0; width: 68px; min-width: 68px; }
+.sched .sum.hl, .sched thead .sum.hl, .sched tfoot .sum.hl { background: inherit; }
+.sched .lead-n { color: var(--brand); font-weight: 600; }
+.sched .sum-d.pos { color: var(--c-green-fg); font-weight: 600; }
+.sched .sum-d.neg { color: var(--c-red-fg); font-weight: 600; }
+
+/* ── «Итого по дням»: закреплена внизу, светлее строк ── */
+.sched tfoot td { height: var(--sch-foot-h); background: var(--sch-foot); color: var(--text); border-top: 1px solid var(--sch-foot-border); }
+.sched tfoot td.sticky-col { padding-left: 16px; font-size: 15px; font-weight: 700; }
+.sched tfoot td.sticky-col, .sched tfoot .sum { background: var(--sch-foot); }
+.sched tfoot td.day-tot { font-size: 13px; font-weight: 600; line-height: 1.2; padding: 4px 0; }
+.sched tfoot .day-tot-c { margin-top: 1px; font-size: 10.5px; line-height: 1.2; }
+.sched tfoot td.day-tot.off { background: var(--sch-foot-we); }
+.sched tfoot .day-tot-l { color: var(--brand); }
+.sched tfoot .day-tot-none { color: var(--dimmer); font-weight: 500; }
+
+/* ── легенда: маленькие капсулы тех же цветов, что блоки ── */
+.lane-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; font-size: 13px; color: var(--text-sub); }
+.lane-legend > span { display: inline-flex; align-items: center; gap: 7px; }
+.lane-legend .lane { display: inline-block; width: 20px; height: 10px; min-height: 10px; margin: 0; border-radius: 3px; box-shadow: none; }
+.lane-legend .lane.gone { background-image: repeating-linear-gradient(-45deg, transparent, transparent 3px, var(--sch-gone-line) 3px, var(--sch-gone-line) 6px); box-shadow: inset 0 0 0 1px var(--sch-grid-strong); }
+
+/* ── размеры всех страниц — как в «Графике» ── */
+.page-head { margin-bottom: 10px; align-items: flex-start; }
+.page-title { font-size: 34px; line-height: 1.05; font-weight: 700; letter-spacing: -0.8px; color: var(--text); }
+.page-sub { margin-top: 6px; font-size: 14px; line-height: 20px; color: var(--text-sub); }
+.page-head .toolbar { gap: 8px; }
+/* шапка страницы: все кнопки одной высоты, в том числе переключатель месяца */
+.page-head .btn { height: var(--ctl-h); padding: 0 13px; font-size: 14px; }
+.page-head .btn-icon { width: var(--ctl-h); padding: 0; }
+/* контролы страницы (не в модалках и не в строках таблиц) — 38px */
+:is(.stack > .toolbar, .card-pad > .toolbar) .btn:not(.btn-sm) { height: var(--ctl-h); padding: 0 13px; font-size: 14px; }
+:is(.stack > .toolbar, .card-pad > .toolbar) .btn-icon:not(.btn-sm) { width: var(--ctl-h); padding: 0; }
+:is(.page-head, .stack > .toolbar, .card-pad > .toolbar) :is(.inp:not(.inp-sm), .sel-trigger:not(.inp-sm)) { height: var(--ctl-h); font-size: 14px; }
+:is(.page-head, .stack > .toolbar, .card-pad) > .seg > button, .card-pad > .seg > button { height: 30px; font-size: 13.5px; }
+/* ── таблицы (кроме сетки «Графика») ──────────────────────────────────
+   Текст, статусы, даты — слева; числа — справа, чтобы разряды стояли столбиком.
+   Только горизонтальные линии, ровные отступы 14px, крайние столбцы — 16px. */
+.tbl th { padding: var(--th-py) 14px; font-size: 12px; font-weight: 600; background: var(--sch-head); color: var(--text-sub); border-bottom-color: var(--line); }
+.tbl td { padding: var(--td-py) 14px; font-size: 13px; border-bottom-color: var(--sch-grid); }
+.tbl:not(.sched) :is(th, td):first-child { padding-left: 16px; }
+.tbl:not(.sched) :is(th, td):last-child { padding-right: 16px; }
+.tbl-wrap { border-color: var(--line); border-radius: 11px; }
+.tbl tfoot td { background: var(--sch-foot); border-top-color: var(--sch-foot-border); }
+/* без пунктирных вертикальных разделителей — столбцы держатся выравниванием */
+.tbl:not(.sched):not(.learn-tbl) :is(th, td) + :is(th, td) { border-left: none; }
+/* выравнивание: числа (.r) — справа, всё остальное (текст, чипы, даты) — слева; «по центру» больше нет */
+.tbl:not(.sched) :is(th, td), .tbl.tbl-fit:not(.sched) :is(th, td):not(:first-child) { text-align: left; }
+.tbl:not(.sched) :is(th, td) > .row, .tbl.tbl-fit:not(.sched) td:not(:first-child) > .row { justify-content: flex-start; }
+.tbl:not(.sched) :is(th, td).r, .tbl.tbl-fit:not(.sched) :is(th, td).r:not(:first-child) { text-align: right; }
+.tbl:not(.sched) :is(th, td).r > .row, .tbl.tbl-fit:not(.sched) td.r:not(:first-child) > .row { justify-content: flex-end; }
+/* плотные таблицы со статистикой (операторы, группы, зарплата) — столбцов много, отступы чуть уже */
+.tbl.tbl-fit:not(.sched) :is(th, td):not(:first-child):not(:last-child) { padding-left: 10px; padding-right: 10px; }
+
+/* журнал лидов: столбцы по содержимому, свободное место — комментарию */
+.tbl.tbl-leads :is(th, td) { width: 1%; padding-left: 14px; padding-right: 14px; }
+.tbl.tbl-leads :is(th, td):first-child { padding-left: 16px; }
+.tbl.tbl-leads :is(th, td):last-child { width: auto; padding-right: 16px; }
+
+/* журнал лидов: номер уже выгружали в Excel */
+.lead-exported { display: inline-flex; color: var(--c-green-fg); }
+
+/* больничный / отпуск / «уволен» — цельный блок на всю серию дней: рисуется в первой клетке
+   и накрывает соседние (ширина = N клеток + линии сетки), поэтому штриховка идёт без швов */
+.lane-anchor { position: relative; height: var(--sch-lane); margin: 1px 0; }
+.lane.lane-span { position: absolute; top: 0; left: 2px; z-index: 0; height: 100%; margin: 0; width: calc(var(--span) * 100% + (var(--span) - 1) * 1px - 4px); flex-direction: row; justify-content: flex-start; align-items: center; padding-left: calc(var(--sch-col) / 2 - 6px); pointer-events: none; }
+
+/* ── еле красная штриховка — как «уволен» в «Графике»: уволенные в зарплате, «не доведён» в лидах,
+   «не доведено» в динамике по часам. В строке таблицы узор привязан к окну (fixed), поэтому
+   идёт по всей строке без швов между ячейками, включая закреплённую колонку. */
+:root { --stripe-red: repeating-linear-gradient(-45deg, var(--sch-gone-bg) 0 5px, var(--sch-gone-line) 5px 9px), var(--sch-gone-bg); }
+.tbl tbody tr.row-stripe > td,
+.tbl tbody tr.row-stripe:hover > td {
+  background-color: var(--sch-gone-bg);
+  background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, var(--sch-gone-line) 5px, var(--sch-gone-line) 9px);
+  background-attachment: fixed;
+}
+.hs-tile.bad { background-color: var(--sch-gone-bg); background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, var(--sch-gone-line) 5px, var(--sch-gone-line) 9px); border-color: var(--c-red-bd); }
+
+/* окно «Выгрузка номеров»: последние выгрузки */
+.exp-log { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.exp-log-row { display: grid; grid-template-columns: 112px 1fr auto 86px; gap: 10px; align-items: center; padding: 7px 10px; font-size: 12.5px; }
+.exp-log-row + .exp-log-row { border-top: 1px solid var(--sch-grid); }
+.exp-log-by { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-sub); }
+.exp-log-row .muted { text-align: right; }
+
+/* ── «График»: подсветка крестом — строка и столбец под курсором (столбец — правилами из страницы) ── */
+.sched tbody tr.sch-row:hover > td.cell:not(.sel):not(.rng) { box-shadow: inset 0 0 0 100px var(--sch-cross); }
+
+/* ── «Итого по дням»: факт к плану дня ── */
+.sched tfoot .day-tot-l.ok { color: var(--c-green-fg); }
+.sched tfoot .day-tot-l.bad { color: var(--c-red-fg); }
+.sched .day-tot-p { font-size: 10px; font-weight: 500; color: var(--dim); }
+
+/* ── «По неделям»: вторая закреплённая строка под итогами дня ── */
+.sched tfoot tr.day-row td { bottom: var(--sch-week-h); }
+.sched tfoot tr.week-row td { height: var(--sch-week-h); bottom: 0; padding-top: 0; padding-bottom: 0; border-top: 1px solid var(--sch-grid); background: var(--sch-foot); }
+.sched tfoot tr.week-row td.sticky-col { padding-left: 16px; font-size: 13px; font-weight: 600; color: var(--text-sub); }
+.tbl.sched tfoot td.week-tot { padding: 0 6px; text-align: center; font-size: 12px; font-weight: 600; border-left: 1px solid var(--sch-grid-strong); }
+.sched .week-tot-in { display: inline-flex; align-items: baseline; gap: 8px; max-width: 100%; overflow: hidden; white-space: nowrap; }
+.sched .week-tot-l { color: var(--brand); }
+.sched .week-tot-l.ok { color: var(--c-green-fg); }
+.sched .week-tot-l.bad { color: var(--c-red-fg); }
+.sched .week-tot-h { color: var(--text-sub); font-weight: 500; }
+
+/* выбор цвета: пастельная плашка тона с точкой основного цвета; выбранный — обводка */
+.hue-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.hue-pick-i { position: relative; padding: 0; border-radius: 6px; border: 1px solid var(--hp-bd); background: var(--hp-bg); cursor: pointer; transition: transform var(--dur-1) var(--ease); }
+.hue-pick-i::after { content: ""; position: absolute; inset: 0; margin: auto; width: 45%; height: 45%; border-radius: 3px; background: var(--hp-fg); }
+.hue-pick-i:hover { transform: translateY(-1px); }
+.hue-pick-i[aria-checked="true"] { box-shadow: 0 0 0 2px var(--bg-modal), 0 0 0 4px var(--hp-fg); }

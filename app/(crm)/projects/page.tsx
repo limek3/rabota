@@ -7,7 +7,7 @@ import { filterLeads, pivot } from "@/lib/crm/calc";
 import { HUES } from "@/lib/crm/defaults";
 import { NO_GROUP, NO_GROUP_LABEL, type Project } from "@/lib/crm/types";
 import { fmtInt, fmtPct, safeDiv, shortName } from "@/lib/crm/format";
-import { Chip, Collapse, Empty, PageHead, PeriodPicker, Progress, Seg, Swatch, downloadText, hueFg, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { Chip, Collapse, Empty, HuePicker, PageHead, PeriodPicker, Progress, Seg, Swatch, downloadText, hueFg, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 
 export default function ProjectsPage() {
@@ -153,6 +153,10 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [showDeleted, setShowDeleted] = useState(false);
+  // цвет нового проекта: по умолчанию — первый свободный из палитры
+  const [newColor, setNewColor] = useState<string | null>(null);
+  // у какого проекта сейчас открыт выбор цвета
+  const [colorFor, setColorFor] = useState<string | null>(null);
   const totals = useMemo(() => {
     const m = new Map<string, number>();
     for (const l of data.leads) if (l.projectId) m.set(l.projectId, (m.get(l.projectId) ?? 0) + 1);
@@ -161,11 +165,15 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
   const live = projects.filter((p) => !p.deletedAt);
   const deleted = projects.filter((p) => p.deletedAt);
   const used = new Set(live.map((p) => p.color));
+  const autoColor = HUES.find((h) => !used.has(h)) ?? "slate";
 
   const add = async () => {
     if (!name.trim()) return;
-    const ok = await saveProject({ name, active: true, color: HUES.find((h) => !used.has(h)) ?? "blue" });
-    if (ok) setName("");
+    const ok = await saveProject({ name, active: true, color: newColor ?? autoColor });
+    if (ok) {
+      setName("");
+      setNewColor(null);
+    }
   };
 
   // порядок в форме лида: меняем местами и переписываем номера только у тех, чей номер изменился
@@ -198,17 +206,26 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
         </button>
       </form>
       )}
+      {canEdit && (
+        <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12.5, color: "var(--text-sub)" }}>Цвет</span>
+          <HuePicker value={newColor ?? autoColor} onChange={setNewColor} size={22} />
+          <Chip hue={newColor ?? autoColor}>{name.trim() || "Проект"}</Chip>
+        </div>
+      )}
       {live.length === 0 && <div style={{ fontSize: 13, color: "var(--dim)" }}>Проектов пока нет.</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {live.map((p, i) => (
-          <div key={p.id} className="row" style={{ gap: 8, padding: "6px 8px", borderRadius: 6, border: "1px solid var(--ink-06)", opacity: p.active ? 1 : 0.6 }}>
+          <div key={p.id} style={{ display: "flex", flexDirection: "column", gap: 8, padding: "6px 8px", borderRadius: 6, border: "1px solid var(--ink-06)", opacity: p.active ? 1 : 0.6 }}>
+          <div className="row" style={{ gap: 8 }}>
             {canEdit ? (
             <button
               type="button"
-              aria-label="Сменить цвет"
-              title="Сменить цвет"
-              onClick={() => void saveProject({ ...p, color: HUES[(HUES.indexOf(p.color as (typeof HUES)[number]) + 1) % HUES.length] })}
-              style={{ width: 14, height: 14, borderRadius: 4, border: "none", padding: 0, flex: "none", background: hueFg(p.color) }}
+              aria-label="Выбрать цвет"
+              title="Выбрать цвет"
+              aria-expanded={colorFor === p.id}
+              onClick={() => setColorFor((cur) => (cur === p.id ? null : p.id))}
+              style={{ width: 16, height: 16, borderRadius: 4, border: `1px solid var(--c-${p.color}-bd)`, padding: 0, flex: "none", background: hueFg(p.color), cursor: "pointer" }}
             />
             ) : (
               <span className="swatch" style={{ background: hueFg(p.color), width: 12, height: 12, borderRadius: 4 }} />
@@ -265,6 +282,17 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
             </button>
             </>
             )}
+          </div>
+          {colorFor === p.id && (
+            <HuePicker
+              value={p.color}
+              size={22}
+              onChange={(h) => {
+                setColorFor(null);
+                if (h !== p.color) void saveProject({ ...p, color: h });
+              }}
+            />
+          )}
           </div>
         ))}
       </div>

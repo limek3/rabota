@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useCrm, type GroupInput } from "@/lib/crm/store";
 import { shortName } from "@/lib/crm/format";
 import type { Group } from "@/lib/crm/types";
-import { Field, Modal, NumInput, hueFg } from "@/components/ui/kit";
+import { Field, HuePicker, Modal, NumInput } from "@/components/ui/kit";
 import { Select, type Opt } from "@/components/ui/select";
 import { HUES } from "@/lib/crm/defaults";
 
@@ -96,25 +96,7 @@ export function GroupModal({ group }: { group: Group | null }) {
           </Field>
         </div>
         <Field label="Цвет на графиках">
-          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
-            {HUES.map((h) => (
-              <button
-                key={h}
-                type="button"
-                onClick={() => set("color", h)}
-                aria-label={h}
-                aria-pressed={f.color === h}
-                style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 5,
-                  border: f.color === h ? "2px solid var(--text)" : "2px solid transparent",
-                  background: hueFg(h),
-                  boxShadow: "inset 0 0 0 2px var(--bg-modal)",
-                }}
-              />
-            ))}
-          </div>
+          <HuePicker value={f.color} onChange={(h) => set("color", h)} />
         </Field>
         <button type="submit" hidden />
       </form>
