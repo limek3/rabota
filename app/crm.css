@@ -1176,9 +1176,11 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .spark-cell { display: inline-flex; align-items: center; gap: 10px; vertical-align: middle; }
 .spark { display: block; }
 .spark-base { stroke: var(--sch-grid-strong); stroke-width: 1; }
-.spark-bar { fill: color-mix(in srgb, var(--sch-we-label) 55%, transparent); }
-.spark-bar.now { fill: var(--sch-we-label); }
-.spark-zero { fill: color-mix(in srgb, var(--c-red-fg) 70%, transparent); }
+.spark-area { fill: color-mix(in srgb, var(--sch-we-label) 9%, transparent); }
+.spark-line { fill: none; stroke: var(--sch-we-label); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.spark-dot { fill: var(--bg-panel); stroke: var(--sch-we-label); stroke-width: 1.2; }
+.spark-dot.last { fill: var(--sch-we-label); stroke: var(--bg-panel); stroke-width: 1; }
+.spark-dot.zero { fill: var(--c-red-fg); stroke: none; }
 .spark-trend { display: inline-block; width: 52px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; color: var(--dim); }
 .spark-trend.up { color: var(--c-green-fg); }
 .spark-trend.down { color: var(--c-red-fg); }
