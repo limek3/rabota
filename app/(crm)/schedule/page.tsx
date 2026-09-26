@@ -25,7 +25,7 @@ const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training:
  *   gone  — после увольнения
  * Выходной и дни до приёма — без полосы.
  */
-type Lane = "work" | "plan" | "train" | "sick" | "vac" | "gone";
+type Lane = "work" | "plan" | "train" | "sick" | "vac" | "gone" | "pre";
 const LANE_TAG: Partial<Record<Lane, string>> = { sick: "Б", vac: "О", gone: "У" };
 const TYPES: DayType[] = ["work", "training", "off", "vacation", "sick"];
 
@@ -339,6 +339,7 @@ export default function SchedulePage() {
           <span><i className="lane sick first last" />больничный</span>
           <span><i className="lane vac first last" />отпуск</span>
           <span><i className="lane gone first last" />уволен</span>
+          <span><i className="lane pre first last" />до приёма</span>
         </div>
       </div>
 
@@ -542,6 +543,8 @@ function SchedRow({
       return d > today ? "plan" : "work";
     }
     if (r.op.status === "fired" && fire && d >= fire) return "gone";
+    // до даты приёма — серая штриховка
+    if (hire && d < hire) return "pre";
     // лиды без смены — всё равно отработанный день
     return (counts?.get(d) ?? 0) > 0 ? "work" : null;
   };
@@ -574,7 +577,7 @@ function SchedRow({
         const lane = lanes[colIndex];
         const edge = lane ? `${lanes[colIndex - 1] !== lane ? " first" : ""}${lanes[colIndex + 1] !== lane ? " last" : ""}` : "";
         // больничный, отпуск, «уволен» — одним цельным блоком на всю серию: рисуем в первой клетке, остальные пустые
-        const solid = lane === "sick" || lane === "vac" || lane === "gone";
+        const solid = lane === "sick" || lane === "vac" || lane === "gone" || lane === "pre";
         let span = 0;
         if (solid && edge.includes("first")) while (lanes[colIndex + span] === lane) span++;
         const hours = sh && (sh.type === "work" || sh.type === "training") ? sh.hours : 0;
@@ -596,7 +599,7 @@ function SchedRow({
             {solid ? (
               span > 0 && (
                 <div className="lane-anchor">
-                  <div className={`lane ${lane} first last lane-span`} style={{ ["--span" as string]: span }}>
+                  <div className={`lane ${lane} first last lane-span${colIndex + span === days.length ? " to-end" : ""}`} style={{ ["--span" as string]: span }}>
                     <span className="lane-tag">{LANE_TAG[lane!]}</span>
                   </div>
                 </div>

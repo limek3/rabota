@@ -1489,6 +1489,8 @@ button {
   --sch-gone-fg: #9a7173;
   --sch-off: #525a6d;
   --sch-cross: rgba(140, 155, 192, 0.07);
+  --sch-pre-bg: #1e2128;
+  --sch-pre-line: rgba(255, 255, 255, 0.06);
 }
 
 :root[data-theme="light"] {
@@ -1604,4 +1606,6 @@ button {
   --sch-gone-fg: #c49698;
   --sch-off: #b7becd;
   --sch-cross: rgba(49, 65, 99, 0.045);
+  --sch-pre-bg: #fafafb;
+  --sch-pre-line: rgba(160, 166, 180, 0.2);
 }

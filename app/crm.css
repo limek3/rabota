@@ -1157,3 +1157,11 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .exp-stat.main { background: var(--brand-tint); border-color: var(--brand-border); }
 .exp-stat.main .exp-stat-v { color: var(--brand); }
 .exp-note { font-size: 12px; color: var(--text-sub); }
+
+/* до даты приёма — такая же цельная штриховка, как «уволен», только серая */
+.lane.pre { background-color: var(--sch-pre-bg); background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, var(--sch-pre-line) 5px, var(--sch-pre-line) 9px); box-shadow: none; }
+.lane-legend .lane.pre { background-image: repeating-linear-gradient(-45deg, transparent, transparent 3px, var(--sch-pre-line) 3px, var(--sch-pre-line) 6px); box-shadow: inset 0 0 0 1px var(--sch-grid-strong); }
+
+/* последний день месяца: блок не упирается в колонку «Часы» — справа такой же зазор, как между днями */
+.sched tbody td.cell:nth-last-child(5) .lane.last { margin-right: 5px; }
+.sched .lane.lane-span.to-end { width: calc(var(--span) * 100% + (var(--span) - 1) * 1px - 7px); }
