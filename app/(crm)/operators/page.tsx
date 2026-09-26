@@ -5,7 +5,8 @@ import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
 import { PACE_HUE, PACE_LABEL, goneLast, isGone, type OpRow, type Pace, type PaceStatus } from "@/lib/crm/calc";
 import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
-import { fmtMonth } from "@/lib/crm/dates";
+import { addDays, fmtDayShort, fmtMonth, rangeDays } from "@/lib/crm/dates";
+import { Sparkline, SparkTrend, type SparkPoint } from "@/components/ui/Sparkline";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
 import { Avatar, Conv, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
@@ -53,8 +54,17 @@ function blankRow(op: Operator, base: Pace): OpRow {
 const STATUS_FILTERS: PaceStatus[] = ["ahead", "ontrack", "lagging", "critical", "idle", "paused", "noplan"];
 
 export default function OperatorsPage() {
-  const { data, ix, month, setMonth, openOperator, access } = useCrm();
+  const { data, ix, month, setMonth, openOperator, access, today } = useCrm();
   const m = useMonthModel();
+  // мини-график: 14 дней до опорного дня (сегодня; в прошедшем месяце — его последний день)
+  const sparkDays = useMemo(() => rangeDays(addDays(m.cal.ref, -13), m.cal.ref), [m.cal.ref]);
+  const sparkOf = (opId: string): SparkPoint[] =>
+    sparkDays.map((d) => {
+      const hours = ix.hoursOpDay.get(opId)?.get(d) ?? 0;
+      const leads = ix.opDay.get(opId)?.get(d) ?? 0;
+      // смена была — часы или лиды; иначе пропуск в линии (выходной, больничный, до приёма)
+      return { day: d, hours, leads: d <= today && (hours > 0 || leads > 0) ? leads : null };
+    });
   const [q, setQ] = useState("");
   const [group, setGroup] = useState("");
   const [emp, setEmp] = useState<Emp>("work");
@@ -196,7 +206,7 @@ export default function OperatorsPage() {
   const withGoneSep = (rs: OpRow[], render: (r: OpRow, i: number) => ReactNode) =>
     rs.map((r, i) => (
       <Fragment key={r.op.id}>
-        {isGone(r.op) && (i === 0 || !isGone(rs[i - 1].op)) && <GoneSepRow count={rs.filter((x) => isGone(x.op)).length} colSpan={15} />}
+        {isGone(r.op) && (i === 0 || !isGone(rs[i - 1].op)) && <GoneSepRow count={rs.filter((x) => isGone(x.op)).length} colSpan={16} />}
         {render(r, i)}
       </Fragment>
     ));
@@ -237,6 +247,17 @@ export default function OperatorsPage() {
             <Progress value={p.pct} marker={!past && r.terms.plan > 0 ? p.planToDate / r.terms.plan : undefined} hue={PACE_HUE[r.status]} style={{ flex: 1, minWidth: 50 }} />
             <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(p.pct)}</span>
           </div>
+        </td>
+        <td>
+          {(() => {
+            const pts = sparkOf(r.op.id);
+            return (
+              <span className="spark-cell">
+                <Sparkline points={pts} />
+                <SparkTrend points={pts} isNew={!!r.op.hireDate && r.op.hireDate > sparkDays[0]} />
+              </span>
+            );
+          })()}
         </td>
         <td className="r num" style={{ color: p.deviation >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(p.deviation)}</td>
         <td className="r num">
@@ -367,6 +388,7 @@ export default function OperatorsPage() {
                 <SortTh k="plan" sort={sort} setSort={setSort} className="r">План</SortTh>
                 <SortTh k="fact" sort={sort} setSort={setSort} className="r">Факт</SortTh>
                 <SortTh k="pct" sort={sort} setSort={setSort} style={{ minWidth: 120 }}>Выполнение</SortTh>
+                <th title={`Лиды по сменам за 14 дней (${fmtDayShort(sparkDays[0])} – ${fmtDayShort(sparkDays[sparkDays.length - 1])}) и тренд: 7 дней против предыдущих 7`}>14 дней</th>
                 <SortTh k="dev" sort={sort} setSort={setSort} className="r" title="Факт минус план на сегодня">К дате</SortTh>
                 <SortTh k="rr" sort={sort} setSort={setSort} className="r" title="Run Rate: прогноз на конец месяца по текущему темпу">Прогноз</SortTh>
                 <SortTh k="left" sort={sort} setSort={setSort} className="r">Осталось</SortTh>
@@ -406,6 +428,7 @@ export default function OperatorsPage() {
                           <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(pct)}</span>
                         </div>
                       </td>
+                      <td />
                       <td className="r num" style={{ color: sec.t.dev >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(sec.t.dev)}</td>
                       <td className="r num">{fmtInt(sec.t.rr)}</td>
                       <td className="r num">{fmtInt(sec.t.left)}</td>
@@ -431,7 +454,7 @@ export default function OperatorsPage() {
                 <td className="r num">{fmtInt(totals.plan)}</td>
                 <td className="r num"><LeadN n={totals.fact} /></td>
                 <td className="num">{fmtPct(safeDiv(totals.fact, totals.plan))}</td>
-                <td colSpan={4} />
+                <td colSpan={5} />
                 <td className="r num bl">{fmtInt(totals.today)}</td>
                 <td className="r num">{fmtInt(totals.week)}</td>
                 <td className="r num">{fmtInt(totals.prev)}</td>
