@@ -228,6 +228,7 @@ export function buildDemo(today: DayKey): DataState {
     learn: [],
     approves: [],
     candidates: [],
+    notes: [],
     audit: [],
     frozenMonths: [],
     leadExports: {},

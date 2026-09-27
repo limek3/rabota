@@ -14,6 +14,7 @@ import {
   Cell,
 } from "recharts";
 import type { DayRow } from "@/lib/crm/calc";
+import type { DayKey } from "@/lib/crm/types";
 import { fmtDay, fmtWeekday } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned } from "@/lib/crm/format";
 
@@ -213,7 +214,7 @@ interface ShiftPoint {
  * только смены (выходной — пропуск, а не ноль), смена без лидов — красная точка на нуле,
  * последняя смена — крупная точка. Пунктир — личный план дня.
  */
-export function ShiftLeadsChart({ rows, dayPlan, height = 170 }: { rows: DayRow[]; dayPlan: number; height?: number }) {
+export function ShiftLeadsChart({ rows, dayPlan, height = 170, marks = [] }: { rows: DayRow[]; dayPlan: number; height?: number; marks?: { day: DayKey; label: string }[] }) {
   const data: ShiftPoint[] = rows.map((r, i) => ({
     d: i + 1,
     day: r.day,
@@ -254,6 +255,19 @@ export function ShiftLeadsChart({ rows, dayPlan, height = 170 }: { rows: DayRow[
             }}
           />
           {dayPlan > 0 && <ReferenceLine y={dayPlan} stroke="var(--text-sub3)" strokeWidth={1.5} strokeDasharray="5 4" ifOverflow="extendDomain" />}
+          {/* заметки СВ: вертикальная отметка в день разговора */}
+          {marks.map((mk) => {
+            const i = rows.findIndex((r) => r.day === mk.day);
+            return i < 0 ? null : (
+              <ReferenceLine
+                key={`${mk.day}-${mk.label}`}
+                x={i + 1}
+                stroke="var(--brand)"
+                strokeWidth={1.5}
+                label={{ value: mk.label, position: "insideTopRight", fill: "var(--brand)", fontSize: 10, fontWeight: 600 }}
+              />
+            );
+          })}
           <Area type="linear" dataKey="leads" stroke="none" fill="var(--sch-we-label)" fillOpacity={0.09} isAnimationActive={false} connectNulls />
           <Line
             type="linear"

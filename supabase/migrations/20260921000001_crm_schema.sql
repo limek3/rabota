@@ -8,7 +8,7 @@
 --  Что внутри:
 --    1. Таблицы — один в один с сущностями приложения (lib/crm/types.ts):
 --       operators, groups, projects, leads, shifts, plans, adjustments,
---       accounts, learn, approves, candidates, audit + kv (настройки системы).
+--       accounts, learn, approves, candidates, notes, audit + kv (настройки системы).
 --    2. Функции прав: кто сейчас вошёл (по почте из сессии), его роль, группы.
 --    3. RLS — те же права, что в приложении (lib/crm/access.ts), но на сервере:
 --         РОП (head)        — всё;
@@ -241,6 +241,22 @@ create table if not exists public.candidates (
   deleted_at   timestamptz
 );
 
+-- Заметки супервайзера об операторе: о чём поговорил и за каким показателем следить
+-- (lph — лиды в час, hours — часы за смену, leads — лиды за смену). date — 'YYYY-MM-DD'.
+-- Без внешнего ключа на operators: импорт пересоздаёт операторов, заметки должны это пережить.
+create table if not exists public.notes (
+  id          text primary key,
+  operator_id text not null,
+  date        text not null default '',
+  text        text not null default '',
+  metric      text not null default 'lph' check (metric in ('lph', 'hours', 'leads')),
+  author_id   text not null default '',
+  author_name text not null default '',
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  deleted_at  timestamptz
+);
+
 -- Журнал изменений.
 create table if not exists public.audit (
   id           text primary key,
@@ -279,6 +295,7 @@ create index if not exists operators_group_idx   on public.operators (group_id);
 create index if not exists learn_account_idx     on public.learn (account_id);
 create index if not exists audit_at_idx          on public.audit (at);
 create index if not exists candidates_group_idx  on public.candidates (group_id);
+create index if not exists notes_operator_idx    on public.notes (operator_id, date);
 -- одна почта — один живой аккаунт
 create unique index if not exists accounts_login_uniq on public.accounts (lower(login)) where login <> '' and deleted_at is null;
 
@@ -402,6 +419,7 @@ alter table public.accounts    enable row level security;
 alter table public.learn       enable row level security;
 alter table public.approves    enable row level security;
 alter table public.candidates  enable row level security;
+alter table public.notes       enable row level security;
 alter table public.audit       enable row level security;
 alter table public.kv          enable row level security;
 
@@ -412,7 +430,7 @@ begin
   for r in
     select policyname, tablename from pg_policies
     where schemaname = 'public'
-      and tablename in ('groups', 'operators', 'projects', 'leads', 'shifts', 'plans', 'adjustments', 'accounts', 'learn', 'approves', 'candidates', 'audit', 'kv')
+      and tablename in ('groups', 'operators', 'projects', 'leads', 'shifts', 'plans', 'adjustments', 'accounts', 'learn', 'approves', 'candidates', 'notes', 'audit', 'kv')
   loop
     execute format('drop policy if exists %I on public.%I', r.policyname, r.tablename);
   end loop;
@@ -623,6 +641,17 @@ create policy candidates_all on public.candidates for all to authenticated
         and group_id = any ((select public.crm_sup_groups())::text[]))
   );
 
+-- заметки об операторах: РОП — все; супервайзер — о своих операторах. Операторам не видны.
+create policy notes_all on public.notes for all to authenticated
+  using (
+    (select public.crm_is_head())
+    or ((select public.crm_role()) = 'supervisor' and operator_id = any (coalesce((select public.crm_touch_ops()), '{}')))
+  )
+  with check (
+    (select public.crm_is_head())
+    or ((select public.crm_role()) = 'supervisor' and operator_id = any (coalesce((select public.crm_touch_ops()), '{}')))
+  );
+
 -- настройки: читают все вошедшие, кроме секретов выгрузки; меняет РОП
 create policy kv_read on public.kv for select to authenticated using (
   (select public.crm_account_id()) is not null and (key <> 'sheets' or (select public.crm_is_head()))
@@ -632,9 +661,9 @@ create policy kv_write on public.kv for all to authenticated
 
 -- ── права на таблицы: только вошедшим, анонимам — ничего ─────────────────
 revoke all on public.groups, public.operators, public.projects, public.leads, public.shifts, public.plans,
-              public.adjustments, public.accounts, public.learn, public.approves, public.candidates, public.audit, public.kv from anon;
+              public.adjustments, public.accounts, public.learn, public.approves, public.candidates, public.notes, public.audit, public.kv from anon;
 grant select, insert, update, delete on public.groups, public.operators, public.projects, public.leads, public.shifts,
-              public.plans, public.adjustments, public.accounts, public.learn, public.approves, public.candidates, public.audit, public.kv to authenticated;
+              public.plans, public.adjustments, public.accounts, public.learn, public.approves, public.candidates, public.notes, public.audit, public.kv to authenticated;
 
 -- ── 4. Защита полей ─────────────────────────────────────────────────────
 
@@ -810,6 +839,7 @@ begin
   select * into v_me from public.accounts where id = public.crm_account_id();
 
   delete from public.audit;
+  delete from public.notes;
   delete from public.candidates;
   delete from public.learn;
   delete from public.approves;
@@ -834,6 +864,7 @@ begin
   insert into public.learn       select * from jsonb_populate_recordset(null::public.learn,       coalesce(p -> 'learn', '[]'));
   insert into public.approves    select * from jsonb_populate_recordset(null::public.approves,    coalesce(p -> 'approves', '[]'));
   insert into public.candidates  select * from jsonb_populate_recordset(null::public.candidates,  coalesce(p -> 'candidates', '[]'));
+  insert into public.notes       select * from jsonb_populate_recordset(null::public.notes,       coalesce(p -> 'notes', '[]'));
   insert into public.audit       select * from jsonb_populate_recordset(null::public.audit,       coalesce(p -> 'audit', '[]'));
 
   -- свой аккаунт: если в данных его нет — возвращаем; в любом случае остаёмся РОПом
@@ -869,7 +900,7 @@ grant execute on function public.crm_email(), public.crm_account_id(), public.cr
 do $$
 declare t text;
 begin
-  foreach t in array array['groups', 'operators', 'projects', 'leads', 'shifts', 'plans', 'adjustments', 'accounts', 'learn', 'approves', 'candidates', 'audit', 'kv'] loop
+  foreach t in array array['groups', 'operators', 'projects', 'leads', 'shifts', 'plans', 'adjustments', 'accounts', 'learn', 'approves', 'candidates', 'notes', 'audit', 'kv'] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
     exception

@@ -14,8 +14,9 @@ import type {
   AuditEntry,
   Candidate,
   LeadExportLogEntry,
+  OpNote,
 } from "./types";
-import { CANDIDATE_STAGES, LEAD_SOURCE, LEAD_STATUSES } from "./types";
+import { CANDIDATE_STAGES, LEAD_SOURCE, LEAD_STATUSES, NOTE_METRICS } from "./types";
 import { normalizePrefs, normalizeSettings, normalizeTiers } from "./defaults";
 import { isDayKey, isMonthKey, isStamp } from "./dates";
 import { normPhone } from "./format";
@@ -327,6 +328,26 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
     warns,
   );
 
+  // заметки об операторах, которых нет в выгрузке, не нужны: смотреть их негде
+  const notes: OpNote[] = dedupe(
+    arr("notes")
+      .filter((n) => n && typeof n.id === "string" && n.id && opIds.has(str(n.operatorId)) && isDayKey(n.date) && str(n.text).trim())
+      .map((n) => ({
+        id: str(n.id),
+        operatorId: str(n.operatorId),
+        date: str(n.date),
+        text: str(n.text).trim(),
+        metric: (NOTE_METRICS as string[]).includes(str(n.metric)) ? (n.metric as OpNote["metric"]) : "lph",
+        authorId: str(n.authorId),
+        authorName: str(n.authorName),
+        createdAt: str(n.createdAt, now),
+        updatedAt: str(n.updatedAt, now),
+        deletedAt: n.deletedAt ? str(n.deletedAt) : null,
+      })),
+    "Заметки",
+    warns,
+  );
+
   const audit: AuditEntry[] = dedupe(
     arr("audit")
       .filter((a) => a && typeof a.summary === "string")
@@ -362,6 +383,7 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
     learn,
     approves,
     candidates,
+    notes,
     audit,
     frozenMonths: Array.isArray(src.frozenMonths) ? (src.frozenMonths as unknown[]).filter(isMonthKey) : [],
     leadExports: cleanLeadExports(src.leadExports),
@@ -527,6 +549,7 @@ export function toSnapshot(st: DataState): Snapshot {
     learn: st.learn,
     approves: st.approves,
     candidates: st.candidates,
+    notes: st.notes,
     audit: st.audit,
     frozenMonths: st.frozenMonths,
     leadExports: st.leadExports,

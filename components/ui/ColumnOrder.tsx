@@ -3,7 +3,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { Icon } from "./icons";
-import { uiZoom } from "./select";
+import { Layer, uiZoom, usePopover } from "./select";
 
 /**
  * Свой порядок столбцов в таблице: у каждого аккаунта свой (личные настройки, prefs.cols),
@@ -256,5 +256,104 @@ export function ColumnOrderHint({ custom, onReset }: { custom: boolean; onReset:
       <span className="col-hint-grip" aria-hidden />
       Столбцы можно переставлять — перетащите заголовок
     </span>
+  );
+}
+
+/**
+ * Какие столбцы показывать: у каждого аккаунта свой набор (prefs.cols[`${table}-show`]),
+ * РОП и СВ настраивают себе сами. Не сохраняли — defaults. Хотя бы один столбец остаётся всегда.
+ */
+export function useColumnVisibility(table: string, all: readonly string[], defaults: readonly string[]) {
+  const { me, saveMyProfile } = useCrm();
+  const key = `${table}-show`;
+  const saved = me.prefs.cols?.[key];
+  const [pending, setPending] = useState<string[] | null>(null);
+  const shown = useMemo(() => {
+    const src = pending ?? saved?.filter((k) => all.includes(k)) ?? [...defaults];
+    return new Set(src.length ? src : defaults);
+  }, [pending, saved, all, defaults]);
+  const save = useCallback(
+    (next: string[]) => {
+      setPending(next);
+      const cols = { ...(me.prefs.cols ?? {}) };
+      const same = next.length === defaults.length && defaults.every((k) => next.includes(k));
+      if (same) delete cols[key];
+      else cols[key] = next;
+      void saveMyProfile({ cols }).finally(() => setPending(null));
+    },
+    [me.prefs.cols, key, defaults, saveMyProfile],
+  );
+  const toggle = (k: string) => {
+    const next = shown.has(k) ? all.filter((x) => shown.has(x) && x !== k) : all.filter((x) => shown.has(x) || x === k);
+    if (next.length) save(next);
+  };
+  const custom = !(shown.size === defaults.length && defaults.every((k) => shown.has(k)));
+  return { shown, toggle, custom, reset: () => save([...defaults]) };
+}
+
+export interface ColumnGroup {
+  title: string;
+  cols: { key: string; label: string; hint?: string }[];
+}
+
+/**
+ * Кнопка «Столбцы»: галочки по группам, плюс сброс. Порядок меняется перетаскиванием заголовков.
+ * Настройка личная — сохраняется в аккаунте.
+ */
+export function ColumnPicker({
+  groups,
+  shown,
+  onToggle,
+  onReset,
+  custom,
+}: {
+  groups: ColumnGroup[];
+  shown: Set<string>;
+  onToggle: (key: string) => void;
+  onReset: () => void;
+  custom: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const { style } = usePopover(open, btnRef, popRef, () => setOpen(false));
+  const count = groups.reduce((a, g) => a + g.cols.filter((c) => shown.has(c.key)).length, 0);
+  const total = groups.reduce((a, g) => a + g.cols.length, 0);
+  return (
+    <>
+      <button ref={btnRef} type="button" className={`btn btn-sm${open ? " is-open" : ""}`} onClick={() => setOpen((v) => !v)} aria-expanded={open} title="Какие столбцы показывать — настройка сохраняется в вашем аккаунте">
+        <Icon name="settings" size={13} /> Столбцы <span className="num" style={{ color: "var(--dim)" }}>{count}/{total}</span>
+      </button>
+      {open && (
+        <Layer>
+          <div ref={popRef} className="sel-pop col-pick" style={{ ...style, minWidth: 280 }}>
+            {groups.map((g) => (
+              <div key={g.title} className="col-pick-g">
+                <div className="col-pick-t">{g.title}</div>
+                {g.cols.map((c) => {
+                  const on = shown.has(c.key);
+                  const last = on && count === 1;
+                  return (
+                    <label key={c.key} className="col-pick-i" title={last ? "Хотя бы один столбец нужен" : c.hint}>
+                      <input type="checkbox" checked={on} disabled={last} onChange={() => onToggle(c.key)} />
+                      <span>{c.label}</span>
+                      {c.hint && <span className="col-pick-h">{c.hint}</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            ))}
+            <div className="col-pick-f">
+              <span>Порядок — перетащите заголовок</span>
+              {custom && (
+                <button type="button" className="btn btn-ghost btn-sm" onClick={onReset}>
+                  По умолчанию
+                </button>
+              )}
+            </div>
+          </div>
+        </Layer>
+      )}
+    </>
   );
 }

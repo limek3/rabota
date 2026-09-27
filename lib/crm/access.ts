@@ -191,6 +191,15 @@ export function canTouchCandidate(a: Access, c: Pick<Candidate, "groupId">): boo
 }
 
 /**
+ * Заметки об операторе: РОП — о любом, супервайзер — о своих. Оператору заметки не видны.
+ * То же правило — в RLS таблицы notes.
+ */
+export function canNote(a: Access, operatorId: ID): boolean {
+  if (a.isHead) return true;
+  return a.isSup && canTouchOp(a, operatorId);
+}
+
+/**
  * Срез данных по правам. РОП получает всё как есть. Остальные — только свою
  * зону; план команды в срезе = сумма планов их групп (общий план отдела им не нужен).
  */
@@ -209,6 +218,7 @@ export function scopeData(st: DataState, a: Access): DataState {
       adjustments: a.can.viewPayroll ? st.adjustments.filter((x) => canTouchOp(a, x.operatorId)) : [],
       accounts: st.accounts.filter((x) => x.id === a.account.id),
       candidates: st.candidates.filter((c) => canTouchCandidate(a, c)),
+      notes: st.notes.filter((n) => canNote(a, n.operatorId)),
     };
   }
   if (a.isSup) {
@@ -241,6 +251,8 @@ export function scopeData(st: DataState, a: Access): DataState {
     adjustments: canPay ? st.adjustments.filter((x) => opIds.has(x.operatorId)) : [],
     accounts: st.accounts.filter((x) => x.id === a.account.id),
     candidates: st.candidates.filter((c) => canTouchCandidate(a, c)),
+    // заметки СВ — только руководителям, оператору свои не показываем
+    notes: st.notes.filter((n) => canNote(a, n.operatorId)),
     // прогресс обучения не режем: оператору нужен свой, руководителю — своей команды
     learn: st.learn,
   };

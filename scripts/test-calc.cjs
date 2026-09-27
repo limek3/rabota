@@ -721,3 +721,71 @@ console.log("ALL OK");
   assert.deepStrictEqual(s2.regions.regional, ["Волгоград"]);
   console.log(`25 ok: регионы — доход с лида ${Math.round(before)} → ${Math.round(mixed)} ₽ (регион 400 ₽), апрув ${ap}%`);
 }
+
+/* 26. Подсказки СВ: причина отставания раскладывается ровно на отставание, тренд, заметки до/после */
+{
+  const assert = require("assert");
+  const { buildIndex, monthModel } = R("calc");
+  const { buildInsights, noteEffect, groupSpread } = R("insights");
+  const { buildDemo } = R("demo");
+  const { sanitize, toSnapshot } = R("validate");
+  const today = "2026-09-18";
+  const st = buildDemo(today);
+  const ix = buildIndex(st);
+  const m = monthModel(st, ix, "2026-09", today);
+  const { med, byOp } = buildInsights(m.ops, ix, m.cal);
+  assert.ok(med.lph > 0 && med.hpd > 0, "медианы посчитаны");
+  let reasons = 0;
+  let signals = 0;
+  for (const r of m.ops) {
+    const x = byOp.get(r.op.id);
+    if (!x) continue;
+    for (const v of [x.tempo.last, x.tempo.prev, x.tempo.change ?? 0]) assert.ok(Number.isFinite(v), `тренд ${r.op.name}`);
+    if (x.reason) {
+      reasons++;
+      const sum = x.reason.hoursImpact + x.reason.lphImpact;
+      assert.ok(Math.abs(sum - r.pace.deviation) < 1e-6, `раскладка ${r.op.name}: ${sum} ≠ ${r.pace.deviation}`);
+      assert.ok(["hours", "lph", "both", "plan"].includes(x.reason.kind));
+    }
+    signals += x.signals.length;
+    for (const s of x.signals) assert.ok(s.title && s.detail && s.todo, "сигнал с текстом");
+  }
+  // ноль лидов при отмеченных часах — ловится сигналом
+  const op = m.ops.find((r) => r.op.status === "active" && r.hasShifts && r.inWindow);
+  const st2 = buildDemo(today);
+  const days = ["2026-09-16", "2026-09-17"];
+  st2.leads = st2.leads.filter((l) => !(l.operatorId === op.op.id && days.includes(l.at.slice(0, 10))));
+  for (const d of days) {
+    const id = `${d}|${op.op.id}`;
+    st2.shifts = st2.shifts.filter((s) => s.id !== id && !(s.date === d && s.operatorId === op.op.id));
+    st2.shifts.push({ id, date: d, operatorId: op.op.id, groupId: op.op.groupId, hours: 6, type: "work", comment: "", updatedAt: "" });
+  }
+  const ix2 = buildIndex(st2);
+  const m2 = monthModel(st2, ix2, "2026-09", today);
+  const x2 = buildInsights(m2.ops, ix2, m2.cal).byOp.get(op.op.id);
+  assert.ok(x2.tempo.zeroStreak >= 2, `смены без лидов подряд: ${x2.tempo.zeroStreak}`);
+  assert.ok(x2.signals.some((s) => s.kind === "zero"), "сигнал «смены без лидов»");
+  // заметка: до/после считается по отработанным дням, сегодняшний не берётся
+  const eff = noteEffect({ operatorId: op.op.id, date: "2026-09-10", metric: "leads" }, ix, today);
+  assert.ok(!eff.early && Number.isFinite(eff.before) && Number.isFinite(eff.after), "эффект заметки");
+  const early = noteEffect({ operatorId: op.op.id, date: "2026-09-17", metric: "lph" }, ix, today);
+  assert.ok(early.early && early.change == null, "рано судить — меньше 3 смен после");
+  // разброс группы
+  const g = m.groups.find((x) => x.members.length > 2);
+  const sp = groupSpread(g.members, byOp);
+  assert.ok(sp.lo <= sp.hi && sp.topShare > 0 && sp.topShare <= 1, "разброс группы");
+  // заметки переживают экспорт/импорт, заметки о несуществующих операторах отбрасываются
+  st.notes = [
+    { id: "note_1", operatorId: op.op.id, date: "2026-09-10", text: "разобрали скрипт", metric: "lph", authorId: "acc_head", authorName: "РОП", createdAt: "", updatedAt: "" },
+    { id: "note_2", operatorId: "op_nope", date: "2026-09-10", text: "потерянная", metric: "lph", authorId: "", authorName: "", createdAt: "", updatedAt: "" },
+  ];
+  const back = sanitize(JSON.parse(JSON.stringify(toSnapshot(st)))).state;
+  assert.deepStrictEqual(back.notes.map((n) => n.id), ["note_1"]);
+  // заметки видят РОП и СВ своих операторов; оператору — никогда, даже о себе
+  const { computeAccess, scopeData } = R("access");
+  const opAcc = st.accounts.find((a) => a.role === "operator" && a.operatorId === op.op.id) ?? st.accounts.find((a) => a.role === "operator");
+  assert.deepStrictEqual(scopeData(st, computeAccess(opAcc, st)).notes, [], "оператор не видит заметки");
+  const head = st.accounts.find((a) => a.role === "head");
+  assert.strictEqual(scopeData(st, computeAccess(head, st)).notes.length, 2, "РОП видит все");
+  console.log(`26 ok: подсказки — медиана ${med.hpd.toFixed(1)} ч/д, ${med.lph.toFixed(2)} л/ч; причин ${reasons}, сигналов ${signals}; заметка ${eff.before.toFixed(1)} → ${eff.after.toFixed(1)}`);
+}

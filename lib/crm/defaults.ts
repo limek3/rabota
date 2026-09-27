@@ -146,6 +146,7 @@ export function emptyState(): DataState {
     learn: [],
     approves: [],
     candidates: [],
+    notes: [],
     audit: [],
     frozenMonths: [],
     leadExports: {},

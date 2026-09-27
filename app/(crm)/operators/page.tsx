@@ -2,31 +2,89 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useCrm } from "@/lib/crm/store";
-import { useMonthModel } from "@/lib/crm/hooks";
+import { useInsights, useMonthModel } from "@/lib/crm/hooks";
+import { LAG_LABEL, type OpInsight } from "@/lib/crm/insights";
 import { PACE_HUE, PACE_LABEL, goneLast, isGone, type OpRow, type Pace, type PaceStatus } from "@/lib/crm/calc";
 import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
-import { addDays, fmtDayShort, fmtMonth, rangeDays } from "@/lib/crm/dates";
-import { Sparkline, SparkTrend, type SparkPoint } from "@/components/ui/Sparkline";
-import { ColumnOrderHint, useColumnDrag, useColumnOrder } from "@/components/ui/ColumnOrder";
+import { fmtMonth } from "@/lib/crm/dates";
+import { ColumnPicker, useColumnDrag, useColumnOrder, useColumnVisibility, type ColumnGroup } from "@/components/ui/ColumnOrder";
 
 /** Столбцы таблицы по умолчанию (после закреплённого «Оператор»). Порядок каждый может поменять у себя. */
-const OP_COLS = ["status", "plan", "fact", "pct", "dev", "rr", "left", "need", "today", "week", "prev", "avg", "hours", "lph", "spark"] as const;
+const OP_COLS = ["status", "plan", "fact", "pct", "dev", "why", "lph", "real", "rr", "left", "need", "today", "week", "prev", "avg", "hours"] as const;
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
 import { Avatar, Conv, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
+import { AttentionPanel, RealCell, WhyCell } from "@/components/app/Insights";
+import { DayHeatmap } from "@/components/app/DayHeatmap";
 
 type Emp = "work" | "active" | "pause" | "fired" | "all";
-type SortKey = "name" | "plan" | "fact" | "pct" | "dev" | "rr" | "left" | "need" | "today" | "week" | "prev" | "avg" | "hours" | "lph";
+type View = "table" | "days";
 
-const val = (r: OpRow, k: SortKey): number | string => {
+/**
+ * Какие столбцы видны — личная настройка каждого аккаунта (кнопка «Столбцы»). По умолчанию —
+ * то, что нужно, чтобы увидеть, кто отстаёт и почему; остальное включается по надобности.
+ */
+const OP_DEFAULT_SHOWN = ["status", "plan", "fact", "pct", "dev", "why", "lph"];
+const OP_COL_GROUPS: ColumnGroup[] = [
+  {
+    title: "Темп",
+    cols: [
+      { key: "status", label: "Оценка" },
+      { key: "plan", label: "План" },
+      { key: "fact", label: "Факт" },
+      { key: "pct", label: "Выполнение" },
+      { key: "dev", label: "К дате", hint: "факт минус план на сегодня" },
+    ],
+  },
+  {
+    title: "Разбор",
+    cols: [
+      { key: "why", label: "Почему отстаёт", hint: "часы или лиды в час" },
+      { key: "lph", label: "Конверсия", hint: "лиды ÷ часы" },
+      { key: "real", label: "Реально ли", hint: "нужно в день ÷ делает" },
+    ],
+  },
+  {
+    title: "Прогноз",
+    cols: [
+      { key: "rr", label: "Прогноз" },
+      { key: "left", label: "Осталось" },
+      { key: "need", label: "Нужно в день" },
+    ],
+  },
+  {
+    title: "Работа",
+    cols: [
+      { key: "today", label: "Сегодня" },
+      { key: "week", label: "Неделя" },
+      { key: "prev", label: "Прошлая неделя" },
+      { key: "avg", label: "Среднее за день" },
+      { key: "hours", label: "Часы" },
+    ],
+  },
+];
+/** Новый порядок видимых столбцов → полный порядок: скрытые остаются на своих местах. */
+function mergeVisible(full: string[], visibleNext: string[]): string[] {
+  const vis = new Set(visibleNext);
+  let i = 0;
+  return full.map((k) => (vis.has(k) ? visibleNext[i++] : k));
+}
+const isPaused = (r: OpRow) => r.op.status === "pause" && !isGone(r.op);
+type SortKey = "name" | "plan" | "fact" | "pct" | "dev" | "why" | "rr" | "left" | "need" | "real" | "today" | "week" | "prev" | "avg" | "hours" | "lph";
+
+const val = (r: OpRow, k: SortKey, ins: Map<string, OpInsight>): number | string => {
+  const x = ins.get(r.op.id);
   switch (k) {
     case "name": return r.op.name;
     case "plan": return r.terms.plan;
     case "fact": return r.pace.fact;
     case "pct": return r.pace.pct;
     case "dev": return r.pace.deviation;
+    // причина: сортируем по размеру отставания, без причины — в конце
+    case "why": return x?.reason ? x.reason.hoursImpact + x.reason.lphImpact : 1e9;
+    case "real": return x?.realism == null ? -1 : x.realism === Infinity ? 1e9 : x.realism;
     case "rr": return r.pace.rr;
     case "left": return r.pace.remaining;
     case "need": return r.pace.needPerDay ?? -1;
@@ -60,21 +118,6 @@ const STATUS_FILTERS: PaceStatus[] = ["ahead", "ontrack", "lagging", "critical",
 export default function OperatorsPage() {
   const { data, ix, month, setMonth, openOperator, access, today } = useCrm();
   const m = useMonthModel();
-  // мини-график: 14 дней до опорного дня (сегодня; в прошедшем месяце — его последний день)
-  const sparkDays = useMemo(() => rangeDays(addDays(m.cal.ref, -13), m.cal.ref), [m.cal.ref]);
-  const sparkOf = (opId: string): SparkPoint[] =>
-    sparkDays.map((d) => {
-      const hours = ix.hoursOpDay.get(opId)?.get(d) ?? 0;
-      const leads = ix.opDay.get(opId)?.get(d) ?? 0;
-      // смена была — часы или лиды; иначе пропуск в линии (выходной, больничный, до приёма)
-      return { day: d, hours, leads: d <= today && (hours > 0 || leads > 0) ? leads : null };
-    });
-  // общий масштаб столбиков: максимум лидов за день среди всех на экране
-  const sparkMax = useMemo(() => {
-    let mx = 0;
-    for (const r of m.ops) for (const d of sparkDays) mx = Math.max(mx, ix.opDay.get(r.op.id)?.get(d) ?? 0);
-    return mx;
-  }, [m.ops, sparkDays, ix]);
   const [q, setQ] = useState("");
   const [group, setGroup] = useState("");
   const [emp, setEmp] = useState<Emp>("work");
@@ -82,10 +125,16 @@ export default function OperatorsPage() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [sort, setSort] = useState<SortState<SortKey>>({ key: "fact", dir: -1 });
   const [openId, setOpenId] = useState<string | null>(null);
+  const [view, setView] = useState<View>("table");
+  // операторы на паузе — свёрнуты в одну строку внизу: в текущей работе они только удлиняют список
+  const [pausedOpen, setPausedOpen] = useState(false);
+  const ins = useInsights(m);
   const wrapRef = useRef<HTMLDivElement>(null);
   // свой порядок столбцов у каждого аккаунта; перетаскивание за заголовок
   const colOrder = useColumnOrder("operators", OP_COLS);
-  const colDrag = useColumnDrag({ wrapRef, order: colOrder.order, onChange: colOrder.save });
+  const vis = useColumnVisibility("operators", OP_COLS, OP_DEFAULT_SHOWN);
+  const shown = useMemo(() => colOrder.order.filter((k) => vis.shown.has(k)), [colOrder.order, vis.shown]);
+  const colDrag = useColumnDrag({ wrapRef, order: shown, onChange: (next) => colOrder.save(mergeVisible(colOrder.order, next)) });
   const fold = useFoldGroups(wrapRef);
 
   // группа строки: супервайзер — в группе, которую ведёт (как в зарплате); остальные — по карточке
@@ -121,14 +170,15 @@ export default function OperatorsPage() {
       return true;
     });
     out.sort((a, b) => {
-      const x = val(a, sort.key);
-      const y = val(b, sort.key);
+      const x = val(a, sort.key, ins.byOp);
+      const y = val(b, sort.key, ins.byOp);
       const c = typeof x === "string" ? x.localeCompare(y as string, "ru") : (x as number) - (y as number);
       // уволенные — всегда в конце, при любой сортировке
-      return goneLast(a.op, b.op) || c * sort.dir || a.op.name.localeCompare(b.op.name, "ru");
+      // уволенные — всегда в конце, на паузе — перед ними
+      return goneLast(a.op, b.op) || Number(isPaused(a)) - Number(isPaused(b)) || c * sort.dir || a.op.name.localeCompare(b.op.name, "ru");
     });
     return out;
-  }, [rows, q, group, emp, pace, showDeleted, sort, keyOf]);
+  }, [rows, q, group, emp, pace, showDeleted, sort, keyOf, ins]);
 
   // по группам: у РОПа (и у всех, если в списке несколько групп) — строка-заголовок группы с итогами;
   // внутри группы порядок — по выбранной сортировке
@@ -188,8 +238,10 @@ export default function OperatorsPage() {
   const openRow = openId ? rows.find((r) => r.op.id === openId) ?? null : null;
 
   const exportCsv = () => {
-    const head = ["ФИО", "Группа", "Роль", "Статус", "Оценка темпа", "План", "Факт", "% плана", "К плану на дату", "Прогноз RR", "Прогноз %", "Осталось", "Нужно в день", "Сегодня", "Неделя", "Пр. неделя", "Ср. в раб. день", "Часы", "Конверсия, %"];
-    const body = list.map((r) => [
+    const head = ["ФИО", "Группа", "Роль", "Статус", "Оценка темпа", "План", "Факт", "% плана", "К плану на дату", "Прогноз RR", "Прогноз %", "Осталось", "Нужно в день", "Сегодня", "Неделя", "Пр. неделя", "Ср. в раб. день", "Часы", "Конверсия, %", "Почему отстаёт", "Тренд 5 смен, %", "Нужно/делает, раз"];
+    const body = list.map((r) => {
+      const x = ins.byOp.get(r.op.id);
+      return [
       r.op.name,
       r.op.groupId ? ix.groupById.get(r.op.groupId)?.name ?? "" : NO_GROUP_LABEL,
       ROLE_LABEL[r.op.role],
@@ -209,20 +261,42 @@ export default function OperatorsPage() {
       Math.round(r.avgPerWorkday * 10) / 10,
       r.hours,
       r.lph == null ? "" : Math.round(r.lph * 100),
-    ]);
+      x?.reason ? LAG_LABEL[x.reason.kind] : "",
+      x?.tempo.change == null ? "" : Math.round(x.tempo.change * 100),
+      x?.realism == null || x.realism === Infinity ? "" : Math.round(x.realism * 10) / 10,
+    ];
+    });
     downloadText(`operators_${month}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
   };
 
   const groups = data.groups.filter((g) => !g.deletedAt);
 
   // перед первым уволенным в списке — разделитель «Уволены · N»
-  const withGoneSep = (rs: OpRow[], render: (r: OpRow, i: number) => ReactNode) =>
-    rs.map((r, i) => (
-      <Fragment key={r.op.id}>
-        {isGone(r.op) && (i === 0 || !isGone(rs[i - 1].op)) && <GoneSepRow count={rs.filter((x) => isGone(x.op)).length} colSpan={16} />}
-        {render(r, i)}
-      </Fragment>
-    ));
+  // пауза сворачивается, только когда в списке есть и работающие: во вкладке «Пауза» свернуть было бы нечего показать
+  const foldPaused = emp === "work" || emp === "all";
+  const withGoneSep = (rs: OpRow[], render: (r: OpRow, i: number) => ReactNode) => {
+    const paused = rs.filter(isPaused).length;
+    return rs.map((r, i) => {
+      const firstPaused = isPaused(r) && (i === 0 || !isPaused(rs[i - 1]));
+      return (
+        <Fragment key={r.op.id}>
+          {foldPaused && firstPaused && (
+            <tr className="pause-sep" onClick={() => setPausedOpen((v) => !v)} aria-expanded={pausedOpen}>
+              <td className="sticky-col">
+                <span className="row" style={{ gap: 6 }}>
+                  <Icon name="chevR" size={12} className={`grp-chev${pausedOpen ? " open" : ""}`} />
+                  На паузе · {paused}
+                </span>
+              </td>
+              <td colSpan={shown.length} />
+            </tr>
+          )}
+          {isGone(r.op) && (i === 0 || !isGone(rs[i - 1].op)) && <GoneSepRow count={rs.filter((x) => isGone(x.op)).length} colSpan={shown.length + 1} />}
+          {!(foldPaused && !pausedOpen && isPaused(r)) && render(r, i)}
+        </Fragment>
+      );
+    });
+  };
 
   // ── столбцы: ячейка строки, строки группы и итога по ключу; выводятся в порядке colOrder.order ──
   const rowCell = (k: string, r: OpRow, p: OpRow["pace"]): ReactNode => {
@@ -253,6 +327,8 @@ export default function OperatorsPage() {
         );
       case "dev":
         return <td key={k} data-col={k} className="r num" style={{ color: p.deviation >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(p.deviation)}</td>;
+      case "why":
+        return <td key={k} data-col={k}><WhyCell reason={ins.byOp.get(r.op.id)?.reason} /></td>;
       case "rr":
         return (
           <td key={k} data-col={k} className="r num">
@@ -263,6 +339,8 @@ export default function OperatorsPage() {
         return <td key={k} data-col={k} className="r num">{fmtInt(p.remaining)}</td>;
       case "need":
         return <td key={k} data-col={k} className="r num">{p.needPerDay == null ? "—" : fmtNum(p.needPerDay)}</td>;
+      case "real":
+        return <td key={k} data-col={k} className="r"><RealCell real={ins.byOp.get(r.op.id)?.realism} row={r} /></td>;
       case "today":
         return <td key={k} data-col={k} className="r num">{fmtInt(p.today)}</td>;
       case "week":
@@ -275,17 +353,6 @@ export default function OperatorsPage() {
         return <td key={k} data-col={k} className="r num">{fmtNum(r.hours)}</td>;
       case "lph":
         return <td key={k} data-col={k} className="r num"><Conv value={r.lph} /></td>;
-      case "spark": {
-        const pts = sparkOf(r.op.id);
-        return (
-          <td key={k} data-col={k}>
-            <span className="spark-cell">
-              <Sparkline points={pts} max={sparkMax} />
-              <SparkTrend points={pts} />
-            </span>
-          </td>
-        );
-      }
     }
     return null;
   };
@@ -313,7 +380,7 @@ export default function OperatorsPage() {
             </span>
           </span>
         </td>
-        {colOrder.order.map((k) => rowCell(k, r, p))}
+        {shown.map((k) => rowCell(k, r, p))}
       </tr>
     );
   };
@@ -363,7 +430,7 @@ export default function OperatorsPage() {
       case "fact":
         return <td key={k} data-col={k} className="r num"><LeadN n={totals.fact} /></td>;
       case "pct":
-        return <td key={k} data-col={k} className="num">{fmtPct(safeDiv(totals.fact, totals.plan))}</td>;
+        return <td key={k} data-col={k} className="c num">{fmtPct(safeDiv(totals.fact, totals.plan))}</td>;
       case "today":
         return <td key={k} data-col={k} className="r num">{fmtInt(totals.today)}</td>;
       case "week":
@@ -386,9 +453,17 @@ export default function OperatorsPage() {
       case "fact":
         return <SortTh key={k} k="fact" sort={sort} setSort={setSort} className="r" drag={hp(k)}>Факт</SortTh>;
       case "pct":
-        return <SortTh key={k} k="pct" sort={sort} setSort={setSort} style={{ minWidth: 120 }} drag={hp(k)}>Выполнение</SortTh>;
+        return <SortTh key={k} k="pct" sort={sort} setSort={setSort} className="c" style={{ minWidth: 120 }} drag={hp(k)}>Выполнение</SortTh>;
       case "dev":
         return <SortTh key={k} k="dev" sort={sort} setSort={setSort} className="r" title="Факт минус план на сегодня" drag={hp(k)}>К дате</SortTh>;
+      case "why":
+        return (
+          <SortTh key={k} k="why" sort={sort} setSort={setSort} title="Почему отстаёт: часы и лиды в час против медианы команды. Цифры — сколько лидов отставания к дате из-за часов и из-за л/ч" drag={hp(k)}>
+            Почему отстаёт
+          </SortTh>
+        );
+      case "real":
+        return <SortTh key={k} k="real" sort={sort} setSort={setSort} className="r" title="Реально ли закрыть план: во сколько раз «нужно в день» больше его среднего за смену. ×1,5 и больше — без изменений не закрыть" drag={hp(k)}>Реально ли</SortTh>;
       case "rr":
         return <SortTh key={k} k="rr" sort={sort} setSort={setSort} className="r" title="Run Rate: прогноз на конец месяца по текущему темпу" drag={hp(k)}>Прогноз</SortTh>;
       case "left":
@@ -407,12 +482,6 @@ export default function OperatorsPage() {
         return <SortTh key={k} k="hours" sort={sort} setSort={setSort} className="r" drag={hp(k)}>Часы</SortTh>;
       case "lph":
         return <SortTh key={k} k="lph" sort={sort} setSort={setSort} className="r" title="Конверсия: переданные лиды ÷ отработанные часы" drag={hp(k)}>Конв.</SortTh>;
-      case "spark":
-        return (
-          <th key={k} {...hp(k)} className={`spark-th ${hp(k).className}`} title="Лиды по дням за последние 14 дней — у всех в одном масштабе. Справа — средние лиды за смену: последние 7 дней против предыдущих 7">
-            14 дней <span className="muted">· {fmtDayShort(sparkDays[0])} – {fmtDayShort(sparkDays[sparkDays.length - 1])}</span>
-          </th>
-        );
     }
     return null;
   };
@@ -427,6 +496,7 @@ export default function OperatorsPage() {
         actions={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
+            <Seg<View> value={view} onChange={setView} options={[{ value: "table", label: "Таблица" }, { value: "days", label: "По дням" }]} />
             <button className="btn" onClick={exportCsv} disabled={!list.length}>
               <Icon name="download" size={14} /> CSV
             </button>
@@ -468,6 +538,20 @@ export default function OperatorsPage() {
             ]}
           />
           <Switch size="sm" checked={showDeleted} onChange={setShowDeleted} label="удалённые" />
+          {view === "table" && (
+            <div style={{ marginLeft: "auto" }}>
+              <ColumnPicker
+                groups={OP_COL_GROUPS}
+                shown={vis.shown}
+                onToggle={vis.toggle}
+                custom={vis.custom || colOrder.custom}
+                onReset={() => {
+                  vis.reset();
+                  colOrder.reset();
+                }}
+              />
+            </div>
+          )}
         </div>
         <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
           {STATUS_FILTERS.filter((s) => counts[s]).map((s) => (
@@ -498,9 +582,10 @@ export default function OperatorsPage() {
           <span style={{ fontSize: 12, color: "var(--dim)", marginLeft: "auto" }}>
             Выше плана ≥ {data.settings.aheadPct}% · по плану ≥ {data.settings.normalPct}% · отстаёт ≥ {data.settings.lagPct}% · не работает — {data.settings.idleDays} раб. дн. без лидов
           </span>
-          {list.length > 0 && <ColumnOrderHint custom={colOrder.custom} onReset={colOrder.reset} />}
         </div>
       </div>
+
+      {m.cal.phase === "current" && list.length > 0 && <AttentionPanel rows={list} byOp={ins.byOp} med={ins.med} onOpen={setOpenId} />}
 
       {list.length === 0 ? (
         <div className="card">
@@ -517,6 +602,14 @@ export default function OperatorsPage() {
             }
           />
         </div>
+      ) : view === "days" ? (
+        <DayHeatmap
+          sections={grouped ? sections : [{ key: "all", name: "", color: "gray", supervisor: null, rows: list }]}
+          grouped={grouped}
+          cal={m.cal}
+          onOpen={setOpenId}
+          paused={foldPaused ? { open: pausedOpen, toggle: () => setPausedOpen((v) => !v) } : null}
+        />
       ) : (
         <div ref={wrapRef} className="tbl-wrap" style={{ maxHeight: "max(320px, calc(100vh / var(--ui-scale, 1) - 290px))" }}>
           <table className="tbl tbl-fit">
@@ -525,7 +618,7 @@ export default function OperatorsPage() {
                 <SortTh k="name" sort={sort} setSort={setSort} className="sticky-col" style={{ minWidth: 240 }}>
                   Оператор
                 </SortTh>
-                {colOrder.order.map((k) => headCell(k))}
+                {shown.map((k) => headCell(k))}
               </tr>
             </thead>
             {grouped ? (
@@ -546,7 +639,7 @@ export default function OperatorsPage() {
                           </span>
                         </span>
                       </td>
-                      {colOrder.order.map((k) => groupCell(k, sec, pct))}
+                      {shown.map((k) => groupCell(k, sec, pct))}
                     </tr>
                     {!closed && withGoneSep(sec.rows, (r, i) => renderRow(r, i, phase))}
                   </tbody>
@@ -558,7 +651,7 @@ export default function OperatorsPage() {
             <tfoot>
               <tr>
                 <td className="sticky-col">Итого · {list.length}</td>
-                {colOrder.order.map((k) => totalCell(k))}
+                {shown.map((k) => totalCell(k))}
               </tr>
             </tfoot>
           </table>

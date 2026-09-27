@@ -207,7 +207,7 @@ export default function DashboardPage() {
               <th>Группа</th>
               <th className="r">План</th>
               <th className="r">Факт</th>
-              <th style={{ minWidth: 110 }}>Выполнение</th>
+              <th className="c" style={{ minWidth: 110 }}>Выполнение</th>
               <th className="r" title="Run Rate — прогноз на конец месяца">Прогноз</th>
               <th className="r">Нужно/день</th>
               <th className="r">Людей</th>

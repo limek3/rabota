@@ -898,6 +898,43 @@ export function Drawer({ onClose, children, width }: { onClose: () => void; chil
   );
 }
 
+/**
+ * Большое окно почти на весь экран — для карточек, где много всего (карточка оператора).
+ * Шапка закреплена, тело прокручивается. Esc и клик по фону закрывают.
+ */
+export function Sheet({ onClose, head, children }: { onClose: () => void; head: ReactNode; children: ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector(".modal-back")) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    // фон под окном не прокручивается
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  if (!mounted) return null;
+  return createPortal(
+    <div className="sheet-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" role="dialog" aria-modal>
+        <div className="sheet-head">
+          {head}
+          <button className="btn btn-ghost btn-sm btn-icon sheet-close" onClick={onClose} aria-label="Закрыть">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+        <div className="sheet-body">{children}</div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 /* ── подтверждение и уведомления (монтируются в оболочке) ─────────── */
 export function ConfirmHost() {
   const { confirmState, answerConfirm } = useCrm();

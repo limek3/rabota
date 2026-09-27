@@ -457,6 +457,7 @@ export interface Snapshot {
   learn: LearnProgress[];
   approves: Approve[];
   candidates: Candidate[];
+  notes: OpNote[];
   audit: AuditEntry[];
   frozenMonths: MonthKey[];
   /** Выгрузка номеров: id лида → когда его номер последний раз выгружали в Excel (ISO). */
@@ -533,6 +534,28 @@ export const CANDIDATE_STAGE_HUE: Record<CandidateStage, string> = {
   declined: "amber",
 };
 
+/**
+ * Заметка супервайзера об операторе: о чём поговорил и за каким показателем следить.
+ * CRM сравнивает показатель до и после дня заметки (lib/crm/insights.ts → noteEffect),
+ * поэтому видно, какие разговоры работают. Операторам заметки не видны.
+ */
+export type NoteMetric = "lph" | "hours" | "leads";
+export const NOTE_METRICS: NoteMetric[] = ["lph", "hours", "leads"];
+
+export interface OpNote {
+  id: ID;
+  operatorId: ID;
+  /** День разговора — с него начинается «после». */
+  date: DayKey;
+  text: string;
+  metric: NoteMetric;
+  authorId: ID;
+  authorName: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string | null;
+}
+
 /** Что менялось — для журнала изменений. */
 export type AuditEntity = "operator" | "group" | "lead" | "shift" | "plan" | "payroll" | "project" | "account" | "settings" | "approve" | "candidate" | "data";
 
@@ -585,6 +608,7 @@ export interface DataState {
   learn: LearnProgress[];
   approves: Approve[];
   candidates: Candidate[];
+  notes: OpNote[];
   audit: AuditEntry[];
   frozenMonths: MonthKey[];
   /** Выгрузка номеров: id лида → когда его номер последний раз выгружали в Excel (ISO). */

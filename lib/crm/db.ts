@@ -29,9 +29,9 @@ export const REMOTE = supabaseReady;
 
 const DB_NAME = "leadup-crm";
 const LEGACY_DB_NAME = "rabota77-crm"; // имя до переименования — переносим один раз (см. adoptLegacy)
-const DB_VERSION = 5; // 2: accounts, 3: learn (прогресс обучения), 4: approves + audit, 5: candidates
+const DB_VERSION = 6; // 2: accounts, 3: learn (прогресс обучения), 4: approves + audit, 5: candidates, 6: notes
 
-export const ENTITY_STORES = ["operators", "groups", "projects", "leads", "shifts", "plans", "adjustments", "accounts", "learn", "approves", "candidates", "audit"] as const;
+export const ENTITY_STORES = ["operators", "groups", "projects", "leads", "shifts", "plans", "adjustments", "accounts", "learn", "approves", "candidates", "notes", "audit"] as const;
 export type EntityStore = (typeof ENTITY_STORES)[number];
 const KV = "kv";
 const BACKUPS = "backups";

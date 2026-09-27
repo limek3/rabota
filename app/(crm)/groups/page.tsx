@@ -3,7 +3,9 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
-import { useMonthModel } from "@/lib/crm/hooks";
+import { useInsights, useMonthModel } from "@/lib/crm/hooks";
+import { groupSpread, type OpInsight } from "@/lib/crm/insights";
+import { SpreadBar } from "@/components/app/Insights";
 import { PACE_HUE, goneLast, incomePerLead, isGone, monthCal, type GroupRow } from "@/lib/crm/calc";
 import { fundStat, payroll } from "@/lib/crm/payroll";
 import { NO_GROUP } from "@/lib/crm/types";
@@ -16,6 +18,7 @@ import { Icon } from "@/components/ui/icons";
 export default function GroupsPage() {
   const { month, setMonth, openGroup, access } = useCrm();
   const m = useMonthModel();
+  const { byOp } = useInsights(m);
   const [view, setView] = useState<"cards" | "table">("cards");
 
   return (
@@ -53,17 +56,17 @@ export default function GroupsPage() {
       ) : view === "cards" ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 14 }}>
           {m.groups.map((g) => (
-            <GroupCard key={g.key} g={g} />
+            <GroupCard key={g.key} g={g} byOp={byOp} />
           ))}
         </div>
       ) : (
-        <GroupTable groups={m.groups} past={m.cal.phase === "past"} />
+        <GroupTable groups={m.groups} past={m.cal.phase === "past"} byOp={byOp} />
       )}
     </div>
   );
 }
 
-function GroupCard({ g }: { g: GroupRow }) {
+function GroupCard({ g, byOp }: { g: GroupRow; byOp: Map<string, OpInsight> }) {
   const { data, ix, month, today, openGroup, openOperator, deleteGroup, moveOperator, confirm, access } = useCrm();
   // ФОТ группы: начисления её операторов против дохода по переданным лидам
   const fund = useMemo(() => {
@@ -84,6 +87,7 @@ function GroupCard({ g }: { g: GroupRow }) {
   const canEdit = access.isHead || access.ownGroups.has(g.key);
   const candidates = data.operators.filter((o) => !o.deletedAt && o.status !== "fired" && (o.groupId || NO_GROUP) !== g.key);
   const members = [...g.members].sort((a, b) => goneLast(a.op, b.op) || b.pace.fact - a.pace.fact);
+  const sp = useMemo(() => groupSpread(g.members, byOp), [g.members, byOp]);
 
   return (
     <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14, opacity: g.group && !g.group.active ? 0.75 : 1 }}>
@@ -139,6 +143,33 @@ function GroupCard({ g }: { g: GroupRow }) {
           <span style={{ color: p.deviation >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(p.deviation)} к плану на дату</span>
         </div>
       </div>
+
+      {/* разброс: группа может держаться на одном сильном, пока остальные отстают */}
+      {sp.people.length > 1 && (
+        <div className="ins-gspread">
+          <div className="row" style={{ justifyContent: "space-between", fontSize: 12, color: "var(--text-sub)" }}>
+            <span>Темп каждого в группе</span>
+            {sp.lo != null && sp.hi != null && (
+              <span className="num" style={{ color: "var(--dim)" }}>
+                {fmtPct(sp.lo)} – {fmtPct(sp.hi)}
+              </span>
+            )}
+          </div>
+          <SpreadBar sp={sp} />
+          <div className="row" style={{ gap: 12, flexWrap: "wrap", fontSize: 12, color: "var(--dim)" }}>
+            {sp.topShare > 0 && (
+              <span>
+                {sp.topName} даёт <b className="num" style={{ color: sp.topShare >= 0.4 ? "var(--c-amber-fg)" : "var(--text)" }}>{fmtPct(sp.topShare)}</b> лидов группы
+              </span>
+            )}
+            {sp.attention > 0 && (
+              <Link href="/operators" style={{ color: "var(--c-red-fg)", textDecoration: "none" }}>
+                требуют внимания: <b className="num">{sp.attention}</b>
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid3" style={{ gap: 8 }}>
         <Cell label="План к сегодня" value={fmtInt(Math.round(p.planToDate))} />
@@ -213,6 +244,19 @@ function GroupCard({ g }: { g: GroupRow }) {
   );
 }
 
+function SpreadCells({ g, byOp }: { g: GroupRow; byOp: Map<string, OpInsight> }) {
+  const sp = groupSpread(g.members, byOp);
+  return (
+    <>
+      <td className="r num bl">{sp.lo != null && sp.hi != null ? `${fmtPct(sp.lo)}–${fmtPct(sp.hi)}` : "—"}</td>
+      <td className="r num" style={{ color: sp.topShare >= 0.4 ? "var(--c-amber-fg)" : undefined }} title={sp.topName}>
+        {sp.topShare > 0 ? fmtPct(sp.topShare) : "—"}
+      </td>
+      <td className="r num" style={{ color: sp.attention ? "var(--c-red-fg)" : "var(--dim)" }}>{sp.attention || "—"}</td>
+    </>
+  );
+}
+
 function Cell({ label, value, sub, tone, wide }: { label: string; value: ReactNode; sub?: string; tone?: "good" | "bad"; wide?: boolean }) {
   return (
     // wide — плитка на всю строку (последняя одиночная плитка не висит хвостом)
@@ -227,7 +271,7 @@ function Cell({ label, value, sub, tone, wide }: { label: string; value: ReactNo
   );
 }
 
-function GroupTable({ groups, past }: { groups: GroupRow[]; past: boolean }) {
+function GroupTable({ groups, past, byOp }: { groups: GroupRow[]; past: boolean; byOp: Map<string, OpInsight> }) {
   const { openGroup, access } = useCrm();
   return (
     <div className="tbl-wrap">
@@ -238,11 +282,14 @@ function GroupTable({ groups, past }: { groups: GroupRow[]; past: boolean }) {
             <th>Оценка</th>
             <th className="r">План</th>
             <th className="r">Факт</th>
-            <th style={{ minWidth: 120 }}>Выполнение</th>
+            <th className="c" style={{ minWidth: 120 }}>Выполнение</th>
             <th className="r">К дате</th>
             <th className="r">Прогноз</th>
             <th className="r">Осталось</th>
             <th className="r">Нужно/д</th>
+            <th className="r bl" title="Темп к дате: самый низкий и самый высокий в группе">Разброс</th>
+            <th className="r" title="Доля лидов группы у лучшего оператора">Лучший даёт</th>
+            <th className="r" title="Операторы с сигналами «Требует внимания»">Внимание</th>
             <th className="r bl">Сегодня</th>
             <th className="r">Неделя</th>
             <th className="r">Активных</th>
@@ -277,6 +324,7 @@ function GroupTable({ groups, past }: { groups: GroupRow[]; past: boolean }) {
               </td>
               <td className="r num">{fmtInt(g.pace.remaining)}</td>
               <td className="r num">{g.pace.needPerDay == null ? "—" : fmtNum(g.pace.needPerDay)}</td>
+              <SpreadCells g={g} byOp={byOp} />
               <td className="r num bl">{fmtInt(g.pace.today)}</td>
               <td className="r num">{fmtInt(g.pace.thisWeek)}</td>
               <td className="r num">{g.headcount}</td>

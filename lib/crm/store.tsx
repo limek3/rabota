@@ -17,6 +17,8 @@ import type {
   LeadStatus,
   MonthKey,
   MonthPlan,
+  NoteMetric,
+  OpNote,
   Operator,
   OperatorStatus,
   PayType,
@@ -39,6 +41,7 @@ import {
   canEditPlan,
   canEditShift,
   canManageOperator,
+  canNote,
   canReviewLead,
   canTouchCandidate,
   computeAccess,
@@ -193,6 +196,9 @@ interface Store {
   deleteCandidate: (id: ID) => Promise<void>;
   /** Принять кандидата: заводится карточка оператора с датой приёма, кандидат — «Принят». */
   hireCandidate: (id: ID, hireDate: DayKey, groupId: ID | null, fresh?: Candidate) => Promise<Operator | null>;
+  /** Заметка супервайзера об операторе (новая или правка текста). */
+  saveNote: (input: { id?: ID; operatorId: ID; date: DayKey; text: string; metric: NoteMetric }) => Promise<boolean>;
+  deleteNote: (id: ID) => Promise<void>;
   /** Сохранить часть настроек (остальное не трогается). true — записано. */
   saveSettings: (patch: Partial<Settings>) => Promise<boolean>;
 
@@ -1522,6 +1528,65 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     [commit, toast, deny, log],
   );
 
+  /* ── заметки супервайзера ──────────────────────────────────────── */
+  const saveNote = useCallback<Store["saveNote"]>(
+    async (input) => {
+      const a = accessRef.current;
+      const text = input.text.trim();
+      if (!text) return false;
+      if (!canNote(a, input.operatorId)) {
+        deny();
+        return false;
+      }
+      const st = dataRef.current;
+      const prev = input.id ? st.notes.find((n) => n.id === input.id) : undefined;
+      // чужую заметку правит только РОП: иначе можно переписать, о чём договаривался коллега
+      if (prev && prev.authorId !== a.account.id && !a.isHead) {
+        deny();
+        return false;
+      }
+      const now = isoNow();
+      const n: OpNote = {
+        id: prev?.id ?? uniqueId("note", new Set(st.notes.map((x) => x.id))),
+        operatorId: input.operatorId,
+        date: input.date,
+        text,
+        metric: input.metric,
+        authorId: prev?.authorId ?? a.account.id,
+        authorName: prev?.authorName ?? a.account.name,
+        createdAt: prev?.createdAt ?? now,
+        updatedAt: now,
+        deletedAt: null,
+      };
+      return commit(
+        () => db.putRecord("notes", n),
+        (d) => ({ ...d, notes: prev ? d.notes.map((x) => (x.id === n.id ? n : x)) : [...d.notes, n] }),
+        "Не удалось сохранить заметку",
+      );
+    },
+    [commit, deny],
+  );
+
+  const deleteNote = useCallback<Store["deleteNote"]>(
+    async (id) => {
+      const a = accessRef.current;
+      const prev = dataRef.current.notes.find((n) => n.id === id);
+      if (!prev) return;
+      if (!canNote(a, prev.operatorId) || (prev.authorId !== a.account.id && !a.isHead)) return deny();
+      const upd: OpNote = { ...prev, deletedAt: isoNow(), updatedAt: isoNow() };
+      const ok = await commit(
+        () => db.putRecord("notes", upd),
+        (d) => ({ ...d, notes: d.notes.map((n) => (n.id === id ? upd : n)) }),
+      );
+      if (ok)
+        toast("Заметка удалена", "info", {
+          label: "Вернуть",
+          run: () => void commit(() => db.putRecord("notes", prev), (d) => ({ ...d, notes: d.notes.map((n) => (n.id === id ? prev : n)) })),
+        });
+    },
+    [commit, deny, toast],
+  );
+
   /* ── настройки ─────────────────────────────────────────────────── */
   const saveSettings = useCallback<Store["saveSettings"]>(
     async (patch) => {
@@ -1985,6 +2050,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     saveCandidate,
     deleteCandidate,
     hireCandidate,
+    saveNote,
+    deleteNote,
     saveSettings,
     saveLearn,
     resetLearn,
