@@ -118,8 +118,8 @@ export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Pa
           <Field label="Дата увольнения" error={errDates} hint={f.status !== "fired" && !f.fireDate ? "Заполняется при увольнении" : undefined}>
             <DateInput value={f.fireDate} onChange={(d) => set("fireDate", d)} clearable min={f.hireDate || undefined} ariaLabel="Дата увольнения" invalid={!!errDates} />
           </Field>
-          <Field label="Контакт">
-            <input className="inp" value={f.contact} onChange={(e) => set("contact", e.target.value)} placeholder="Телефон, Telegram" />
+          <Field label="Telegram">
+            <input className="inp" value={f.contact} onChange={(e) => set("contact", e.target.value)} placeholder="@username" />
           </Field>
         </div>
 

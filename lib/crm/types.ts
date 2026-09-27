@@ -342,6 +342,8 @@ export interface AccountPrefs {
   compact: boolean;
   /** Своя аватарка: картинка 160×160 в data URL (сжата в браузере). Нет — инициалы. */
   avatar?: string;
+  /** Свой порядок столбцов таблиц: ключ таблицы → ключи столбцов по порядку. У каждого аккаунта свой. */
+  cols?: Record<string, string[]>;
 }
 
 /**

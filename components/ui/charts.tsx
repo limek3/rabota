@@ -198,3 +198,91 @@ export function DailyBars({ rows, dailyPlan, height = 200 }: { rows: DayRow[]; d
     </div>
   );
 }
+
+/* ── лиды по сменам (карточка оператора) ────────────────────────────── */
+interface ShiftPoint {
+  d: number;
+  day: string;
+  /** Лиды за смену; null — смены не было (выходной, больничный, до приёма) или день ещё впереди. */
+  leads: number | null;
+  hours: number;
+}
+
+/**
+ * Лиды за каждую смену месяца — тем же языком, что мини-график в «Операторах»: линия соединяет
+ * только смены (выходной — пропуск, а не ноль), смена без лидов — красная точка на нуле,
+ * последняя смена — крупная точка. Пунктир — личный план дня.
+ */
+export function ShiftLeadsChart({ rows, dayPlan, height = 170 }: { rows: DayRow[]; dayPlan: number; height?: number }) {
+  const data: ShiftPoint[] = rows.map((r, i) => ({
+    d: i + 1,
+    day: r.day,
+    leads: !r.future && (r.hours > 0 || r.count > 0) ? r.count : null,
+    hours: r.hours,
+  }));
+  const lastIdx = data.reduce((a, p, i) => (p.leads != null ? i : a), -1);
+  const max = Math.max(4, dayPlan, ...data.map((p) => p.leads ?? 0));
+  return (
+    <div style={{ width: "100%", height }}>
+      <ResponsiveContainer>
+        <ComposedChart data={data} margin={{ top: 10, right: 12, bottom: 0, left: -8 }}>
+          <CartesianGrid stroke="var(--ink-06)" vertical={false} />
+          <XAxis dataKey="d" tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--ink-10)" }} interval="preserveStartEnd" minTickGap={14} />
+          <YAxis tick={AXIS} tickLine={false} axisLine={false} allowDecimals={false} width={44} domain={[0, Math.ceil(max)]} />
+          <Tooltip
+            cursor={{ stroke: "var(--ink-15)", strokeWidth: 1 }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0].payload as ShiftPoint;
+              return (
+                <TipBox>
+                  <div style={{ fontWeight: 600 }}>
+                    {fmtDay(p.day)}, {fmtWeekday(p.day)}
+                  </div>
+                  {p.leads == null ? (
+                    <div style={{ marginTop: 3, color: "var(--dim)" }}>нет смены</div>
+                  ) : (
+                    <>
+                      <TipRow color="var(--sch-we-label)" label="Лиды" value={fmtInt(p.leads)} />
+                      {p.hours > 0 && <TipRow label="Часы" value={fmtNum(p.hours)} />}
+                      {p.hours > 0 && <TipRow label="Конверсия" value={fmtPct(p.leads / p.hours)} />}
+                    </>
+                  )}
+                  {dayPlan > 0 && <TipRow color="var(--text-sub3)" label="План дня" value={fmtNum(dayPlan, 1)} dashed />}
+                </TipBox>
+              );
+            }}
+          />
+          {dayPlan > 0 && <ReferenceLine y={dayPlan} stroke="var(--text-sub3)" strokeWidth={1.5} strokeDasharray="5 4" ifOverflow="extendDomain" />}
+          <Area type="linear" dataKey="leads" stroke="none" fill="var(--sch-we-label)" fillOpacity={0.09} isAnimationActive={false} connectNulls />
+          <Line
+            type="linear"
+            dataKey="leads"
+            stroke="var(--sch-we-label)"
+            strokeWidth={2}
+            connectNulls
+            isAnimationActive={false}
+            activeDot={{ r: 4.5, stroke: "var(--bg-panel)", strokeWidth: 2, fill: "var(--sch-we-label)" }}
+            dot={(props: { cx?: number; cy?: number; index?: number; payload?: ShiftPoint }) => {
+              const { cx, cy, index, payload } = props;
+              if (cx == null || cy == null || payload?.leads == null) return <g key={`d${index}`} />;
+              if (payload.leads === 0) return <circle key={`d${index}`} cx={cx} cy={cy} r={3} fill="var(--c-red-fg)" />;
+              const last = index === lastIdx;
+              return (
+                <circle
+                  key={`d${index}`}
+                  cx={cx}
+                  cy={cy}
+                  r={last ? 4 : 2.6}
+                  fill={last ? "var(--sch-we-label)" : "var(--bg-panel)"}
+                  stroke={last ? "var(--bg-panel)" : "var(--sch-we-label)"}
+                  strokeWidth={last ? 1.5 : 1.5}
+                />
+              );
+            }}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

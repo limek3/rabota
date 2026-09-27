@@ -165,7 +165,20 @@ export function normalizePrefs(raw: Partial<AccountPrefs> | null | undefined, ro
     defaultProjectId: typeof p.defaultProjectId === "string" ? p.defaultProjectId : null,
     compact: p.compact === true,
     ...(isAvatar(p.avatar) ? { avatar: p.avatar } : {}),
+    ...(cleanCols(p.cols) ? { cols: cleanCols(p.cols) } : {}),
   };
+}
+
+/** Порядок столбцов: только { таблица: [ключи] } из коротких строк, без мусора и повторов. */
+function cleanCols(v: unknown): Record<string, string[]> | undefined {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
+  const out: Record<string, string[]> = {};
+  for (const [table, keys] of Object.entries(v as Record<string, unknown>)) {
+    if (!/^[a-z][a-z0-9_-]{0,30}$/i.test(table) || !Array.isArray(keys)) continue;
+    const list = Array.from(new Set(keys.filter((k): k is string => typeof k === "string" && k.length > 0 && k.length <= 30))).slice(0, 60);
+    if (list.length) out[table] = list;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** Аватарка — только картинка в data URL и не больше ~150 КБ (мы сами сжимаем до 160×160). */

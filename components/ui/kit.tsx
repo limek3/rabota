@@ -1068,6 +1068,7 @@ export function SortTh<K extends string>({
   className = "",
   title,
   style,
+  drag,
 }: {
   k: K;
   sort: SortState<K>;
@@ -1076,13 +1077,17 @@ export function SortTh<K extends string>({
   className?: string;
   title?: string;
   style?: CSSProperties;
+  /** Перетаскивание столбца (useColumnDrag().headProps(key)). */
+  drag?: { "data-col": string; className: string; onPointerDown: (e: React.PointerEvent<HTMLElement>) => void };
 }) {
   const on = sort.key === k;
   return (
     <th
-      className={`sortable ${className}`}
+      className={`sortable ${className} ${drag?.className ?? ""}`}
       title={title}
       style={style}
+      data-col={drag?.["data-col"]}
+      onPointerDown={drag?.onPointerDown}
       onClick={() => setSort({ key: k, dir: on ? (sort.dir === 1 ? -1 : 1) : -1 })}
       aria-sort={on ? (sort.dir === 1 ? "ascending" : "descending") : "none"}
     >

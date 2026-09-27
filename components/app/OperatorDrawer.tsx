@@ -1,17 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { dailyRows, monthCal, probation, type OpRow } from "@/lib/crm/calc";
 import { NO_GROUP_LABEL, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, type OperatorStatus } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, fmtStamp, monthEnd, monthStart } from "@/lib/crm/dates";
-import { fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned } from "@/lib/crm/format";
+import { fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, telegramUser } from "@/lib/crm/format";
 import { PayoutHistory } from "@/components/app/PayoutHistory";
 import { Avatar, Chip, Conv, Drawer, Kpi, LeadLinkButton, LeadStatusChip, Progress, StatusChip } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canManageOperator } from "@/lib/crm/access";
-import { CumulativeChart, Legend } from "@/components/ui/charts";
+import { CumulativeChart, Legend, ShiftLeadsChart } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
 import { hasBonus, isHourlyTiered, isSalary, isTiered } from "@/lib/crm/payroll";
 import { learnSummary } from "@/components/learn/Progress";
@@ -271,7 +271,7 @@ export function OperatorStats({ row, wide = false }: { row: OpRow; wide?: boolea
             />
           )}
           <Info k="Норма" v={fmtHours(row.norm)} />
-          <Info k="Контакт" v={op.contact || "—"} />
+          <Info k="Telegram" v={<TelegramLink value={op.contact} />} />
           <Info k="Обучение" v={learn ? `${learn.passed} из ${learn.total} (${Math.round(learn.pct * 100)}%)` : "нет аккаунта"} />
           {prob.active && (
             <Info
@@ -314,7 +314,21 @@ function range(vals: number[]): string {
   return lo === hi ? fmtInt(lo) : `${fmtInt(lo)}–${fmtInt(hi)}`;
 }
 
-function Info({ k, v }: { k: string; v: string }) {
+/** Telegram оператора: ник — кликабельная иконка и @ник, открывают его Telegram; не ник (старые записи с телефоном) — просто текст. */
+function TelegramLink({ value }: { value: string }) {
+  const user = telegramUser(value);
+  if (!user) return <>{value || "—"}</>;
+  return (
+    <a className="tg-link" href={`https://t.me/${user}`} target="_blank" rel="noreferrer" title={`Открыть @${user} в Telegram`}>
+      <span className="tg-link-ico" aria-hidden>
+        <Icon name="telegram" size={13} />
+      </span>
+      @{user}
+    </a>
+  );
+}
+
+function Info({ k, v }: { k: string; v: ReactNode }) {
   return (
     <div className="row" style={{ alignItems: "flex-start", gap: 10 }}>
       <span style={{ width: 96, flex: "none", color: "var(--dim)" }}>{k}</span>
@@ -342,6 +356,18 @@ function OperatorChart({ row }: { row: OpRow }) {
         />
       </div>
       <CumulativeChart rows={rows.rows} rr={row.pace.rr} showForecast={rows.phase === "current" && row.pace.elapsedW > 0} height={200} />
+      {/* лиды за каждую смену — видно ритм: где рос, где провалился, где смена прошла без лидов */}
+      <div className="card-head" style={{ marginTop: 18 }}>
+        <h3 className="card-title">Лиды по сменам</h3>
+        <Legend
+          items={[
+            { color: "var(--sch-we-label)", label: "Лиды за смену" },
+            ...(row.pace.dailyPlan > 0 ? [{ color: "var(--text-sub3)", label: `План дня ${fmtNum(row.pace.dailyPlan, 1)}`, dashed: true }] : []),
+            { color: "var(--c-red-fg)", label: "Смена без лидов", bar: true },
+          ]}
+        />
+      </div>
+      <ShiftLeadsChart rows={rows.rows} dayPlan={row.pace.dailyPlan} height={170} />
     </div>
   );
 }

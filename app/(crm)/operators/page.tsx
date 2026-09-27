@@ -7,6 +7,10 @@ import { PACE_HUE, PACE_LABEL, goneLast, isGone, type OpRow, type Pace, type Pac
 import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
 import { addDays, fmtDayShort, fmtMonth, rangeDays } from "@/lib/crm/dates";
 import { Sparkline, SparkTrend, type SparkPoint } from "@/components/ui/Sparkline";
+import { ColumnOrderHint, useColumnDrag, useColumnOrder } from "@/components/ui/ColumnOrder";
+
+/** Столбцы таблицы по умолчанию (после закреплённого «Оператор»). Порядок каждый может поменять у себя. */
+const OP_COLS = ["status", "plan", "fact", "pct", "dev", "rr", "left", "need", "today", "week", "prev", "avg", "hours", "lph", "spark"] as const;
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
 import { Avatar, Conv, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
@@ -79,6 +83,9 @@ export default function OperatorsPage() {
   const [sort, setSort] = useState<SortState<SortKey>>({ key: "fact", dir: -1 });
   const [openId, setOpenId] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // свой порядок столбцов у каждого аккаунта; перетаскивание за заголовок
+  const colOrder = useColumnOrder("operators", OP_COLS);
+  const colDrag = useColumnDrag({ wrapRef, order: colOrder.order, onChange: colOrder.save });
   const fold = useFoldGroups(wrapRef);
 
   // группа строки: супервайзер — в группе, которую ведёт (как в зарплате); остальные — по карточке
@@ -217,6 +224,72 @@ export default function OperatorsPage() {
       </Fragment>
     ));
 
+  // ── столбцы: ячейка строки, строки группы и итога по ключу; выводятся в порядке colOrder.order ──
+  const rowCell = (k: string, r: OpRow, p: OpRow["pace"]): ReactNode => {
+    switch (k) {
+      case "status":
+        return (
+          <td key={k} data-col={k}>
+            <StatusChip status={r.status} />
+          </td>
+        );
+      case "plan":
+        return (
+          <td key={k} data-col={k} className="r num">
+            {fmtInt(r.terms.plan)}
+            {r.terms.explicit && <span title="План задан для этого месяца" style={{ color: "var(--brand)" }}>•</span>}
+          </td>
+        );
+      case "fact":
+        return <td key={k} data-col={k} className="r num"><LeadN n={p.fact} /></td>;
+      case "pct":
+        return (
+          <td key={k} data-col={k}>
+            <div className="row" style={{ gap: 8 }}>
+              <Progress value={p.pct} marker={!past && r.terms.plan > 0 ? p.planToDate / r.terms.plan : undefined} hue={PACE_HUE[r.status]} style={{ flex: 1, minWidth: 50 }} />
+              <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(p.pct)}</span>
+            </div>
+          </td>
+        );
+      case "dev":
+        return <td key={k} data-col={k} className="r num" style={{ color: p.deviation >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(p.deviation)}</td>;
+      case "rr":
+        return (
+          <td key={k} data-col={k} className="r num">
+            {fmtInt(p.rr)} <span className="muted">{fmtPct(p.rrPct)}</span>
+          </td>
+        );
+      case "left":
+        return <td key={k} data-col={k} className="r num">{fmtInt(p.remaining)}</td>;
+      case "need":
+        return <td key={k} data-col={k} className="r num">{p.needPerDay == null ? "—" : fmtNum(p.needPerDay)}</td>;
+      case "today":
+        return <td key={k} data-col={k} className="r num">{fmtInt(p.today)}</td>;
+      case "week":
+        return <td key={k} data-col={k} className="r num">{fmtInt(p.thisWeek)}</td>;
+      case "prev":
+        return <td key={k} data-col={k} className="r num muted">{fmtInt(p.prevWeek)}</td>;
+      case "avg":
+        return <td key={k} data-col={k} className="r num">{fmtNum(r.avgPerWorkday)}</td>;
+      case "hours":
+        return <td key={k} data-col={k} className="r num">{fmtNum(r.hours)}</td>;
+      case "lph":
+        return <td key={k} data-col={k} className="r num"><Conv value={r.lph} /></td>;
+      case "spark": {
+        const pts = sparkOf(r.op.id);
+        return (
+          <td key={k} data-col={k}>
+            <span className="spark-cell">
+              <Sparkline points={pts} max={sparkMax} />
+              <SparkTrend points={pts} />
+            </span>
+          </td>
+        );
+      }
+    }
+    return null;
+  };
+
   const renderRow = (r: OpRow, i = 0, phase?: FoldPhase) => {
     const f = foldRow(phase, i);
     const g = r.op.groupId ? ix.groupById.get(r.op.groupId) : null;
@@ -240,48 +313,109 @@ export default function OperatorsPage() {
             </span>
           </span>
         </td>
-        <td>
-          <StatusChip status={r.status} />
-        </td>
-        <td className="r num">
-          {fmtInt(r.terms.plan)}
-          {r.terms.explicit && <span title="План задан для этого месяца" style={{ color: "var(--brand)" }}>•</span>}
-        </td>
-        <td className="r num"><LeadN n={p.fact} /></td>
-        <td>
-          <div className="row" style={{ gap: 8 }}>
-            <Progress value={p.pct} marker={!past && r.terms.plan > 0 ? p.planToDate / r.terms.plan : undefined} hue={PACE_HUE[r.status]} style={{ flex: 1, minWidth: 50 }} />
-            <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(p.pct)}</span>
-          </div>
-        </td>
-        <td className="r num" style={{ color: p.deviation >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(p.deviation)}</td>
-        <td className="r num">
-          {fmtInt(p.rr)} <span className="muted">{fmtPct(p.rrPct)}</span>
-        </td>
-        <td className="r num">{fmtInt(p.remaining)}</td>
-        <td className="r num">{p.needPerDay == null ? "—" : fmtNum(p.needPerDay)}</td>
-        <td className="r num bl">{fmtInt(p.today)}</td>
-        <td className="r num">{fmtInt(p.thisWeek)}</td>
-        <td className="r num muted">{fmtInt(p.prevWeek)}</td>
-        <td className="r num">{fmtNum(r.avgPerWorkday)}</td>
-        <td className="r num bl">{fmtNum(r.hours)}</td>
-        <td className="r num"><Conv value={r.lph} /></td>
-        <td className="bl">
-          {(() => {
-            const pts = sparkOf(r.op.id);
-            return (
-              <span className="spark-cell">
-                <Sparkline points={pts} max={sparkMax} />
-                <SparkTrend points={pts} />
-              </span>
-            );
-          })()}
-        </td>
+        {colOrder.order.map((k) => rowCell(k, r, p))}
       </tr>
     );
   };
 
   const past = m.cal.phase === "past";
+  const hp = colDrag.headProps;
+  const groupCell = (k: string, sec: (typeof sections)[number], pct: number): ReactNode => {
+    switch (k) {
+      case "status":
+        return <td key={k} data-col={k}>{sec.status && <StatusChip status={sec.status} />}</td>;
+      case "plan":
+        return <td key={k} data-col={k} className="r num">{fmtInt(sec.t.plan)}</td>;
+      case "fact":
+        return <td key={k} data-col={k} className="r num"><LeadN n={sec.t.fact} /></td>;
+      case "pct":
+        return (
+          <td key={k} data-col={k}>
+            <div className="row" style={{ gap: 8 }}>
+              <Progress value={pct} marker={!past && sec.t.plan > 0 ? sec.t.planToDate / sec.t.plan : undefined} hue={sec.status ? PACE_HUE[sec.status] : undefined} style={{ flex: 1, minWidth: 50 }} />
+              <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(pct)}</span>
+            </div>
+          </td>
+        );
+      case "dev":
+        return <td key={k} data-col={k} className="r num" style={{ color: sec.t.dev >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(sec.t.dev)}</td>;
+      case "rr":
+        return <td key={k} data-col={k} className="r num">{fmtInt(sec.t.rr)}</td>;
+      case "left":
+        return <td key={k} data-col={k} className="r num">{fmtInt(sec.t.left)}</td>;
+      case "today":
+        return <td key={k} data-col={k} className="r num">{fmtInt(sec.t.today)}</td>;
+      case "week":
+        return <td key={k} data-col={k} className="r num">{fmtInt(sec.t.week)}</td>;
+      case "prev":
+        return <td key={k} data-col={k} className="r num">{fmtInt(sec.t.prev)}</td>;
+      case "hours":
+        return <td key={k} data-col={k} className="r num">{fmtNum(sec.t.hours)}</td>;
+      case "lph":
+        return <td key={k} data-col={k} className="r num"><Conv leads={sec.t.fact} hours={sec.t.hours} /></td>;
+    }
+    return <td key={k} data-col={k} />;
+  };
+  const totalCell = (k: string): ReactNode => {
+    switch (k) {
+      case "plan":
+        return <td key={k} data-col={k} className="r num">{fmtInt(totals.plan)}</td>;
+      case "fact":
+        return <td key={k} data-col={k} className="r num"><LeadN n={totals.fact} /></td>;
+      case "pct":
+        return <td key={k} data-col={k} className="num">{fmtPct(safeDiv(totals.fact, totals.plan))}</td>;
+      case "today":
+        return <td key={k} data-col={k} className="r num">{fmtInt(totals.today)}</td>;
+      case "week":
+        return <td key={k} data-col={k} className="r num">{fmtInt(totals.week)}</td>;
+      case "prev":
+        return <td key={k} data-col={k} className="r num">{fmtInt(totals.prev)}</td>;
+      case "hours":
+        return <td key={k} data-col={k} className="r num">{fmtNum(totals.hours)}</td>;
+      case "lph":
+        return <td key={k} data-col={k} className="r num"><Conv leads={totals.fact} hours={totals.hours} /></td>;
+    }
+    return <td key={k} data-col={k} />;
+  };
+  const headCell = (k: string): ReactNode => {
+    switch (k) {
+      case "status":
+        return <th key={k} {...hp(k)}>Оценка</th>;
+      case "plan":
+        return <SortTh key={k} k="plan" sort={sort} setSort={setSort} className="r" drag={hp(k)}>План</SortTh>;
+      case "fact":
+        return <SortTh key={k} k="fact" sort={sort} setSort={setSort} className="r" drag={hp(k)}>Факт</SortTh>;
+      case "pct":
+        return <SortTh key={k} k="pct" sort={sort} setSort={setSort} style={{ minWidth: 120 }} drag={hp(k)}>Выполнение</SortTh>;
+      case "dev":
+        return <SortTh key={k} k="dev" sort={sort} setSort={setSort} className="r" title="Факт минус план на сегодня" drag={hp(k)}>К дате</SortTh>;
+      case "rr":
+        return <SortTh key={k} k="rr" sort={sort} setSort={setSort} className="r" title="Run Rate: прогноз на конец месяца по текущему темпу" drag={hp(k)}>Прогноз</SortTh>;
+      case "left":
+        return <SortTh key={k} k="left" sort={sort} setSort={setSort} className="r" drag={hp(k)}>Осталось</SortTh>;
+      case "need":
+        return <SortTh key={k} k="need" sort={sort} setSort={setSort} className="r" title="Сколько нужно в рабочий день до конца месяца" drag={hp(k)}>Нужно/д</SortTh>;
+      case "today":
+        return <SortTh key={k} k="today" sort={sort} setSort={setSort} className="r" drag={hp(k)}>Сегодня</SortTh>;
+      case "week":
+        return <SortTh key={k} k="week" sort={sort} setSort={setSort} className="r" drag={hp(k)}>Неделя</SortTh>;
+      case "prev":
+        return <SortTh key={k} k="prev" sort={sort} setSort={setSort} className="r" drag={hp(k)}>Пр. нед.</SortTh>;
+      case "avg":
+        return <SortTh key={k} k="avg" sort={sort} setSort={setSort} className="r" title="Среднее лидов в отработанный день" drag={hp(k)}>Ср./день</SortTh>;
+      case "hours":
+        return <SortTh key={k} k="hours" sort={sort} setSort={setSort} className="r" drag={hp(k)}>Часы</SortTh>;
+      case "lph":
+        return <SortTh key={k} k="lph" sort={sort} setSort={setSort} className="r" title="Конверсия: переданные лиды ÷ отработанные часы" drag={hp(k)}>Конв.</SortTh>;
+      case "spark":
+        return (
+          <th key={k} {...hp(k)} className={`spark-th ${hp(k).className}`} title="Лиды по дням за последние 14 дней — у всех в одном масштабе. Справа — средние лиды за смену: последние 7 дней против предыдущих 7">
+            14 дней <span className="muted">· {fmtDayShort(sparkDays[0])} – {fmtDayShort(sparkDays[sparkDays.length - 1])}</span>
+          </th>
+        );
+    }
+    return null;
+  };
   // колесо мыши листает широкую таблицу вбок (если она влезла по высоте или курсор на шапке)
   useWheelHScroll(wrapRef, { auto: true, watch: list.length > 0 });
 
@@ -364,6 +498,7 @@ export default function OperatorsPage() {
           <span style={{ fontSize: 12, color: "var(--dim)", marginLeft: "auto" }}>
             Выше плана ≥ {data.settings.aheadPct}% · по плану ≥ {data.settings.normalPct}% · отстаёт ≥ {data.settings.lagPct}% · не работает — {data.settings.idleDays} раб. дн. без лидов
           </span>
+          {list.length > 0 && <ColumnOrderHint custom={colOrder.custom} onReset={colOrder.reset} />}
         </div>
       </div>
 
@@ -390,23 +525,7 @@ export default function OperatorsPage() {
                 <SortTh k="name" sort={sort} setSort={setSort} className="sticky-col" style={{ minWidth: 240 }}>
                   Оператор
                 </SortTh>
-                <th>Оценка</th>
-                <SortTh k="plan" sort={sort} setSort={setSort} className="r">План</SortTh>
-                <SortTh k="fact" sort={sort} setSort={setSort} className="r">Факт</SortTh>
-                <SortTh k="pct" sort={sort} setSort={setSort} style={{ minWidth: 120 }}>Выполнение</SortTh>
-                <SortTh k="dev" sort={sort} setSort={setSort} className="r" title="Факт минус план на сегодня">К дате</SortTh>
-                <SortTh k="rr" sort={sort} setSort={setSort} className="r" title="Run Rate: прогноз на конец месяца по текущему темпу">Прогноз</SortTh>
-                <SortTh k="left" sort={sort} setSort={setSort} className="r">Осталось</SortTh>
-                <SortTh k="need" sort={sort} setSort={setSort} className="r" title="Сколько нужно в рабочий день до конца месяца">Нужно/д</SortTh>
-                <SortTh k="today" sort={sort} setSort={setSort} className="r bl">Сегодня</SortTh>
-                <SortTh k="week" sort={sort} setSort={setSort} className="r">Неделя</SortTh>
-                <SortTh k="prev" sort={sort} setSort={setSort} className="r">Пр. нед.</SortTh>
-                <SortTh k="avg" sort={sort} setSort={setSort} className="r" title="Среднее лидов в отработанный день">Ср./день</SortTh>
-                <SortTh k="hours" sort={sort} setSort={setSort} className="r bl">Часы</SortTh>
-                <SortTh k="lph" sort={sort} setSort={setSort} className="r" title="Конверсия: переданные лиды ÷ отработанные часы">Конв.</SortTh>
-                <th className="bl spark-th" title="Лиды по дням за последние 14 дней — у всех в одном масштабе. Справа — средние лиды за смену: последние 7 дней против предыдущих 7">
-                  14 дней <span className="muted">· {fmtDayShort(sparkDays[0])} – {fmtDayShort(sparkDays[sparkDays.length - 1])}</span>
-                </th>
+                {colOrder.order.map((k) => headCell(k))}
               </tr>
             </thead>
             {grouped ? (
@@ -427,26 +546,7 @@ export default function OperatorsPage() {
                           </span>
                         </span>
                       </td>
-                      <td>{sec.status && <StatusChip status={sec.status} />}</td>
-                      <td className="r num">{fmtInt(sec.t.plan)}</td>
-                      <td className="r num"><LeadN n={sec.t.fact} /></td>
-                      <td>
-                        <div className="row" style={{ gap: 8 }}>
-                          <Progress value={pct} marker={!past && sec.t.plan > 0 ? sec.t.planToDate / sec.t.plan : undefined} hue={sec.status ? PACE_HUE[sec.status] : undefined} style={{ flex: 1, minWidth: 50 }} />
-                          <span className="num" style={{ fontSize: 12, width: 38, textAlign: "right" }}>{fmtPct(pct)}</span>
-                        </div>
-                      </td>
-                      <td className="r num" style={{ color: sec.t.dev >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{fmtSigned(sec.t.dev)}</td>
-                      <td className="r num">{fmtInt(sec.t.rr)}</td>
-                      <td className="r num">{fmtInt(sec.t.left)}</td>
-                      <td />
-                      <td className="r num bl">{fmtInt(sec.t.today)}</td>
-                      <td className="r num">{fmtInt(sec.t.week)}</td>
-                      <td className="r num">{fmtInt(sec.t.prev)}</td>
-                      <td />
-                      <td className="r num bl">{fmtNum(sec.t.hours)}</td>
-                      <td className="r num"><Conv leads={sec.t.fact} hours={sec.t.hours} /></td>
-                      <td className="bl" />
+                      {colOrder.order.map((k) => groupCell(k, sec, pct))}
                     </tr>
                     {!closed && withGoneSep(sec.rows, (r, i) => renderRow(r, i, phase))}
                   </tbody>
@@ -458,18 +558,7 @@ export default function OperatorsPage() {
             <tfoot>
               <tr>
                 <td className="sticky-col">Итого · {list.length}</td>
-                <td />
-                <td className="r num">{fmtInt(totals.plan)}</td>
-                <td className="r num"><LeadN n={totals.fact} /></td>
-                <td className="num">{fmtPct(safeDiv(totals.fact, totals.plan))}</td>
-                <td colSpan={4} />
-                <td className="r num bl">{fmtInt(totals.today)}</td>
-                <td className="r num">{fmtInt(totals.week)}</td>
-                <td className="r num">{fmtInt(totals.prev)}</td>
-                <td />
-                <td className="r num bl">{fmtNum(totals.hours)}</td>
-                <td className="r num"><Conv leads={totals.fact} hours={totals.hours} /></td>
-                <td className="bl" />
+                {colOrder.order.map((k) => totalCell(k))}
               </tr>
             </tfoot>
           </table>

@@ -103,6 +103,18 @@ export function fmtPhone(p: string): string {
   return p || "";
 }
 
+/**
+ * Telegram-ник из поля «Telegram» карточки: «@user», «user», «t.me/user», «https://t.me/user».
+ * Телефон и прочее — null (ссылку не строим). Ник Telegram: 5–32 символа, латиница, цифры, «_».
+ */
+export function telegramUser(raw: string | null | undefined): string | null {
+  const s = (raw || "").trim();
+  const link = s.match(/^(?:https?:\/\/)?(?:t\.me|telegram\.me)\/@?([A-Za-z][A-Za-z0-9_]{4,31})\/?$/i);
+  if (link) return link[1];
+  const nick = s.match(/^@?([A-Za-z][A-Za-z0-9_]{4,31})$/);
+  return nick ? nick[1] : null;
+}
+
 /** Инициалы для аватарки. */
 export function initials(name: string): string {
   const parts = (name || "").trim().split(/\s+/).filter(Boolean);

@@ -12,6 +12,21 @@ import { canReviewLead } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 import { SEGMENT_HUE, SEGMENT_LABEL, regionSegment, type RegionSegment } from "@/lib/crm/regions";
 import { buildXlsx, downloadBlob } from "@/lib/xlsx";
+import { ColumnOrderHint, useColumnDrag, useColumnOrder } from "@/components/ui/ColumnOrder";
+
+/** Столбцы журнала по умолчанию. Порядок каждый может поменять у себя (перетащить заголовок). */
+const LEAD_COLS = ["at", "status", "client", "phone", "project", "region", "operator", "group", "comment"] as const;
+const LEAD_COL_TITLE: Record<(typeof LEAD_COLS)[number], string> = {
+  at: "Передан",
+  status: "Статус",
+  client: "Клиент",
+  phone: "Телефон",
+  project: "Проект",
+  region: "Регион",
+  operator: "Оператор",
+  group: "Группа",
+  comment: "Комментарий",
+};
 
 /** Размеры страницы журнала; выбор запоминается в этом браузере. */
 const SIZES = [25, 50, 75, 100];
@@ -39,6 +54,9 @@ export default function LeadsPage() {
   const [notExported, setNotExported] = useState(false);
   const canExport = access.isHead || access.isSup;
   const wrapRef = useRef<HTMLDivElement>(null);
+  // свой порядок столбцов у каждого аккаунта; перетаскивание за заголовок
+  const colOrder = useColumnOrder("leads", LEAD_COLS);
+  const colDrag = useColumnDrag({ wrapRef, order: colOrder.order, onChange: colOrder.save });
 
   useEffect(() => {
     try {
@@ -346,6 +364,11 @@ export default function LeadsPage() {
               </Chip>
             );
           })}
+          {list.length > 0 && (
+            <span style={{ marginLeft: "auto" }}>
+              <ColumnOrderHint custom={colOrder.custom} onReset={colOrder.reset} />
+            </span>
+          )}
         </div>
       </div>
 
@@ -370,15 +393,11 @@ export default function LeadsPage() {
           <table className="tbl tbl-leads">
             <thead>
               <tr>
-                <th className="c">Передан</th>
-                <th className="c">Статус</th>
-                <th>Клиент</th>
-                <th className="c">Телефон</th>
-                <th className="c">Проект</th>
-                <th>Регион</th>
-                <th>Оператор</th>
-                <th className="c">Группа</th>
-                <th>Комментарий</th>
+                {colOrder.order.map((k) => (
+                  <th key={k} {...colDrag.headProps(k)}>
+                    {LEAD_COL_TITLE[k as keyof typeof LEAD_COL_TITLE]}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -388,45 +407,73 @@ export default function LeadsPage() {
                 const p = l.projectId ? ix.projectById.get(l.projectId) : null;
                 return (
                   <tr key={l.id} className={l.status === "failed" ? "clickable row-stripe" : "clickable"} onClick={() => openLead(l)}>
-                    <td className="num c" title={`${fmtDate(l.at.slice(0, 10))} ${l.at.slice(11, 16)} МСК`}>
-                      {l.at.slice(0, 4) === today.slice(0, 4) ? fmtDate(l.at.slice(0, 10)).slice(0, 5) : fmtDate(l.at.slice(0, 10))} <span className="muted">{l.at.slice(11, 16)}</span>
-                    </td>
-                    <td className="c">
-                      <LeadStatusChip lead={l} />
-                      {l.status === "failed" && l.statusReason && (
-                        <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
-                          <ClipText text={l.statusReason} width={104} />
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <ClipText text={l.client} width={160} />
-                    </td>
-                    <td className="num c">
-                      {/* ссылка на лид — слева от номера; слот фиксированной ширины держит номера на одной вертикали */}
-                      <span className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
-                        <span style={{ width: 22, flex: "none", display: "inline-flex" }}>
-                          <LeadLinkButton link={l.link} variant="icon" />
-                        </span>
-                        {fmtPhone(l.phone) || <span className="muted">—</span>}
-                        {data.leadExports[l.id] && (
-                          <span className="lead-exported" title={`Номер выгружен ${fmtStamp(data.leadExports[l.id])}`}>
-                            <Icon name="check" size={14} stroke={2.4} />
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="c">{p ? <Chip hue={p.color}>{p.name}</Chip> : <span className="muted">—</span>}</td>
-                    <td>
-                      <RegionTag region={l.region} />
-                    </td>
-                    <td>
-                      <ClipText text={shortName(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} full={(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} width={130} />
-                    </td>
-                    <td className={g ? "c" : "c muted"}>{g ? g.name : NO_GROUP_LABEL}</td>
-                    <td className="muted">
-                      <ClipText text={l.comment} width={280} />
-                    </td>
+                    {colOrder.order.map((k) => {
+                      switch (k) {
+                        case "at":
+                          return (
+                            <td key={k} data-col={k} className="num" title={`${fmtDate(l.at.slice(0, 10))} ${l.at.slice(11, 16)} МСК`}>
+                              {l.at.slice(0, 4) === today.slice(0, 4) ? fmtDate(l.at.slice(0, 10)).slice(0, 5) : fmtDate(l.at.slice(0, 10))} <span className="muted">{l.at.slice(11, 16)}</span>
+                            </td>
+                          );
+                        case "status":
+                          return (
+                            <td key={k} data-col={k}>
+                              <LeadStatusChip lead={l} />
+                              {l.status === "failed" && l.statusReason && (
+                                <div className="muted" style={{ fontSize: 11.5, marginTop: 3 }}>
+                                  <ClipText text={l.statusReason} width={104} />
+                                </div>
+                              )}
+                            </td>
+                          );
+                        case "client":
+                          return (
+                            <td key={k} data-col={k}>
+                              <ClipText text={l.client} width={160} />
+                            </td>
+                          );
+                        case "phone":
+                          return (
+                            <td key={k} data-col={k} className="num">
+                              {/* ссылка на лид — слева от номера; слот фиксированной ширины держит номера на одной вертикали */}
+                              <span className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                                <span style={{ width: 22, flex: "none", display: "inline-flex" }}>
+                                  <LeadLinkButton link={l.link} variant="icon" />
+                                </span>
+                                {fmtPhone(l.phone) || <span className="muted">—</span>}
+                                {data.leadExports[l.id] && (
+                                  <span className="lead-exported" title={`Номер выгружен ${fmtStamp(data.leadExports[l.id])}`}>
+                                    <Icon name="check" size={14} stroke={2.4} />
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                          );
+                        case "project":
+                          return <td key={k} data-col={k}>{p ? <Chip hue={p.color}>{p.name}</Chip> : <span className="muted">—</span>}</td>;
+                        case "region":
+                          return (
+                            <td key={k} data-col={k}>
+                              <RegionTag region={l.region} />
+                            </td>
+                          );
+                        case "operator":
+                          return (
+                            <td key={k} data-col={k}>
+                              <ClipText text={shortName(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} full={(op?.name ?? "—") + (op?.deletedAt ? " (удалён)" : "")} width={130} />
+                            </td>
+                          );
+                        case "group":
+                          return <td key={k} data-col={k} className={g ? undefined : "muted"}>{g ? g.name : NO_GROUP_LABEL}</td>;
+                        case "comment":
+                          return (
+                            <td key={k} data-col={k} className="muted">
+                              <ClipText text={l.comment} width={280} />
+                            </td>
+                          );
+                      }
+                      return null;
+                    })}
                   </tr>
                 );
               })}
