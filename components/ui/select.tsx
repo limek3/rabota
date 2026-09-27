@@ -85,10 +85,10 @@ export function usePopover(open: boolean, anchorRef: React.RefObject<HTMLElement
 
   useLayoutEffect(() => {
     if (!open || !popRef.current) return;
-    const r = popRef.current.getBoundingClientRect();
-    const z = uiZoom();
-    const w = r.width / z;
-    const h = r.height / z;
+    // размер раскладки, а не экранный прямоугольник: при появлении всплывашка анимируется
+    // (scale), и getBoundingClientRect давал заниженную ширину — центр съезжал на несколько px
+    const w = popRef.current.offsetWidth;
+    const h = popRef.current.offsetHeight;
     if (Math.abs(w - size.w) > 0.5 || Math.abs(h - size.h) > 0.5) setSize({ w, h });
   });
 
@@ -122,8 +122,13 @@ export function usePopover(open: boolean, anchorRef: React.RefObject<HTMLElement
     const w = Math.max(size.w, anchor.width);
     const below = vh - anchor.bottom - 8;
     const up = below < h && anchor.top - 8 > below;
-    // по центру под полем (шире поля — поровну в обе стороны), но в пределах окна
-    const left = Math.max(8, Math.min(anchor.left + anchor.width / 2 - w / 2, vw - w - 8));
+    // по центру под полем (шире поля — поровну в обе стороны). Не влезает по центру — край
+    // всплывашки ровняется с краем поля (справа или слева), а не упирается в край окна где придётся
+    const centered = anchor.left + anchor.width / 2 - w / 2;
+    let left = centered;
+    if (centered + w > vw - 8) left = anchor.right - w;
+    else if (centered < 8) left = anchor.left;
+    left = Math.max(8, Math.min(left, vw - w - 8));
     style = {
       position: "fixed",
       left,
