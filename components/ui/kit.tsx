@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { Icon, type IconName } from "./icons";
+import { Icon, kpiIcon, type IconName } from "./icons";
 import { useCrm, useCrmOptional } from "@/lib/crm/store";
 import {
   addDays,
@@ -278,8 +278,11 @@ export function Kpi({
   title,
   onClick,
   tone,
+  icon,
 }: {
   label: ReactNode;
+  /** Иконка у подписи; не задана — подбирается по тексту подписи (kpiIcon), null — без иконки. */
+  icon?: IconName | null;
   value: ReactNode;
   sub?: ReactNode;
   delta?: { text: string; good: boolean | null };
@@ -288,10 +291,14 @@ export function Kpi({
   /** Окраска значения: норматив соблюдён или нет. */
   tone?: "good" | "warn" | "bad";
 }) {
+  const ic = icon === undefined ? kpiIcon(label) : icon;
   const toneColor = tone === "good" ? "var(--c-green-fg)" : tone === "warn" ? "var(--c-amber-fg)" : tone === "bad" ? "var(--c-red-fg)" : undefined;
   return (
     <div className="card kpi" title={title} onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
-      <span className="kpi-label">{label}</span>
+      <span className="kpi-label">
+        {ic && <Icon name={ic} size={13} className="kpi-ic" />}
+        {label}
+      </span>
       <span className="kpi-value" style={toneColor ? { color: toneColor } : undefined}>
         {value}
       </span>

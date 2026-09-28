@@ -215,7 +215,7 @@ export default function HiringPage() {
             <div className="card card-pad">
               <div className="card-head">
                 <div>
-                  <h3 className="card-title">Воронка найма</h3>
+                  <h3 className="card-title"><Icon name="funnel" size={15} className="title-ic" />Воронка найма</h3>
                   <p className="card-sub">Кандидаты с откликом за {periodLabel.toLowerCase()} — сколько дошло до каждого этапа</p>
                 </div>
               </div>
@@ -272,7 +272,7 @@ export default function HiringPage() {
             <div className="stack">
               <div className="card card-pad">
                 <h3 className="card-title" style={{ marginBottom: 8 }}>
-                  Источники
+                  <Icon name="link" size={15} className="title-ic" />Источники
                 </h3>
                 {funnel.sources.length === 0 ? (
                   <div style={{ fontSize: 13, color: "var(--dim)" }}>Нет данных за период.</div>
@@ -301,7 +301,7 @@ export default function HiringPage() {
               </div>
               <div className="card card-pad">
                 <h3 className="card-title" style={{ marginBottom: 8 }}>
-                  Причины отказов
+                  <Icon name="alert" size={15} className="title-ic" />Причины отказов
                 </h3>
                 {funnel.reasons.length === 0 ? (
                   <div style={{ fontSize: 13, color: "var(--dim)" }}>Отказов за период нет.</div>
@@ -329,7 +329,7 @@ export default function HiringPage() {
           <div className="card card-tbl" style={{ overflow: "hidden" }}>
             <div className="card-head" style={{ padding: "14px 18px 0" }}>
               <div>
-                <h3 className="card-title">Принятые за период</h3>
+                <h3 className="card-title"><Icon name="userPlus" size={15} className="title-ic" />Принятые за период</h3>
                 <p className="card-sub">Все, у кого дата приёма в периоде, — и из воронки, и заведённые сразу карточкой</p>
               </div>
             </div>
@@ -498,7 +498,7 @@ export default function HiringPage() {
           <div className="card card-tbl" style={{ overflow: "hidden" }}>
             <div className="card-head" style={{ padding: "14px 18px 0" }}>
               <div>
-                <h3 className="card-title">По месяцам</h3>
+                <h3 className="card-title"><Icon name="calendar" size={15} className="title-ic" />По месяцам</h3>
                 <p className="card-sub">Последние 12 месяцев · текучесть = ушли ÷ средняя численность за месяц</p>
               </div>
             </div>
@@ -543,7 +543,7 @@ export default function HiringPage() {
             <div className="card card-tbl" style={{ overflow: "hidden" }}>
               <div className="card-head" style={{ padding: "14px 18px 0" }}>
                 <div>
-                  <h3 className="card-title">Кто ушёл</h3>
+                  <h3 className="card-title"><Icon name="userMinus" size={15} className="title-ic" />Кто ушёл</h3>
                   <p className="card-sub">{periodLabel} · по дате увольнения</p>
                 </div>
               </div>
@@ -587,7 +587,7 @@ export default function HiringPage() {
             </div>
 
             <div className="card card-pad">
-              <h3 className="card-title">Стаж работающих</h3>
+              <h3 className="card-title"><Icon name="hourglass" size={15} className="title-ic" />Стаж работающих</h3>
               <p className="card-sub" style={{ marginBottom: 12 }}>
                 {fmtInt(staff.staff.length)} {plural(staff.staff.length, PEOPLE)} в штате
               </p>

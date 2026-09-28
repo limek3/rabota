@@ -37,7 +37,7 @@ export function LearnCard() {
     <div className="card card-pad">
       <div className="card-head">
         <div>
-          <h3 className="card-title">Обучение</h3>
+          <h3 className="card-title"><Icon name="book" size={15} className="title-ic" />Обучение</h3>
           <p className="card-sub">Академия обзвона · программа «{s.label}»</p>
         </div>
         {s.pct === 1 ? <Chip hue="green" dot>Всё пройдено</Chip> : <Chip hue="amber">{fmtPct(s.pct)}</Chip>}

@@ -83,7 +83,7 @@ export function AuditLog() {
       <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 className="card-title" style={{ fontSize: 15 }}>
-            Журнал изменений
+            <Icon name="list" size={15} className="title-ic" />Журнал изменений
           </h2>
           <p className="card-sub">
             Кто и когда менял планы, ставки, смены и начисления. Нажмите на запись — справа будет видно, что было и что стало. Хранятся

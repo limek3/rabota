@@ -1,4 +1,4 @@
-import type { AccessSettings, Account, AccountPrefs, AccountRole, DataState, ID, PayType, RateGrid, RateTier, RegionSettings, Settings, SvBonusGrid } from "./types";
+import type { AccessSettings, Account, AccountPrefs, AccountRole, DataState, ID, PayType, RateGrid, RateTier, RegionSettings, RopSettings, Settings, SvBonusGrid, Track } from "./types";
 
 export const DEFAULT_ACCESS: AccessSettings = {
   supervisor: {
@@ -70,6 +70,9 @@ export const DEFAULT_REGIONS: RegionSettings = {
   regionalLeadRevenue: 4000,
 };
 
+/** Отчёт РОП: лимиты себестоимости лида — авто не более 300 ₽, недвижимость не более 350 ₽. */
+export const DEFAULT_ROP: RopSettings = { telecomMonth: 0, overheadMonth: 0, capAuto: 300, capRe: 350, groupTrack: {}, hirePlan: {} };
+
 export const DEFAULT_SETTINGS: Settings = {
   companyName: "Отдел лидогенерации",
   reportMonth: "",
@@ -112,6 +115,7 @@ export const DEFAULT_SETTINGS: Settings = {
   access: DEFAULT_ACCESS,
   sheets: { url: "", token: "", auto: false },
   regions: DEFAULT_REGIONS,
+  rop: DEFAULT_ROP,
 };
 
 /** Палитра для групп и проектов — алиасы на токены чипов из globals.css. */
@@ -302,6 +306,7 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   s.probationHours = Math.round(num(s.probationHours, 15, 0, 1000));
   s.convNormPct = num(s.convNormPct, DEFAULT_SETTINGS.convNormPct, 0, 1000);
   s.regions = normalizeRegions(raw?.regions);
+  s.rop = normalizeRop(raw?.rop);
   const sh = (raw?.sheets ?? {}) as Partial<Settings["sheets"]>;
   s.sheets = { url: typeof sh.url === "string" ? sh.url.trim() : "", token: typeof sh.token === "string" ? sh.token : "", auto: sh.auto === true };
   s.rateGrids = normalizeGrids(raw?.rateGrids);
@@ -339,6 +344,30 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   op.editOwnLeadsHours = Math.round(num(a.operator?.editOwnLeadsHours, op.editOwnLeadsHours, 0, 24 * 31));
   s.access = { supervisor: sup, operator: op };
   return s;
+}
+
+/** Параметры отчёта РОП: числа не отрицательные, направления — только авто / недвижимость. */
+export function normalizeRop(raw: Partial<RopSettings> | null | undefined): RopSettings {
+  const r = raw || {};
+  const n = (v: unknown, d: number) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? Math.min(100_000_000, Math.max(0, x)) : d;
+  };
+  const groupTrack: Record<string, Track> = {};
+  for (const [k, v] of Object.entries(r.groupTrack ?? {})) if (v === "auto" || v === "re") groupTrack[k] = v;
+  const hirePlan: Record<string, number> = {};
+  for (const [k, v] of Object.entries(r.hirePlan ?? {})) {
+    const x = Math.round(n(v, 0));
+    if (x > 0) hirePlan[k] = Math.min(1000, x);
+  }
+  return {
+    telecomMonth: n(r.telecomMonth, DEFAULT_ROP.telecomMonth),
+    overheadMonth: n(r.overheadMonth, DEFAULT_ROP.overheadMonth),
+    capAuto: n(r.capAuto, DEFAULT_ROP.capAuto),
+    capRe: n(r.capRe, DEFAULT_ROP.capRe),
+    groupTrack,
+    hirePlan,
+  };
 }
 
 /** Списки городов без пустых и повторов; город не может быть сразу в «Основе» и в «Регионах». */

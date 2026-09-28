@@ -182,7 +182,7 @@ export default function MePage() {
         <div className="card card-pad">
           <div className="card-head">
             <div>
-              <h3 className="card-title">Стажировка</h3>
+              <h3 className="card-title"><Icon name="cap" size={15} className="title-ic" />Стажировка</h3>
               <p className="card-sub">
                 Закрывается по {fmtInt(prob.needLeads)} переданным лидам за {fmtHours(prob.needHours)} работы. Оплата всё это время — по обычной сетке
               </p>
@@ -215,7 +215,7 @@ export default function MePage() {
         <div className="card card-pad">
           <div className="card-head">
             <div>
-              <h3 className="card-title">Ставка этой смены</h3>
+              <h3 className="card-title"><Icon name="coin" size={15} className="title-ic" />Ставка этой смены</h3>
               <p className="card-sub">Ставка за час и бонус за лид зависят от того, сколько лидов вы передали сегодня</p>
             </div>
             {access.can.viewPayroll && <Chip hue="green" dot>За сегодня: {fmtMoney(tierToday.earnedToday)}</Chip>}
@@ -248,7 +248,7 @@ export default function MePage() {
           <div className="card card-pad">
             <div className="card-head">
               <div>
-                <h3 className="card-title">Мои лиды по дням</h3>
+                <h3 className="card-title"><Icon name="chart" size={15} className="title-ic" />Мои лиды по дням</h3>
                 <p className="card-sub">Пунктир — дневная цель ({fmtNum(dayPlan)})</p>
               </div>
             </div>
@@ -258,7 +258,7 @@ export default function MePage() {
           <div className="card card-tbl" style={{ overflow: "hidden" }}>
             <div className="card-head" style={{ padding: "14px 18px 0" }}>
               <div>
-                <h3 className="card-title">Сегодняшние лиды</h3>
+                <h3 className="card-title"><Icon name="leads" size={15} className="title-ic" />Сегодняшние лиды</h3>
                 <p className="card-sub">{myLeadsToday.length ? `Передано ${myLeadsToday.length}` : "Пока ни одного"}</p>
               </div>
               <Link className="btn btn-sm btn-ghost" href={`/leads?op=${encodeURIComponent(opId)}&from=${monthStart(month)}&to=${monthEnd(month)}`}>
@@ -311,7 +311,7 @@ export default function MePage() {
             <div className="card card-pad">
               <div className="card-head">
                 <div>
-                  <h3 className="card-title">Мой заработок</h3>
+                  <h3 className="card-title"><Icon name="coin" size={15} className="title-ic" />Мой заработок</h3>
                   <p className="card-sub">{fmtMonth(month)}{m.cal.phase === "past" ? "" : " · предварительно"}</p>
                 </div>
                 <button className="btn btn-sm" onClick={() => setSlipOpen(true)} title="Разбор начислений за месяц — PDF или картинкой">
@@ -356,7 +356,7 @@ export default function MePage() {
             <div className="card card-pad">
               <div className="card-head">
                 <div>
-                  <h3 className="card-title">Моя группа · {groupProgress.group.name}</h3>
+                  <h3 className="card-title"><Icon name="groups" size={15} className="title-ic" />Моя группа · {groupProgress.group.name}</h3>
                   <p className="card-sub">Мой вклад: {fmtPct(groupProgress.myShare)} от результата группы</p>
                 </div>
                 <StatusChip status={groupProgress.group.status} />
@@ -378,7 +378,7 @@ export default function MePage() {
             <div className="card card-pad">
               <div className="card-head" style={{ marginBottom: 8 }}>
                 <div>
-                  <h3 className="card-title">Мои выплаты</h3>
+                  <h3 className="card-title"><Icon name="wallet" size={15} className="title-ic" />Мои выплаты</h3>
                   <p className="card-sub">Авансы и выплаты по всем месяцам</p>
                 </div>
               </div>

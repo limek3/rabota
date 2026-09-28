@@ -67,7 +67,7 @@ export function AttentionPanel({ rows, byOp, med, onOpen }: { rows: OpRow[]; byO
     <div className="card ins-att">
       <button type="button" className="ins-att-head" onClick={toggle} aria-expanded={open}>
         <Icon name="chevR" size={14} className={`grp-chev${open ? " open" : ""}`} />
-        <span className="card-title">Требует внимания</span>
+        <span className="card-title"><Icon name="alert" size={15} className="title-ic" />Требует внимания</span>
         {need > 0 ? <Chip hue="red">{need}</Chip> : <Chip hue="green">всё спокойно</Chip>}
         <span className="ins-att-sub">
           сигналы по темпу, часам и лидам в час · сравнение с медианой команды

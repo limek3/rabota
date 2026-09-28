@@ -20,7 +20,7 @@ const W = 960; // ширина картинки, CSS-пикселей
 const P = 36; // поля
 const SCALE = 2; // чёткость для экранов с плотными пикселями
 
-const LIGHT = {
+export const LIGHT = {
   bg: "#ffffff",
   text: "#17213a",
   sub: "#65708c",
@@ -38,7 +38,7 @@ const LIGHT = {
 };
 
 /** Тёмная — те же поверхности и акценты, что у тёмной темы CRM (globals.css). */
-const DARK: typeof LIGHT = {
+export const DARK: typeof LIGHT = {
   bg: "#1e2128",
   text: "#e7e9ef",
   sub: "#9aa3b7",
@@ -55,10 +55,10 @@ const DARK: typeof LIGHT = {
   amberBg: "#342c21",
 };
 
-type Palette = typeof LIGHT;
+export type Palette = typeof LIGHT;
 
 /** Тема CRM сейчас: следим за data-theme на <html>, чтобы перерисовать при переключении. */
-function useDarkTheme(): boolean {
+export function useDarkTheme(): boolean {
   const [dark, setDark] = useState(false);
   useEffect(() => {
     const el = document.documentElement;
@@ -359,7 +359,7 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
   text("Лиды «не доведён» в факт не входят · конверсия = лиды ÷ часы · план — по рабочим дням месяца", P, H - P + 8, C.dim);
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, fill: string) {
+export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, fill: string) {
   if (h <= 0 || w <= 0) return;
   const rr = Math.min(r, h / 2, w / 2);
   ctx.beginPath();
@@ -374,7 +374,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 /** Обрезать строку по ширине с многоточием. */
-function clip(ctx: CanvasRenderingContext2D, s: string, max: number): string {
+export function clip(ctx: CanvasRenderingContext2D, s: string, max: number): string {
   if (ctx.measureText(s).width <= max) return s;
   let t = s;
   while (t.length > 1 && ctx.measureText(t + "…").width > max) t = t.slice(0, -1);
@@ -382,7 +382,7 @@ function clip(ctx: CanvasRenderingContext2D, s: string, max: number): string {
 }
 
 /** Перенос по словам. */
-function wrap(ctx: CanvasRenderingContext2D, s: string, max: number): string[] {
+export function wrap(ctx: CanvasRenderingContext2D, s: string, max: number): string[] {
   const out: string[] = [];
   let cur = "";
   for (const w of s.split(" ")) {

@@ -270,7 +270,7 @@ export function TelegramCard({ compact = false }: { compact?: boolean }) {
     <div className="card card-pad">
       <div className="card-head">
         <div style={{ minWidth: 0 }}>
-          <h3 className="card-title">Telegram</h3>
+          <h3 className="card-title"><Icon name="telegram" size={15} className="title-ic" />Telegram</h3>
           <p className="card-sub">Vexi ставит ваш грейд дня тегом в рабочем чате</p>
         </div>
         {st?.operatorId && (st.linked ? <Chip hue="green" dot>Подключен</Chip> : <Chip hue="gray" dot>Не подключен</Chip>)}

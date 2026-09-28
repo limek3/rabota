@@ -10,6 +10,7 @@ import { fmtMonth, fmtRange, isWorkday, rangeDays, weekEnd, weekStart } from "@/
 import { fmtInt, fmtNum, fmtPct, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, GoneSepRow, GoneTag, MonthSwitcher, PageHead, Swatch } from "@/components/ui/kit";
 import { canEditPlan } from "@/lib/crm/access";
+import { Icon } from "@/components/ui/icons";
 
 /** Поле плана месяца: пусто — значение по умолчанию, число — отдельный план на этот месяц. */
 function PlanInput({ value, placeholder, onSave, disabled }: { value: number | null; placeholder: string; onSave: (v: number | null) => void; disabled?: boolean }) {
@@ -109,7 +110,7 @@ export default function PlansPage() {
 
       <div className="card card-tbl" style={{ overflow: "hidden" }}>
         <div style={{ padding: "14px 18px 8px" }}>
-          <h3 className="card-title">Группы</h3>
+          <h3 className="card-title"><Icon name="groups" size={15} className="title-ic" />Группы</h3>
           <p className="card-sub">По умолчанию — план из карточки группы, а если там 0 — сумма личных планов участников</p>
         </div>
         <div style={{ overflowX: "auto" }}>
@@ -161,7 +162,7 @@ export default function PlansPage() {
 
       <div className="card card-tbl" style={{ overflow: "hidden" }}>
         <div style={{ padding: "14px 18px 8px" }}>
-          <h3 className="card-title">Операторы</h3>
+          <h3 className="card-title"><Icon name="users" size={15} className="title-ic" />Операторы</h3>
           <p className="card-sub">
             По умолчанию — личный план из карточки{s.defaultOperatorPlan > 0 ? ` (или ${s.defaultOperatorPlan} из настроек)` : ""}; принятым или уволенным посреди месяца план уменьшается пропорционально рабочим дням.
           </p>

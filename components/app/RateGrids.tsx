@@ -87,7 +87,7 @@ export function RateGridsSection({
       <div className="card-head" style={{ marginBottom: 0 }}>
         <div>
           <h2 className="card-title" style={{ fontSize: 15 }}>
-            Тарифные сетки
+            <Icon name="calc" size={15} className="title-ic" />Тарифные сетки
           </h2>
           <p className="card-sub">
             Ставка за час и бонус за лид зависят от того, сколько лидов оператор передал <b>в эту смену</b>. Каждый день считается по своей
@@ -260,7 +260,7 @@ export function SvBonusSection({ value: g, onChange }: { value: SvBonusGrid; onC
     <section className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div>
         <h2 className="card-title" style={{ fontSize: 15 }}>
-          Мотивация супервайзера
+          <Icon name="userStar" size={15} className="title-ic" />Мотивация супервайзера
         </h2>
         <p className="card-sub">
           Оклад плюс бонус за объём лидов его групп за месяц. Колонка в сетке — по грейду и направлению; ниже порога бонуса нет. Схема

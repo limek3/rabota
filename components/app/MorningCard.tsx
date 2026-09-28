@@ -55,7 +55,7 @@ export function MorningCard({ m }: { m: MonthModel }) {
     <div className="card card-pad">
       <div className="card-head">
         <div>
-          <h3 className="card-title">Утро руководителя</h3>
+          <h3 className="card-title"><Icon name="sun" size={15} className="title-ic" />Утро руководителя</h3>
           <p className="card-sub">
             {view.workday ? "Что разобрать сегодня" : "Сегодня выходной — смотрим вчерашний день"} · норма конверсии{" "}
             {fmtPct(view.normLph)}

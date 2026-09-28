@@ -163,8 +163,15 @@ const SETTINGS_LABEL: Record<string, string> = {
   "svBonus.salary": "Оклад супервайзера",
   "svBonus.minLeads": "Порог бонуса, лидов",
   "svBonus.noGrowthK": "Коэффициент без роста",
+  rop: "Отчёт РОП",
+  "rop.telecomMonth": "Связь в месяц",
+  "rop.overheadMonth": "Общие расходы в месяц",
+  "rop.capAuto": "Лимит сс лида, авто",
+  "rop.capRe": "Лимит сс лида, недвижимость",
+  "rop.groupTrack": "Направления групп",
+  "rop.hirePlan": "План найма групп",
 };
-const MONEY_SETTINGS = new Set(["leadRevenue", "defaultSalary", "defaultHourlyRate", "defaultLeadBonus", "regions.regionalLeadRevenue", "svBonus.salary"]);
+const MONEY_SETTINGS = new Set(["leadRevenue", "defaultSalary", "defaultHourlyRate", "defaultLeadBonus", "regions.regionalLeadRevenue", "svBonus.salary", "rop.telecomMonth", "rop.overheadMonth", "rop.capAuto", "rop.capRe"]);
 
 const MONTHS = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 const empty = (v: unknown) => v === null || v === undefined || v === "";

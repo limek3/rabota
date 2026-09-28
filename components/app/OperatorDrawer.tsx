@@ -236,7 +236,7 @@ function CumulativeCard({ row }: { row: OpRow }) {
   return (
     <div className="card card-pad">
       <div className="card-head">
-        <h3 className="card-title">Накопительный итог</h3>
+        <h3 className="card-title"><Icon name="trend" size={15} className="title-ic" />Накопительный итог</h3>
         <Legend
           items={[
             { color: "var(--brand)", label: "Факт" },
@@ -259,7 +259,7 @@ function ShiftsCard({ row, coach = false }: { row: OpRow; coach?: boolean }) {
   return (
     <div className="card card-pad">
       <div className="card-head">
-        <h3 className="card-title">Лиды по сменам</h3>
+        <h3 className="card-title"><Icon name="chart" size={15} className="title-ic" />Лиды по сменам</h3>
         <Legend
           items={[
             ...(row.pace.dailyPlan > 0 ? [{ color: "var(--text-sub3)", label: `План дня ${fmtNum(row.pace.dailyPlan, 1)}`, dashed: true }] : []),
@@ -332,7 +332,7 @@ function RecentLeadsCard({ opId }: { opId: string }) {
   return (
     <div className="card card-pad">
       <div className="row" style={{ justifyContent: "space-between", gap: 8, marginBottom: 10, minHeight: 26 }}>
-        <h3 className="card-title">Последние лиды</h3>
+        <h3 className="card-title"><Icon name="leads" size={15} className="title-ic" />Последние лиды</h3>
         {pages > 1 && (
           <div className="row" style={{ gap: 2 }}>
             <span className="num" style={{ fontSize: 11.5, color: "var(--dim)", marginRight: 6 }}>
@@ -386,7 +386,7 @@ function InfoCard({ row }: { row: OpRow }) {
   return (
     <div className="card card-pad" style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 7 }}>
       <h3 className="card-title" style={{ marginBottom: 4 }}>
-        Карточка
+        <Icon name="user" size={15} className="title-ic" />Карточка
       </h3>
       <Info k="Приём" v={op.hireDate ? fmtDate(op.hireDate) : "—"} />
       {op.fireDate && <Info k="Увольнение" v={fmtDate(op.fireDate)} />}
@@ -426,7 +426,7 @@ function PayoutsCard({ opId }: { opId: string }) {
     <div className="card card-pad">
       <div className="card-head" style={{ marginBottom: 8 }}>
         <div>
-          <h3 className="card-title">История выплат</h3>
+          <h3 className="card-title"><Icon name="clock" size={15} className="title-ic" />История выплат</h3>
           <p className="card-sub">Авансы и выплаты по всем месяцам</p>
         </div>
       </div>

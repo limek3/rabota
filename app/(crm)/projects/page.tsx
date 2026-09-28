@@ -189,7 +189,7 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
   return (
     <div className="card card-pad" style={{ alignSelf: "start", display: "flex", flexDirection: "column", gap: 12 }}>
       <div>
-        <h3 className="card-title">Справочник проектов</h3>
+        <h3 className="card-title"><Icon name="folder" size={15} className="title-ic" />Справочник проектов</h3>
         <p className="card-sub">Оператор выбирает проект при записи лида.{canEdit ? " Изменения видны сразу." : " Справочник ведёт РОП."}</p>
       </div>
       {canEdit && (

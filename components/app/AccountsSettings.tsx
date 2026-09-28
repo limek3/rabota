@@ -15,19 +15,20 @@ import {
 import { appStamp, fmtDate } from "@/lib/crm/dates";
 import { Avatar, Chip, Empty, Field, Modal, NumInput, Switch, useDraft } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
-import { Icon } from "@/components/ui/icons";
+import { Icon, type IconName } from "@/components/ui/icons";
 import { RoleChip } from "./AccountMenu";
 import { AUTH_ENABLED } from "@/lib/appMode";
 import { TelegramCard } from "./TelegramCard";
 import { setLogin } from "@/lib/crm/remote";
 import { fileToAvatar } from "@/lib/avatar";
 
-function Section({ title, sub, children, action }: { title: string; sub?: string; children: React.ReactNode; action?: React.ReactNode }) {
+function Section({ title, icon, sub, children, action }: { title: string; icon?: IconName; sub?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <section className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className="card-head" style={{ marginBottom: 0 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h2 className="card-title" style={{ fontSize: 15 }}>
+            {icon && <Icon name={icon} size={16} className="title-ic" />}
             {title}
           </h2>
           {sub && <p className="card-sub">{sub}</p>}
@@ -102,7 +103,7 @@ export function ProfileTab() {
 
   return (
     <div className="stack">
-      <Section title="Мой профиль" sub="Как вас видят в системе. Смена пароля появится вместе с включённым входом.">
+      <Section icon="user" title="Мой профиль" sub="Как вас видят в системе. Смена пароля появится вместе с включённым входом.">
         <div className="row" style={{ gap: 14 }}>
           <button type="button" className="avatar-pick" onClick={() => fileRef.current?.click()} disabled={photoBusy} title="Загрузить своё фото">
             <Avatar name={me.name} id={me.id} size={64} />
@@ -171,7 +172,7 @@ export function ProfileTab() {
       {/* привязка к Vexi живёт в базе — без Supabase её нет */}
       {remote && <TelegramCard />}
 
-      <Section title="Внешний вид и удобство" sub="Настройки только для вашего аккаунта — другим они не мешают">
+      <Section icon="sun" title="Внешний вид и удобство" sub="Настройки только для вашего аккаунта — другим они не мешают">
         <div className="grid2">
           <Field label="Тема">
             <Select
@@ -240,7 +241,7 @@ export function AccountsTab() {
   return (
     <div className="stack">
       <Section
-        title="Аккаунты"
+        icon="users" title="Аккаунты"
         sub={
           AUTH_ENABLED
             ? "Кто заходит в систему и что видит. Вход — по почте и паролю: задайте пароль в карточке аккаунта и передайте его человеку."
@@ -529,7 +530,7 @@ export function RolesTab() {
         появляются кнопки и разделы.
       </div>
 
-      <Section title="Супервайзер" sub="Видит и ведёт свои группы: те, что назначены в аккаунте, плюс где он указан руководителем группы">
+      <Section icon="userStar" title="Супервайзер" sub="Видит и ведёт свои группы: те, что назначены в аккаунте, плюс где он указан руководителем группы">
         <div className="grid2" style={{ gap: 0, columnGap: 24 }}>
           <div>
             <Toggle on={A.supervisor.seeAllGroups} onChange={(v) => setSup({ seeAllGroups: v })} label="Видит показатели всех групп" hint="Править по-прежнему может только свои" />
@@ -553,7 +554,7 @@ export function RolesTab() {
         </div>
       </Section>
 
-      <Section title="Оператор" sub="Личный кабинет: только свои данные">
+      <Section icon="user" title="Оператор" sub="Личный кабинет: только свои данные">
         <div className="grid2" style={{ gap: 0, columnGap: 24 }}>
           <div>
             <Toggle on={A.operator.createOwnLeads} onChange={(v) => setOp({ createOwnLeads: v })} label="Вносит свои лиды" hint="Главный сценарий: передал менеджеру — записал" />

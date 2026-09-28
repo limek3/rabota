@@ -77,7 +77,7 @@ export function LeadsByHour({ leads, month, dayHours, scopeLabel }: { leads: Lea
     <div className="card card-pad">
       <div className="card-head" style={{ flexWrap: "wrap", gap: 10 }}>
         <div>
-          <h3 className="card-title">Лиды по часам</h3>
+          <h3 className="card-title"><Icon name="clock" size={15} className="title-ic" />Лиды по часам</h3>
           <p className="card-sub">
             {scopeLabel} · {period} · {fmtInt(g.total)} {plural(g.total, LEADS)} за {fmtInt(days)} {plural(days, ["рабочий день", "рабочих дня", "рабочих дней"])}
           </p>

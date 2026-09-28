@@ -444,7 +444,7 @@ export default function PayrollPage() {
           <div className="card card-tbl" style={{ overflow: "hidden" }}>
             <div className="card-head" style={{ padding: "16px 18px 0" }}>
               <div>
-                <h3 className="card-title">Доход и ФОТ</h3>
+                <h3 className="card-title"><Icon name="coin" size={15} className="title-ic" />Доход и ФОТ</h3>
                 <p className="card-sub">
                   {fmtMonth(month)} · доход = лиды × цена лида × апрув заказчика · норматив ФОТ — не выше {data.settings.payrollCapPct}% дохода
                 </p>
@@ -602,7 +602,7 @@ export default function PayrollPage() {
             </div>
             <div style={{ padding: "14px 18px 18px", borderTop: "1px solid var(--ink-06)", display: "flex", flexDirection: "column", gap: 8 }}>
               <div>
-                <div className="card-title" style={{ fontSize: 13 }}>Апрув основы за {fmtMonth(month).toLowerCase()} — по проектам</div>
+                <div className="card-title" style={{ fontSize: 13 }}><Icon name="checkc" size={15} className="title-ic" />Апрув основы за {fmtMonth(month).toLowerCase()} — по проектам</div>
                 <div className="card-sub">Факт от заказчика: из него доход основы и коэффициент бонуса супервайзера. Регионы — свой апрув из настроек</div>
               </div>
               <ApproveMonthEditor />
@@ -678,7 +678,7 @@ function PayDrawer({ row: r, planValue, onClose, onAdj, onPay }: { row: PayRow; 
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
         <div className="card card-pad" style={{ fontSize: 13 }}>
-          <h3 className="card-title" style={{ marginBottom: 6 }}>Расчёт</h3>
+          <h3 className="card-title" style={{ marginBottom: 6 }}><Icon name="calc" size={15} className="title-ic" />Расчёт</h3>
           <Line label={isSalary(r.payType) ? "Оклад" : "Почасовая оплата"} formula={baseFormula} value={r.base} />
           {hasBonus(r.payType) && (
             <Line
@@ -727,7 +727,7 @@ function PayDrawer({ row: r, planValue, onClose, onAdj, onPay }: { row: PayRow; 
           <div className="card card-pad">
             <div className="card-head" style={{ marginBottom: 8 }}>
               <div>
-                <h3 className="card-title">Разбор по ступеням</h3>
+                <h3 className="card-title"><Icon name="rules" size={15} className="title-ic" />Разбор по ступеням</h3>
                 <p className="card-sub">Каждая смена оплачена по своей ступени — по числу лидов именно в тот день</p>
               </div>
             </div>
@@ -762,7 +762,7 @@ function PayDrawer({ row: r, planValue, onClose, onAdj, onPay }: { row: PayRow; 
 
         <div className="card card-pad">
           <div className="card-head" style={{ marginBottom: 8 }}>
-            <h3 className="card-title">Начисления и выплаты</h3>
+            <h3 className="card-title"><Icon name="wallet" size={15} className="title-ic" />Начисления и выплаты</h3>
             {canEdit && (
               <button className="btn btn-sm btn-primary" onClick={() => onAdj()}>
                 <Icon name="plus" size={13} /> Добавить
@@ -810,7 +810,7 @@ function PayDrawer({ row: r, planValue, onClose, onAdj, onPay }: { row: PayRow; 
         <div className="card card-pad">
           <div className="card-head" style={{ marginBottom: 8 }}>
             <div>
-              <h3 className="card-title">История выплат</h3>
+              <h3 className="card-title"><Icon name="clock" size={15} className="title-ic" />История выплат</h3>
               <p className="card-sub">Все авансы и выплаты сотруднику, по всем месяцам</p>
             </div>
           </div>
@@ -820,7 +820,7 @@ function PayDrawer({ row: r, planValue, onClose, onAdj, onPay }: { row: PayRow; 
         <div className="card card-pad">
           <div className="card-head" style={{ marginBottom: 8 }}>
             <div>
-              <h3 className="card-title">Условия на {fmtMonth(month)}</h3>
+              <h3 className="card-title"><Icon name="doc" size={15} className="title-ic" />Условия на {fmtMonth(month)}</h3>
               <p className="card-sub">Изменения здесь касаются только этого месяца; карточка оператора — для следующих.</p>
             </div>
             {!edit && canEdit && (
@@ -982,7 +982,7 @@ function SvCard({ r }: { r: PayRow }) {
     <div className="card card-pad">
       <div className="card-head" style={{ marginBottom: 8 }}>
         <div>
-          <h3 className="card-title">Бонус за объём группы</h3>
+          <h3 className="card-title"><Icon name="userStar" size={15} className="title-ic" />Бонус за объём группы</h3>
           <p className="card-sub">
             {GRADE_LABEL[sv.grade]} · {TRACK_LABEL[sv.track]} · групп под управлением: {sv.groups}
           </p>

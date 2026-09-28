@@ -159,7 +159,7 @@ export default function DashboardPage() {
               <div className="card card-pad">
                 <div className="card-head">
                   <div>
-                    <h3 className="card-title">Накопительный итог</h3>
+                    <h3 className="card-title"><Icon name="trend" size={15} className="title-ic" />Накопительный итог</h3>
                     <p className="card-sub">Факт против плана по рабочим дням{!past && !future ? " и прогноз по текущему темпу" : ""}</p>
                   </div>
                   <Legend
@@ -175,7 +175,7 @@ export default function DashboardPage() {
               <div className="card card-pad">
                 <div className="card-head">
                   <div>
-                    <h3 className="card-title">Лиды по дням</h3>
+                    <h3 className="card-title"><Icon name="chart" size={15} className="title-ic" />Лиды по дням</h3>
                     <p className="card-sub">Пунктир — дневной план ({fmtNum(p.dailyPlan)})</p>
                   </div>
                   <Legend
@@ -190,7 +190,7 @@ export default function DashboardPage() {
               <div className="card card-tbl" style={{ overflow: "hidden" }}>
               <div className="card-head" style={{ padding: "16px 18px 0" }}>
               <div>
-              <h3 className="card-title">Группы</h3>
+              <h3 className="card-title"><Icon name="groups" size={15} className="title-ic" />Группы</h3>
               <p className="card-sub">Факт по группе оператора на момент передачи лида</p>
               </div>
               <Link href="/groups" className="btn btn-sm btn-ghost">
@@ -251,7 +251,7 @@ export default function DashboardPage() {
             <div className="card card-pad">
               <div className="card-head">
                 <div>
-                  <h3 className="card-title">Лучший результат</h3>
+                  <h3 className="card-title"><Icon name="star" size={15} className="title-ic" />Лучший результат</h3>
                   <p className="card-sub">По числу переданных лидов за месяц</p>
                 </div>
               </div>
@@ -288,7 +288,7 @@ export default function DashboardPage() {
               <div className="card card-pad">
                 <div className="card-head">
                   <div>
-                    <h3 className="card-title">Кто как идёт</h3>
+                    <h3 className="card-title"><Icon name="users" size={15} className="title-ic" />Кто как идёт</h3>
                     <p className="card-sub">Факт к личному плану на {past ? "конец месяца" : "сегодня"}</p>
                   </div>
                   <Link href="/operators" className="btn btn-sm btn-ghost">
@@ -342,7 +342,7 @@ export default function DashboardPage() {
               <MorningCard m={m} />
 
               <div className="card card-pad">
-                <h3 className="card-title" style={{ marginBottom: 10 }}>Темп</h3>
+                <h3 className="card-title" style={{ marginBottom: 10 }}><Icon name="bolt" size={15} className="title-ic" />Темп</h3>
                 <div className="grid2" style={{ gap: 12 }}>
                   <MiniStat label="Лучший день" value={p.best ? `${fmtInt(p.best.count)}` : "—"} sub={p.best ? fmtDayShort(p.best.day) : undefined} />
                   <MiniStat label="Худший рабочий день" value={p.worst ? `${fmtInt(p.worst.count)}` : "—"} sub={p.worst ? fmtDayShort(p.worst.day) : undefined} />
@@ -353,7 +353,7 @@ export default function DashboardPage() {
 
               {!past && !future && (
                 <div className="card card-pad">
-                  <h3 className="card-title" style={{ marginBottom: 8 }}>Хватает ли людей</h3>
+                  <h3 className="card-title" style={{ marginBottom: 8 }}><Icon name="userPlus" size={15} className="title-ic" />Хватает ли людей</h3>
                   {t.neededOps != null && t.perOpDay > 0 ? (
                     <div style={{ fontSize: 13, lineHeight: 1.6, color: "var(--text-sub)" }}>
                       Оператор в среднем передаёт <b style={{ color: "var(--text)" }}>{fmtNum(t.perOpDay)}</b> {plural(Math.round(t.perOpDay), LEADS)} за смену. Чтобы

@@ -103,7 +103,7 @@ export function SheetsSection() {
       <div>
         <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h2 className="card-title" style={{ fontSize: 15 }}>Google Таблица</h2>
+            <h2 className="card-title" style={{ fontSize: 15 }}><Icon name="fill" size={15} className="title-ic" />Google Таблица</h2>
             <p className="card-sub">
               Вся база — лиды со статусами, операторы, группы, график, планы, начисления, аккаунты, журнал — листами в вашей таблице. Таблица перезаписывается целиком и
               повторяет базу; правки в ней обратно в CRM не попадают.

@@ -39,7 +39,7 @@ export function OperatorInsight({ row }: { row: OpRow }) {
     <div className="card card-pad ins-coach">
       <div className="card-head" style={{ marginBottom: 10 }}>
         <div>
-          <h3 className="card-title">Разбор</h3>
+          <h3 className="card-title"><Icon name="bulb" size={15} className="title-ic" />Разбор</h3>
           <p className="card-sub">Сравнение с медианой команды за этот месяц</p>
         </div>
       </div>
@@ -113,7 +113,7 @@ export function OperatorNotes({ opId }: { opId: string }) {
     <div className="card card-pad">
       <div className="card-head" style={{ marginBottom: 10 }}>
         <div>
-          <h3 className="card-title">Заметки СВ</h3>
+          <h3 className="card-title"><Icon name="note" size={15} className="title-ic" />Заметки СВ</h3>
           <p className="card-sub">О чём поговорили. CRM сравнит показатель до и после — видно, помог ли разговор</p>
         </div>
       </div>

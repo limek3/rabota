@@ -100,14 +100,14 @@ export default function DynamicsPage() {
         <div className="grid2" style={{ gap: 16 }}>
           <div className="card card-pad">
             <div className="card-head">
-              <h3 className="card-title">Накопительный итог</h3>
+              <h3 className="card-title"><Icon name="trend" size={15} className="title-ic" />Накопительный итог</h3>
               <Legend items={[{ color: "var(--brand)", label: "Факт" }, { color: "var(--text-sub3)", label: "План", dashed: true }, ...(cur ? [{ color: "var(--brand)", label: "Прогноз", dashed: true }] : [])]} />
             </div>
             <CumulativeChart rows={days} rr={p.rr} showForecast={cur && p.elapsedW > 0} height={230} />
           </div>
           <div className="card card-pad">
             <div className="card-head">
-              <h3 className="card-title">Лиды по дням</h3>
+              <h3 className="card-title"><Icon name="chart" size={15} className="title-ic" />Лиды по дням</h3>
               <span style={{ fontSize: 12, color: "var(--dim)" }}>пунктир — дневной план {fmtNum(p.dailyPlan)}</span>
             </div>
             <DailyBars rows={days} dailyPlan={p.dailyPlan} height={230} />

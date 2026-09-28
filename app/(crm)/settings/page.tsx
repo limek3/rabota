@@ -11,7 +11,7 @@ import * as db from "@/lib/crm/db";
 import { AUTH_ENABLED } from "@/lib/appMode";
 import { Chip, Field, NumInput, PageHead, SaveBar, Seg, Switch, downloadText, hueVars } from "@/components/ui/kit";
 import { DateInput, MonthPicker, Select, dot } from "@/components/ui/select";
-import { Icon } from "@/components/ui/icons";
+import { Icon, type IconName } from "@/components/ui/icons";
 import { AccountsTab, ProfileTab, RolesTab } from "@/components/app/AccountsSettings";
 import { RateGridsSection, SvBonusSection } from "@/components/app/RateGrids";
 import { ApproveMonthEditor, ApproveRules } from "@/components/app/ApproveSettings";
@@ -20,12 +20,15 @@ import { SheetsSection } from "@/components/app/SheetsSync";
 
 type Tab = "profile" | "system" | "accounts" | "roles" | "data" | "audit";
 
-function Section({ title, sub, action, children }: { title: string; sub?: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Section({ title, icon, sub, action, children }: { title: string; icon?: IconName; sub?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 className="card-title" style={{ fontSize: 15 }}>{title}</h2>
+          <h2 className="card-title" style={{ fontSize: 15 }}>
+            {icon && <Icon name={icon} size={16} className="title-ic" />}
+            {title}
+          </h2>
           {sub && <p className="card-sub">{sub}</p>}
         </div>
         {action}
@@ -168,7 +171,7 @@ export default function SettingsPage() {
       {systemTab && (
         <>
 
-      <Section title="Основное">
+      <Section icon="settings" title="Основное">
         <div className="grid3">
           <Field label="Название отдела">
             <input className="inp" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} />
@@ -206,7 +209,7 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="Планы и рабочее время" sub="План на дату, Run Rate и нужный темп считаются по рабочим дням месяца">
+      <Section icon="calendar" title="Планы и рабочее время" sub="План на дату, Run Rate и нужный темп считаются по рабочим дням месяца">
         <div className="grid3">
           <Field label="Общий план команды, лидов/мес" hint="0 — сумма планов групп и операторов">
             <NumInput value={f.teamPlan} onChange={(v) => set("teamPlan", v ?? 0)} max={10_000_000} />
@@ -274,7 +277,7 @@ export default function SettingsPage() {
       </Section>
 
       <Section
-        title="Доход с лидов: цены, апрув, ФОТ"
+        icon="coin" title="Доход с лидов: цены, апрув, ФОТ"
         sub="Из этого считаются доход и % ФОТ в «Зарплате»: доход = лиды × цена лида × апрув заказчика. Регион выбирают в окне лида; лиды без региона — основа"
       >
         <div className="tbl-wrap">
@@ -358,7 +361,7 @@ export default function SettingsPage() {
       </Section>
 
       <Section
-        title="Зарплата по умолчанию"
+        icon="wallet" title="Зарплата по умолчанию"
         sub="Подставляется новым операторам; у каждого можно задать своё"
         action={
           <button
@@ -428,13 +431,13 @@ export default function SettingsPage() {
       <SvBonusSection value={f.svBonus} onChange={(v) => set("svBonus", v)} />
 
       <Section
-        title="Апрув и бонус супервайзера"
+        icon="checkc" title="Апрув и бонус супервайзера"
         sub="Чем ниже апрув заказчика за месяц, тем меньше бонус супервайзера: по ступеням бонус умножается на коэффициент. Сам апрув — в разделе «Доход с лидов»"
       >
         <ApproveRules value={f.svBonus} onChange={(v) => set("svBonus", v)} withDefault={false} />
       </Section>
 
-      <Section title="Оценка выполнения" sub="Темп = факт / план на сегодня. По этим порогам операторы и группы делятся на «выше плана», «по плану», «отстаёт», «сильно отстаёт»">
+      <Section icon="target" title="Оценка выполнения" sub="Темп = факт / план на сегодня. По этим порогам операторы и группы делятся на «выше плана», «по плану», «отстаёт», «сильно отстаёт»">
         <div className="grid4">
           <Field label="Выше плана, от %" error={thresholdsBad ? "Пороги должны убывать" : null}>
             <NumInput value={f.aheadPct} onChange={(v) => set("aheadPct", v ?? 0)} max={1000} />
@@ -462,7 +465,7 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="Лиды">
+      <Section icon="leads" title="Лиды">
         <div className="grid3">
           <Field label="Предупреждать о повторном телефоне, дней" hint="0 — не проверять">
             <NumInput value={f.duplicateDays} onChange={(v) => set("duplicateDays", v ?? 0)} max={3650} />
@@ -526,7 +529,7 @@ function DataSection() {
 
   return (
     <Section
-      title="Данные"
+      icon="database" title="Данные"
       sub={
         remote
           ? "База — в Supabase: все сотрудники работают с одними данными, права проверяет сервер. Резервные копии ниже хранятся в этом браузере; выгрузка в файл — дополнительная страховка."
@@ -747,7 +750,7 @@ function AboutSection() {
     [data],
   );
   return (
-    <Section title="О системе">
+    <Section icon="info" title="О системе">
       <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
         {counts.map(([k, v]) => (
           <Chip key={k as string}>
