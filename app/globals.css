@@ -1477,10 +1477,14 @@ button {
   --sch-foot: #1a1a1a;
   --sch-foot-we: #1e1e1e;
   --sch-foot-border: #363636;
-  --sch-work: linear-gradient(180deg, #686868 0%, #575757 100%);
-  --sch-plan: #3a3a3a;
-  --sch-plan-fg: #d0d0d0;
-  --sch-train: linear-gradient(180deg, #857d70 0%, #736b5f 100%);
+  /* смена — зелёная, план наперёд — только зелёный пунктир, обучение — синее */
+  --sch-work: #3f6b53;
+  --sch-work-fg: #eaf5ee;
+  --sch-plan: transparent;
+  --sch-plan-bd: #4f7a62;
+  --sch-plan-fg: #8fc0a3;
+  --sch-train: #3d5a8a;
+  --sch-train-fg: #e6eeff;
   --sch-sick: #9e5f61;
   --sch-vac: #9c8158;
   --sch-block-fg: #ffffff;
@@ -1594,10 +1598,14 @@ button {
   --sch-foot: #fafafa;
   --sch-foot-we: #f1f1f1;
   --sch-foot-border: #e0e0e0;
-  --sch-work: linear-gradient(180deg, #5c5c5c 0%, #4a4a4a 100%);
-  --sch-plan: #9a9a9a;
-  --sch-plan-fg: #ffffff;
-  --sch-train: linear-gradient(180deg, #8a8175 0%, #787064 100%);
+  /* смена — зелёная, план наперёд — только зелёный пунктир, обучение — синее */
+  --sch-work: #4f8866;
+  --sch-work-fg: #ffffff;
+  --sch-plan: transparent;
+  --sch-plan-bd: #8dbba0;
+  --sch-plan-fg: #3f7a5a;
+  --sch-train: #4a6fae;
+  --sch-train-fg: #ffffff;
   --sch-sick: #c27f80;
   --sch-vac: #cdaa7e;
   --sch-block-fg: #ffffff;
