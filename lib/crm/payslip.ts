@@ -58,7 +58,7 @@ function dayRows(row: PayRow, cal: MonthCal, ix: Index): SlipDay[] {
   const hourMap = ix.hoursOpDay.get(row.op.id);
   const out: SlipDay[] = [];
   for (const d of monthDays(cal.month)) {
-    if (d > cal.ref) break;
+    if (d > cal.ref || d > ix.workedTo) break;
     const leads = leadMap?.get(d) ?? 0;
     const hours = hourMap?.get(d) ?? 0;
     if (!leads && !hours) continue;

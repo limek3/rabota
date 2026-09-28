@@ -54,10 +54,17 @@ export interface Index {
   opDay: Map<ID, DayMap>;
   groupDay: Map<string, DayMap>;
   projectDay: Map<string, DayMap>;
-  /** Отработанные часы (рабочий день + обучение). */
+  /**
+   * Отработанные часы (рабочий день + обучение) — только за закрытые дни (≤ workedTo).
+   * Сегодняшняя смена до закрытия дня ещё идёт: в часы, конверсию и зарплату она не попадает.
+   */
   hoursDay: DayMap;
   hoursOpDay: Map<ID, DayMap>;
   hoursGroupDay: Map<string, DayMap>;
+  /** Часы по графику, включая сегодня и наперёд, — для графика смен (сколько поставлено). */
+  plannedOpDay: Map<ID, DayMap>;
+  /** Последний закрытый день: его смены уже считаются отработанными. */
+  workedTo: DayKey;
   /** Смена по ключу `${дата}|${оператор}`. */
   shift: Map<string, Shift>;
   /** Месяцы, в которых у оператора есть лиды/смены/начисления. */
@@ -86,7 +93,18 @@ function addTo<K>(map: Map<K, Set<string>>, key: K, v: string) {
 
 export const WORKED_TYPES = new Set(["work", "training"]);
 
-export function buildIndex(st: DataState): Index {
+/** Без отсечки: все смены по дату включительно считаются отработанными (расчёты за прошлое, тесты). */
+export const NO_CUTOFF = "9999-12-31";
+
+/**
+ * Последний закрытый день: после часа закрытия (settings.dayCloseHour, по умолчанию 21:00) —
+ * сегодня, раньше — вчера. 0 — сегодняшняя смена считается сразу, 24 — только на следующий день.
+ */
+export function closedThrough(today: DayKey, hour: number, s: Pick<Settings, "dayCloseHour">): DayKey {
+  return hour >= s.dayCloseHour ? today : addDays(today, -1);
+}
+
+export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
   const ix: Index = {
     opById: new Map(st.operators.map((o) => [o.id, o])),
     groupById: new Map(st.groups.map((g) => [g.id, g])),
@@ -99,6 +117,8 @@ export function buildIndex(st: DataState): Index {
     hoursDay: new Map(),
     hoursOpDay: new Map(),
     hoursGroupDay: new Map(),
+    plannedOpDay: new Map(),
+    workedTo,
     shift: new Map(),
     opMonths: new Map(),
     groupMonthOps: new Map(),
@@ -129,7 +149,8 @@ export function buildIndex(st: DataState): Index {
     const m = s.date.slice(0, 7);
     addTo(ix.opMonths, s.operatorId, m);
     ix.months.add(m);
-    if (WORKED_TYPES.has(s.type) && s.hours > 0) {
+    if (WORKED_TYPES.has(s.type) && s.hours > 0) bump(ix.plannedOpDay, s.operatorId, s.date, s.hours);
+    if (WORKED_TYPES.has(s.type) && s.hours > 0 && s.date <= workedTo) {
       ix.hoursDay.set(s.date, (ix.hoursDay.get(s.date) ?? 0) + s.hours);
       bump(ix.hoursOpDay, s.operatorId, s.date, s.hours);
       bump(ix.hoursGroupDay, gk(s.groupId), s.date, s.hours);
@@ -662,8 +683,10 @@ export interface OpRow {
   /** Часы − норма (к дате в текущем месяце, к концу в прошедшем). */
   hoursDelta: number;
   normPct: number;
-  /** Лидов на отработанный час (null — часов нет). */
+  /** Лидов на отработанный час (null — часов нет). Лиды — за те же закрытые дни, что и часы. */
   lph: number | null;
+  /** Лиды за закрытые дни (как часы): основа конверсии. */
+  factClosed: number;
   daysWorked: number;
   hasShifts: boolean;
   avgPerWorkday: number;
@@ -749,8 +772,10 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
   const cal = monthCal(month, s, today);
   const first = cal.days[0];
   const last = cal.days[cal.days.length - 1];
-  // часы — только отработанные: смены, запланированные наперёд, в факт не идут
+  // часы — только отработанные: смены, запланированные наперёд, в факт не идут;
+  // сегодняшняя — после закрытия дня (ix.workedTo)
   const factTo = cal.ref < last ? cal.ref : last;
+  const closedTo = factTo < ix.workedTo ? factTo : ix.workedTo;
   const ref = cal.phase === "future" ? first : cal.ref;
   const ws = weekStart(ref);
 
@@ -767,7 +792,11 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
     const workedToDate = win && cal.phase !== "future" ? workdaysBetween(cal, win.from, elapsedTo) : 0;
     const winW = win ? Math.max(1, workdaysBetween(cal, win.from, win.to)) : 1;
     const norm = terms.normHours;
-    const normToDate = cal.phase === "past" ? norm : (norm * workedToDate) / winW;
+    // норма к дате — по закрытым дням, как и часы: иначе утром «не добирает» на целую смену
+    const normTo = elapsedTo < ix.workedTo ? elapsedTo : ix.workedTo;
+    const normDays = win && cal.phase !== "future" ? workdaysBetween(cal, win.from, normTo) : 0;
+    const normToDate = cal.phase === "past" ? norm : (norm * normDays) / winW;
+    const factClosed = sumRange(ix.opDay.get(op.id), first, closedTo);
 
     let daysWorked = 0;
     let absentDays = 0;
@@ -801,7 +830,8 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
       normToDate,
       hoursDelta: hours - normToDate,
       normPct: safeDiv(hours, norm),
-      lph: hours > 0 ? p.fact / hours : null,
+      lph: hours > 0 ? factClosed / hours : null,
+      factClosed,
       daysWorked,
       hasShifts,
       avgPerWorkday: safeDiv(p.fact, dayBase),
@@ -845,7 +875,7 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
       pace: p,
       status: paceStatus(p, s, cal),
       hours,
-      lph: hours > 0 ? p.fact / hours : null,
+      lph: hours > 0 ? sumRange(ix.groupDay.get(key), first, closedTo) / hours : null,
       headcount,
       contributors,
       avgPerOp: safeDiv(p.fact, contributors || headcount),
@@ -899,9 +929,9 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
       hours,
       hoursToday,
       hoursWeek,
-      lph: hours > 0 ? tp.fact / hours : null,
+      lph: hours > 0 ? sumRange(ix.day, first, closedTo) / hours : null,
       lphToday: hoursToday > 0 ? tp.today / hoursToday : null,
-      lphWeek: hoursWeek > 0 ? tp.thisWeek / hoursWeek : null,
+      lphWeek: hoursWeek > 0 ? sumRange(ix.day, ws, ref < ix.workedTo ? ref : ix.workedTo) / hoursWeek : null,
       headcount: live.length,
       contributors,
       avgPerOp: safeDiv(tp.fact, contributors || live.length),

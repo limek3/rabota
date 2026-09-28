@@ -789,3 +789,39 @@ console.log("ALL OK");
   assert.strictEqual(scopeData(st, computeAccess(head, st)).notes.length, 2, "РОП видит все");
   console.log(`26 ok: подсказки — медиана ${med.hpd.toFixed(1)} ч/д, ${med.lph.toFixed(2)} л/ч; причин ${reasons}, сигналов ${signals}; заметка ${eff.before.toFixed(1)} → ${eff.after.toFixed(1)}`);
 }
+
+/* 27. Закрытие дня: сегодняшняя смена до 21:00 не идёт в часы, конверсию и зарплату; в графике — видна */
+{
+  const assert = require("assert");
+  const { buildIndex, monthModel, monthCal, closedThrough, NO_CUTOFF } = R("calc");
+  const { payroll } = R("payroll");
+  const { buildDemo } = R("demo");
+  const today = "2026-09-17"; // четверг
+  const st = buildDemo(today);
+  const s = st.settings;
+  assert.strictEqual(s.dayCloseHour, 21, "по умолчанию день закрывается в 21:00");
+  assert.strictEqual(closedThrough(today, 14, s), "2026-09-16", "днём — по вчера");
+  assert.strictEqual(closedThrough(today, 21, s), today, "с 21:00 — по сегодня");
+  assert.strictEqual(closedThrough(today, 0, { dayCloseHour: 0 }), today, "0 — сразу");
+  assert.strictEqual(closedThrough(today, 23, { dayCloseHour: 24 }), "2026-09-16", "24 — только назавтра");
+  // оператор со сменой сегодня
+  const hourlyOp = new Set(st.operators.filter((o) => o.payType === "tiered" || o.payType === "hourly" || o.payType === "hourly_bonus").map((o) => o.id));
+  const sh = st.shifts.find((x) => x.date === today && x.hours > 0 && (x.type === "work" || x.type === "training") && hourlyOp.has(x.operatorId));
+  assert.ok(sh, "в демо есть смена сегодня");
+  const open = buildIndex(st, "2026-09-16");
+  const closed = buildIndex(st, NO_CUTOFF);
+  assert.strictEqual(open.hoursOpDay.get(sh.operatorId)?.get(today) ?? 0, 0, "днём сегодняшних часов нет в факте");
+  assert.strictEqual(open.plannedOpDay.get(sh.operatorId).get(today), sh.hours, "в графике смена видна");
+  const cal = monthCal("2026-09", s, today);
+  const pOpen = payroll(st, open, cal).rows.find((r) => r.op.id === sh.operatorId);
+  const pClosed = payroll(st, closed, cal).rows.find((r) => r.op.id === sh.operatorId);
+  assert.ok(Math.abs(pClosed.hours - pOpen.hours - sh.hours) < 1e-6, `в ведомости до закрытия на ${sh.hours} ч меньше`);
+  assert.ok(pOpen.gross < pClosed.gross, "почасовая смена до закрытия не в ФОТ");
+  // конверсия: лиды и часы — за одни и те же закрытые дни
+  const mOpen = monthModel(st, open, "2026-09", today).ops.find((r) => r.op.id === sh.operatorId);
+  const leadsToday = open.opDay.get(sh.operatorId)?.get(today) ?? 0;
+  assert.strictEqual(mOpen.factClosed, mOpen.pace.fact - leadsToday, "в конверсию — лиды по вчера");
+  assert.ok(Math.abs(mOpen.lph - mOpen.factClosed / mOpen.hours) < 1e-9);
+  assert.strictEqual(mOpen.pace.fact, monthModel(st, closed, "2026-09", today).ops.find((r) => r.op.id === sh.operatorId).pace.fact, "темп к плану — по живым лидам");
+  console.log(`27 ok: закрытие дня — до 21:00 ${sh.hours} ч сегодняшней смены вне ведомости (${Math.round(pOpen.gross)} → ${Math.round(pClosed.gross)} ₽ после закрытия), в графике видна`);
+}

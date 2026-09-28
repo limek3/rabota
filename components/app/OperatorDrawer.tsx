@@ -274,7 +274,12 @@ function ShiftsCard({ row, coach = false }: { row: OpRow; coach?: boolean }) {
 }
 
 function OutputCard({ row }: { row: OpRow }) {
+  const { ix, today } = useCrm();
   const p = row.pace;
+  // день ещё не закрыт: часы сегодняшней смены войдут в расчёт в час закрытия (Настройки)
+  const open = today > ix.workedTo;
+  // лиды в час — по закрытым дням: сегодняшние лиды без сегодняшних часов завысили бы результат
+  const closedWeek = open ? p.thisWeek - p.today : p.thisWeek;
   return (
     <div className="card" style={{ overflow: "hidden", alignSelf: "start" }}>
       <table className="tbl tbl-fit">
@@ -288,15 +293,23 @@ function OutputCard({ row }: { row: OpRow }) {
         </thead>
         <tbody>
           {[
-            { l: "Сегодня", n: p.today, h: row.hoursToday },
-            { l: "Текущая неделя", n: p.thisWeek, h: row.hoursWeek },
-            { l: "Месяц", n: p.fact, h: row.hours },
+            { l: "Сегодня", n: p.today, h: row.hoursToday, c: p.today },
+            { l: "Текущая неделя", n: p.thisWeek, h: row.hoursWeek, c: closedWeek },
+            { l: "Месяц", n: p.fact, h: row.hours, c: row.factClosed },
           ].map((x) => (
             <tr key={x.l}>
               <td>{x.l}</td>
               <td className="r num">{fmtInt(x.n)}</td>
-              <td className="r num">{fmtNum(x.h)}</td>
-              <td className="r num">{x.h > 0 ? fmtNum(x.n / x.h, 2) : "—"}</td>
+              {open && x.l === "Сегодня" ? (
+                <td className="r" colSpan={2} style={{ color: "var(--dim)", fontSize: 12 }} title="Часы сегодняшней смены войдут в расчёт после закрытия дня">
+                  смена идёт
+                </td>
+              ) : (
+                <>
+                  <td className="r num">{fmtNum(x.h)}</td>
+                  <td className="r num">{x.h > 0 ? fmtNum(x.c / x.h, 2) : "—"}</td>
+                </>
+              )}
             </tr>
           ))}
         </tbody>

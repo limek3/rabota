@@ -125,7 +125,7 @@ export default function SchedulePage() {
         let n = 0;
         let people = 0;
         for (const r of rows) {
-          const hh = ix.hoursOpDay.get(r.op.id)?.get(d) ?? 0;
+          const hh = ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
           h += hh;
           if (hh > 0) people++;
           n += ix.opDay.get(r.op.id)?.get(d) ?? 0;
@@ -226,7 +226,7 @@ export default function SchedulePage() {
       if (!d) continue;
       if (isWorkday(d, s)) workdays++;
       for (const r of rows) {
-        const hh = ix.hoursOpDay.get(r.op.id)?.get(d) ?? 0;
+        const hh = ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
         hours += hh;
         if (hh > 0) shifts++;
         leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;

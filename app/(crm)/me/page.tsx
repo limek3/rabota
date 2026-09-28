@@ -23,7 +23,7 @@ import { PayslipModal } from "@/components/app/Payslip";
  * Только своё: сколько передал сегодня, как идёт месяц, часы и заработок.
  */
 export default function MePage() {
-  const { data, full, ix, access, me, month, setMonth, today, openLead, remote } = useCrm();
+  const { data, full, ix, access, me, month, setMonth, today, workedTo, openLead, remote } = useCrm();
   const m = useMonthModel();
   const [slipOpen, setSlipOpen] = useState(false);
   const s = data.settings;
@@ -69,10 +69,10 @@ export default function MePage() {
   const groupProgress = useMemo(() => {
     // в Supabase оператору приходят только его записи — прогресс группы из них не посчитать
     if (!row?.op.groupId || !(O.viewGroupProgress || O.viewTeamProgress) || access.isHead || (remote && access.isOp)) return null;
-    const fm = monthModel(full, buildIndex(full), month, today);
+    const fm = monthModel(full, buildIndex(full, workedTo), month, today);
     const g = fm.groups.find((x) => x.key === row.op.groupId) ?? null;
     return { group: g, team: O.viewTeamProgress ? fm.team : null, myShare: g ? safeDiv(row.pace.fact, g.pace.fact) : 0 };
-  }, [row, O.viewGroupProgress, O.viewTeamProgress, access.isHead, access.isOp, remote, full, month, today]);
+  }, [row, O.viewGroupProgress, O.viewTeamProgress, access.isHead, access.isOp, remote, full, month, today, workedTo]);
 
   // ступень сегодняшней смены: ставка и бонус зависят от числа лидов именно сегодня
   const tierToday = useMemo(() => {
@@ -81,7 +81,8 @@ export default function MePage() {
     const leads = row.pace.today;
     const cur = tierFor(tiers, leads);
     const next = tiers.find((t) => t.from > leads) ?? null;
-    const hoursToday = row.hoursToday;
+    // прикидка за текущую смену — по часам из графика: в часы и зарплату смена попадёт после закрытия дня
+    const hoursToday = ix.plannedOpDay.get(row.op.id)?.get(m.cal.ref) ?? 0;
     return {
       tiers,
       cur,
@@ -91,7 +92,7 @@ export default function MePage() {
       earnedToday: (isHourlyTiered(row.terms.payType) ? hoursToday * cur.hourlyRate : 0) + leads * cur.leadBonus,
       withHourly: isHourlyTiered(row.terms.payType),
     };
-  }, [row]);
+  }, [row, ix, m.cal.ref]);
 
   const chart = useMemo(() => (row ? dailyRows(m.cal, row.terms.plan, ix.opDay.get(row.op.id), ix.hoursOpDay.get(row.op.id)) : []), [row, m.cal, ix]);
 

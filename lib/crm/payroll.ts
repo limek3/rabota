@@ -187,8 +187,9 @@ export function payrollRow(
   adjustments: Adjustment[],
 ): PayRow {
   const t = opTerms(op, cal, st, ix);
-  // по факту: смены по сегодняшний день включительно; запланированные наперёд не оплачиваются
-  const days = monthDays(cal.month).filter((d) => d <= cal.ref);
+  // по факту: только закрытые дни (ix.workedTo) — и часы, и лиды. Сегодняшняя смена до закрытия
+  // дня ещё идёт: иначе утром в ФОТ сидела бы целая смена, а ступень сетки прыгала от неполного дня
+  const days = monthDays(cal.month).filter((d) => d <= cal.ref && d <= ix.workedTo);
   const hours = days.length ? round2(sumRange(ix.hoursOpDay.get(op.id), days[0], days[days.length - 1])) : 0;
   const leads = days.length ? sumRange(ix.opDay.get(op.id), days[0], days[days.length - 1]) : 0;
 

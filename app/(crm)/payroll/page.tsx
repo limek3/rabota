@@ -8,7 +8,7 @@ import { isRegionalLead } from "@/lib/crm/regions";
 import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, payrollRow, type PayRow } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
-import { fmtDate, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
+import { fmtDate, fmtDayShort, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
 import { PAYOUTS, fmtInt, fmtMoney, fmtNum, fmtPct, plural, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, Drawer, Empty, Field, GoneSepRow, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Seg, Swatch, downloadText, foldRow, toCsv, useFoldGroups, useWheelHScroll } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
@@ -66,7 +66,7 @@ function payrollOf(rows: PayRow[]) {
 }
 
 export default function PayrollPage() {
-  const { data, ix, month, setMonth, today, saveTerms, saveAdjustment, toast, confirm, access } = useCrm();
+  const { data, ix, month, setMonth, today, workedTo, saveTerms, saveAdjustment, toast, confirm, access } = useCrm();
   // «Ведомость» — начисления месяца; «История выплат» — выплаты по всем месяцам
   const [view, setView] = useState<"sheet" | "payouts">("sheet");
   const cal = useMemo(() => monthCal(month, data.settings, today), [month, data.settings, today]);
@@ -234,7 +234,12 @@ export default function PayrollPage() {
     <div className="stack">
       <PageHead
         title="Зарплата"
-        sub={`${fmtMonth(month)} · считается из смен, лидов и корректировок; меняется график — меняется ведомость`}
+        sub={
+          // до закрытия дня сегодняшние смены ещё идут — в ведомости их нет, и это надо видеть
+          workedTo < today && month === today.slice(0, 7)
+            ? `${fmtMonth(month)} · по ${fmtDayShort(workedTo)} включительно — смены за сегодня войдут в ${data.settings.dayCloseHour}:00`
+            : `${fmtMonth(month)} · считается из смен, лидов и корректировок; меняется график — меняется ведомость`
+        }
         actions={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />

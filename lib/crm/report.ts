@@ -178,7 +178,8 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
         const win = employmentWindow(op, monthOf(d));
         if (!win || d < win.from || d > win.to) continue;
         const sh = ix.shift.get(`${d}|${op.id}`);
-        const h = ix.hoursOpDay.get(op.id)?.get(d) ?? 0;
+        // смена по графику (не только закрытая): «на смене без лидов» видно ещё до конца дня
+        const h = ix.plannedOpDay.get(op.id)?.get(d) ?? 0;
         const n = (byOpDay.get(op.id)?.get(d)?.done ?? 0) + (byOpDay.get(op.id)?.get(d)?.work ?? 0);
         if (!sh) attention.noShift.push(op.name);
         else if (h > 0 && n === 0) attention.noLeads.push(op.name);

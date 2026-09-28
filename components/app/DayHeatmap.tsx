@@ -77,6 +77,8 @@ export function DayHeatmap({
           </span>
         </td>
       );
+    // день ещё не закрыт (до 21:00): смена идёт — «не выходил» ставить рано
+    if (d > ix.workedTo) return <td key={d} className={cls} />;
     // рабочий день без часов и лидов: в графике смен пусто — не выходил
     const inWin = (!r.op.hireDate || d >= r.op.hireDate) && (!r.op.fireDate || d <= r.op.fireDate);
     if (cal.isWork(d) && inWin && r.hasShifts)

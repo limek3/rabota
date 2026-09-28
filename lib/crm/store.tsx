@@ -31,8 +31,8 @@ import type {
   Track,
 } from "./types";
 import { ADJ_LABEL, CANDIDATE_STAGE_LABEL, DAY_LABEL, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
-import { buildIndex, freezePastMonths, type Index } from "./calc";
-import { currentMonth, fmtDate, fmtDay, isoNow, monthOf, nowStamp, todayKey } from "./dates";
+import { buildIndex, closedThrough, freezePastMonths, type Index } from "./calc";
+import { currentMonth, fmtDate, fmtDay, isoNow, monthOf, nowHour, nowStamp, todayKey } from "./dates";
 import { emptyState, newAccount, normalizePrefs, normalizeSettings } from "./defaults";
 import {
   canCreateLeadFor,
@@ -144,6 +144,8 @@ interface Store {
   saveMyProfile: (patch: Partial<AccountPrefs> & { name?: string; login?: string }) => Promise<void>;
   createOperatorAccounts: () => Promise<number>;
   today: DayKey;
+  /** Последний закрытый день: его смены уже в часах, конверсии и зарплате (до 21:00 — вчера). */
+  workedTo: DayKey;
   month: MonthKey;
   setMonth: (m: MonthKey) => void;
 
@@ -278,8 +280,12 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   dataRef.current = data;
   const chanRef = useRef<BroadcastChannel | null>(null);
 
+  // закрытие дня: сегодняшние смены идут в часы и зарплату только после settings.dayCloseHour
+  const [hour, setHour] = useState(() => nowHour());
+  const workedTo = useMemo(() => closedThrough(today, hour, data.settings), [today, hour, data.settings]);
+
   // полный индекс — для действий; срез по правам — для экранов
-  const fullIx = useMemo(() => buildIndex(data), [data]);
+  const fullIx = useMemo(() => buildIndex(data, workedTo), [data, workedTo]);
   const ixRef = useRef(fullIx);
   ixRef.current = fullIx;
 
@@ -288,7 +294,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const accessRef = useRef(access);
   accessRef.current = access;
   const view = useMemo(() => scopeData(data, access), [data, access]);
-  const ix = useMemo(() => (view === data ? fullIx : buildIndex(view)), [view, data, fullIx]);
+  const ix = useMemo(() => (view === data ? fullIx : buildIndex(view, workedTo)), [view, data, fullIx, workedTo]);
 
   /* ── уведомления ───────────────────────────────────────────────── */
   const toastSeq = useRef(0);
@@ -553,6 +559,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   // смена суток (и месяца) без перезагрузки страницы
   useEffect(() => {
     const id = window.setInterval(() => {
+      // час — для закрытия дня: в 21:00 сегодняшние смены сами уходят в расчёты
+      setHour(nowHour());
       const t = todayKey();
       setToday((prev) => {
         if (prev === t) return prev;
@@ -2008,6 +2016,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     saveMyProfile,
     createOperatorAccounts,
     today,
+    workedTo,
     month,
     setMonth,
     toasts,

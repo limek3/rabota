@@ -103,6 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
   normalPct: 95,
   lagPct: 80,
   idleDays: 3,
+  dayCloseHour: 21,
   directionEnabled: true,
   directionLabel: "Город / ДЦ",
   duplicateDays: 30,
@@ -293,6 +294,7 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   s.normalPct = num(s.normalPct, 95, 0, 1000);
   s.lagPct = num(s.lagPct, 80, 0, 1000);
   s.idleDays = Math.round(num(s.idleDays, 3, 1, 60));
+  s.dayCloseHour = Math.round(num(s.dayCloseHour, 21, 0, 24));
   s.duplicateDays = Math.round(num(s.duplicateDays, 30, 0, 3650));
   s.backupsKeep = Math.round(num(s.backupsKeep, 15, 3, 100));
   s.svBonus = normalizeSvBonus(raw?.svBonus);

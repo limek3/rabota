@@ -207,7 +207,7 @@ export default function SettingsPage() {
       </Section>
 
       <Section title="Планы и рабочее время" sub="План на дату, Run Rate и нужный темп считаются по рабочим дням месяца">
-        <div className="grid4">
+        <div className="grid3">
           <Field label="Общий план команды, лидов/мес" hint="0 — сумма планов групп и операторов">
             <NumInput value={f.teamPlan} onChange={(v) => set("teamPlan", v ?? 0)} max={10_000_000} />
           </Field>
@@ -219,6 +219,12 @@ export default function SettingsPage() {
           </Field>
           <Field label="Часов в стандартном рабочем дне">
             <NumInput value={f.dayHours} onChange={(v) => set("dayHours", v ?? 8)} min={0.5} max={24} step={0.5} />
+          </Field>
+          <Field
+            label="Закрытие дня, час (МСК)"
+            hint={`С ${f.dayCloseHour}:00 сегодняшние смены идут в часы, конверсию и зарплату; до этого — считаются по вчера. 0 — сразу`}
+          >
+            <NumInput value={f.dayCloseHour} onChange={(v) => set("dayCloseHour", v ?? 21)} min={0} max={24} />
           </Field>
         </div>
         <Field label="Рабочие дни недели">

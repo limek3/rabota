@@ -35,7 +35,7 @@ const counted = (r: OpRow) => !r.op.deletedAt && r.op.status === "active" && r.i
 export function teamMedians(rows: OpRow[]): Medians {
   const live = rows.filter(counted);
   if (live.length < MIN_PEOPLE) return { lph: null, hpd: null };
-  return { lph: median(live.map((r) => r.pace.fact / r.hours)), hpd: median(live.map((r) => r.hours / r.pace.elapsedW)) };
+  return { lph: median(live.map((r) => r.factClosed / r.hours)), hpd: median(live.map((r) => r.hours / r.pace.elapsedW)) };
 }
 
 /* ── темп последних смен ───────────────────────────────────────────── */
@@ -124,7 +124,8 @@ export function lagReason(r: OpRow, med: Medians): LagReason | null {
   const gap = r.pace.fact - target;
   if (target <= 0 || gap > -1) return null;
   const hpd = r.hours / r.pace.elapsedW;
-  const lph = r.pace.fact / r.hours;
+  // лиды — за те же закрытые дни, что и часы: сегодняшние лиды без сегодняшних часов завысили бы л/ч
+  const lph = r.factClosed / r.hours;
   // ноль лидов — логарифм не определён; берём малую долю медианы, чтобы вина легла на л/ч
   const a = Math.log(r.hours / (target / med.lph));
   const b = Math.log(Math.max(lph, med.lph * 0.05) / med.lph);

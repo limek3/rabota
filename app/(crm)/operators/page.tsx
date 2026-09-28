@@ -108,7 +108,7 @@ function blankRow(op: Operator, base: Pace): OpRow {
       needPerDay: null, dailyPlan: 0, today: 0, yesterday: 0, thisWeek: 0, prevWeek: 0, weekChange: null, best: null, worst: null, daysMet: 0, daysCounted: 0,
     },
     status: op.status === "fired" ? "fired" : op.status === "pause" ? "paused" : "nodata",
-    hours: 0, hoursToday: 0, hoursWeek: 0, norm: 0, normToDate: 0, hoursDelta: 0, normPct: 0, lph: null, daysWorked: 0,
+    hours: 0, hoursToday: 0, hoursWeek: 0, norm: 0, normToDate: 0, hoursDelta: 0, normPct: 0, lph: null, factClosed: 0, daysWorked: 0,
     hasShifts: false, avgPerWorkday: 0, lastLead: null, absentDays: 0, isLeader: false, inWindow: false,
   };
 }
