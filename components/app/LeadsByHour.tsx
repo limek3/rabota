@@ -7,7 +7,7 @@ import { bestWindow, hh, hourGrid, perDay } from "@/lib/crm/hours";
 import { WEEKDAYS_SHORT, addMonths, fmtMonth, fmtMonthShort, monthEnd, monthStart } from "@/lib/crm/dates";
 import { LEADS, fmtInt, fmtNum, fmtPct, plural, safeDiv } from "@/lib/crm/format";
 import { Empty, Seg, downloadText, toCsv } from "@/components/ui/kit";
-import { Legend } from "@/components/ui/charts";
+import { CHART_RESIZE_DEBOUNCE, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
 
 /**
@@ -188,8 +188,8 @@ function niceTicks(max: number): number[] {
 function HourBars({ points, win }: { points: HourPoint[]; win: { from: number; to: number } | null }) {
   const ticks = niceTicks(Math.max(...points.map((p) => p.okAvg + p.failedAvg)));
   return (
-    <div style={{ width: "100%", height: 230 }}>
-      <ResponsiveContainer>
+    <div style={{ width: "100%", height: 230, overflow: "hidden" }}>
+      <ResponsiveContainer debounce={CHART_RESIZE_DEBOUNCE}>
         <ComposedChart data={points} margin={{ top: 6, right: 8, bottom: 0, left: -14 }} barCategoryGap="18%">
           <CartesianGrid stroke="var(--ink-06)" vertical={false} />
           {win && (

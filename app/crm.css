@@ -325,7 +325,8 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
   font-size: 10.5px;
   font-family: var(--font-mono);
 }
-.btn-primary .kbd { border-color: rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.14); color: rgba(255, 255, 255, 0.9); }
+/* значок клавиши на акцентной кнопке — цветом её текста: в тёмной теме кнопка светлая, в светлой — тёмная */
+.btn-primary .kbd { border-color: color-mix(in srgb, var(--on-brand) 28%, transparent); background: color-mix(in srgb, var(--on-brand) 9%, transparent); color: var(--on-brand); }
 
 /* график смен */
 .sched { font-size: 12px; }
@@ -366,7 +367,57 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 .sched thead .sum.hl, .sched tfoot .sum.hl { background: color-mix(in srgb, var(--brand) 9%, var(--bg-strip)); }
 .sched tbody tr:hover .sum.hl { background: color-mix(in srgb, var(--brand) 9%, var(--bg-panel-hover)); }
 
-/* боковое меню */
+/* боковое меню: 236 px или свёрнутое до иконок 60 px.
+   Иконки стоят на своих местах в обоих состояниях: у пунктов, кнопки «Лид передан»,
+   подсветки и аватара левый край такой, что при 60 px их центр ровно посередине (x = 30).
+   Подписи не переносятся и не сдвигаются — только гаснут; лишнее обрезает overflow. */
+.app-rail { position: relative; z-index: 2; width: 236px; }
+.app-rail[data-collapsed] { width: 60px; }
+.app-rail[data-anim] { transition: width 0.28s cubic-bezier(0.2, 0, 0, 1), background-color var(--dur-2) var(--ease); }
+.app-rail > * { overflow: hidden; }
+/* меню не прокручивается вбок даже программно — иначе подписи съезжали влево за край */
+.app-rail { overflow-x: clip; }
+.app-rail .rail-text { white-space: nowrap; }
+.app-rail[data-anim] .rail-text { transition: opacity 0.18s ease 0.1s; }
+.app-rail[data-collapsed] .rail-text { opacity: 0; pointer-events: none; }
+.app-rail[data-anim][data-collapsed] .rail-text { transition: opacity 0.12s ease; }
+/* полоса прокрутки съедала место справа — подсветка и пункты становились несимметричными */
+.app-rail nav { overflow-x: hidden; scrollbar-width: none; }
+.app-rail nav::-webkit-scrollbar { display: none; }
+.app-rail .rail-lead { justify-content: flex-start; overflow: hidden; padding: 0 12px; }
+.app-rail .acc-btn { overflow: hidden; padding-left: 5px; }
+.rail-fold { display: grid; grid-template-rows: 1fr; }
+.rail-fold > div { min-height: 0; overflow: hidden; }
+.app-rail[data-anim] .rail-fold { transition: grid-template-rows 0.28s cubic-bezier(0.2, 0, 0, 1); }
+.app-rail[data-collapsed] .rail-fold { grid-template-rows: 0fr; }
+/* верхняя строка меню: «Лид передан» и булавка «закрепить».
+   Булавка видна только в раскрытом меню; место под неё — отступ справа, который
+   растёт вместе с шириной меню, поэтому кнопка «Лид передан» не прыгает. */
+.rail-leadrow { position: relative; padding: 14px 10px 6px; }
+.app-rail:not([data-collapsed]) .rail-leadrow:has(.rail-pin) { padding-right: 44px; }
+.app-rail[data-anim] .rail-leadrow { transition: padding-right 0.28s cubic-bezier(0.2, 0, 0, 1); }
+.rail-pin { position: absolute; top: 18px; right: 10px; width: 26px; height: 26px; padding: 0; color: var(--text-sub3); border-color: transparent; background: transparent; box-shadow: none; }
+.rail-pin:hover:not(:disabled) { color: var(--text); background: var(--ink-06); border-color: transparent; }
+.rail-pin[aria-pressed="true"] { color: var(--text-sub); }
+/* свёрнутое меню: вместо заголовков групп — короткие линии между группами (над первой нет) */
+.rail-group { position: relative; }
+.rail-group::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 15px;
+  width: 22px;
+  height: 1px;
+  margin-left: -11px;
+  background: var(--ink-15);
+  opacity: 0;
+  pointer-events: none;
+}
+.app-rail[data-anim] .rail-group::after { transition: opacity 0.18s ease 0.1s; }
+.app-rail[data-collapsed] .rail-group::after { opacity: 1; }
+.app-rail nav > div:first-of-type .rail-group::after { display: none; }
+@media (prefers-reduced-motion: reduce) { .app-rail[data-anim], .app-rail[data-anim] .rail-text, .app-rail[data-anim] .rail-fold, .app-rail[data-anim] .rail-group::after { transition: none; } }
+
 .app-rail-item {
   position: relative;
   display: flex;
@@ -378,12 +429,25 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
   font-size: 13px;
   font-weight: 500;
   color: var(--text-sub3);
+  white-space: nowrap;
+  overflow: hidden;
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
+.app-rail-item { z-index: 1; }
 .app-rail-item:hover { background: var(--ink-04); color: var(--text); }
-.app-rail-item[aria-current="page"] { background: var(--brand-tint); color: var(--text); font-weight: 600; }
+/* фон и полоска активного пункта — у общей плашки .rail-glider, она переезжает между пунктами */
+.app-rail-item[aria-current="page"], .app-rail-item[aria-current="page"]:hover { background: transparent; color: var(--text); font-weight: 600; }
 .app-rail-item[aria-current="page"] .rail-icon { color: var(--brand); }
-.app-rail-item[aria-current="page"]::before {
+.rail-glider {
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  border-radius: 6px;
+  background: var(--brand-tint);
+  pointer-events: none;
+}
+.rail-glider::before {
   content: "";
   position: absolute;
   left: 0;
@@ -394,13 +458,11 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
   border-radius: 0 3px 3px 0;
   background: var(--brand);
 }
+.rail-glider[data-anim] { transition: transform 0.34s cubic-bezier(0.22, 0.8, 0.26, 1), height 0.34s cubic-bezier(0.22, 0.8, 0.26, 1), opacity 0.2s ease; }
+@media (prefers-reduced-motion: reduce) { .rail-glider[data-anim] { transition: none; } }
 .rail-group { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: var(--dimmer); padding: 12px 12px 5px; user-select: none; }
 
 @media (max-width: 900px) {
-  .app-rail { width: 60px !important; }
-  .app-rail .rail-text { display: none !important; }
-  .app-rail-item { justify-content: center; padding: 9px 0; }
-  .app-rail-item[aria-current="page"]::before { display: none; }
   .app-content { padding: 16px 14px 32px !important; }
 }
 
@@ -608,7 +670,6 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .acc-row-l { font-size: 10.5px; color: var(--dimmer); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .acc-btn:hover:not(:disabled) { background: var(--ink-05); }
-@media (max-width: 900px) { .acc-btn { justify-content: center; padding: 6px 0; } }
 
 /* плотные таблицы — личная настройка аккаунта */
 :root[data-density="compact"] .kpi { padding: 10px 12px; }
@@ -812,7 +873,7 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .funnel-label { font-size: 13px; font-weight: 500; }
 .funnel-label span { display: block; font-size: 11.5px; color: var(--dim); font-weight: 400; }
 .funnel-track { height: 30px; border-radius: 6px; background: var(--ink-04, var(--ink-06)); overflow: hidden; }
-.funnel-fill { height: 100%; min-width: 3px; border-radius: 6px; background: var(--brand); display: flex; align-items: center; padding-left: 10px; color: #fff; font-weight: 600; font-size: 13px; font-family: var(--font-mono); transition: width 0.3s var(--ease); }
+.funnel-fill { height: 100%; min-width: 3px; border-radius: 6px; background: var(--brand); display: flex; align-items: center; padding-left: 10px; color: var(--on-brand); font-weight: 600; font-size: 13px; font-family: var(--font-mono); transition: width 0.3s var(--ease); }
 .funnel-fill.low { color: var(--text); background: color-mix(in srgb, var(--brand) 35%, transparent); }
 .funnel-meta { font-size: 12.5px; color: var(--text-sub); text-align: right; white-space: nowrap; }
 .funnel-meta b { color: var(--text); font-weight: 600; }
@@ -852,9 +913,9 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .lead-missing { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c-amber-fg); }
 .req { margin-left: 3px; color: var(--c-red-fg); font-weight: 600; }
 .lead-open { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px 0 6px; border-radius: 5px; font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--brand); background: var(--brand-tint); text-decoration: none; transition: background 0.15s var(--ease), color 0.15s var(--ease); }
-.lead-open:hover { background: var(--brand); color: #fff; }
+.lead-open:hover { background: var(--brand); color: var(--on-brand); }
 .lead-open-ico { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border-radius: 5px; color: var(--brand); background: var(--brand-tint); transition: background 0.15s var(--ease), color 0.15s var(--ease), transform 0.15s var(--ease); }
-.lead-open-ico:hover { background: var(--brand); color: #fff; transform: translateY(-1px); }
+.lead-open-ico:hover { background: var(--brand); color: var(--on-brand); transform: translateY(-1px); }
 
 /* обрезанный текст в узкой колонке и его подсказка целиком */
 .clip-text { display: inline-block; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1378,7 +1439,7 @@ body.is-col-dragging .clip-tip { display: none; }
 .ins-notes { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .ins-note { border: 1px solid var(--ink-08); border-radius: 8px; padding: 9px 11px; display: flex; flex-direction: column; gap: 6px; }
 .ins-note-meta { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--dim); }
-.ins-note-no { width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--brand); color: #fff; font-size: 10.5px; font-weight: 600; flex: none; }
+.ins-note-no { width: 18px; height: 18px; border-radius: 50%; display: inline-grid; place-items: center; background: var(--brand); color: var(--on-brand); font-size: 10.5px; font-weight: 600; flex: none; }
 .ins-note-text { font-size: 13px; white-space: pre-wrap; word-break: break-word; }
 .ins-note-eff { font-size: 12px; border-radius: 6px; padding: 6px 9px; background: var(--chip-bg); color: var(--chip-fg); border: 1px solid var(--chip-bd); }
 .ins-note-eff b { font-weight: 600; }

@@ -66,6 +66,14 @@ function TipRow({ color, label, value, dashed }: { color?: string; label: string
   );
 }
 
+/**
+ * Пересчёт размера графика — после паузы: пока боковое меню плавно меняет ширину,
+ * страница перестраивается каждый кадр, и без паузы recharts перерисовывал бы все графики
+ * на каждом кадре (меню подлагивало на «Сводке» и «Динамике»). Пока график ждёт, обёртка
+ * обрезает его по карточке — старая ширина не залезает на соседние блоки.
+ */
+export const CHART_RESIZE_DEBOUNCE = 180;
+
 export function Legend({ items }: { items: { color: string; label: string; dashed?: boolean; bar?: boolean }[] }) {
   return (
     <div className="row" style={{ gap: 14, flexWrap: "wrap", fontSize: 12, color: "var(--text-sub)" }}>
@@ -107,8 +115,8 @@ export function CumulativeChart({ rows, rr, showForecast, height = 260 }: { rows
         : null,
   }));
   return (
-    <div style={{ width: "100%", height }}>
-      <ResponsiveContainer>
+    <div style={{ width: "100%", height, overflow: "hidden" }}>
+      <ResponsiveContainer debounce={CHART_RESIZE_DEBOUNCE}>
         <ComposedChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
           <CartesianGrid stroke="var(--ink-06)" vertical={false} />
           <XAxis dataKey="d" tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--ink-10)" }} interval="preserveStartEnd" minTickGap={14} />
@@ -163,8 +171,8 @@ interface BarPoint {
 export function DailyBars({ rows, dailyPlan, height = 200 }: { rows: DayRow[]; dailyPlan: number; height?: number }) {
   const data: BarPoint[] = rows.map((r, i) => ({ d: i + 1, day: r.day, count: r.future ? null : r.count, isWork: r.isWork, hours: r.hours }));
   return (
-    <div style={{ width: "100%", height }}>
-      <ResponsiveContainer>
+    <div style={{ width: "100%", height, overflow: "hidden" }}>
+      <ResponsiveContainer debounce={CHART_RESIZE_DEBOUNCE}>
         <ComposedChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -8 }} barCategoryGap="22%">
           <CartesianGrid stroke="var(--ink-06)" vertical={false} />
           <XAxis dataKey="d" tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--ink-10)" }} interval="preserveStartEnd" minTickGap={10} />
@@ -224,8 +232,8 @@ export function ShiftLeadsChart({ rows, dayPlan, height = 170, marks = [] }: { r
   const lastIdx = data.reduce((a, p, i) => (p.leads != null ? i : a), -1);
   const max = Math.max(4, dayPlan, ...data.map((p) => p.leads ?? 0));
   return (
-    <div style={{ width: "100%", height }}>
-      <ResponsiveContainer>
+    <div style={{ width: "100%", height, overflow: "hidden" }}>
+      <ResponsiveContainer debounce={CHART_RESIZE_DEBOUNCE}>
         <ComposedChart data={data} margin={{ top: 10, right: 12, bottom: 0, left: -8 }}>
           <CartesianGrid stroke="var(--ink-06)" vertical={false} />
           <XAxis dataKey="d" tick={AXIS} tickLine={false} axisLine={{ stroke: "var(--ink-10)" }} interval="preserveStartEnd" minTickGap={14} />

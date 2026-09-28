@@ -1291,7 +1291,7 @@ button {
   padding: 13px 16px;
   border-radius: 8px;
   border: none;
-  color: #fff;
+  color: var(--on-brand);
   font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
@@ -1374,35 +1374,35 @@ button {
    ════════════════════════════════════════════════════════════════════ */
 :root,
 :root[data-theme="dark"] {
-  /* поверхности: графитовый, не чёрный */
-  --bg: #15171c;
-  --bg-sidebar: #1a1d23;
-  --bg-panel: #1e2128;
-  --bg-panel-hover: #242831;
-  --bg-strip: #1a1d23;
-  --bg-modal: #1e2128;
-  --line: #2c313b;
-  --ctrl-border: #353a45;
-  --ctrl-border-hover: #424856;
+  /* поверхности: меню самое тёмное, фон страниц светлее, карточки тёмно-серые */
+  --bg: #171717;
+  --bg-sidebar: #111111;
+  --bg-panel: #161616;
+  --bg-panel-hover: #1c1c1c;
+  --bg-strip: #191919;
+  --bg-modal: #181818;
+  --line: #2a2a2a;
+  --ctrl-border: #333333;
+  --ctrl-border-hover: #474747;
 
   /* текст */
-  --text: #e7e9ef;
-  --text-soft: #d5d9e2;
-  --text-quote: #c9cedb;
-  --text-sub: #9aa3b7;
-  --text-sub2: #a5adbf;
-  --text-sub3: #7f889c;
-  --dim: #6b7388;
-  --dimmer: #525a6d;
+  --text: #ececec;
+  --text-soft: #d8d8d8;
+  --text-quote: #cccccc;
+  --text-sub: #a1a1a1;
+  --text-sub2: #ababab;
+  --text-sub3: #848484;
+  --dim: #6e6e6e;
+  --dimmer: #545454;
 
-  /* акцент */
-  --brand: #6b7daa;
-  --brand-soft: #8190ba;
-  --brand-strong: #7a8bb6;
-  --on-brand: #ffffff;
-  --brand-glow: rgba(107, 125, 170, 0.22);
-  --brand-tint: rgba(107, 125, 170, 0.14);
-  --brand-border: rgba(107, 125, 170, 0.45);
+  /* акцент — светло-серый с тёмным текстом: кнопка «Лид передан», прогресс, графики */
+  --brand: #e3e3e3;
+  --brand-soft: #bdbdbd;
+  --brand-strong: #f4f4f4;
+  --on-brand: #141414;
+  --brand-glow: rgba(255, 255, 255, 0.06);
+  --brand-tint: rgba(255, 255, 255, 0.08);
+  --brand-border: rgba(255, 255, 255, 0.3);
   --action-dark: var(--brand);
   --action-dark-hover: var(--brand-strong);
 
@@ -1435,9 +1435,9 @@ button {
   --shadow-md: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 3px 12px rgba(0, 0, 0, 0.28);
   --shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.32);
   --shadow-xl: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 16px 38px rgba(0, 0, 0, 0.38);
-  --glass-core: #1e2128;
-  --glass-edge: rgba(30, 33, 40, 0);
-  --glass-bar-bg: rgba(26, 29, 35, 0.92);
+  --glass-core: #161616;
+  --glass-edge: rgba(22, 22, 22, 0);
+  --glass-bar-bg: rgba(22, 22, 22, 0.92);
   --glass-bar-border: rgba(255, 255, 255, 0.08);
 
   /* напоминания */
@@ -1449,7 +1449,7 @@ button {
   --pill-red-border: #553a3d;
 
   /* статусные тона (чипы, «хорошо / плохо» в показателях) */
-  --c-gray-fg: #a5adbf; --c-gray-bg: #262a33; --c-gray-bd: #353a45;
+  --c-gray-fg: #ababab; --c-gray-bg: #232323; --c-gray-bd: #353535;
   --c-blue-fg: #9aaad4; --c-blue-bg: #262d40; --c-blue-bd: #37415c;
   --c-green-fg: #8fc0a3; --c-green-bg: #20302a; --c-green-bd: #2f4a3d;
   --c-amber-fg: #d6b88c; --c-amber-bg: #342c21; --c-amber-bd: #4f4331;
@@ -1459,69 +1459,69 @@ button {
   --c-teal-fg: #72bfae; --c-teal-bg: #213934; --c-teal-bd: #31554c;
   --c-indigo-fg: #9a9fd8; --c-indigo-bg: #2a2d46; --c-indigo-bd: #3f4368;
   /* пастельные тона для проектов и групп */
-  --c-slate-fg: #a9b4cc; --c-slate-bg: #272c37; --c-slate-bd: #3a4150;
+  --c-slate-fg: #b3b3b3; --c-slate-bg: #2a2a2a; --c-slate-bd: #3d3d3d;
   --c-sky-fg: #8cc3e3; --c-sky-bg: #1f3140; --c-sky-bd: #2f4a5e;
   --c-peach-fg: #e0a888; --c-peach-bg: #3a2a22; --c-peach-bd: #58402f;
 
   /* «График» */
-  --sch-head: #1a1d23;
-  --sch-group: #232730;
-  --sch-grid: #2a2e37;
-  --sch-grid-strong: #323744;
-  --sch-weekend: #21252d;
-  --sch-we-label: #8c9bc0;
-  --sch-hover: #242831;
-  --sch-we-hover: #282c35;
-  --sch-today-col: rgba(107, 125, 170, 0.08);
-  --sch-sel: #8c9bc0;
-  --sch-foot: #1b1e24;
-  --sch-foot-we: #20242c;
-  --sch-foot-border: #343947;
-  --sch-work: linear-gradient(180deg, #5a6c96 0%, #4a5b84 100%);
-  --sch-plan: #3f4a63;
-  --sch-plan-fg: #c9d0e0;
-  --sch-train: linear-gradient(180deg, #6a7fb3 0%, #5a6ea3 100%);
+  --sch-head: #1b1b1b;
+  --sch-group: #202020;
+  --sch-grid: #2a2a2a;
+  --sch-grid-strong: #343434;
+  --sch-weekend: #1b1b1b;
+  --sch-we-label: #a3a3a3;
+  --sch-hover: #1f1f1f;
+  --sch-we-hover: #232323;
+  --sch-today-col: rgba(255, 255, 255, 0.05);
+  --sch-sel: #cfcfcf;
+  --sch-foot: #1a1a1a;
+  --sch-foot-we: #1e1e1e;
+  --sch-foot-border: #363636;
+  --sch-work: linear-gradient(180deg, #686868 0%, #575757 100%);
+  --sch-plan: #3a3a3a;
+  --sch-plan-fg: #d0d0d0;
+  --sch-train: linear-gradient(180deg, #857d70 0%, #736b5f 100%);
   --sch-sick: #9e5f61;
   --sch-vac: #9c8158;
   --sch-block-fg: #ffffff;
-  --sch-gone-bg: #221f24;
+  --sch-gone-bg: #221e1e;
   --sch-gone-line: rgba(194, 127, 128, 0.17);
   --sch-gone-fg: #9a7173;
-  --sch-off: #525a6d;
-  --sch-cross: rgba(140, 155, 192, 0.07);
+  --sch-off: #545454;
+  --sch-cross: rgba(255, 255, 255, 0.05);
   --sch-pre-bg: transparent;
   --sch-pre-line: rgba(255, 255, 255, 0.035);
 }
 
 :root[data-theme="light"] {
-  /* поверхности: не совсем белая страница, белые панели */
-  --bg: #f5f6f9;
-  --bg-sidebar: #f1f3f7;
+  /* поверхности: нейтральный серый без синего оттенка, белые панели */
+  --bg: #efefef;
+  --bg-sidebar: #e9e9e9;
   --bg-panel: #ffffff;
-  --bg-panel-hover: #f6f7fa;
-  --bg-strip: #f3f4f8;
+  --bg-panel-hover: #f6f6f6;
+  --bg-strip: #f6f6f6;
   --bg-modal: #ffffff;
-  --line: #e5e8ef;
-  --ctrl-border: #dde2ea;
-  --ctrl-border-hover: #cfd5e0;
+  --line: #e0e0e0;
+  --ctrl-border: #d6d6d6;
+  --ctrl-border-hover: #c4c4c4;
 
-  --text: #17213a;
-  --text-soft: #25304b;
-  --text-quote: #34405d;
-  --text-sub: #65708c;
-  --text-sub2: #768099;
-  --text-sub3: #8c96aa;
-  --dim: #9aa3b7;
-  --dimmer: #b7becd;
+  --text: #1a1a1a;
+  --text-soft: #262626;
+  --text-quote: #3a3a3a;
+  --text-sub: #636363;
+  --text-sub2: #737373;
+  --text-sub3: #8f8f8f;
+  --dim: #999999;
+  --dimmer: #bdbdbd;
 
-  /* акцент — цвет кнопки «Лид передан» */
-  --brand: #314163;
-  --brand-soft: #41527b;
-  --brand-strong: #253555;
+  /* акцент — почти чёрный с белым текстом: кнопка «Лид передан», прогресс, графики */
+  --brand: #1f1f1f;
+  --brand-soft: #4a4a4a;
+  --brand-strong: #383838;
   --on-brand: #ffffff;
-  --brand-glow: rgba(49, 65, 99, 0.16);
-  --brand-tint: rgba(49, 65, 99, 0.07);
-  --brand-border: rgba(49, 65, 99, 0.3);
+  --brand-glow: rgba(0, 0, 0, 0.14);
+  --brand-tint: rgba(0, 0, 0, 0.055);
+  --brand-border: rgba(0, 0, 0, 0.25);
   --action-dark: var(--brand);
   --action-dark-hover: var(--brand-strong);
 
@@ -1534,30 +1534,30 @@ button {
   --amber: #9c7646;
   --amber-soft: #cdaa7e;
 
-  --ink-015: rgba(23, 33, 58, 0.018);
-  --ink-03: rgba(23, 33, 58, 0.03);
-  --ink-035: rgba(23, 33, 58, 0.035);
-  --ink-04: rgba(23, 33, 58, 0.04);
-  --ink-05: rgba(23, 33, 58, 0.055);
-  --ink-06: rgba(23, 33, 58, 0.065);
-  --ink-07: rgba(23, 33, 58, 0.075);
-  --ink-08: rgba(23, 33, 58, 0.09);
-  --ink-09: rgba(23, 33, 58, 0.105);
-  --ink-10: rgba(23, 33, 58, 0.12);
-  --ink-12: rgba(23, 33, 58, 0.14);
-  --ink-15: rgba(23, 33, 58, 0.18);
-  --ink-25: rgba(23, 33, 58, 0.28);
-  --ink-35: rgba(23, 33, 58, 0.4);
+  --ink-015: rgba(0, 0, 0, 0.018);
+  --ink-03: rgba(0, 0, 0, 0.03);
+  --ink-035: rgba(0, 0, 0, 0.035);
+  --ink-04: rgba(0, 0, 0, 0.04);
+  --ink-05: rgba(0, 0, 0, 0.055);
+  --ink-06: rgba(0, 0, 0, 0.065);
+  --ink-07: rgba(0, 0, 0, 0.075);
+  --ink-08: rgba(0, 0, 0, 0.09);
+  --ink-09: rgba(0, 0, 0, 0.105);
+  --ink-10: rgba(0, 0, 0, 0.12);
+  --ink-12: rgba(0, 0, 0, 0.14);
+  --ink-15: rgba(0, 0, 0, 0.18);
+  --ink-25: rgba(0, 0, 0, 0.28);
+  --ink-35: rgba(0, 0, 0, 0.4);
 
-  --shadow-xs: 0 1px 2px rgba(25, 35, 60, 0.03);
-  --shadow-sm: 0 1px 2px rgba(25, 35, 60, 0.035);
-  --shadow-md: 0 0 0 1px rgba(23, 33, 58, 0.045), 0 3px 12px rgba(25, 35, 60, 0.045);
-  --shadow-lg: 0 0 0 1px rgba(23, 33, 58, 0.045), 0 8px 24px rgba(25, 35, 60, 0.065);
-  --shadow-xl: 0 0 0 1px rgba(23, 33, 58, 0.05), 0 16px 38px rgba(25, 35, 60, 0.1);
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 0 0 1px rgba(0, 0, 0, 0.045), 0 3px 12px rgba(0, 0, 0, 0.045);
+  --shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.045), 0 8px 24px rgba(0, 0, 0, 0.065);
+  --shadow-xl: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 16px 38px rgba(0, 0, 0, 0.1);
   --glass-core: #ffffff;
   --glass-edge: rgba(255, 255, 255, 0);
   --glass-bar-bg: rgba(255, 255, 255, 0.9);
-  --glass-bar-border: rgba(23, 33, 58, 0.08);
+  --glass-bar-border: rgba(0, 0, 0, 0.08);
 
   --pill-amber-bg: #f8f1e7;
   --pill-amber-fg: #9c7646;
@@ -1567,7 +1567,7 @@ button {
   --pill-red-border: #edd3d4;
 
   /* мягкие статусы: красный — как «больничный», жёлтый — как «отпуск», зелёный — шалфей */
-  --c-gray-fg: #65708c; --c-gray-bg: #f1f3f7; --c-gray-bd: #e2e5ec;
+  --c-gray-fg: #636363; --c-gray-bg: #f0f0f0; --c-gray-bd: #dddddd;
   --c-blue-fg: #4f6593; --c-blue-bg: #edf0f6; --c-blue-bd: #dce2ee;
   --c-green-fg: #4f8166; --c-green-bg: #eaf3ee; --c-green-bd: #cfe3d7;
   --c-amber-fg: #9c7646; --c-amber-bg: #f8f1e7; --c-amber-bd: #eadcc6;
@@ -1576,36 +1576,36 @@ button {
   --c-pink-fg: #a8517c; --c-pink-bg: #f8eaf1; --c-pink-bd: #efcfe0;
   --c-teal-fg: #2f7f6c; --c-teal-bg: #e5f4f0; --c-teal-bd: #c9e9e0;
   --c-indigo-fg: #5358a3; --c-indigo-bg: #eceaf8; --c-indigo-bd: #dad6ef;
-  --c-slate-fg: #56688f; --c-slate-bg: #eef1f6; --c-slate-bd: #d9dfea;
+  --c-slate-fg: #5c5c5c; --c-slate-bg: #efefef; --c-slate-bd: #dcdcdc;
   --c-sky-fg: #3f7fa6; --c-sky-bg: #e8f3f9; --c-sky-bd: #cde4f1;
   --c-peach-fg: #b0714f; --c-peach-bg: #fbefe8; --c-peach-bd: #f0d6c7;
 
   /* «График» */
-  --sch-head: #f9fafc;
-  --sch-group: #eef0f5;
-  --sch-grid: #eceef3;
-  --sch-grid-strong: #e2e5ec;
-  --sch-weekend: #f4f5f9;
-  --sch-we-label: #56688f;
-  --sch-hover: #f6f7fa;
-  --sch-we-hover: #eceef4;
-  --sch-today-col: rgba(49, 65, 99, 0.045);
-  --sch-sel: #56688f;
-  --sch-foot: #fafafc;
-  --sch-foot-we: #f0f2f6;
-  --sch-foot-border: #dfe3ea;
-  --sch-work: linear-gradient(180deg, #56688f 0%, #46577f 100%);
-  --sch-plan: #8a97b6;
+  --sch-head: #fafafa;
+  --sch-group: #ececec;
+  --sch-grid: #ececec;
+  --sch-grid-strong: #e2e2e2;
+  --sch-weekend: #f3f3f3;
+  --sch-we-label: #6b6b6b;
+  --sch-hover: #f6f6f6;
+  --sch-we-hover: #ececec;
+  --sch-today-col: rgba(0, 0, 0, 0.035);
+  --sch-sel: #555555;
+  --sch-foot: #fafafa;
+  --sch-foot-we: #f1f1f1;
+  --sch-foot-border: #e0e0e0;
+  --sch-work: linear-gradient(180deg, #5c5c5c 0%, #4a4a4a 100%);
+  --sch-plan: #9a9a9a;
   --sch-plan-fg: #ffffff;
-  --sch-train: linear-gradient(180deg, #7f93c6 0%, #6d80b4 100%);
+  --sch-train: linear-gradient(180deg, #8a8175 0%, #787064 100%);
   --sch-sick: #c27f80;
   --sch-vac: #cdaa7e;
   --sch-block-fg: #ffffff;
   --sch-gone-bg: #fdf8f8;
   --sch-gone-line: rgba(194, 127, 128, 0.2);
   --sch-gone-fg: #c49698;
-  --sch-off: #b7becd;
-  --sch-cross: rgba(49, 65, 99, 0.045);
+  --sch-off: #bdbdbd;
+  --sch-cross: rgba(0, 0, 0, 0.035);
   --sch-pre-bg: transparent;
-  --sch-pre-line: rgba(160, 166, 180, 0.11);
+  --sch-pre-line: rgba(160, 160, 160, 0.11);
 }

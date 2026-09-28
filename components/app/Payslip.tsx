@@ -24,13 +24,13 @@ const SCALE = 2;
 
 const C = {
   bg: "#ffffff",
-  text: "#17213a",
-  sub: "#65708c",
-  dim: "#9aa3b7",
-  line: "#e5e8ef",
-  strip: "#f3f4f8",
-  brand: "#314163",
-  brandSoft: "#edf0f6",
+  text: "#1a1a1a",
+  sub: "#6b6b6b",
+  dim: "#a0a0a0",
+  line: "#e6e6e6",
+  strip: "#f4f4f4",
+  brand: "#1f1f1f",
+  brandSoft: "#efefef",
   green: "#4f8166",
   red: "#b25f62",
 };
