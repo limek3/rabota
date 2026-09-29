@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
@@ -105,17 +105,25 @@ export default function SchedulePage() {
   const dayDrag = useRef(false);
 
   const days = m.cal.days;
+  // супервайзеры — отдельным блоком над группами: по роли в карточке или потому что ведут группу
+  const led = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const g of data.groups) if (!g.deletedAt && g.supervisorId && !out.has(g.supervisorId)) out.set(g.supervisorId, g.id);
+    return out;
+  }, [data.groups]);
+  const isSvRow = useCallback((r: OpRow) => !isGone(r.op) && (r.op.role === "supervisor" || led.has(r.op.id)), [led]);
   const rows = useMemo(
     () =>
       m.ops
         .filter((r) => !r.op.deletedAt || r.hours > 0)
-        .filter((r) => !group || r.groupKey === group)
+        // фильтр группы: её операторы и супервайзер, который её ведёт
+        .filter((r) => !group || r.groupKey === group || led.get(r.op.id) === group)
         .sort((a, b) => {
           const ga = a.groupKey === NO_GROUP ? "я" : ix.groupById.get(a.groupKey)?.name ?? "";
           const gb = b.groupKey === NO_GROUP ? "я" : ix.groupById.get(b.groupKey)?.name ?? "";
-          return ga.localeCompare(gb, "ru") || goneLast(a.op, b.op) || a.op.name.localeCompare(b.op.name, "ru");
+          return Number(isSvRow(b)) - Number(isSvRow(a)) || ga.localeCompare(gb, "ru") || goneLast(a.op, b.op) || a.op.name.localeCompare(b.op.name, "ru");
         }),
-    [m.ops, group, ix],
+    [m.ops, group, ix, led, isSvRow],
   );
 
   const dayTotals = useMemo(
@@ -140,17 +148,18 @@ export default function SchedulePage() {
     const out: Section[] = [];
     rows.forEach((r, i) => {
       const gone = isGone(r.op);
-      const key = `${r.groupKey}|${gone ? "gone" : "on"}`;
+      const sv = isSvRow(r);
+      const key = sv ? "sv|on" : `${r.groupKey}|${gone ? "gone" : "on"}`;
       let sec = out[out.length - 1];
       if (!sec || sec.key !== key) {
         const gName = r.groupKey === NO_GROUP ? NO_GROUP_LABEL : ix.groupById.get(r.groupKey)?.name ?? "";
-        sec = { key, title: gone ? "Уволены" : gName, gone, idx: [] };
+        sec = { key, title: sv ? "Супервайзеры" : gone ? "Уволены" : gName, gone, sv, idx: [] };
         out.push(sec);
       }
       sec.idx.push(i);
     });
     return out;
-  }, [rows, ix]);
+  }, [rows, ix, isSvRow]);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const toggleSection = (key: string) =>
     setCollapsed((prev) => {
@@ -437,7 +446,17 @@ export default function SchedulePage() {
                     <SectionRow sec={sec} rows={rows} dayCount={days.length} shut={shut} onToggle={() => toggleSection(sec.key)} />
                     {!shut &&
                       sec.idx.map((i) => (
-                        <SchedRow key={rows[i].op.id} r={rows[i]} rowIndex={i} days={days} sel={sel} range={range} colSel={colSel} onDown={startCell} />
+                        <SchedRow
+                          key={rows[i].op.id}
+                          r={rows[i]}
+                          rowIndex={i}
+                          days={days}
+                          sel={sel}
+                          range={range}
+                          colSel={colSel}
+                          onDown={startCell}
+                          leads={sec.sv ? ix.groupById.get(led.get(rows[i].op.id) ?? "")?.name ?? null : null}
+                        />
                       ))}
                   </Fragment>
                 );
@@ -547,6 +566,7 @@ function SchedRow({
   range,
   colSel,
   onDown,
+  leads,
 }: {
   r: OpRow;
   rowIndex: number;
@@ -555,6 +575,8 @@ function SchedRow({
   range: Range | null;
   colSel: { c0: number; c1: number } | null;
   onDown: (r: number, c: number, rect: { left: number; top: number; bottom: number; width: number }) => void;
+  /** Строка в блоке «Супервайзеры»: группа, которую он ведёт (подпись под именем). */
+  leads?: string | null;
 }) {
   const { ix, data, today, access } = useCrm();
   const s = data.settings;
@@ -581,7 +603,13 @@ function SchedRow({
   const lanes = days.map(laneOf);
   const ddmm = (d: DayKey) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
   const opSub =
-    r.op.status === "fired" && fire ? `уволен(а) ${ddmm(fire)}` : hire && hire > days[0] && hire <= days[days.length - 1] ? `с ${ddmm(hire)}` : "";
+    r.op.status === "fired" && fire
+      ? `уволен(а) ${ddmm(fire)}`
+      : leads
+        ? `ведёт ${leads}`
+        : hire && hire > days[0] && hire <= days[days.length - 1]
+          ? `с ${ddmm(hire)}`
+          : "";
   return (
     <tr className="sch-row">
       <td className="sticky-col">
@@ -662,6 +690,8 @@ interface Section {
   key: string;
   title: string;
   gone: boolean;
+  /** Блок «Супервайзеры» — над группами, со звездой в заголовке. */
+  sv?: boolean;
   /** Индексы строк в общем списке (по ним работает выделение). */
   idx: number[];
 }
@@ -684,6 +714,7 @@ function SectionRow({ sec, rows, dayCount, shut, onToggle }: { sec: Section; row
       <td className="sticky-col">
         <button type="button" className="sch-grp-btn" onClick={onToggle} aria-expanded={!shut}>
           <Icon name="chevD" size={15} stroke={2} className={shut ? "shut" : undefined} />
+          {sec.sv && <Icon name="star" size={13} stroke={2} className="sv-star" />}
           {sec.title} · {sec.idx.length}
           {sec.gone ? "" : " чел."}
         </button>

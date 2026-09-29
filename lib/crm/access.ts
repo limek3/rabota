@@ -9,6 +9,11 @@ import { nowMs } from "./dates";
  *   Супервайзер  — свои группы (из аккаунта + где он руководитель в карточке группы);
  *                  что именно можно делать — настраивает РОП (settings.access.supervisor).
  *   Оператор     — только своё: лиды, план, часы, заработок (settings.access.operator).
+ *   Наставник    — аккаунт оператора, у которого в карточке роль «старший оператор»:
+ *                  своё — как у оператора, плюс видит свою группу целиком (операторы,
+ *                  прогресс, график, лиды, разбор) и пишет заметки о её операторах.
+ *                  Менять чужое не может, деньги группы не видит. То же правило — в RLS
+ *                  (supabase/migrations/20260929000001_mentor.sql).
  *
  * Видимость реализована срезом данных (scopeData): все расчёты и страницы
  * работают с тем же DataState, только урезанным. Поэтому ни одна страница не
@@ -24,6 +29,10 @@ export interface Access {
   isHead: boolean;
   isSup: boolean;
   isOp: boolean;
+  /** Оператор-наставник («старший оператор» в карточке): видит свою группу, денег группы не видит. */
+  isMentor: boolean;
+  /** Операторы группы наставника (без него самого) — о них он пишет заметки. */
+  mentorOps: Set<ID>;
   /** Карточка сотрудника, связанная с аккаунтом. */
   opId: ID | null;
   /** Группы, которыми управляет супервайзер. */
@@ -70,8 +79,12 @@ export function computeAccess(acc: Account, st: DataState): Access {
   const isSup = acc.role === "supervisor";
   const isOp = acc.role === "operator";
   const opId = acc.operatorId && st.operators.some((o) => o.id === acc.operatorId) ? acc.operatorId : null;
+  const card = opId ? st.operators.find((o) => o.id === opId) : null;
+  // наставник — оператор с ролью «старший оператор» в карточке и с группой
+  const isMentor = isOp && !!card && card.role === "senior" && !!card.groupId && !card.deletedAt;
+  const mentorOps = new Set<ID>(isMentor ? st.operators.filter((o) => o.groupId === card!.groupId && o.id !== opId).map((o) => o.id) : []);
 
-  const ownGroups = isSup ? supervisorGroups(acc, st) : new Set<ID>();
+  const ownGroups = isSup ? supervisorGroups(acc, st) : isMentor ? new Set<ID>([card!.groupId!]) : new Set<ID>();
   let editOps: Set<ID> | null = null;
   if (isSup) {
     editOps = new Set(st.operators.filter((o) => !o.deletedAt && o.groupId && ownGroups.has(o.groupId)).map((o) => o.id));
@@ -106,6 +119,8 @@ export function computeAccess(acc: Account, st: DataState): Access {
   if (isHead) ALL_ROUTES.forEach((r) => routes.add(r));
   else if (isSup) ["/dashboard", "/leads", "/operators", "/groups", "/schedule", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"].forEach((r) => routes.add(r));
   else ["/me", "/stats", "/leads", "/schedule", "/dynamics", "/learn", "/settings"].forEach((r) => routes.add(r));
+  // наставник видит свою группу: сводку, операторов, группу и отчёт по операторам (без денег)
+  if (isMentor) ["/dashboard", "/operators", "/groups", "/reports"].forEach((r) => routes.add(r));
   if (can.viewPayroll) routes.add("/payroll");
   if (can.manageHiring) routes.add("/hiring");
   // личные разделы — только у аккаунта с карточкой оператора
@@ -118,9 +133,27 @@ export function computeAccess(acc: Account, st: DataState): Access {
     .map((g) => st.groups.find((x) => x.id === g)?.name)
     .filter(Boolean)
     .join(", ");
-  const scopeLabel = isHead ? "Весь отдел" : isSup ? (S.seeAllGroups ? `Весь отдел · свои: ${groupNames || "—"}` : groupNames || "Группы не назначены") : "Мои данные";
+  const scopeLabel = isHead
+    ? "Весь отдел"
+    : isSup
+      ? S.seeAllGroups
+        ? `Весь отдел · свои: ${groupNames || "—"}`
+        : groupNames || "Группы не назначены"
+      : isMentor
+        ? `Наставник · ${groupNames || "группа"}`
+        : "Мои данные";
 
-  return { account: acc, role: acc.role, isHead, isSup, isOp, opId, ownGroups, editOps, viewAll: isHead || (isSup && S.seeAllGroups), can, routes, scopeLabel };
+  return { account: acc, role: acc.role, isHead, isSup, isOp, isMentor, mentorOps, opId, ownGroups, editOps, viewAll: isHead || (isSup && S.seeAllGroups), can, routes, scopeLabel };
+}
+
+/**
+ * Видит ли деньги этого оператора (условия оплаты, начисления, выплаты). РОП — всех,
+ * супервайзер с правом «зарплата» — своих, оператор и наставник — только свои.
+ */
+export function canSeePay(a: Access, operatorId: ID | null | undefined): boolean {
+  if (a.isHead) return true;
+  if (!a.can.viewPayroll || !operatorId) return false;
+  return a.isSup ? canTouchOp(a, operatorId) : operatorId === a.opId;
 }
 
 /** Может ли менять данные этого оператора (лиды, смены, карточку — дальше решают флаги can). */
@@ -196,6 +229,7 @@ export function canTouchCandidate(a: Access, c: Pick<Candidate, "groupId">): boo
  */
 export function canNote(a: Access, operatorId: ID): boolean {
   if (a.isHead) return true;
+  if (a.isMentor) return a.mentorOps.has(operatorId);
   return a.isSup && canTouchOp(a, operatorId);
 }
 
@@ -221,9 +255,11 @@ export function scopeData(st: DataState, a: Access): DataState {
       notes: st.notes.filter((n) => canNote(a, n.operatorId)),
     };
   }
-  if (a.isSup) {
+  // наставник видит группу, как супервайзер, но менять может только своё (editOps = он сам)
+  const groupWide = a.isSup || a.isMentor;
+  if (groupWide) {
     groupIds = new Set(a.ownGroups);
-    opIds = new Set(a.editOps ?? []);
+    opIds = new Set([...(a.editOps ?? []), ...a.mentorOps]);
     leads = st.leads.filter((l) => (l.groupId && groupIds.has(l.groupId)) || opIds.has(l.operatorId));
     // люди, чья история есть в группе (переведённые, удалённые), — видны в отчётах группы
     for (const l of leads) opIds.add(l.operatorId);
@@ -234,7 +270,7 @@ export function scopeData(st: DataState, a: Access): DataState {
     leads = st.leads.filter((l) => opIds.has(l.operatorId));
   }
 
-  const shifts = st.shifts.filter((s) => opIds.has(s.operatorId) || (a.isSup && !!s.groupId && groupIds.has(s.groupId)));
+  const shifts = st.shifts.filter((s) => opIds.has(s.operatorId) || (groupWide && !!s.groupId && groupIds.has(s.groupId)));
   for (const s of shifts) opIds.add(s.operatorId);
   const canPay = a.can.viewPayroll;
 
@@ -248,7 +284,8 @@ export function scopeData(st: DataState, a: Access): DataState {
     plans: st.plans.filter(
       (p) => (p.scope === "group" && p.targetId != null && groupIds.has(p.targetId)) || (p.scope === "operator" && p.targetId != null && opIds.has(p.targetId)),
     ),
-    adjustments: canPay ? st.adjustments.filter((x) => opIds.has(x.operatorId)) : [],
+    // деньги: наставнику — только свои, даже если группа ему видна
+    adjustments: canPay ? st.adjustments.filter((x) => (a.isMentor ? x.operatorId === a.opId : opIds.has(x.operatorId))) : [],
     accounts: st.accounts.filter((x) => x.id === a.account.id),
     candidates: st.candidates.filter((c) => canTouchCandidate(a, c)),
     // заметки СВ — только руководителям, оператору свои не показываем

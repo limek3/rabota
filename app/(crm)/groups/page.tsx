@@ -70,7 +70,8 @@ function GroupCard({ g, byOp }: { g: GroupRow; byOp: Map<string, OpInsight> }) {
   const { data, ix, month, today, openGroup, openOperator, deleteGroup, moveOperator, confirm, access } = useCrm();
   // ФОТ группы: начисления её операторов против дохода по переданным лидам
   const fund = useMemo(() => {
-    if (!access.can.viewPayroll || !g.group) return null;
+    // наставник видит группу, но не её деньги
+    if (!access.can.viewPayroll || access.isMentor || !g.group) return null;
     const pr = payroll(data, ix, monthCal(month, data.settings, today));
     const rows = pr.rows.filter((r) => r.op.groupId === g.group!.id);
     const gross = rows.reduce((a, r) => a + r.gross, 0);
@@ -78,7 +79,7 @@ function GroupCard({ g, byOp }: { g: GroupRow; byOp: Map<string, OpInsight> }) {
     // доход = лиды × цена лида × апрув: основа — по проектам, регионы — по своим цене и апруву
     const ids = new Set(rows.map((r) => r.op.id));
     return fundStat(gross, leads, incomePerLead(data, month, (l) => ids.has(l.operatorId)), data.settings.payrollCapPct);
-  }, [access.can.viewPayroll, data, ix, month, today, g.group]);
+  }, [access.can.viewPayroll, access.isMentor, data, ix, month, today, g.group]);
   const [open, setOpen] = useState(false);
   const p = g.pace;
   const supFull = g.group?.supervisorId ? ix.opById.get(g.group.supervisorId)?.name : g.group?.supervisorName;

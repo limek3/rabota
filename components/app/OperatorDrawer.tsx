@@ -10,7 +10,7 @@ import { fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, telegr
 import { PayoutHistory } from "@/components/app/PayoutHistory";
 import { Avatar, Chip, Conv, Kpi, LeadLinkButton, LeadStatusChip, Progress, Sheet, StatusChip } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
-import { canManageOperator } from "@/lib/crm/access";
+import { canManageOperator, canSeePay } from "@/lib/crm/access";
 import { CumulativeChart, Legend, ShiftLeadsChart } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
 import { hasBonus, isHourlyTiered, isSalary, isTiered } from "@/lib/crm/payroll";
@@ -138,7 +138,7 @@ export function OperatorDrawer({ row, onClose }: { row: OpRow; onClose: () => vo
             <OutputCard row={row} />
             <RecentLeadsCard opId={op.id} />
           </div>
-          {access.can.viewPayroll && <PayoutsCard opId={op.id} />}
+          {canSeePay(access, op.id) && <PayoutsCard opId={op.id} />}
         </div>
         {/* разбор и заметки — только руководителям: в «Моих показателях» оператора их нет */}
         <div className="op-sheet-side">
@@ -172,7 +172,7 @@ export function OperatorStats({ row }: { row: OpRow; wide?: boolean }) {
         <RecentLeadsCard opId={row.op.id} />
       </div>
       <InfoCard row={row} />
-      {access.can.viewPayroll && <PayoutsCard opId={row.op.id} />}
+      {canSeePay(access, row.op.id) && <PayoutsCard opId={row.op.id} />}
     </>
   );
 }
@@ -382,7 +382,8 @@ function InfoCard({ row }: { row: OpRow }) {
   // обучение сотрудника — по его аккаунту
   const acc = data.accounts.find((a) => a.operatorId === op.id && !a.deletedAt) ?? null;
   const learn = acc ? learnSummary(acc.id, acc.role, data.learn) : null;
-  const canPayView = access.can.viewPayroll;
+  // условия оплаты — только тем, кому видны деньги этого человека (наставнику — не видны)
+  const canPayView = canSeePay(access, row.op.id);
   return (
     <div className="card card-pad" style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 7 }}>
       <h3 className="card-title" style={{ marginBottom: 4 }}>

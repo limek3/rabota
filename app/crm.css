@@ -814,6 +814,8 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .tbl tr.grp-head td { background: var(--bg-strip); font-weight: 600; cursor: pointer; user-select: none; border-top: 1px solid var(--ink-07); border-bottom: none; box-shadow: inset 0 -1px 0 var(--ink-06); }
 .grp-chev { color: var(--dim); flex: none; transition: transform 0.22s var(--ease); }
 .grp-chev.open { transform: rotate(90deg); }
+/* звезда у блока «Супервайзеры» в «Операторах» и «Графике» */
+.sv-star { flex: none; color: var(--c-purple-fg); }
 .tbl tr.grp-head td.sticky-col { background: var(--bg-strip); }
 .tbl tbody tr.grp-head:hover td, .tbl tbody tr.grp-head:hover td.sticky-col { background: var(--bg-strip); color: var(--text); }
 .grp-head-sub { font-weight: 400; font-size: 12px; color: var(--dim); }

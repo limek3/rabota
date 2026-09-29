@@ -72,6 +72,8 @@ function mergeVisible(full: string[], visibleNext: string[]): string[] {
   return full.map((k) => (vis.has(k) ? visibleNext[i++] : k));
 }
 const isPaused = (r: OpRow) => r.op.status === "pause" && !isGone(r.op);
+/** Ключ блока «Супервайзеры» — над всеми группами. */
+const SV_KEY = "__sv__";
 type SortKey = "name" | "plan" | "fact" | "pct" | "dev" | "why" | "rr" | "left" | "need" | "real" | "today" | "week" | "prev" | "avg" | "hours" | "lph";
 
 const val = (r: OpRow, k: SortKey, ins: Map<string, OpInsight>): number | string => {
@@ -144,6 +146,8 @@ export default function OperatorsPage() {
     return out;
   }, [data.groups]);
   const keyOf = useCallback((r: OpRow) => led.get(r.op.id) ?? r.groupKey, [led]);
+  // супервайзеры — отдельным блоком над группами: по роли в карточке или потому что ведут группу
+  const isSvRow = useCallback((r: OpRow) => r.op.role === "supervisor" || led.has(r.op.id), [led]);
 
   // /operators?id=… — открыть карточку сразу
   useEffect(() => {
@@ -185,20 +189,21 @@ export default function OperatorsPage() {
   const sections = useMemo(() => {
     const map = new Map<string, OpRow[]>();
     for (const r of list) {
-      const k = keyOf(r);
+      const k = isSvRow(r) ? SV_KEY : keyOf(r);
       map.set(k, [...(map.get(k) ?? []), r]);
     }
     return Array.from(map.entries())
       .map(([key, rs]) => {
-        const g = key === NO_GROUP ? null : ix.groupById.get(key);
+        const g = key === NO_GROUP || key === SV_KEY ? null : ix.groupById.get(key);
         const sum = (f: (r: OpRow) => number) => rs.reduce((a, r) => a + f(r), 0);
         const plan = sum((r) => r.terms.plan);
         const fact = sum((r) => r.pace.fact);
         const hours = sum((r) => r.hours);
         return {
           key,
-          name: g?.name ?? NO_GROUP_LABEL,
-          color: g?.color ?? "gray",
+          sv: key === SV_KEY,
+          name: key === SV_KEY ? "Супервайзеры" : g?.name ?? NO_GROUP_LABEL,
+          color: key === SV_KEY ? "purple" : g?.color ?? "gray",
           supervisor: g ? shortName((g.supervisorId ? ix.opById.get(g.supervisorId)?.name : null) ?? g.supervisorName) || null : null,
           status: m.groups.find((x) => x.key === key)?.status ?? null,
           rows: rs,
@@ -214,8 +219,9 @@ export default function OperatorsPage() {
           },
         };
       })
-      .sort((a, b) => Number(a.key === NO_GROUP) - Number(b.key === NO_GROUP) || a.name.localeCompare(b.name, "ru"));
-  }, [list, keyOf, ix, m.groups]);
+      // «Супервайзеры» — первым блоком, «Без группы» — последним
+      .sort((a, b) => Number(b.sv) - Number(a.sv) || Number(a.key === NO_GROUP) - Number(b.key === NO_GROUP) || a.name.localeCompare(b.name, "ru"));
+  }, [list, keyOf, isSvRow, ix, m.groups]);
   const grouped = access.viewAll || sections.length > 1;
 
   const counts = useMemo(() => {
@@ -373,8 +379,9 @@ export default function OperatorsPage() {
                 <GoneTag op={r.op} />
               </span>
               <span style={{ fontSize: 11.5, color: "var(--dim)" }}>
-                {g ? g.name : NO_GROUP_LABEL}
-                {r.op.role !== "operator" && ` · ${ROLE_LABEL[r.op.role]}`}
+                {/* в блоке «Супервайзеры» — какую группу ведёт */}
+                {led.has(r.op.id) ? `ведёт ${ix.groupById.get(led.get(r.op.id)!)?.name ?? ""}` : g ? g.name : NO_GROUP_LABEL}
+                {r.op.role !== "operator" && !led.has(r.op.id) && ` · ${ROLE_LABEL[r.op.role]}`}
                 {r.op.deletedAt ? " · удалён" : r.op.status !== "active" ? ` · ${STATUS_LABEL[r.op.status].toLowerCase()}` : ""}
               </span>
             </span>
@@ -632,7 +639,7 @@ export default function OperatorsPage() {
                       <td className="sticky-col">
                         <span className="row" style={{ gap: 8 }}>
                           <Icon name="chevR" size={14} className={`grp-chev${closed || phase === "out" ? "" : " open"}`} />
-                          <Swatch hue={sec.color} />
+                          {sec.sv ? <Icon name="star" size={13} stroke={2} className="sv-star" /> : <Swatch hue={sec.color} />}
                           <span>{sec.name}</span>
                           <span className="grp-head-sub">
                             {sec.rows.length} чел.{sec.supervisor ? ` · СВ ${sec.supervisor}` : ""}
