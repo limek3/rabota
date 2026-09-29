@@ -53,7 +53,7 @@ import { planId, shiftId, uniqueId } from "./ids";
 import * as db from "./db";
 import * as remote from "./remote";
 import { diffRecords, diffSettings, type AuditCtx } from "./audit";
-import { LEADS, fmtPhone, normLink, normPhone, plural } from "./format";
+import { LEADS, SKOROZVON_LINK_EXAMPLE, fmtPhone, isSkorozvonLink, normLink, normPhone, plural, skorozvonLinkPhone } from "./format";
 import { cleanLeadExportLog, cleanLeadExports, counts, repair, sanitize, toSnapshot } from "./validate";
 import { stripDemo } from "./purge";
 import { syncClock } from "@/lib/clock";
@@ -646,6 +646,19 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const link = normLink(input.link);
       if (input.link.trim() && !link) {
         toast("Ссылка на лид не похожа на ссылку — вставьте адрес целиком (https://…)", "err");
+        return null;
+      }
+      // только ссылка из Скорозвона — проверяем у нового лида и при смене ссылки (старые записи не трогаем)
+      const linkChanged = !prev || link !== (prev.link ?? "");
+      if (link && linkChanged && !isSkorozvonLink(link)) {
+        toast(`Ссылка должна быть из Скорозвона: ${SKOROZVON_LINK_EXAMPLE}`, "err");
+        return null;
+      }
+      // номер в конце ссылки — номер клиента: не совпал с телефоном лида — вставили ссылку от другого лида
+      const linkPhone = skorozvonLinkPhone(link);
+      const leadPhone = normPhone(input.phone);
+      if (link && linkPhone && leadPhone.length >= 10 && linkPhone !== leadPhone && (linkChanged || leadPhone !== normPhone(prev?.phone ?? ""))) {
+        toast(`Ссылка от другого лида: в ней номер ${fmtPhone(linkPhone)}, а в лиде ${fmtPhone(leadPhone)}`, "err");
         return null;
       }
       // новый лид — только полный: клиент, телефон и ссылка (старые лиды без ссылки правятся как раньше)

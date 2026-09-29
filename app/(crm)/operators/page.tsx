@@ -237,9 +237,10 @@ export default function OperatorsPage() {
   const totals = useMemo(() => {
     const plan = list.reduce((a, r) => a + r.terms.plan, 0);
     const fact = list.reduce((a, r) => a + r.pace.fact, 0);
-    const hours = list.reduce((a, r) => a + r.hours, 0);
+    // часы итога — без супервайзеров: их график не входит в показатели команды
+    const hours = list.reduce((a, r) => a + (isSvRow(r) ? 0 : r.hours), 0);
     return { plan, fact, hours, today: list.reduce((a, r) => a + r.pace.today, 0), week: list.reduce((a, r) => a + r.pace.thisWeek, 0), prev: list.reduce((a, r) => a + r.pace.prevWeek, 0) };
-  }, [list]);
+  }, [list, isSvRow]);
 
   const openRow = openId ? rows.find((r) => r.op.id === openId) ?? null : null;
 

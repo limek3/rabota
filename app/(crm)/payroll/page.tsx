@@ -651,7 +651,9 @@ function PayDrawer({ row: r, planValue, onClose, onAdj, onPay }: { row: PayRow; 
     growth: (r.sv ? (r.explicitTerms ? r.sv.growth : null) : null) as boolean | null,
   });
   const s = data.settings;
-  const baseFormula = isHourlyTiered(r.payType)
+  const baseFormula = isSvVolume(r.payType)
+    ? `${fmtMoney(r.salary)} × ${fmtPct(r.salaryShare)} рабочих дней месяца, отработанных по графику (не больше оклада)`
+    : isHourlyTiered(r.payType)
     ? "часы каждой смены × ставка её ступени"
     : isSalary(r.payType)
       ? s.prorateSalary

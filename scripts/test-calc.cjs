@@ -163,13 +163,24 @@ console.log("3 ok: план новичка", t.plan);
 const s4 = JSON.parse(JSON.stringify(demo));
 s4.settings.withholdPct = 10;
 const ix4 = buildIndex(s4);
-const pr = payroll(s4, ix4, monthCal("2026-09", s4.settings, today));
+const cal4 = monthCal("2026-09", s4.settings, today);
+const pr = payroll(s4, ix4, cal4);
+// оклад супервайзера — за отработанные по графику дни: оклад ÷ рабочие дни месяца × дни, не больше оклада
+const svBase = (r) => {
+  const days = cal4.days.filter((d) => d <= cal4.ref);
+  const has = cal4.days.some((d) => ix4.shift.has(`${d}|${r.op.id}`));
+  const n = has
+    ? days.filter((d) => { const sh = ix4.shift.get(`${d}|${r.op.id}`); return sh && (sh.type === "work" || sh.type === "training") && sh.hours > 0; }).length
+    : days.filter((d) => cal4.isWork(d)).length;
+  return r.salary * Math.min(1, n / cal4.W);
+};
 for (const r of pr.rows) {
   // сетка проверяется отдельным блоком ниже — здесь сверяем фиксированные схемы
   const tiered = r.payType === "tiered" || r.payType === "salary_tiered";
   const sv = r.payType === "sv_volume";
+  if (sv) assert(r.base <= r.salary + 0.01, "оклад СВ не больше оклада " + r.op.name);
   const base = sv
-    ? r.salary
+    ? svBase(r)
     : r.payType.startsWith("salary")
     ? r.salary * Math.min(1, r.hours / r.normHours)
     : tiered
@@ -184,6 +195,16 @@ for (const r of pr.rows) {
 }
 const comp = pr.rows.find(r => r.adj.compensation > 0);
 console.log("4 ok: ведомость;", comp.op.name, "компенсация", comp.adj.compensation, "не облагается: база удержания", comp.withholdBase, "из", comp.gross);
+// часы супервайзеров — только личные: в часы команды и групп не идут
+{
+  let team = 0, line = 0;
+  for (const v of ix4.hoursDay.values()) team += v;
+  for (const [id, m] of ix4.hoursOpDay) if (!ix4.svIds.has(id)) for (const v of m.values()) line += v;
+  assert(ix4.svIds.size > 0, "в демо есть супервайзеры");
+  assert(Math.abs(team - line) < 0.01, `часы команды без СВ: ${team} vs ${line}`);
+  const svRow = pr.rows.find((r) => r.payType === "sv_volume");
+  console.log("4b ok: часы СВ вне команды; оклад СВ", svRow.op.name, Math.round(svRow.base), "из", svRow.salary, "· доля", svRow.salaryShare.toFixed(2));
+}
 
 // 5. Фиксация прошлого месяца: смена плана в карточке не меняет август
 const s5 = JSON.parse(JSON.stringify(demo));
@@ -751,7 +772,8 @@ console.log("ALL OK");
     for (const s of x.signals) assert.ok(s.title && s.detail && s.todo, "сигнал с текстом");
   }
   // ноль лидов при отмеченных часах — ловится сигналом
-  const op = m.ops.find((r) => r.op.status === "active" && r.hasShifts && r.inWindow);
+  // оператор на линии: у супервайзера разбора и сигналов нет (его часы — работа с группой)
+  const op = m.ops.find((r) => r.op.status === "active" && r.hasShifts && r.inWindow && !ix.svIds.has(r.op.id));
   const st2 = buildDemo(today);
   const days = ["2026-09-16", "2026-09-17"];
   st2.leads = st2.leads.filter((l) => !(l.operatorId === op.op.id && days.includes(l.at.slice(0, 10))));

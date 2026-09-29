@@ -133,6 +133,8 @@ export default function SchedulePage() {
         let n = 0;
         let people = 0;
         for (const r of rows) {
+          // итоги дня — по операторам на линии: график супервайзера в них не входит
+          if (ix.svIds.has(r.op.id)) continue;
           const hh = ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
           h += hh;
           if (hh > 0) people++;
@@ -187,12 +189,12 @@ export default function SchedulePage() {
   );
 
   const tot = useMemo(() => {
-    const hours = rows.reduce((a, r) => a + r.hours, 0);
+    const hours = rows.reduce((a, r) => a + (ix.svIds.has(r.op.id) ? 0 : r.hours), 0);
     const leads = rows.reduce((a, r) => a + r.pace.fact, 0);
     const planToDate = rows.reduce((a, r) => a + r.pace.planToDate, 0);
     const plan = rows.reduce((a, r) => a + r.pace.plan, 0);
     return { hours, leads, planToDate, plan };
-  }, [rows]);
+  }, [rows, ix]);
 
   // план дня: план месяца строк на экране ÷ рабочие дни месяца; в выходные плана нет
   const dayPlan = tot.plan > 0 ? tot.plan / m.cal.W : 0;
@@ -681,7 +683,8 @@ function SchedRow({
       <td className="r num sum sum-h">{fmtNum(r.hours)}</td>
       <td className="r num sum sum-l"><LeadN n={r.pace.fact} /></td>
       <LeadsDelta fact={r.pace.fact} plan={r.pace.plan} planToDate={r.pace.planToDate} />
-      <td className="r num sum sum-c"><Conv leads={r.pace.fact} hours={r.hours} /></td>
+      {/* у супервайзера конверсии нет: его часы — работа с группой */}
+      {ix.svIds.has(r.op.id) ? <td className="r num muted sum sum-c">—</td> : <td className="r num sum sum-c"><Conv leads={r.pace.fact} hours={r.hours} /></td>}
     </tr>
   );
 }
@@ -723,7 +726,7 @@ function SectionRow({ sec, rows, dayCount, shut, onToggle }: { sec: Section; row
       <td className="r num sum sum-h">{fmtNum(hours)}</td>
       <td className="r num sum sum-l"><LeadN n={leads} /></td>
       <LeadsDelta fact={leads} plan={plan} planToDate={planToDate} />
-      <td className="r num sum sum-c"><Conv leads={leads} hours={hours} /></td>
+      {sec.sv ? <td className="r num muted sum sum-c">—</td> : <td className="r num sum sum-c"><Conv leads={leads} hours={hours} /></td>}
     </tr>
   );
 }

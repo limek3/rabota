@@ -9,7 +9,7 @@ import { Select, dot, type Opt } from "@/components/ui/select";
 import { canCreateLeadFor, canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
-import { fmtPhone, normLink, normPhone, shortName } from "@/lib/crm/format";
+import { SKOROZVON_LINK_EXAMPLE, fmtPhone, isSkorozvonLink, normLink, normPhone, shortName, skorozvonLinkPhone } from "@/lib/crm/format";
 import { fmtStamp, nowStamp } from "@/lib/crm/dates";
 import { hasLeadLinkColumn, hasLeadRegionColumn } from "@/lib/crm/remote";
 import { SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
@@ -174,7 +174,19 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
       ? "Слишком короткий номер"
       : null;
   const errRegion = isNew && regionList.length > 0 && !region ? "Выберите регион" : null;
-  const errLink = link.trim() && !linkNorm ? "Не похоже на ссылку — вставьте адрес целиком" : isNew && !linkNorm ? "Вставьте ссылку на лид" : null;
+  // ссылка — только из Скорозвона; проверяем у нового лида и если ссылку поменяли (старые записи правятся как раньше)
+  const linkChanged = isNew || linkNorm !== (lead?.link ?? "");
+  const linkPhone = skorozvonLinkPhone(linkNorm);
+  const errLink =
+    link.trim() && !linkNorm
+      ? "Не похоже на ссылку — вставьте адрес целиком"
+      : isNew && !linkNorm
+        ? "Вставьте ссылку на лид из Скорозвона"
+        : linkNorm && linkChanged && !isSkorozvonLink(linkNorm)
+          ? `Нужна ссылка из Скорозвона: ${SKOROZVON_LINK_EXAMPLE}`
+          : linkNorm && linkPhone && phoneNorm.length >= 10 && linkPhone !== phoneNorm && (linkChanged || phoneNorm !== normPhone(lead?.phone ?? ""))
+            ? `Ссылка от другого лида: в ней номер ${fmtPhone(linkPhone)}, а в лиде ${fmtPhone(phoneNorm)}`
+            : null;
   const missing = isNew ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!errRegion && "регион"].filter(Boolean) : [];
   const canReview = !!lead && canReviewLead(access, lead);
   const errReason = canReview && status === "failed" && !reason.trim() ? "Укажите причину" : null;
@@ -393,12 +405,13 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
           </div>
           <Field
             label={isNew ? <Req>Ссылка на лид</Req> : "Ссылка на лид"}
-            error={tried ? errLink : null}
+            // не та ссылка (не Скорозвон, чужой номер) — видно сразу после вставки, не дожидаясь «Сохранить»
+            error={tried || linkNorm ? errLink : null}
             hint={
               linkNotStored ? (
                 <span style={{ color: "var(--c-red-fg)" }}>Ссылка пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260925000001_lead_link_time.sql</span>
               ) : !tried || !errLink ? (
-                "Карточка лида в CRM заказчика или запись звонка — чтобы супервайзер проверил в один клик"
+                "Ссылка на лид в Скорозвоне (app.skorozvon.ru/#/leads/…) — чтобы супервайзер проверил в один клик"
               ) : undefined
             }
           >
@@ -409,7 +422,7 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
                 value={link}
                 onChange={(e) => setLink(e.target.value)}
                 onBlur={() => linkNorm && setLink(linkNorm)}
-                placeholder="https://…"
+                placeholder="https://app.skorozvon.ru/#/leads/…"
                 inputMode="url"
                 spellCheck={false}
                 aria-invalid={tried && !!errLink}

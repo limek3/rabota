@@ -169,7 +169,13 @@ export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Pa
           {isSalary(f.payType) && (
             <Field
               label="Оклад, ₽/мес"
-              hint={isSvVolume(f.payType) ? `0 — оклад из сетки супервайзера (${s.svBonus.salary} ₽)` : s.prorateSalary ? "Пропорционально часам, если норма не выполнена" : undefined}
+              hint={
+                isSvVolume(f.payType)
+                  ? `0 — оклад из сетки супервайзера (${s.svBonus.salary} ₽). Начисляется за отработанные по графику дни, не больше оклада`
+                  : s.prorateSalary
+                    ? "Пропорционально часам, если норма не выполнена"
+                    : undefined
+              }
             >
               <NumInput value={f.salary} onChange={(v) => set("salary", v ?? 0)} max={10_000_000} placeholder={isSvVolume(f.payType) ? String(s.svBonus.salary) : undefined} />
             </Field>

@@ -57,10 +57,14 @@ export interface Index {
   /**
    * Отработанные часы (рабочий день + обучение) — только за закрытые дни (≤ workedTo).
    * Сегодняшняя смена до закрытия дня ещё идёт: в часы, конверсию и зарплату она не попадает.
+   * Часы супервайзеров (svIds) — только в hoursOpDay: у них свой график и оклад по дням,
+   * но в часы и конверсию команды и групп они не идут.
    */
   hoursDay: DayMap;
   hoursOpDay: Map<ID, DayMap>;
   hoursGroupDay: Map<string, DayMap>;
+  /** Супервайзеры: роль в карточке, схема «оклад + бонус за объём группы» или руководитель группы. */
+  svIds: Set<ID>;
   /** Часы по графику, включая сегодня и наперёд, — для графика смен (сколько поставлено). */
   plannedOpDay: Map<ID, DayMap>;
   /** Последний закрытый день: его смены уже считаются отработанными. */
@@ -104,6 +108,18 @@ export function closedThrough(today: DayKey, hour: number, s: Pick<Settings, "da
   return hour >= s.dayCloseHour ? today : addDays(today, -1);
 }
 
+/**
+ * Супервайзеры: роль «Супервайзер» в карточке, схема оплаты «оклад + бонус за объём группы»
+ * или руководитель группы. Их график не влияет на показатели команды: часы не идут в часы
+ * и конверсию команды и групп, в численность и выработку на человека они не входят.
+ */
+export function supervisorIds(st: Pick<DataState, "operators" | "groups">): Set<ID> {
+  const out = new Set<ID>();
+  for (const o of st.operators) if (o.role === "supervisor" || o.payType === "sv_volume") out.add(o.id);
+  for (const g of st.groups) if (!g.deletedAt && g.supervisorId) out.add(g.supervisorId);
+  return out;
+}
+
 export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
   const ix: Index = {
     opById: new Map(st.operators.map((o) => [o.id, o])),
@@ -117,6 +133,7 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
     hoursDay: new Map(),
     hoursOpDay: new Map(),
     hoursGroupDay: new Map(),
+    svIds: supervisorIds(st),
     plannedOpDay: new Map(),
     workedTo,
     shift: new Map(),
@@ -151,8 +168,10 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
     ix.months.add(m);
     if (WORKED_TYPES.has(s.type) && s.hours > 0) bump(ix.plannedOpDay, s.operatorId, s.date, s.hours);
     if (WORKED_TYPES.has(s.type) && s.hours > 0 && s.date <= workedTo) {
-      ix.hoursDay.set(s.date, (ix.hoursDay.get(s.date) ?? 0) + s.hours);
       bump(ix.hoursOpDay, s.operatorId, s.date, s.hours);
+      // часы супервайзера — только его: в часы и конверсию команды и группы не идут
+      if (ix.svIds.has(s.operatorId)) continue;
+      ix.hoursDay.set(s.date, (ix.hoursDay.get(s.date) ?? 0) + s.hours);
       bump(ix.hoursGroupDay, gk(s.groupId), s.date, s.hours);
     }
   }
@@ -830,7 +849,8 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
       normToDate,
       hoursDelta: hours - normToDate,
       normPct: safeDiv(hours, norm),
-      lph: hours > 0 ? factClosed / hours : null,
+      // у супервайзера конверсии нет: его часы — работа с группой, а не звонки
+      lph: hours > 0 && !ix.svIds.has(op.id) ? factClosed / hours : null,
       factClosed,
       daysWorked,
       hasShifts,
@@ -863,7 +883,8 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
     const p = pace(cal, gp.plan, ix.groupDay.get(key), s);
     const hours = sumRange(ix.hoursGroupDay.get(key), first, factTo);
     const members = rows.filter((r) => r.groupKey === key && !r.op.deletedAt);
-    const headcount = members.filter((r) => r.op.status === "active").length;
+    // численность группы — без супервайзера: он не на линии
+    const headcount = members.filter((r) => r.op.status === "active" && !ix.svIds.has(r.op.id)).length;
     const contributors = ix.groupMonthOps.get(`${month}|${key}`)?.size ?? 0;
     return {
       key,
@@ -908,9 +929,11 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
   const hours = sumRange(ix.hoursDay, first, factTo);
   const hoursToday = ix.hoursDay.get(ref) ?? 0;
   const hoursWeek = sumRange(ix.hoursDay, ws, ref);
-  const live = rows.filter((r) => !r.op.deletedAt && r.op.status === "active");
-  const contributors = rows.filter((r) => r.pace.fact > 0).length;
-  const opDays = rows.reduce((a, r) => a + (r.hasShifts ? r.daysWorked : r.pace.fact > 0 ? r.pace.elapsedW : 0), 0);
+  // численность, выработка на человека и «хватает ли людей» — по операторам на линии, без супервайзеров
+  const line = rows.filter((r) => !ix.svIds.has(r.op.id));
+  const live = line.filter((r) => !r.op.deletedAt && r.op.status === "active");
+  const contributors = line.filter((r) => r.pace.fact > 0).length;
+  const opDays = line.reduce((a, r) => a + (r.hasShifts ? r.daysWorked : r.pace.fact > 0 ? r.pace.elapsedW : 0), 0);
   const perOpDay = safeDiv(tp.fact, opDays);
   const neededOps = tp.needPerDay != null && perOpDay > 0 ? tp.needPerDay / perOpDay : null;
 

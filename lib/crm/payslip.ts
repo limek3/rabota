@@ -89,7 +89,14 @@ export function buildPayslip(st: DataState, ix: Index, cal: MonthCal, row: PayRo
   const lines: SlipLine[] = [];
 
   // база
-  if (isSvVolume(r.payType)) lines.push({ label: "Оклад", value: r.base, kind: "plus" });
+  // оклад супервайзера — за отработанные по графику дни, не больше оклада
+  if (isSvVolume(r.payType))
+    lines.push({
+      label: "Оклад",
+      note: r.salaryShare < 1 ? `${fmtMoney(r.salary)} × ${fmtPct(r.salaryShare)} рабочих дней по графику` : `${fmtMoney(r.salary)} за месяц`,
+      value: r.base,
+      kind: "plus",
+    });
   else if (isHourlyTiered(r.payType)) lines.push({ label: "Часы по ступеням смен", note: `${fmtNum(r.hours)} ч, ставка часа — по числу лидов в смене`, value: r.base, kind: "plus" });
   else if (isSalary(r.payType))
     lines.push({

@@ -1,5 +1,5 @@
 import type { Adjustment, AdjustmentType, DataState, DayKey, Grade, ID, Operator, PayType, RateTier, SvBonusGrid, Track } from "./types";
-import { type Index, type MonthCal, monthOperators, opTerms, sumRange, supervisedGroups, supervisedLeads } from "./calc";
+import { WORKED_TYPES, type Index, type MonthCal, monthOperators, opTerms, sumRange, supervisedGroups, supervisedLeads } from "./calc";
 import { addMonths, monthDays } from "./dates";
 import { round2, safeDiv } from "./format";
 
@@ -11,7 +11,8 @@ import { round2, safeDiv } from "./format";
  *     почасовая    — часы × ставка
  *     по сетке     — по каждой смене своя ступень: ставка и бонус зависят от того,
  *                    сколько лидов оператор передал именно в этот день
- *     супервайзер  — полный оклад + бонус по сетке от объёма лидов его групп за
+ *     супервайзер  — оклад за отработанные по графику дни (оклад ÷ рабочие дни × дни,
+ *                    не больше оклада) + KPI: бонус по сетке от объёма лидов его групп за
  *                    месяц, с поправкой на апрув заказчика и рост к прошлому месяцу
  *   Бонус за лиды  — лиды × бонус за лид (фиксированный или по ступени смены)
  *   Начислено      — база + бонус + доп.начисления + премии + компенсации + корректировки
@@ -199,10 +200,18 @@ export function payrollRow(
   let tierUse: TierUse[] = [];
   let sv: SvBonus | null = null;
   if (isSvVolume(t.payType)) {
-    // оклад + бонус за объём лидов его групп; оклад супервайзера не режется по
-    // часам — это управленческая ставка, а не почасовая работа на линии
-    salaryShare = 1;
-    base = t.salary;
+    // оклад + KPI (бонус за объём лидов его групп). Оклад — за отработанные по графику дни:
+    // оклад ÷ рабочие дни месяца × отработанные дни, не больше оклада. Часы в смене не важны.
+    // Графика в месяце нет вовсе — считаем по прошедшим рабочим дням календаря, как раньше.
+    const hasSchedule = cal.days.some((d) => ix.shift.has(`${d}|${op.id}`));
+    const credited = hasSchedule
+      ? days.filter((d) => {
+          const sh = ix.shift.get(`${d}|${op.id}`);
+          return !!sh && WORKED_TYPES.has(sh.type) && sh.hours > 0;
+        }).length
+      : days.filter((d) => cal.isWork(d)).length;
+    salaryShare = Math.min(1, credited / cal.W);
+    base = t.salary * salaryShare;
     const gLeads = supervisedLeads(st, ix, op.id, cal.month);
     const prev = supervisedLeads(st, ix, op.id, addMonths(cal.month, -1));
     sv = svBonus(st.settings.svBonus, gLeads, prev, {

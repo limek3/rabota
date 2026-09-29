@@ -94,6 +94,37 @@ export function normLink(raw: string): string {
   }
 }
 
+/**
+ * Ссылка на лид из Скорозвона: https://app.skorozvon.ru/#/leads/<id>/answer/<id>/+7XXXXXXXXXX.
+ * Другие адреса в лид не записываем — раньше по ошибке вставляли не то.
+ */
+export const SKOROZVON_LINK_EXAMPLE = "https://app.skorozvon.ru/#/leads/…";
+
+export function isSkorozvonLink(norm: string): boolean {
+  if (!norm) return false;
+  try {
+    const u = new URL(norm);
+    return u.protocol === "https:" && u.hostname === "app.skorozvon.ru" && /^#\/leads\/\d+/.test(u.hash);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Номер клиента в конце ссылки Скорозвона («…/+79064917769») — 11 цифр или "" (номера в ссылке нет).
+ * Только с плюсом: без него это номер лида («#/leads/60497820193»), а не телефон.
+ */
+export function skorozvonLinkPhone(norm: string): string {
+  let s = norm;
+  try {
+    s = decodeURIComponent(norm);
+  } catch {
+    /* битая %-последовательность — ищем как есть */
+  }
+  const m = s.match(/\/\+(\d{10,11})\/?$/);
+  return m ? normPhone(m[1]) : "";
+}
+
 /** +7 (912) 345-67-89 для 11-значных российских, иначе как есть. */
 export function fmtPhone(p: string): string {
   const d = (p || "").replace(/\D+/g, "");

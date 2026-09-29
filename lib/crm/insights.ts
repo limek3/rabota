@@ -233,9 +233,11 @@ function signalsOf(r: OpRow, t: Tempo, reason: LagReason | null, real: number | 
 
 /** Подсказки по всем строкам месяца. Сигналы — только для текущего месяца и работающих. */
 export function buildInsights(rows: OpRow[], ix: Index, cal: MonthCal): { med: Medians; byOp: Map<ID, OpInsight> } {
-  const med = teamMedians(rows);
+  // супервайзер не на линии: в медианы команды не входит, разбора и сигналов по нему нет
+  const line = rows.filter((r) => !ix.svIds.has(r.op.id));
+  const med = teamMedians(line);
   const byOp = new Map<ID, OpInsight>();
-  for (const r of rows) {
+  for (const r of line) {
     if (!r.inWindow || r.op.deletedAt) continue;
     const t = tempo(r.op.id, ix, cal);
     const reason = lagReason(r, med);

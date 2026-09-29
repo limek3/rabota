@@ -123,6 +123,8 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     if (!op) continue;
     const row: ReportRow = { op, hours: 0, leads: 0, done: 0, failed: 0, work: 0, plan: 0, pct: null, conv: null };
     const counts = byOpDay.get(id);
+    // супервайзер: его график виден строкой, но часы не идут в итоги и конверсию
+    const sv = ix.svIds.has(id);
     factDays.forEach((d) => {
       const c = counts?.get(d);
       const h = inGroup(op.groupId) || c ? ix.hoursOpDay.get(id)?.get(d) ?? 0 : 0;
@@ -137,26 +139,28 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
       const b = byDay[days.indexOf(d)];
       b.leads += n;
       b.plan += p;
-      b.hours += h;
+      if (!sv) b.hours += h;
     });
     if (!row.hours && !row.leads && !row.failed && !row.plan) continue;
     row.pct = row.plan > 0 ? row.leads / row.plan : null;
-    row.conv = row.hours > 0 ? row.leads / row.hours : null;
+    row.conv = !sv && row.hours > 0 ? row.leads / row.hours : null;
     rows.push(row);
   }
   rows.sort((a, b) => goneLast(a.op, b.op) || b.leads - a.leads || (b.conv ?? 0) - (a.conv ?? 0) || a.op.name.localeCompare(b.op.name, "ru"));
 
   const sum = (f: (r: ReportRow) => number) => rows.reduce((a, r) => a + f(r), 0);
+  // часы и «на смене» — по операторам на линии, без супервайзеров
+  const line = rows.filter((r) => !ix.svIds.has(r.op.id));
   const total = {
     leads: sum((r) => r.leads),
     done: sum((r) => r.done),
     failed: sum((r) => r.failed),
     work: sum((r) => r.work),
-    hours: Math.round(sum((r) => r.hours) * 10) / 10,
+    hours: Math.round(line.reduce((a, r) => a + r.hours, 0) * 10) / 10,
     plan: sum((r) => r.plan),
     pct: null as number | null,
     conv: null as number | null,
-    people: rows.filter((r) => r.hours > 0).length,
+    people: line.filter((r) => r.hours > 0).length,
   };
   total.pct = total.plan > 0 ? total.leads / total.plan : null;
   total.conv = total.hours > 0 ? total.leads / total.hours : null;
@@ -174,7 +178,8 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
       if (!model(d).cal.isWork(d)) continue;
       for (const r of model(d).ops) {
         const op = r.op;
-        if (!inGroup(op.groupId) || op.deletedAt || op.status !== "active") continue;
+        // супервайзер лиды не обязан передавать — в «нет смены / без лидов» его не ставим
+        if (!inGroup(op.groupId) || op.deletedAt || op.status !== "active" || ix.svIds.has(op.id)) continue;
         const win = employmentWindow(op, monthOf(d));
         if (!win || d < win.from || d > win.to) continue;
         const sh = ix.shift.get(`${d}|${op.id}`);
