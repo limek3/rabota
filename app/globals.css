@@ -1495,6 +1495,9 @@ button {
   --sch-cross: rgba(255, 255, 255, 0.05);
   --sch-pre-bg: transparent;
   --sch-pre-line: rgba(255, 255, 255, 0.035);
+
+  /* переключатель: выключенный бегунок приглушённый, не ярко-белый */
+  --sw-knob: #8a8a8a;
 }
 
 :root[data-theme="light"] {

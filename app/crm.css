@@ -742,14 +742,15 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--sw-knob, #fff);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-  transition: transform var(--dur-1) var(--ease);
+  transition: transform var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
 }
 .sw:hover .sw-track { background: var(--ink-15); }
 .sw input:checked + .sw-track { background: var(--brand); }
 .sw:hover input:checked + .sw-track { background: var(--brand-strong); }
-.sw input:checked + .sw-track::after { transform: translateX(16px); }
+/* включён: бегунок цветом текста на акценте — в тёмной теме тёмный на светлой дорожке, иначе белый сливался */
+.sw input:checked + .sw-track::after { transform: translateX(16px); background: var(--on-brand); }
 .sw input:focus-visible + .sw-track { outline: 2px solid var(--brand-border); outline-offset: 2px; }
 .sw input:disabled + .sw-track { opacity: 0.45; }
 .sw:has(input:disabled) { cursor: not-allowed; opacity: 0.6; }
