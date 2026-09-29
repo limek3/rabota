@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import { useCrm, type OperatorInput } from "@/lib/crm/store";
-import type { Grade, Operator, OperatorRole, OperatorStatus, PayType, Track } from "@/lib/crm/types";
-import { GRADE_LABEL, PAY_HINT, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, TRACK_LABEL } from "@/lib/crm/types";
+import type { Employment, Grade, Operator, OperatorRole, OperatorStatus, PayType, Track } from "@/lib/crm/types";
+import { EMPLOYMENTS, EMPLOYMENT_HUE, EMPLOYMENT_LABEL, GRADE_LABEL, PAY_HINT, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, TRACK_LABEL } from "@/lib/crm/types";
 import { Field, Modal, NumInput } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { hasBonus, isSalary, isSvVolume, isTiered } from "@/lib/crm/payroll";
 import { GridField } from "./RateGrids";
 import { todayKey } from "@/lib/crm/dates";
+import { hasEmploymentColumn } from "@/lib/crm/remote";
 
 export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Partial<OperatorInput> }) {
-  const { data, closeModal, saveOperator, toast, access } = useCrm();
+  const { data, closeModal, saveOperator, toast, access, remote } = useCrm();
   const s = data.settings;
   // супервайзер ставит людей только в свои группы
   const groups = data.groups.filter((g) => !g.deletedAt && (access.isHead || access.ownGroups.has(g.id)));
@@ -42,6 +43,7 @@ export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Pa
           track: "re",
           contact: "",
           comment: "",
+          employment: "none",
           ...preset,
         },
   );
@@ -111,12 +113,29 @@ export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Pa
             />
           </Field>
         </div>
-        <div className="grid3">
+        <div className="grid2">
           <Field label="Дата приёма">
             <DateInput value={f.hireDate} onChange={(d) => set("hireDate", d)} clearable ariaLabel="Дата приёма" />
           </Field>
           <Field label="Дата увольнения" error={errDates} hint={f.status !== "fired" && !f.fireDate ? "Заполняется при увольнении" : undefined}>
             <DateInput value={f.fireDate} onChange={(d) => set("fireDate", d)} clearable min={f.hireDate || undefined} ariaLabel="Дата увольнения" invalid={!!errDates} />
+          </Field>
+        </div>
+        <div className="grid2">
+          <Field
+            label="Оформление"
+            hint={
+              remote && !hasEmploymentColumn()
+                ? "Не сохранится: в базе нет колонки. Выполните supabase/migrations/20260929000002_operator_employment.sql в SQL Editor"
+                : "Устроен ли у нас: самозанятый (СМЗ) или ещё нет"
+            }
+          >
+            <Select<Employment>
+              value={f.employment ?? "none"}
+              options={EMPLOYMENTS.map((e) => ({ value: e, label: EMPLOYMENT_LABEL[e], icon: dot(EMPLOYMENT_HUE[e]) }))}
+              onChange={(v) => set("employment", v)}
+              ariaLabel="Оформление"
+            />
           </Field>
           <Field label="Telegram">
             <input className="inp" value={f.contact} onChange={(e) => set("contact", e.target.value)} placeholder="@username" />

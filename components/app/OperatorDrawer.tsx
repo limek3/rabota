@@ -8,7 +8,7 @@ import { NO_GROUP_LABEL, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, type OperatorStatu
 import { fmtDate, fmtMonth, fmtStamp, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, telegramUser } from "@/lib/crm/format";
 import { PayoutHistory } from "@/components/app/PayoutHistory";
-import { Avatar, Chip, Conv, Kpi, LeadLinkButton, LeadStatusChip, Progress, Sheet, StatusChip } from "@/components/ui/kit";
+import { Avatar, Chip, Conv, EmploymentTag, Kpi, LeadLinkButton, LeadStatusChip, Progress, Sheet, StatusChip } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canManageOperator, canSeePay } from "@/lib/crm/access";
 import { CumulativeChart, Legend, ShiftLeadsChart } from "@/components/ui/charts";
@@ -38,6 +38,7 @@ export function OperatorDrawer({ row, onClose }: { row: OpRow; onClose: () => vo
         <div className="row" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
           <Chip hue={EMP_HUE[op.status]}>{STATUS_LABEL[op.status]}</Chip>
           {op.deletedAt && <Chip hue="red">Удалён</Chip>}
+          <EmploymentTag op={op} size="md" />
           <StatusChip status={row.status} />
           {row.isLeader && (
             <Chip hue="amber">

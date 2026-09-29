@@ -5,14 +5,14 @@ import { useCrm } from "@/lib/crm/store";
 import { useInsights, useMonthModel } from "@/lib/crm/hooks";
 import { LAG_LABEL, type OpInsight } from "@/lib/crm/insights";
 import { PACE_HUE, PACE_LABEL, goneLast, isGone, type OpRow, type Pace, type PaceStatus } from "@/lib/crm/calc";
-import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
+import { EMPLOYMENT_LABEL, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
 import { fmtMonth } from "@/lib/crm/dates";
 import { ColumnPicker, useColumnDrag, useColumnOrder, useColumnVisibility, type ColumnGroup } from "@/components/ui/ColumnOrder";
 
 /** Столбцы таблицы по умолчанию (после закреплённого «Оператор»). Порядок каждый может поменять у себя. */
 const OP_COLS = ["status", "plan", "fact", "pct", "dev", "why", "lph", "real", "rr", "left", "need", "today", "week", "prev", "avg", "hours"] as const;
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Conv, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
+import { Avatar, Conv, EmploymentTag, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
@@ -244,7 +244,7 @@ export default function OperatorsPage() {
   const openRow = openId ? rows.find((r) => r.op.id === openId) ?? null : null;
 
   const exportCsv = () => {
-    const head = ["ФИО", "Группа", "Роль", "Статус", "Оценка темпа", "План", "Факт", "% плана", "К плану на дату", "Прогноз RR", "Прогноз %", "Осталось", "Нужно в день", "Сегодня", "Неделя", "Пр. неделя", "Ср. в раб. день", "Часы", "Конверсия, %", "Почему отстаёт", "Тренд 5 смен, %", "Нужно/делает, раз"];
+    const head = ["ФИО", "Группа", "Роль", "Статус", "Оформление", "Оценка темпа", "План", "Факт", "% плана", "К плану на дату", "Прогноз RR", "Прогноз %", "Осталось", "Нужно в день", "Сегодня", "Неделя", "Пр. неделя", "Ср. в раб. день", "Часы", "Конверсия, %", "Почему отстаёт", "Тренд 5 смен, %", "Нужно/делает, раз"];
     const body = list.map((r) => {
       const x = ins.byOp.get(r.op.id);
       return [
@@ -252,6 +252,7 @@ export default function OperatorsPage() {
       r.op.groupId ? ix.groupById.get(r.op.groupId)?.name ?? "" : NO_GROUP_LABEL,
       ROLE_LABEL[r.op.role],
       STATUS_LABEL[r.op.status],
+      EMPLOYMENT_LABEL[r.op.employment ?? "none"],
       PACE_LABEL[r.status],
       r.terms.plan,
       r.pace.fact,
@@ -377,6 +378,7 @@ export default function OperatorsPage() {
                 {shortName(r.op.name)}
                 {r.isLeader && <Icon name="star" size={12} stroke={2} style={{ color: "var(--c-amber-fg)" }} />}
                 <GoneTag op={r.op} />
+                <EmploymentTag op={r.op} />
               </span>
               <span style={{ fontSize: 11.5, color: "var(--dim)" }}>
                 {/* в блоке «Супервайзеры» — какую группу ведёт */}

@@ -109,11 +109,17 @@ export interface Operator {
   track: Track;
   contact: string;
   comment: string;
+  /** Оформление: самозанятый (СМЗ), оформляется или не оформлен. Нет поля (старые записи) — не оформлен. */
+  employment?: Employment;
   createdAt: string;
   updatedAt: string;
   /** Мягкое удаление: оператор скрыт из списков, история (лиды, смены, начисления) цела. */
   deletedAt?: string | null;
 }
+
+/** Как оператор оформлен у нас: не оформлен, оформляется, самозанятый (СМЗ). */
+export type Employment = "none" | "pending" | "smz";
+export const EMPLOYMENTS: Employment[] = ["none", "pending", "smz"];
 
 export interface Group {
   id: ID;
@@ -650,6 +656,11 @@ export const STATUS_LABEL: Record<OperatorStatus, string> = {
   pause: "Пауза",
   fired: "Уволен",
 };
+
+export const EMPLOYMENT_LABEL: Record<Employment, string> = { none: "Не оформлен", pending: "Оформляется", smz: "СМЗ" };
+/** Коротко — для плашки у имени. */
+export const EMPLOYMENT_SHORT: Record<Employment, string> = { none: "не оформлен", pending: "оформляется", smz: "СМЗ" };
+export const EMPLOYMENT_HUE: Record<Employment, string> = { none: "gray", pending: "amber", smz: "green" };
 
 export const ROLE_LABEL: Record<OperatorRole, string> = {
   operator: "Оператор",

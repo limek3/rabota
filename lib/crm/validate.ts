@@ -88,6 +88,7 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
         track: (["re", "auto"].includes(str(o.track)) ? o.track : "re") as Operator["track"],
         contact: str(o.contact),
         comment: str(o.comment),
+        employment: (["none", "pending", "smz"].includes(str(o.employment)) ? o.employment : "none") as Operator["employment"],
         createdAt: str(o.createdAt, now),
         updatedAt: str(o.updatedAt, now),
         deletedAt: o.deletedAt ? str(o.deletedAt) : null,

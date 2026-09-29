@@ -26,7 +26,7 @@ const SPEC: Record<Table, Record<string, Def>> = {
   operators: {
     id: "", name: "", groupId: null, role: "operator", status: "active", hireDate: "", fireDate: "", monthlyPlan: null, normHours: null,
     payType: "tiered", salary: 0, hourlyRate: 0, leadBonus: null, rateGridId: null, grade: "mid", track: "re", contact: "", comment: "",
-    createdAt: NOW, updatedAt: NOW, deletedAt: null,
+    employment: "none", createdAt: NOW, updatedAt: NOW, deletedAt: null,
   },
   groups: { id: "", name: "", supervisorId: null, supervisorName: "", monthlyPlan: 0, active: true, color: "gray", createdAt: NOW, updatedAt: NOW, deletedAt: null },
   projects: { id: "", name: "", active: true, color: "gray", sort: 0, createdAt: NOW, updatedAt: NOW, deletedAt: null },
@@ -113,6 +113,10 @@ let leadRegionReady = true;
 export const hasLeadRegionColumn = () => leadRegionReady;
 const isMissingRegion = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /region/.test(e.message);
 const dropCol = (rows: Record<string, unknown>[], col: string) => rows.map(({ [col]: _drop, ...rest }) => rest);
+/** Колонка operators.employment (оформление: СМЗ) — без неё операторы пишутся без неё, а поле в карточке просит выполнить SQL. */
+let opEmploymentReady = true;
+export const hasEmploymentColumn = () => opEmploymentReady;
+const isMissingEmployment = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /employment/.test(e.message);
 /** Колонка audit.changes (было → стало) — без неё журнал пишется как раньше, одной строкой. */
 let auditChangesReady = true;
 const isMissingChanges = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /changes/.test(e.message);
@@ -165,6 +169,8 @@ export async function loadAll(): Promise<{ state: DataState; persistent: boolean
     leadLinkReady = "link" in leadRows[0];
     leadRegionReady = "region" in leadRows[0];
   }
+  const opRows = rows[TABLES.indexOf("operators")];
+  if (opRows.length) opEmploymentReady = "employment" in opRows[0];
   const val = (key: string) => kv.find((r) => r.key === key)?.value as unknown;
   // секреты выгрузки лежат отдельно (читает только РОП) — собираем настройки обратно
   const settings = (val("settings") ?? {}) as Partial<Settings>;
@@ -199,11 +205,17 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
   for (const part of chunks(recs, 500)) {
     let rows = part.map((r) => toRow(table, r));
     if (table === "audit" && !auditChangesReady) rows = dropCol(rows, "changes");
+    if (table === "operators" && !opEmploymentReady) rows = dropCol(rows, "employment");
     // журнал — только добавление: читать его могут не все, а upsert требует права чтения
     let { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
     if (error && table === "audit" && isMissingChanges(error)) {
       auditChangesReady = false;
       ({ error } = await supabase().from(table).insert(dropCol(rows, "changes")));
+    }
+    // колонки оформления ещё нет (не выполнен SQL) — сохраняем оператора без неё
+    if (error && table === "operators" && isMissingEmployment(error)) {
+      opEmploymentReady = false;
+      ({ error } = await supabase().from(table).upsert(dropCol(rows, "employment"), { onConflict: "id" }));
     }
     if (error) fail(error, table);
   }

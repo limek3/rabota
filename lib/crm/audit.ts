@@ -4,6 +4,7 @@ import {
   ADJ_LABEL,
   CANDIDATE_STAGE_LABEL,
   DAY_LABEL,
+  EMPLOYMENT_LABEL,
   GRADE_LABEL,
   LEAD_STATUS_LABEL,
   PAY_LABEL,
@@ -65,6 +66,7 @@ const FIELDS: Partial<Record<AuditEntity, Record<string, Spec>>> = {
     track: S(TRACK_LABEL, "Направление"),
     contact: S("text", "Контакт"),
     comment: S("text", "Комментарий"),
+    employment: S(EMPLOYMENT_LABEL, "Оформление"),
     deletedAt: S("bool", "Удалён"),
   },
   group: {

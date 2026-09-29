@@ -19,7 +19,7 @@ import {
 } from "@/lib/crm/dates";
 import type { DayKey, Lead, MonthKey, Operator } from "@/lib/crm/types";
 import { HUES, HUE_LABEL } from "@/lib/crm/defaults";
-import { LEAD_STATUS_HUE, LEAD_STATUS_LABEL } from "@/lib/crm/types";
+import { EMPLOYMENT_HUE, EMPLOYMENT_LABEL, EMPLOYMENT_SHORT, LEAD_STATUS_HUE, LEAD_STATUS_LABEL } from "@/lib/crm/types";
 import { fmtInt, fmtNum, fmtPct, initials } from "@/lib/crm/format";
 import { PACE_HUE, PACE_LABEL, type PaceStatus } from "@/lib/crm/calc";
 import { SEGMENT_HUE, SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
@@ -57,6 +57,21 @@ export function GoneTag({ op }: { op: Pick<Operator, "status" | "fireDate" | "de
   }
   if (op.deletedAt) return <Chip hue="gray" title="Удалён из списков, история сохранена" style={small}>удалён</Chip>;
   return null;
+}
+
+/**
+ * Плашка оформления у имени: «СМЗ» — зелёная, «оформляется» — жёлтая, «не оформлен» — серая.
+ * У уволенных и удалённых не показываем — там важнее плашка увольнения.
+ */
+export function EmploymentTag({ op, size = "sm" }: { op: Pick<Operator, "employment" | "status" | "deletedAt">; size?: "sm" | "md" }) {
+  if (op.status === "fired" || op.deletedAt) return null;
+  const e = op.employment ?? "none";
+  const style: CSSProperties = size === "sm" ? { height: 18, padding: "0 6px", fontSize: 10.5, flex: "none" } : { flex: "none" };
+  return (
+    <Chip hue={EMPLOYMENT_HUE[e]} dot={size === "md"} title={`Оформление: ${EMPLOYMENT_LABEL[e]}`} style={style}>
+      {size === "md" ? EMPLOYMENT_LABEL[e] : EMPLOYMENT_SHORT[e]}
+    </Chip>
+  );
 }
 
 /**
