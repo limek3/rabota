@@ -203,6 +203,14 @@ console.log("4 ok: ведомость;", comp.op.name, "компенсация",
   assert(ix4.svIds.size > 0, "в демо есть супервайзеры");
   assert(Math.abs(team - line) < 0.01, `часы команды без СВ: ${team} vs ${line}`);
   const svRow = pr.rows.find((r) => r.payType === "sv_volume");
+  // СВ не в показателях: свой статус, не лидер, не в счётчиках темпа и не в сумме плана групп
+  const m4 = monthModel(s4, ix4, "2026-09", today);
+  const svOp = m4.ops.find((r) => r.op.id === svRow.op.id);
+  assert.equal(svOp.status, "sv");
+  assert(!svOp.isLeader, "СВ не лидер месяца");
+  assert.equal(m4.statusCount.sv, 0, "СВ не в счётчиках темпа");
+  const g4 = m4.groups.find((g) => g.members.some((r) => r.op.id === svOp.op.id));
+  if (g4 && !g4.planExplicit) assert.equal(g4.plan, g4.members.filter((r) => !ix4.svIds.has(r.op.id)).reduce((a, r) => a + r.terms.plan, 0), "план группы без СВ");
   console.log("4b ok: часы СВ вне команды; оклад СВ", svRow.op.name, Math.round(svRow.base), "из", svRow.salary, "· доля", svRow.salaryShare.toFixed(2));
 }
 
@@ -222,12 +230,13 @@ console.log("5 ok: август", augBefore, "=", augAfter, "; сентябрь 
 
 // 6. Один оператор, без групп, без смен
 const one = { ...JSON.parse(JSON.stringify(demo)), groups: [], shifts: [] };
-one.operators = [ { ...one.operators[0], groupId: null } ];
+// оператор линии: план супервайзера в план команды не идёт
+one.operators = [ { ...one.operators.find((o) => o.role !== "supervisor" && o.payType !== "sv_volume"), groupId: null } ];
 one.leads = one.leads.filter(l => l.operatorId === one.operators[0].id).map(l => ({ ...l, groupId: null }));
 one.adjustments = [];
 const m6 = monthModel(one, buildIndex(one), "2026-09", today);
 assert.equal(m6.groups.length, 1); assert.equal(m6.groups[0].key, "__none__");
-assert.equal(m6.team.plan, 160); assert(m6.team.lph === null, "нет часов -> лид/час = null, не деление на ноль");
+assert(m6.team.plan > 0); assert.equal(m6.team.plan, m6.ops[0].terms.plan); assert(m6.team.lph === null, "нет часов -> лид/час = null, не деление на ноль");
 console.log("6 ok: один оператор без групп/смен, план", m6.team.plan, "факт", m6.team.pace.fact);
 console.log("ALL OK");
 })();

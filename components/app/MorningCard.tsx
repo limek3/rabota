@@ -30,7 +30,8 @@ export function MorningCard({ m }: { m: MonthModel }) {
 
     for (const r of m.ops) {
       const op = r.op;
-      if (op.deletedAt || op.status !== "active") continue;
+      // супервайзер не на линии: лиды передавать не обязан, конверсии у него нет
+      if (op.deletedAt || op.status !== "active" || ix.svIds.has(op.id)) continue;
       if (op.hireDate && op.hireDate > today) continue;
       if (op.fireDate && op.fireDate < today) continue;
 

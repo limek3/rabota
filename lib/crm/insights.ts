@@ -308,7 +308,7 @@ export interface GroupSpread {
 
 export function groupSpread(members: OpRow[], byOp: Map<ID, OpInsight>): GroupSpread {
   const people = members
-    .filter((r) => !r.op.deletedAt && r.op.status === "active" && r.inWindow && r.terms.plan > 0 && r.pace.planToDate > 0)
+    .filter((r) => !r.op.deletedAt && r.op.status === "active" && r.status !== "sv" && r.inWindow && r.terms.plan > 0 && r.pace.planToDate > 0)
     .map((r) => ({ id: r.op.id, name: shortName(r.op.name), ratio: r.pace.paceRatio, status: r.status }));
   const fact = members.reduce((a, r) => a + r.pace.fact, 0);
   const top = members.reduce<OpRow | null>((a, r) => (!a || r.pace.fact > a.pace.fact ? r : a), null);

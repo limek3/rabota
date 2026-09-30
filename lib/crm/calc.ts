@@ -392,7 +392,7 @@ export function pace(cal: MonthCal, plan: number, counts: DayMap | undefined, s:
 
 /* ── статусы ───────────────────────────────────────────────────────── */
 
-export type PaceStatus = "ahead" | "ontrack" | "lagging" | "critical" | "idle" | "paused" | "fired" | "noplan" | "nodata";
+export type PaceStatus = "ahead" | "ontrack" | "lagging" | "critical" | "idle" | "paused" | "fired" | "noplan" | "nodata" | "sv";
 
 export const PACE_LABEL: Record<PaceStatus, string> = {
   ahead: "Выше плана",
@@ -404,6 +404,7 @@ export const PACE_LABEL: Record<PaceStatus, string> = {
   fired: "Уволен",
   noplan: "Без плана",
   nodata: "Нет данных",
+  sv: "Супервайзер",
 };
 
 export const PACE_HUE: Record<PaceStatus, string> = {
@@ -416,6 +417,7 @@ export const PACE_HUE: Record<PaceStatus, string> = {
   fired: "gray",
   noplan: "gray",
   nodata: "gray",
+  sv: "purple",
 };
 
 /** Статус по темпу: факт относительно плана на дату. */
@@ -662,10 +664,10 @@ export function groupPlan(g: { key: string; group: Group | null }, cal: MonthCal
     if (rec) return { plan: rec.plan, explicit: true };
     if (g.group.monthlyPlan > 0) return { plan: g.group.monthlyPlan, explicit: false };
   }
-  // план группы не задан — сумма планов текущих участников
+  // план группы не задан — сумма планов текущих участников (без супервайзера: он не на линии)
   let sum = 0;
   for (const op of st.operators) {
-    if (op.deletedAt) continue;
+    if (op.deletedAt || ix.svIds.has(op.id)) continue;
     if (gk(op.groupId) !== g.key) continue;
     sum += opPlans.get(op.id) ?? 0;
   }
@@ -833,6 +835,8 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
     let status: PaceStatus;
     if (op.status === "fired" && (!op.fireDate || op.fireDate <= last)) status = "fired";
     else if (op.status === "pause") status = "paused";
+    // супервайзер не на линии: темп к личному плану и «не работает» к нему не применяются
+    else if (ix.svIds.has(op.id)) status = "sv";
     else if (isIdle(op, cal, ix, s, win)) status = "idle";
     else status = paceStatus(p, s, cal);
 
@@ -865,7 +869,7 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
   // лучший результат месяца — по факту, при равенстве — по выработке в час
   let leader: OpRow | null = null;
   for (const r of rows) {
-    if (r.pace.fact <= 0) continue;
+    if (r.pace.fact <= 0 || ix.svIds.has(r.op.id)) continue;
     if (!leader || r.pace.fact > leader.pace.fact || (r.pace.fact === leader.pace.fact && (r.lph ?? 0) > (leader.lph ?? 0))) leader = r;
   }
   if (leader) leader.isLeader = true;
@@ -938,9 +942,9 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
   const neededOps = tp.needPerDay != null && perOpDay > 0 ? tp.needPerDay / perOpDay : null;
 
   const statusCount = {
-    ahead: 0, ontrack: 0, lagging: 0, critical: 0, idle: 0, paused: 0, fired: 0, noplan: 0, nodata: 0,
+    ahead: 0, ontrack: 0, lagging: 0, critical: 0, idle: 0, paused: 0, fired: 0, noplan: 0, nodata: 0, sv: 0,
   } as Record<PaceStatus, number>;
-  for (const r of rows) if (!r.op.deletedAt) statusCount[r.status]++;
+  for (const r of line) if (!r.op.deletedAt) statusCount[r.status]++;
 
   return {
     cal,

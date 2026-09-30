@@ -106,7 +106,8 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     const mm = model(d);
     const r = rowOf(d, op.id);
     const win = employmentWindow(op, mm.cal.month);
-    if (!r || !win || d < win.from || d > win.to || !mm.cal.isWork(d)) return 0;
+    // у супервайзера личного плана на линии нет: его лиды идут в факт, но план дня не тянут
+    if (!r || !win || d < win.from || d > win.to || !mm.cal.isWork(d) || ix.svIds.has(op.id)) return 0;
     const sh = ix.shift.get(`${d}|${op.id}`);
     const worked = !!sh && WORKED_TYPES.has(sh.type) && sh.hours > 0;
     if (sh && !worked) return 0;

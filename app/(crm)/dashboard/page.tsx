@@ -58,10 +58,10 @@ export default function DashboardPage() {
   const top = useMemo(
     () =>
       m.ops
-        .filter((r) => r.pace.fact > 0)
+        .filter((r) => r.pace.fact > 0 && !ix.svIds.has(r.op.id))
         .sort((a, b) => b.pace.fact - a.pace.fact || (b.lph ?? 0) - (a.lph ?? 0))
         .slice(0, 6),
-    [m.ops],
+    [m.ops, ix],
   );
 
   const attendance = safeDiv(t.opDays, p.elapsedW);

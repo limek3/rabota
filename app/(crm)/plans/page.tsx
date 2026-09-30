@@ -60,7 +60,7 @@ export default function PlansPage() {
 
   const teamRec = rec(planId(month, "team", null));
   const teamDefault = s.teamPlan > 0 ? s.teamPlan : m.groups.reduce((a, g) => a + g.plan, 0);
-  const sumOps = m.ops.filter((r) => !r.op.deletedAt).reduce((a, r) => a + r.terms.plan, 0);
+  const sumOps = m.ops.filter((r) => !r.op.deletedAt && !ix.svIds.has(r.op.id)).reduce((a, r) => a + r.terms.plan, 0);
   const sumGroups = m.groups.reduce((a, g) => a + g.plan, 0);
 
   const ops = useMemo(

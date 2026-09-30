@@ -1065,10 +1065,11 @@ function FillModal({ rows, onClose }: { rows: OpRow[]; onClose: () => void }) {
     const workDays = days.filter((d) => (pat.on === 0 ? isWorkday(d, s) : true));
     if (!workDays.length) return null;
     const perDay = new Map<DayKey, number>();
-    for (const it of plan) perDay.set(it.date, (perDay.get(it.date) ?? 0) + it.hours);
+    for (const it of plan) if (!ix.svIds.has(it.operatorId)) perDay.set(it.date, (perDay.get(it.date) ?? 0) + it.hours);
     // к плану добавляем уже записанные смены — считаем итоговое покрытие
     for (const d of workDays) {
       for (const r of rows) {
+        if (ix.svIds.has(r.op.id)) continue; // часы супервайзера лидов не дают
         const ex = ix.shift.get(`${d}|${r.op.id}`);
         if (ex && (ex.type === "work" || ex.type === "training") && !plan.some((p) => p.date === d && p.operatorId === r.op.id))
           perDay.set(d, (perDay.get(d) ?? 0) + ex.hours);
