@@ -124,7 +124,7 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     if (!op) continue;
     const row: ReportRow = { op, hours: 0, leads: 0, done: 0, failed: 0, work: 0, plan: 0, pct: null, conv: null };
     const counts = byOpDay.get(id);
-    // супервайзер: его график виден строкой, но часы не идут в итоги и конверсию
+    // супервайзер: часы не идут в итоги и конверсию
     const sv = ix.svIds.has(id);
     factDays.forEach((d) => {
       const c = counts?.get(d);
@@ -143,6 +143,8 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
       if (!sv) b.hours += h;
     });
     if (!row.hours && !row.leads && !row.failed && !row.plan) continue;
+    // супервайзер не на линии: строку показываем, только если он сам передавал лиды — иначе итог лидов не сойдётся
+    if (sv && !row.leads && !row.failed && !row.work) continue;
     row.pct = row.plan > 0 ? row.leads / row.plan : null;
     row.conv = !sv && row.hours > 0 ? row.leads / row.hours : null;
     rows.push(row);

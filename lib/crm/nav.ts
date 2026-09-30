@@ -29,7 +29,7 @@ export const NAV: NavItem[] = [
   { href: "/reports", label: "Отчёты", icon: "doc", hint: "Отчёт за день и неделю картинкой — для чата", group: "Аналитика" },
   { href: "/projects", label: "Проекты", icon: "folder", hint: "Справочник и лиды по проектам", group: "Аналитика" },
   { href: "/plans", label: "Планы", icon: "target", hint: "Месячные планы команды, групп и операторов", group: "Аналитика" },
-  { href: "/learn", label: "Обучение", icon: "book", hint: "Академия обзвона: курсы, скрипты, справочники, тренажёры", group: "Система" },
+  { href: "/learn", label: "Обучение", icon: "book", hint: "Курс «Авто», тренажёр Скорозвона, скрипт, справочники и тесты", group: "Система" },
   { href: "/settings", label: "Настройки", icon: "settings", hint: "Параметры, данные и резервные копии", group: "Система" },
 ];
 

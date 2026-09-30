@@ -4,6 +4,7 @@ import { TitleBar } from "@/components/TitleBar";
 import "./globals.css";
 import "./crm.css";
 import "./learn.css";
+import "./academy.css";
 
 // Шрифты лежат локально (./fonts): сборка не зависит от сети.
 // Inter — весь текст (латиница + кириллица), JetBrains Mono — цифры.

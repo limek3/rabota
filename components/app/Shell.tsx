@@ -14,6 +14,7 @@ import { OperatorModal } from "./OperatorModal";
 import { GroupModal } from "./GroupModal";
 import { CommandPalette } from "./CommandPalette";
 import { AccountMenu } from "./AccountMenu";
+import { LAST_MAIN_KEY, LearnRail } from "./LearnRail";
 import { SheetsAutoSync } from "./SheetsSync";
 import { homeFor } from "@/lib/crm/access";
 import { signOut } from "@/lib/auth";
@@ -205,6 +206,29 @@ function Rail() {
   const rail = useRailPin();
   const peek = useRailPeek(rail.pinned);
   const expanded = rail.pinned || peek.peek;
+  // «Обучение» открывает своё меню вместо основного; у стажёра оно единственное
+  const learnMode = access.isTrainee || pathname === "/learn" || pathname.startsWith("/learn/");
+  // запоминаем, откуда ушли в обучение, — «Вернуться в меню» ведёт туда
+  useEffect(() => {
+    if (learnMode || !pathname) return;
+    try {
+      sessionStorage.setItem(LAST_MAIN_KEY, pathname);
+    } catch {
+      /* хранилище недоступно — вернёмся на стартовую */
+    }
+  }, [learnMode, pathname]);
+  const pinBtn = !rail.narrow ? (
+    <button
+      type="button"
+      className="btn btn-ghost btn-icon rail-pin rail-text"
+      onClick={rail.toggle}
+      aria-pressed={rail.pinned}
+      title={rail.pinned ? "Открепить: меню будет раскрываться при наведении (Ctrl+\\)" : "Закрепить меню открытым (Ctrl+\\)"}
+      aria-label={rail.pinned ? "Открепить меню" : "Закрепить меню"}
+    >
+      <Icon name={rail.pinned ? "pinOn" : "pinOff"} size={15} />
+    </button>
+  ) : null;
   return (
     // не закреплённое меню раскрывается при наведении и сдвигает страницу — так же плавно,
     // как при сворачивании; увёл мышь — свернулось
@@ -216,6 +240,8 @@ function Rail() {
       {...peek.handlers}
       style={{ flex: "none", display: "flex", flexDirection: "column", background: "var(--bg-sidebar)", minHeight: 0 }}
     >
+      <div className="rail-panes">
+      <div className="rail-pane main" data-off={learnMode ? "" : undefined} aria-hidden={learnMode || undefined}>
       <div className="rail-leadrow">
         {access.can.createLeads && (
           <button className="btn btn-primary rail-lead" style={{ width: "100%", height: 34 }} onClick={() => openLead()} title="Передать лид (N)">
@@ -224,18 +250,7 @@ function Rail() {
             <span className="kbd rail-text" style={{ marginLeft: "auto" }}>N</span>
           </button>
         )}
-        {!rail.narrow && (
-          <button
-            type="button"
-            className="btn btn-ghost btn-icon rail-pin rail-text"
-            onClick={rail.toggle}
-            aria-pressed={rail.pinned}
-            title={rail.pinned ? "Открепить: меню будет раскрываться при наведении (Ctrl+\\)" : "Закрепить меню открытым (Ctrl+\\)"}
-            aria-label={rail.pinned ? "Открепить меню" : "Закрепить меню"}
-          >
-            <Icon name={rail.pinned ? "pinOn" : "pinOff"} size={15} />
-          </button>
-        )}
+        {pinBtn}
       </div>
 
       <nav ref={glider.navRef} style={{ position: "relative", flex: 1, overflowY: "auto", padding: "0 10px 10px", display: "flex", flexDirection: "column" }}>
@@ -280,6 +295,10 @@ function Rail() {
             </div>
           )}
         </div>
+      </div>
+
+      </div>
+      <LearnRail off={!learnMode} back={!access.isTrainee} pin={pinBtn} />
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 10px 10px", borderTop: "1px solid var(--ink-06)" }}>

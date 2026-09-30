@@ -9,6 +9,8 @@ import { nowMs } from "./dates";
  *   Супервайзер  — свои группы (из аккаунта + где он руководитель в карточке группы);
  *                  что именно можно делать — настраивает РОП (settings.access.supervisor).
  *   Оператор     — только своё: лиды, план, часы, заработок (settings.access.operator).
+ *   Стажёр       — аккаунт оператора, у которого в карточке роль «стажёр»: видит
+ *                  только обучение, пока руководитель не сменит роль в карточке.
  *   Наставник    — аккаунт оператора, у которого в карточке роль «старший оператор»:
  *                  своё — как у оператора, плюс видит свою группу целиком (операторы,
  *                  прогресс, график, лиды, разбор) и пишет заметки о её операторах.
@@ -31,6 +33,8 @@ export interface Access {
   isOp: boolean;
   /** Оператор-наставник («старший оператор» в карточке): видит свою группу, денег группы не видит. */
   isMentor: boolean;
+  /** Стажёр («стажёр» в карточке оператора): видит только обучение. */
+  isTrainee: boolean;
   /** Операторы группы наставника (без него самого) — о них он пишет заметки. */
   mentorOps: Set<ID>;
   /** Карточка сотрудника, связанная с аккаунтом. */
@@ -82,6 +86,8 @@ export function computeAccess(acc: Account, st: DataState): Access {
   const card = opId ? st.operators.find((o) => o.id === opId) : null;
   // наставник — оператор с ролью «старший оператор» в карточке и с группой
   const isMentor = isOp && !!card && card.role === "senior" && !!card.groupId && !card.deletedAt;
+  // стажёр — оператор с ролью «стажёр» в карточке: пока учится, ему открыто только обучение
+  const isTrainee = isOp && !!card && card.role === "trainee" && !card.deletedAt;
   const mentorOps = new Set<ID>(isMentor ? st.operators.filter((o) => o.groupId === card!.groupId && o.id !== opId).map((o) => o.id) : []);
 
   const ownGroups = isSup ? supervisorGroups(acc, st) : isMentor ? new Set<ID>([card!.groupId!]) : new Set<ID>();
@@ -128,6 +134,11 @@ export function computeAccess(acc: Account, st: DataState): Access {
     if (opId) routes.add(r);
     else routes.delete(r);
   }
+  if (isTrainee) {
+    routes.clear();
+    routes.add("/learn");
+    (Object.keys(can) as (keyof Access["can"])[]).forEach((k) => (can[k] = false));
+  }
 
   const groupNames = Array.from(ownGroups)
     .map((g) => st.groups.find((x) => x.id === g)?.name)
@@ -143,7 +154,7 @@ export function computeAccess(acc: Account, st: DataState): Access {
         ? `Наставник · ${groupNames || "группа"}`
         : "Мои данные";
 
-  return { account: acc, role: acc.role, isHead, isSup, isOp, isMentor, mentorOps, opId, ownGroups, editOps, viewAll: isHead || (isSup && S.seeAllGroups), can, routes, scopeLabel };
+  return { account: acc, role: acc.role, isHead, isSup, isOp, isMentor, isTrainee, mentorOps, opId, ownGroups, editOps, viewAll: isHead || (isSup && S.seeAllGroups), can, routes, scopeLabel };
 }
 
 /**
@@ -297,6 +308,7 @@ export function scopeData(st: DataState, a: Access): DataState {
 
 /** Куда вести после входа/переключения: личная стартовая, если она доступна. */
 export function homeFor(a: Access): string {
+  if (a.isTrainee) return "/learn";
   const pref = a.account.prefs.homePage;
   if (pref && a.routes.has(pref)) return pref;
   if (a.isOp && a.routes.has("/me")) return "/me";

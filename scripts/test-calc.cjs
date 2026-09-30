@@ -487,6 +487,16 @@ console.log("ALL OK");
   assert.equal(week.byDay.filter((d) => d.day > today).reduce((a, d) => a + d.plan + d.leads, 0), 0, "будущие дни пустые");
   const g = buildReport(st, ix, "week", "2026-09-16", "gr_alpha", today);
   assert.ok(g.total.leads < week.total.leads && g.rows.every((r) => r.op.groupId === "gr_alpha" || r.leads > 0), "фильтр по группе");
+  // супервайзер без своих лидов в отчёте не строкой: он не на линии
+  {
+    const svId = [...ix.svIds][0];
+    const s2 = { ...st, leads: st.leads.filter((l) => !(l.operatorId === svId && l.at.startsWith("2026-09-17"))) };
+    const ix2 = buildIndex(s2);
+    assert.ok((ix2.hoursOpDay.get(svId)?.get("2026-09-17") ?? 0) > 0, "у СВ есть смена в этот день");
+    const d2 = buildReport(s2, ix2, "day", "2026-09-17", "", today);
+    assert.ok(!d2.rows.some((r) => r.op.id === svId), "СВ без лидов не в строках отчёта");
+    assert.equal(d2.total.leads, ix2.day.get("2026-09-17") ?? 0);
+  }
   console.log(`17 ok: отчёты — день ${day.total.leads} лидов из плана ${day.total.plan.toFixed(1)}, неделя ${week.total.leads}, Альфа ${g.total.leads}`);
 }
 
