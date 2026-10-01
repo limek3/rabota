@@ -294,7 +294,7 @@ export function AccountsTab() {
                       </span>
                     </td>
                     <td>
-                      <RoleChip role={a.role} />
+                      <RoleChip role={a.role} trainee={acc.isTrainee} />
                     </td>
                     <td className="muted" style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }}>
                       {acc.scopeLabel}
@@ -340,8 +340,12 @@ export function AccountsTab() {
   );
 }
 
+/** Роль в форме аккаунта: роли аккаунта плюс «Стажёр» — это оператор с ролью «стажёр» в карточке сотрудника. */
+type FormRole = AccountRole | "trainee";
+const TRAINEE_HINT = "Видит только обучение: курс «Авто», тренажёр Скорозвона и тесты. Роль «стажёр» ставится в карточке сотрудника";
+
 function AccountModal({ account, onClose }: { account: Account | null; onClose: () => void }) {
-  const { full, saveAccount, toast } = useCrm();
+  const { full, saveAccount, saveOperator, toast } = useCrm();
   const [password, setPassword] = useState("");
   const groups = full.groups.filter((g) => !g.deletedAt);
   const taken = new Set(full.accounts.filter((a) => !a.deletedAt && a.id !== account?.id && a.operatorId).map((a) => a.operatorId));
@@ -358,6 +362,9 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
           prefs: { theme: full.settings.theme, homePage: "/me", defaultProjectId: null, compact: false },
         },
   );
+  const cardOf = (id: string | null) => (id ? full.operators.find((o) => o.id === id) ?? null : null);
+  const [trainee, setTrainee] = useState(() => !!account && account.role === "operator" && cardOf(account.operatorId)?.role === "trainee");
+  const formRole: FormRole = f.role === "operator" && trainee ? "trainee" : f.role;
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof AccountInput>(k: K, v: AccountInput[K]) => setF((x) => ({ ...x, [k]: v }));
 
@@ -393,8 +400,18 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
                 toast("Пароль — минимум 8 символов", "err");
                 return;
               }
+              if (trainee && !f.operatorId) {
+                toast("Стажёру нужна карточка сотрудника — в ней ставится роль «стажёр»", "err");
+                return;
+              }
               setBusy(true);
               const ok = await saveAccount({ ...f, id: account?.id });
+              // «стажёр» живёт в карточке сотрудника: ставим или снимаем его там
+              const card = ok ? cardOf(f.operatorId) : null;
+              if (card && f.role === "operator") {
+                const want = trainee ? "trainee" : card.role === "trainee" ? "operator" : card.role;
+                if (want !== card.role) await saveOperator({ ...card, role: want });
+              }
               if (ok && AUTH_ENABLED && password) {
                 try {
                   const r = await setLogin(ok.login, password, ok.name);
@@ -445,20 +462,25 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
           </div>
         </Field>
       )}
-      <Field label="Роль" hint={ACCOUNT_ROLE_HINT[f.role]}>
-        <Select<AccountRole>
-          value={f.role}
-          options={(Object.keys(ACCOUNT_ROLE_LABEL) as AccountRole[]).map((r) => ({ value: r, label: ACCOUNT_ROLE_LABEL[r], hint: ACCOUNT_ROLE_HINT[r] }))}
-          onChange={(r) =>
-            setF((x) => ({ ...x, role: r, prefs: { ...x.prefs, homePage: r === "operator" ? "/me" : "/dashboard" } }))
-          }
+      <Field label="Роль" hint={formRole === "trainee" ? TRAINEE_HINT : ACCOUNT_ROLE_HINT[f.role]}>
+        <Select<FormRole>
+          value={formRole}
+          options={[
+            ...(Object.keys(ACCOUNT_ROLE_LABEL) as AccountRole[]).map((r) => ({ value: r as FormRole, label: ACCOUNT_ROLE_LABEL[r], hint: ACCOUNT_ROLE_HINT[r] })),
+            { value: "trainee" as FormRole, label: "Стажёр", hint: "Только обучение: курс «Авто», Скорозвон, тесты" },
+          ]}
+          onChange={(v) => {
+            const r: AccountRole = v === "trainee" ? "operator" : v;
+            setTrainee(v === "trainee");
+            setF((x) => ({ ...x, role: r, prefs: { ...x.prefs, homePage: v === "trainee" ? "/learn" : r === "operator" ? "/me" : "/dashboard" } }));
+          }}
           ariaLabel="Роль"
           minPopWidth={420}
         />
       </Field>
       <Field
         label="Карточка сотрудника"
-        hint={f.role === "operator" ? "Обязательно: из неё берутся план, часы и заработок" : "Нужна, если этот человек тоже передаёт лиды"}
+        hint={formRole === "trainee" ? "Обязательно: в карточке ставится роль «стажёр»" : f.role === "operator" ? "Обязательно: из неё берутся план, часы и заработок" : "Нужна, если этот человек тоже передаёт лиды"}
       >
         <Select
           value={f.operatorId ?? ""}

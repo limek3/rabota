@@ -38,7 +38,14 @@ export const FLAT: AcadItem[] = MODULES.flatMap((m) => m.items);
 export const TESTS: AcadItem[] = FLAT.filter((i) => i.quiz);
 
 /** Главы тренажёра Скорозвона, пройденные самостоятельно (хранит сам тренажёр в браузере). */
-const SIM_CHAPTERS = ["start", "call", "result", "transfer", "end"];
+export const SIM_CHAPTERS = ["start", "call", "result", "transfer", "end"];
+export const SIM_CHAPTER_TITLES: Record<string, string> = {
+  start: "Начало смены",
+  call: "Звонок и карточка клиента",
+  result: "Как ставить на перезвон",
+  transfer: "Перевод клиента менеджеру",
+  end: "Перерыв и конец смены",
+};
 export function simChaptersDone(): number {
   if (typeof window === "undefined") return 0;
   try {
@@ -62,7 +69,10 @@ export interface AcadProgress {
 
 /** Прогресс аккаунта по курсу «Авто». sim — главы тренажёра (только для своего аккаунта в браузере). */
 export function acadProgress(learn: LearnProgress[], accountId: string, sim = 0): AcadProgress {
-  const recs = new Map(learn.filter((l) => l.accountId === accountId).map((l) => [l.itemId, l]));
+  const recs = new Map(learn.filter((l) => l.accountId === accountId && l.courseId === ACAD_COURSE).map((l) => [l.itemId, l]));
+  // главы тренажёра: свои — из браузера, чужие — из записи "sim" (её пишет страница обучения)
+  const simRec = recs.get("sim");
+  sim = Math.max(sim, SIM_CHAPTERS.filter((c) => simRec?.checks?.includes(`auto:${c}:try`)).length);
   const isDone = (id: string) => {
     const r = recs.get(id);
     const it = FLAT.find((x) => x.id === id);

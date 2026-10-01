@@ -15,20 +15,22 @@ const loginOf = (a: { login: string }): string => (!a.login ? "" : a.login.inclu
 
 export const ROLE_HUE: Record<AccountRole, string> = { head: "blue", supervisor: "teal", operator: "gray" };
 
-export function RoleChip({ role }: { role: AccountRole }) {
+/** Роль аккаунта; trainee — оператор, у которого в карточке роль «стажёр» (видит только обучение). */
+export function RoleChip({ role, trainee }: { role: AccountRole; trainee?: boolean }) {
+  const hue = trainee ? "amber" : ROLE_HUE[role];
   return (
     <span
       className="chip"
       style={{
-        ["--chip-fg" as string]: `var(--c-${ROLE_HUE[role]}-fg)`,
-        ["--chip-bg" as string]: `var(--c-${ROLE_HUE[role]}-bg)`,
-        ["--chip-bd" as string]: `var(--c-${ROLE_HUE[role]}-bd)`,
+        ["--chip-fg" as string]: `var(--c-${hue}-fg)`,
+        ["--chip-bg" as string]: `var(--c-${hue}-bg)`,
+        ["--chip-bd" as string]: `var(--c-${hue}-bd)`,
         height: 19,
         fontSize: 10.5,
         padding: "0 6px",
       }}
     >
-      {ACCOUNT_ROLE_LABEL[role]}
+      {trainee ? "Стажёр" : ACCOUNT_ROLE_LABEL[role]}
     </span>
   );
 }
@@ -76,7 +78,7 @@ export function AccountMenu() {
         <Avatar name={me.name} id={me.id} size={28} />
         <span className="rail-text acc-btn-t">
           <span className="acc-btn-n">{me.name}</span>
-          <RoleChip role={me.role} />
+          <RoleChip role={me.role} trainee={access.isTrainee} />
         </span>
         <Icon name="chevD" size={13} className="rail-text" style={{ color: "var(--dim)", transform: open ? "rotate(180deg)" : undefined }} />
       </button>
@@ -100,7 +102,7 @@ export function AccountMenu() {
                 <div className="acc-card-n">{me.name}</div>
                 <div className="acc-card-s">{loginOf(me) || ACCOUNT_ROLE_LABEL[me.role]}</div>
               </div>
-              <RoleChip role={me.role} />
+              <RoleChip role={me.role} trainee={access.isTrainee} />
             </div>
             <div className="acc-scope" title="Что видит этот аккаунт">
               <Icon name="target" size={13} />

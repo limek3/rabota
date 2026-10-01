@@ -51,7 +51,9 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
   const notes = useMemo(() => data.learn.filter((l) => l.accountId === me.id && l.note && l.note.trim()).length, [data.learn, me.id]);
 
   const onLearn = pathname === "/learn";
-  const active = pathname.startsWith("/learn/sv") ? "__sv" : onLearn ? acadActive(hash) : "";
+  const active = pathname.startsWith("/learn/sv") ? "__sv" : pathname.startsWith("/learn/team") ? "__team" : onLearn ? acadActive(hash) : "";
+  // руководителю (и наставнику — по своей группе) видно, как учатся стажёры
+  const lead = !access.isOp || access.isMentor;
 
   const open = (r: string) => {
     if (onLearn) window.location.hash = `#/${r}`;
@@ -115,6 +117,7 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
   return (
     <div className="rail-pane learn" data-off={off ? "" : undefined} aria-hidden={off || undefined}>
       <div className="rail-leadrow">
+        <div className="rail-learn-top">
         {back ? (
           <button type="button" className="rail-back" onClick={leave} title="Вернуться в основное меню CRM">
             <span className="rail-icon">
@@ -131,6 +134,7 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
           </div>
         )}
         {pin}
+        </div>
         <button className="btn btn-primary rail-lead" style={{ width: "100%", height: 34 }} onClick={cont} title="Следующий шаг обучения">
           <Icon name="play" size={14} stroke={2.2} />
           <span className="rail-text">Продолжить обучение</span>
@@ -157,17 +161,23 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
             {g.items.map((n) => item(n.r, n.t, n.i, n.hint, n.count?.(prog, notes)))}
           </div>
         ))}
-        {!access.isOp && (
+        {lead && (
           <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
             <div className="rail-group">
-              <span className="rail-text">ДЛЯ СУПЕРВАЙЗЕРА</span>
+              <span className="rail-text">ДЛЯ РУКОВОДИТЕЛЯ</span>
             </div>
-            <Link className="app-rail-item" href="/learn/sv" aria-current={active === "__sv" ? "page" : undefined} title="Найм, группа, деньги и базы — прежняя академия">
+            <Link className="app-rail-item" href="/learn/team" aria-current={active === "__team" ? "page" : undefined} title="Где сейчас каждый стажёр: этап, тесты, попытки, активность">
+              <span className="rail-icon" style={{ display: "flex" }}>
+                <Icon name="chart" size={16} />
+              </span>
+              <span className="rail-text lbl">Обучение команды</span>
+            </Link>
+            {!access.isOp && <Link className="app-rail-item" href="/learn/sv" aria-current={active === "__sv" ? "page" : undefined} title="Найм, группа, деньги и базы — прежняя академия">
               <span className="rail-icon" style={{ display: "flex" }}>
                 <Icon name="users" size={16} />
               </span>
               <span className="rail-text lbl">Академия супервайзера</span>
-            </Link>
+            </Link>}
           </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
