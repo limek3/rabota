@@ -1071,6 +1071,7 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .lane.plan.first { border-left-width: 1.5px; }
 .lane.plan.last { border-right-width: 1.5px; }
 .lane.train { background: var(--sch-train); color: var(--sch-train-fg); }
+.lane.plat { background: var(--sch-plat); color: var(--sch-plat-fg); }
 .lane.sick { background: var(--sch-sick); }
 .lane.vac { background: var(--sch-vac); }
 .lane.gone { background-color: var(--sch-gone-bg); background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, var(--sch-gone-line) 5px, var(--sch-gone-line) 9px); color: var(--sch-gone-fg); box-shadow: none; }

@@ -1,8 +1,9 @@
 import type { Adjustment, DataState, DayKey, RateTier } from "./types";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL } from "./types";
 import type { Index, MonthCal } from "./calc";
+import type { PayPeriod, PeriodRow } from "./payperiod";
 import { hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, tierFor, type PayRow } from "./payroll";
-import { monthDays } from "./dates";
+import { WEEKDAYS_SHORT, fmtDate, fmtMonth, isoWeekday, monthDays, rangeDays } from "./dates";
 import { fmtInt, fmtMoney, fmtNum, fmtPct, round2 } from "./format";
 
 /**
@@ -48,17 +49,23 @@ export interface Payslip {
   preliminary: boolean;
   asOf: DayKey;
   withholdPct: number;
+  /** Заголовок листа: «Расчётный лист · Сентябрь 2026» или «… · 16.09 – 05.10». */
+  title: string;
+  /** Справа в шапке: «Итог за месяц», «Предварительно, на …», «Выплата 09.10 (пт)». */
+  status: string;
+  /** Подвал: пояснения под таблицами. */
+  foot: string;
 }
 
 const adjNote = (a: Adjustment) => [a.date.slice(8, 10) + "." + a.date.slice(5, 7), a.comment.trim()].filter(Boolean).join(" · ");
 
-function dayRows(row: PayRow, cal: MonthCal, ix: Index): SlipDay[] {
+function dayRows(row: PayRow, days: DayKey[], upTo: DayKey, ix: Index): SlipDay[] {
   if (isSvVolume(row.payType)) return [];
   const leadMap = ix.opDay.get(row.op.id);
   const hourMap = ix.hoursOpDay.get(row.op.id);
   const out: SlipDay[] = [];
-  for (const d of monthDays(cal.month)) {
-    if (d > cal.ref || d > ix.workedTo) break;
+  for (const d of days) {
+    if (d > upTo || d > ix.workedTo) break;
     const leads = leadMap?.get(d) ?? 0;
     const hours = hourMap?.get(d) ?? 0;
     if (!leads && !hours) continue;
@@ -143,7 +150,7 @@ export function buildPayslip(st: DataState, ix: Index, cal: MonthCal, row: PayRo
   for (const a of adj(["advance", "payout"])) lines.push({ label: ADJ_LABEL[a.type], note: adjNote(a), value: Number(a.amount) || 0, kind: "minus" });
   lines.push({ label: "Остаток к выплате", value: r.toPay, kind: "grand" });
 
-  const days = dayRows(r, cal, ix);
+  const days = dayRows(r, monthDays(cal.month), cal.ref, ix);
   const group = r.op.groupId ? ix.groupById.get(r.op.groupId)?.name ?? NO_GROUP_LABEL : NO_GROUP_LABEL;
   return {
     row: r,
@@ -156,5 +163,74 @@ export function buildPayslip(st: DataState, ix: Index, cal: MonthCal, row: PayRo
     preliminary: cal.phase !== "past",
     asOf: cal.ref,
     withholdPct: s.withholdPct,
+    title: `Расчётный лист · ${fmtMonth(cal.month)}`,
+    status: cal.phase !== "past" ? `Предварительно, на ${fmtDate(cal.ref)}` : "Итог за месяц",
+    foot: ["Лиды «не доведён» не оплачиваются.", cal.phase !== "past" ? "Месяц идёт — расчёт предварительный и меняется с новыми сменами и лидами." : "", "Вопросы по расчёту — руководителю."].filter(Boolean).join(" "),
+  };
+}
+
+const dm = (d: DayKey) => fmtDate(d).slice(0, 5);
+
+/**
+ * Расчётный лист за период выплаты: те же строки, что в карточке периода (PeriodDrawer),
+ * плюс смены периода по дням. Суммы — из PeriodRow, поэтому лист сходится с зарплатой.
+ */
+export function buildPeriodPayslip(st: DataState, ix: Index, row: PeriodRow, period: PayPeriod, start: DayKey, today: DayKey): Payslip {
+  const s = st.settings;
+  const r = row;
+  const lines: SlipLine[] = [];
+  const kpiSum = r.kpi.reduce((a, k) => a + k.amount, 0);
+  const parts = r.segments.filter((g) => g.hours || g.leads || g.base || g.leadPay);
+  const byMonth = parts.length > 1 ? parts.map((g) => `${fmtMonth(g.month).toLowerCase()} — ${fmtMoney(g.base)}`).join(", ") : "";
+
+  if (isSvVolume(r.payType) || isSalary(r.payType))
+    lines.push({ label: "Оклад", note: [`${fmtMoney(r.salary)} в месяц, за отработанные дни периода`, byMonth].filter(Boolean).join(" · "), value: r.base, kind: "plus" });
+  else if (isHourlyTiered(r.payType)) lines.push({ label: "Часы по ступеням смен", note: `${fmtNum(r.hours)} ч, ставка часа — по числу лидов в смене`, value: r.base, kind: "plus" });
+  else lines.push({ label: "Почасовая оплата", note: `${fmtNum(r.hours)} ч × ${fmtMoney(r.hourlyRate)}`, value: r.base, kind: "plus" });
+
+  if (hasBonus(r.payType) && !isSvVolume(r.payType))
+    lines.push({
+      label: "Бонус за лиды",
+      note: isTiered(r.payType) ? `${fmtInt(r.leads)} лидов, бонус — по ступени смены` : `${fmtInt(r.leads)} × ${fmtMoney(r.leadBonus)}`,
+      value: round2(r.leadPay - kpiSum),
+      kind: "plus",
+    });
+  for (const k of r.kpi) lines.push({ label: `KPI за ${fmtMonth(k.month).toLowerCase()}`, note: "бонус за объём групп — за закрытый месяц", value: k.amount, kind: "plus" });
+
+  const adj = (types: Adjustment["type"][]) => r.adjustments.filter((a) => types.includes(a.type));
+  for (const a of adj(["accrual", "bonus", "compensation", "correction"]))
+    lines.push({ label: ADJ_LABEL[a.type], note: adjNote(a), value: Number(a.amount) || 0, kind: "plus" });
+  lines.push({ label: "Начислено", value: r.gross, kind: "total" });
+  if (r.withhold) lines.push({ label: `Удержание ${fmtNum(s.withholdPct)}%`, note: `с ${fmtMoney(r.withholdBase)}${r.adj.compensation ? " (компенсации не облагаются)" : ""}`, value: r.withhold, kind: "minus" });
+  for (const a of adj(["deduction"])) lines.push({ label: ADJ_LABEL[a.type], note: adjNote(a), value: Number(a.amount) || 0, kind: "minus" });
+  lines.push({ label: "К выплате за период", value: r.net, kind: "total" });
+  for (const a of adj(["advance", "payout"])) lines.push({ label: ADJ_LABEL[a.type], note: adjNote(a), value: Number(a.amount) || 0, kind: "minus" });
+  lines.push({ label: `Остаток к выплате ${dm(period.pay)}`, value: r.toPay, kind: "grand" });
+
+  const asOf = period.to < today ? period.to : today;
+  const days = dayRows(r, rangeDays(start, period.to), asOf, ix);
+  const open = today <= period.to;
+  const group = r.op.groupId ? ix.groupById.get(r.op.groupId)?.name ?? NO_GROUP_LABEL : NO_GROUP_LABEL;
+  return {
+    row: r,
+    month: period.to.slice(0, 7),
+    group,
+    scheme: PAY_LABEL[r.payType],
+    shifts: days.filter((d) => d.hours > 0).length,
+    lines,
+    days,
+    preliminary: open,
+    asOf,
+    withholdPct: s.withholdPct,
+    title: `Расчётный лист · ${dm(start)} – ${dm(period.to)}`,
+    status: `Выплата ${dm(period.pay)} (${WEEKDAYS_SHORT[isoWeekday(period.pay) - 1]})${open ? " · предварительно" : ""}`,
+    foot: [
+      "Лиды «не доведён» не оплачиваются.",
+      open ? "Период идёт — расчёт предварительный и меняется с новыми сменами и лидами." : "",
+      r.kpiPending ? `KPI за ${fmtMonth(r.kpiPending).toLowerCase()} придёт после закрытия месяца.` : "",
+      "Вопросы по расчёту — руководителю.",
+    ]
+      .filter(Boolean)
+      .join(" "),
   };
 }

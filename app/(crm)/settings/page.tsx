@@ -14,6 +14,7 @@ import { DateInput, MonthPicker, Select, dot } from "@/components/ui/select";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { AccountsTab, ProfileTab, RolesTab } from "@/components/app/AccountsSettings";
 import { RateGridsSection, SvBonusSection } from "@/components/app/RateGrids";
+import { PayScheduleSection } from "@/components/app/PaySchedule";
 import { ApproveMonthEditor, ApproveRules } from "@/components/app/ApproveSettings";
 import { AuditLog } from "@/components/app/AuditLog";
 import { SheetsSection } from "@/components/app/SheetsSync";
@@ -211,9 +212,6 @@ export default function SettingsPage() {
 
       <Section icon="calendar" title="Планы и рабочее время" sub="План на дату, Run Rate и нужный темп считаются по рабочим дням месяца">
         <div className="grid3">
-          <Field label="Общий план команды, лидов/мес" hint="0 — сумма планов групп и операторов">
-            <NumInput value={f.teamPlan} onChange={(v) => set("teamPlan", v ?? 0)} max={10_000_000} />
-          </Field>
           <Field label="План оператора по умолчанию" hint="Если в карточке не задан свой; 0 — без плана">
             <NumInput value={f.defaultOperatorPlan} onChange={(v) => set("defaultOperatorPlan", v ?? 0)} max={100_000} />
           </Field>
@@ -418,6 +416,8 @@ export default function SettingsPage() {
           </Field>
         </div>
       </Section>
+
+      <PayScheduleSection value={f} set={set} />
 
       <RateGridsSection
         grids={f.rateGrids}

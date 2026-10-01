@@ -180,7 +180,7 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
         operatorId: str(s.operatorId),
         groupId: s.groupId ? str(s.groupId) : null,
         hours: Math.min(24, Math.max(0, num(s.hours))),
-        type: (["work", "off", "training", "vacation", "sick"].includes(str(s.type)) ? s.type : "work") as Shift["type"],
+        type: (["work", "off", "training", "platform", "vacation", "sick"].includes(str(s.type)) ? s.type : "work") as Shift["type"],
         comment: str(s.comment),
         updatedAt: str(s.updatedAt, now),
       })),

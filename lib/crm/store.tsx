@@ -30,8 +30,8 @@ import type {
   Grade,
   Track,
 } from "./types";
-import { ADJ_LABEL, CANDIDATE_STAGE_LABEL, DAY_LABEL, EMPLOYMENT_LABEL, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
-import { buildIndex, closedThrough, freezePastMonths, type Index } from "./calc";
+import { ADJ_LABEL, CANDIDATE_STAGE_LABEL, DAY_LABEL, EMPLOYMENT_LABEL, HOURS_DAY_TYPES, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
+import { buildIndex, closedThrough, employmentShare, freezePastMonths, monthCal, type Index } from "./calc";
 import { currentMonth, fmtDate, fmtDay, isoNow, monthOf, nowHour, nowStamp, todayKey } from "./dates";
 import { emptyState, newAccount, normalizePrefs, normalizeSettings } from "./defaults";
 import {
@@ -1188,7 +1188,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         (d) => ({ ...d, shifts: prev ? d.shifts.map((s) => (s.id === id ? sh : s)) : [...d.shifts, sh] }),
       );
       if (ok) {
-        const label = (t: Shift["type"], h: number) => `${DAY_LABEL[t]}${t === "work" || t === "training" ? ` ${h} ч` : ""}`;
+        const label = (t: Shift["type"], h: number) => `${DAY_LABEL[t]}${HOURS_DAY_TYPES.has(t) ? ` ${h} ч` : ""}`;
         const was = prev ? label(prev.type, prev.hours) : "пусто";
         void log("shift", id, `${op?.name ?? operatorId}, ${fmtDay(date)}: ${was} → ${label(sh.type, sh.hours)}`, changesOf("shift", prev, sh));
       }
@@ -1265,10 +1265,14 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const id = planId(m, scope, targetId);
       const prev = dataRef.current.plans.find((p) => p.id === id);
       if (plan === null) {
-        // у оператора в записи могут жить условия оплаты — план сбрасываем, запись не удаляем
+        // у оператора в записи могут жить условия оплаты — план сбрасываем на автоматический
+        // (из карточки с учётом дней в штате), запись не удаляем
         if (prev && scope === "operator" && (prev.payType || prev.salary != null || prev.hourlyRate != null)) {
           const op = ixRef.current.opById.get(targetId || "");
-          const rec = { ...prev, plan: op?.monthlyPlan ?? dataRef.current.settings.defaultOperatorPlan, updatedAt: isoNow() };
+          const s = dataRef.current.settings;
+          const base = op?.monthlyPlan ?? s.defaultOperatorPlan;
+          const plan = op ? Math.round(base * employmentShare(op, monthCal(m, s, todayKey()))) : base;
+          const rec = { ...prev, plan, auto: true, updatedAt: isoNow() };
           await commit(() => db.putRecord("plans", rec), (d) => ({ ...d, plans: d.plans.map((p) => (p.id === id ? rec : p)) }));
           return;
         }

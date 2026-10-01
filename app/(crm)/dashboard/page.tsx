@@ -105,7 +105,7 @@ export default function DashboardPage() {
                   </Link>
                 )}
               </div>
-              {t.planSource === "sum" && t.plan > 0 && <div style={{ fontSize: 11.5, color: "var(--dim)", marginTop: 8 }}>План команды = сумма планов групп и операторов</div>}
+              {t.planSource === "sum" && t.plan > 0 && <div style={{ fontSize: 11.5, color: "var(--dim)", marginTop: 8 }}>План команды = сумма планов групп</div>}
             </div>
             <div className="grid3" style={{ gap: 10 }}>
               <HeroStat

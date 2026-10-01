@@ -17,6 +17,7 @@ import { Icon } from "@/components/ui/icons";
 import { ApproveMonthEditor } from "@/components/app/ApproveSettings";
 import { PayslipModal } from "@/components/app/Payslip";
 import { PayoutHistory, usePayouts } from "@/components/app/PayoutHistory";
+import { PeriodPayroll } from "@/components/app/PeriodPayroll";
 
 const ADJ_TYPES: AdjustmentType[] = ["accrual", "bonus", "compensation", "correction", "deduction", "advance", "payout"];
 const ADJ_HUE: Record<AdjustmentType, string> = {
@@ -67,8 +68,9 @@ function payrollOf(rows: PayRow[]) {
 
 export default function PayrollPage() {
   const { data, ix, month, setMonth, today, workedTo, saveTerms, saveAdjustment, toast, confirm, access } = useCrm();
-  // «Ведомость» — начисления месяца; «История выплат» — выплаты по всем месяцам
-  const [view, setView] = useState<"sheet" | "payouts">("sheet");
+  // «По периодам» — кому и сколько выплатить в день выплаты (главный вид);
+  // «За месяц» — начисления месяца для ФОТ и аналитики; «История выплат» — все выплаты
+  const [view, setView] = useState<"periods" | "sheet" | "payouts">("periods");
   const cal = useMemo(() => monthCal(month, data.settings, today), [month, data.settings, today]);
   const prAll = useMemo(() => payroll(data, ix, cal), [data, ix, cal]);
   // супервайзер, видящий все группы, всё равно смотрит зарплату только своих
@@ -235,22 +237,24 @@ export default function PayrollPage() {
       <PageHead
         title="Зарплата"
         sub={
-          // до закрытия дня сегодняшние смены ещё идут — в ведомости их нет, и это надо видеть
+          view === "periods"
+            ? data.settings.paySchedule.length ? "Выплаты по графику из Настроек → График выплат · считается из смен, лидов и корректировок" : `Выплаты раз в ${data.settings.payPeriodDays} дней: выплата через ${data.settings.payDelayDays} дн. после конца периода · считается из смен, лидов и корректировок`
+            : // до закрытия дня сегодняшние смены ещё идут — в ведомости их нет, и это надо видеть
           workedTo < today && month === today.slice(0, 7)
             ? `${fmtMonth(month)} · по ${fmtDayShort(workedTo)} включительно — смены за сегодня войдут в ${data.settings.dayCloseHour}:00`
             : `${fmtMonth(month)} · считается из смен, лидов и корректировок; меняется график — меняется ведомость`
         }
         actions={
           <>
-            <MonthSwitcher value={month} onChange={setMonth} />
-            {access.can.editPayroll && unfixed > 0 && cal.phase !== "future" && (
+            {view !== "periods" && <MonthSwitcher value={month} onChange={setMonth} />}
+            {view !== "periods" && access.can.editPayroll && unfixed > 0 && cal.phase !== "future" && (
               <button className="btn" onClick={() => void freezeAll()} title="Записать условия месяца, чтобы правки карточек не меняли эту ведомость">
                 <Icon name="check" size={14} /> Зафиксировать условия
               </button>
             )}
-            <button className="btn" onClick={exportCsv} disabled={!pr.rows.length}>
+            {view !== "periods" && <button className="btn" onClick={exportCsv} disabled={!pr.rows.length}>
               <Icon name="download" size={14} /> CSV
-            </button>
+            </button>}
             {access.can.editPayroll && (
               <button className="btn btn-primary" onClick={() => setAdjFor({ opId: "" })} disabled={!pr.rows.length}>
                 <Icon name="plus" size={14} stroke={2.2} /> Начисление
@@ -260,17 +264,20 @@ export default function PayrollPage() {
         }
       />
 
-      <Seg<"sheet" | "payouts">
+      <Seg<"periods" | "sheet" | "payouts">
         value={view}
         onChange={setView}
         options={[
-          { value: "sheet", label: "Ведомость" },
+          { value: "periods", label: "По периодам выплат" },
+          { value: "sheet", label: "За месяц" },
           { value: "payouts", label: "История выплат" },
         ]}
         style={{ alignSelf: "flex-start" }}
       />
 
-      {view === "payouts" ? (
+      {view === "periods" ? (
+        <PeriodPayroll />
+      ) : view === "payouts" ? (
         <PayoutsView month={month} toPay={t.toPay} q={q} setQ={setQ} />
       ) : (
       <>

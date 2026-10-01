@@ -1,4 +1,5 @@
-import type { AccessSettings, Account, AccountPrefs, AccountRole, DataState, ID, PayType, RateGrid, RateTier, RegionSettings, RopSettings, Settings, SvBonusGrid, Track } from "./types";
+import type { AccessSettings, Account, AccountPrefs, AccountRole, DataState, ID, PaySlot, PayType, RateGrid, RateTier, RegionSettings, RopSettings, Settings, SvBonusGrid, Track } from "./types";
+import { addDays } from "./dates";
 
 export const DEFAULT_ACCESS: AccessSettings = {
   supervisor: {
@@ -102,6 +103,10 @@ export const DEFAULT_SETTINGS: Settings = {
   convNormPct: 60,
   withholdPct: 0,
   prorateSalary: true,
+  payPeriodStart: "2026-09-22",
+  payPeriodDays: 14,
+  payDelayDays: 4,
+  paySchedule: [],
   aheadPct: 110,
   normalPct: 95,
   lagPct: 80,
@@ -292,6 +297,12 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
     if (s.defaultSalary === 40000) s.defaultSalary = DEFAULT_SETTINGS.defaultSalary;
   }
   s.withholdPct = num(s.withholdPct, 0, 0, 100);
+  s.payPeriodStart = typeof s.payPeriodStart === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s.payPeriodStart) ? s.payPeriodStart : DEFAULT_SETTINGS.payPeriodStart;
+  // 25.08 — прежнее значение по умолчанию: шаг тот же (14 дней), но первыми шли пустые периоды до начала работы
+  if (s.payPeriodStart === "2026-08-25") s.payPeriodStart = "2026-09-22";
+  s.payPeriodDays = Math.round(num(s.payPeriodDays, DEFAULT_SETTINGS.payPeriodDays, 7, 31));
+  s.payDelayDays = Math.round(num(s.payDelayDays, DEFAULT_SETTINGS.payDelayDays, 0, 30));
+  s.paySchedule = normalizeSchedule(s.paySchedule);
   s.leadRevenue = num(s.leadRevenue, DEFAULT_SETTINGS.leadRevenue, 0, 10_000_000);
   s.payrollCapPct = num(s.payrollCapPct, DEFAULT_SETTINGS.payrollCapPct, 0, 100);
   s.aheadPct = num(s.aheadPct, 110, 0, 1000);
@@ -387,4 +398,27 @@ export function normalizeRegions(raw: Partial<RegionSettings> | null | undefined
     regionalApprovePct: n(r.regionalApprovePct, DEFAULT_REGIONS.regionalApprovePct, 100),
     regionalLeadRevenue: n(r.regionalLeadRevenue, DEFAULT_REGIONS.regionalLeadRevenue, 10_000_000),
   };
+}
+
+const isDayKey = (x: unknown): x is string => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
+
+/**
+ * График выплат: строки по порядку и строго подряд — каждый период начинается на следующий
+ * день после предыдущего (иначе дни между ними никто бы не оплатил или оплатил дважды).
+ * Выплата не раньше конца периода.
+ */
+export function normalizeSchedule(v: unknown): PaySlot[] {
+  if (!Array.isArray(v)) return [];
+  const rows = v
+    .filter((r): r is PaySlot => !!r && isDayKey(r.from) && isDayKey(r.to) && isDayKey(r.pay))
+    .map((r) => ({ from: r.from, to: r.to, pay: r.pay }))
+    .sort((a, b) => a.from.localeCompare(b.from));
+  const out: PaySlot[] = [];
+  for (const r of rows) {
+    const prev = out[out.length - 1];
+    const from = prev ? addDays(prev.to, 1) : r.from;
+    if (r.to < from) continue;
+    out.push({ from, to: r.to, pay: r.pay < r.to ? r.to : r.pay });
+  }
+  return out;
 }

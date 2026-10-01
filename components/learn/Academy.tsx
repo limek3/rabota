@@ -875,8 +875,10 @@ function NotesPage({ ctx }: { ctx: Ctx }) {
 /* ── обучение команды (наш раздел) ─────────────────────────────── */
 
 function TeamPage() {
-  const { data, access } = useCrm();
-  const accounts = data.accounts.filter((a) => !a.deletedAt && a.active && a.role !== "head");
+  const { data, full, access } = useCrm();
+  // аккаунты операторов своей зоны — из full (в срезе data у руководителя только свой)
+  const zone = new Set(data.operators.map((o) => o.id));
+  const accounts = full.accounts.filter((a) => !a.deletedAt && a.active && a.role !== "head" && (access.isHead || (!!a.operatorId && zone.has(a.operatorId))));
   const rows = accounts.map((a) => {
     const p = progMap(data.learn, a.id);
     const r = academyRole(a.role);

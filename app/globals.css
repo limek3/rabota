@@ -1485,6 +1485,8 @@ button {
   --sch-plan-fg: #8fc0a3;
   --sch-train: #3d5a8a;
   --sch-train-fg: #e6eeff;
+  --sch-plat: #6a5596;
+  --sch-plat-fg: #f1eaff;
   --sch-sick: #9e5f61;
   --sch-vac: #9c8158;
   --sch-block-fg: #ffffff;
@@ -1609,6 +1611,8 @@ button {
   --sch-plan-fg: #3f7a5a;
   --sch-train: #4a6fae;
   --sch-train-fg: #ffffff;
+  --sch-plat: #8d72c4;
+  --sch-plat-fg: #ffffff;
   --sch-sick: #c27f80;
   --sch-vac: #cdaa7e;
   --sch-block-fg: #ffffff;

@@ -347,6 +347,7 @@ const TRAINEE_HINT = "Видит только обучение: курс «Ав�
 function AccountModal({ account, onClose }: { account: Account | null; onClose: () => void }) {
   const { full, saveAccount, saveOperator, toast } = useCrm();
   const [password, setPassword] = useState("");
+  const [copied, setCopied] = useState(false);
   const groups = full.groups.filter((g) => !g.deletedAt);
   const taken = new Set(full.accounts.filter((a) => !a.deletedAt && a.id !== account?.id && a.operatorId).map((a) => a.operatorId));
   const [f, setF] = useState<AccountInput>(() =>
@@ -458,6 +459,21 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
               }}
             >
               Сгенерировать
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={!password}
+              title={f.login.trim() ? "Скопировать почту и пароль — чтобы отправить человеку" : "Скопировать пароль"}
+              onClick={() => {
+                const text = f.login.trim() ? [`Вход в CRM: ${window.location.origin}`, `Почта: ${f.login.trim()}`, `Пароль: ${password}`].join("\n") : password;
+                void navigator.clipboard.writeText(text).then(() => {
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1500);
+                });
+              }}
+            >
+              <Icon name={copied ? "check" : "copy"} size={13} /> {copied ? "Скопировано" : "Копировать"}
             </button>
           </div>
         </Field>

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
 import { goneLast, isGone, sumRange, type OpRow } from "@/lib/crm/calc";
-import { DAY_LABEL, DAY_SHORT, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
+import { DAY_LABEL, DAY_SHORT, HOURS_DAY_TYPES, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { Avatar, Conv, Empty, Field, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg, useWheelHScroll } from "@/components/ui/kit";
@@ -13,7 +13,7 @@ import { DateInput, Select, dot, uiZoom, type Opt } from "@/components/ui/select
 import { canEditShift } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 
-const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training: "indigo", vacation: "amber", sick: "red" };
+const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training: "indigo", platform: "purple", vacation: "amber", sick: "red" };
 
 /**
  * «Лента»: день в графике — отрезок полосы. Подряд идущие дни одного вида сливаются
@@ -21,13 +21,14 @@ const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training:
  *   work  — отработанная смена (сплошная, внутри лиды крупно и часы)
  *   plan  — смена наперёд (светлая)
  *   train — обучение
+ *   plat  — обучение на платформе (часы не оплачиваются и не идут в конверсию)
  *   sick / vac — больничный / отпуск
  *   gone  — после увольнения
  * Выходной и дни до приёма — без полосы.
  */
-type Lane = "work" | "plan" | "train" | "sick" | "vac" | "gone" | "pre";
+type Lane = "work" | "plan" | "train" | "plat" | "sick" | "vac" | "gone" | "pre";
 const LANE_TAG: Partial<Record<Lane, string>> = { sick: "Б", vac: "О", gone: "У" };
-const TYPES: DayType[] = ["work", "training", "off", "vacation", "sick"];
+const TYPES: DayType[] = ["work", "training", "platform", "off", "vacation", "sick"];
 
 interface Sel {
   opId: string;
@@ -378,6 +379,7 @@ export default function SchedulePage() {
           <span><i className="lane work first last" />смена</span>
           <span><i className="lane plan first last" />план</span>
           <span><i className="lane train first last" />обучение</span>
+          <span title="Часы не оплачиваются и не идут в конверсию"><i className="lane plat first last" />на платформе</span>
           <span><i className="lane sick first last" />больничный</span>
           <span><i className="lane vac first last" />отпуск</span>
           <span><i className="lane gone first last" />уволен</span>
@@ -594,6 +596,7 @@ function SchedRow({
       if (sh.type === "vacation") return "vac";
       if (sh.type === "off") return null;
       if (sh.type === "training") return "train";
+      if (sh.type === "platform") return "plat";
       return d > today ? "plan" : "work";
     }
     if (r.op.status === "fired" && fire && d >= fire) return "gone";
@@ -640,7 +643,7 @@ function SchedRow({
         const solid = lane === "sick" || lane === "vac" || lane === "gone" || lane === "pre";
         let span = 0;
         if (solid && edge.includes("first")) while (lanes[colIndex + span] === lane) span++;
-        const hours = sh && (sh.type === "work" || sh.type === "training") ? sh.hours : 0;
+        const hours = sh && HOURS_DAY_TYPES.has(sh.type) ? sh.hours : 0;
         return (
           <td
             key={d}
@@ -821,7 +824,7 @@ function RangeEditor({
 
   const apply = async (t: DayType, h: number | null) => {
     setBusy(true);
-    const worked = t === "work" || t === "training";
+    const worked = HOURS_DAY_TYPES.has(t);
     const n = await saveShifts(cells.map((c) => ({ date: c.day, operatorId: c.opId, hours: worked ? h ?? 0 : 0, type: t })));
     setBusy(false);
     if (n) toast(`Записано смен: ${n}`);
@@ -868,7 +871,7 @@ function RangeEditor({
             aria-pressed={type === t}
             onClick={() => {
               setType(t);
-              if (t === "work" || t === "training") setHours((h) => (h ? h : s.dayHours));
+              if (HOURS_DAY_TYPES.has(t)) setHours((h) => (h ? h : s.dayHours));
               else void apply(t, 0);
             }}
           >
@@ -876,7 +879,7 @@ function RangeEditor({
           </button>
         ))}
       </div>
-      {(type === "work" || type === "training") && (
+      {HOURS_DAY_TYPES.has(type) && (
         <div className="row" style={{ gap: 6 }}>
           <NumInput value={hours} onChange={setHours} step={0.5} max={24} className="inp inp-sm" style={{ width: 70 }} autoFocus onEnter={() => void apply(type, hours)} />
           <span style={{ fontSize: 12, color: "var(--dim)" }}>ч</span>
@@ -931,7 +934,7 @@ function CellEditor({ sel, onClose }: { sel: Sel; onClose: () => void }) {
   }, [onClose]);
 
   const save = async (t = type, h = hours) => {
-    const worked = t === "work" || t === "training";
+    const worked = HOURS_DAY_TYPES.has(t);
     await saveShift(sel.day, sel.opId, { type: t, hours: worked ? h ?? 0 : 0, comment });
     onClose();
   };
@@ -968,7 +971,7 @@ function CellEditor({ sel, onClose }: { sel: Sel; onClose: () => void }) {
             aria-pressed={type === t}
             onClick={() => {
               setType(t);
-              if (t === "work" || t === "training") setHours((h) => (h ? h : s.dayHours));
+              if (HOURS_DAY_TYPES.has(t)) setHours((h) => (h ? h : s.dayHours));
               else void save(t, 0);
             }}
           >
@@ -976,7 +979,7 @@ function CellEditor({ sel, onClose }: { sel: Sel; onClose: () => void }) {
           </button>
         ))}
       </div>
-      {(type === "work" || type === "training") && (
+      {HOURS_DAY_TYPES.has(type) && (
         <div className="row" style={{ gap: 6 }}>
           <NumInput value={hours} onChange={setHours} step={0.5} max={24} className="inp inp-sm" style={{ width: 70 }} autoFocus onEnter={() => void save()} />
           <span style={{ fontSize: 12, color: "var(--dim)" }}>ч</span>
@@ -1052,7 +1055,7 @@ function FillModal({ rows, onClose }: { rows: OpRow[]; onClose: () => void }) {
         if (r.op.fireDate && d > r.op.fireDate) return;
         const ex = ix.shift.get(`${d}|${r.op.id}`);
         if (ex && mode === "empty") return;
-        if (ex && (ex.type === "vacation" || ex.type === "sick")) return; // отпуск и больничный не затираем
+        if (ex && (ex.type === "vacation" || ex.type === "sick" || ex.type === "platform")) return; // отпуск, больничный и обучение на платформе не затираем
         items.push({ date: d, operatorId: r.op.id, hours: hours ?? 0, type: "work" });
       });
     }

@@ -765,7 +765,7 @@ export interface MonthModel {
 
 function absentOn(ix: Index, opId: ID, d: DayKey) {
   const sh = ix.shift.get(`${d}|${opId}`);
-  return !!sh && (sh.type === "vacation" || sh.type === "sick" || sh.type === "off");
+  return !!sh && (sh.type === "vacation" || sh.type === "sick" || sh.type === "off" || sh.type === "platform");
 }
 
 /** «Практически не работает»: N последних завершённых рабочих дней без лидов (отпуск/больничный не в счёт). */
@@ -916,19 +916,9 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
   const groupsShown = groups.filter((g) => g.key !== NO_GROUP || g.members.length > 0 || g.pace.fact > 0 || g.hours > 0);
 
   // команда
-  const teamRec = ix.planById.get(planId(month, "team", null));
-  let teamPlan: number;
-  let planSource: MonthModel["team"]["planSource"];
-  if (teamRec) {
-    teamPlan = teamRec.plan;
-    planSource = "record";
-  } else if (s.teamPlan > 0) {
-    teamPlan = s.teamPlan;
-    planSource = "settings";
-  } else {
-    teamPlan = groupsShown.reduce((a, g) => a + g.plan, 0);
-    planSource = "sum";
-  }
+  // план команды — всегда сумма планов групп: РОП задаёт план каждой группе, отдельного числа нет
+  const teamPlan = groupsShown.reduce((a, g) => a + g.plan, 0);
+  const planSource: MonthModel["team"]["planSource"] = "sum";
   const tp = pace(cal, teamPlan, ix.day, s);
   const hours = sumRange(ix.hoursDay, first, factTo);
   const hoursToday = ix.hoursDay.get(ref) ?? 0;
@@ -1152,9 +1142,6 @@ export function freezePastMonths(st: DataState, ix: Index, today: DayKey): { pla
       const id = planId(m, "group", g.id);
       if (ix.planById.has(id)) continue;
       plans.push({ id, month: m, scope: "group", targetId: g.id, plan: g.monthlyPlan, auto: true, updatedAt: stamp });
-    }
-    if (st.settings.teamPlan > 0 && !ix.planById.has(planId(m, "team", null))) {
-      plans.push({ id: planId(m, "team", null), month: m, scope: "team", targetId: null, plan: st.settings.teamPlan, auto: true, updatedAt: stamp });
     }
   }
   return { plans, months };

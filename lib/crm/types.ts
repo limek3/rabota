@@ -74,7 +74,13 @@ export interface SvBonusGrid {
   /** Апрув по умолчанию, если за месяц не проставлен. */
   defaultApprovePct: number;
 }
-export type DayType = "work" | "off" | "training" | "vacation" | "sick";
+/**
+ * Вид дня в графике. «platform» — обучение на платформе (курсы и тесты в CRM): часы
+ * отмечаются для учёта, но не оплачиваются и не идут ни в часы, ни в конверсию.
+ */
+export type DayType = "work" | "off" | "training" | "platform" | "vacation" | "sick";
+/** Виды дня, у которых в графике пишутся часы. */
+export const HOURS_DAY_TYPES = new Set<DayType>(["work", "training", "platform"]);
 export type AdjustmentType =
   | "accrual" // дополнительное начисление
   | "bonus" // премия
@@ -211,6 +217,13 @@ export interface Shift {
   updatedAt: string;
 }
 
+/** Строка графика выплат: период с — по и день выплаты. */
+export interface PaySlot {
+  from: DayKey;
+  to: DayKey;
+  pay: DayKey;
+}
+
 export type PlanScope = "team" | "group" | "operator";
 
 /**
@@ -293,6 +306,19 @@ export interface Settings {
   payrollCapPct: number;
   /** Пропорциональный оклад: оклад × часы / норма, если норма не выполнена. */
   prorateSalary: boolean;
+  /**
+   * Выплаты по периодам: первый день первого периода (всё отработанное раньше входит в
+   * первую выплату), длина периода в днях и через сколько дней после его конца выплата.
+   * По умолчанию: с 22.09.2026, по 14 дней, выплата через 4 дня (05.10 → 09.10).
+   */
+  payPeriodStart: DayKey;
+  payPeriodDays: number;
+  payDelayDays: number;
+  /**
+   * График выплат вручную: периоды подряд (с — по — день выплаты), когда график меняется
+   * от месяца к месяцу. Пусто — всё по правилу выше; после последней строки — тоже по правилу.
+   */
+  paySchedule: PaySlot[];
   /** Пороги темпа к плану на дату, %. */
   aheadPct: number;
   normalPct: number;
@@ -696,6 +722,7 @@ export const DAY_LABEL: Record<DayType, string> = {
   work: "Рабочий день",
   off: "Выходной",
   training: "Обучение",
+  platform: "Обучение на платформе",
   vacation: "Отпуск",
   sick: "Больничный",
 };
@@ -705,6 +732,7 @@ export const DAY_SHORT: Record<DayType, string> = {
   work: "",
   off: "В",
   training: "Об",
+  platform: "Пл",
   vacation: "О",
   sick: "Б",
 };

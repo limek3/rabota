@@ -4,7 +4,9 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { useCrm } from "@/lib/crm/store";
 import type { MonthCal } from "@/lib/crm/calc";
 import { isHourlyTiered, isTiered, type PayRow } from "@/lib/crm/payroll";
-import { buildPayslip, type Payslip, type SlipLine } from "@/lib/crm/payslip";
+import { buildPayslip, buildPeriodPayslip, type Payslip, type SlipLine } from "@/lib/crm/payslip";
+import type { PayPeriod, PeriodRow } from "@/lib/crm/payperiod";
+import type { DayKey } from "@/lib/crm/types";
 import { fmtDate, fmtMonth, fmtStamp, fmtWeekday, nowStamp } from "@/lib/crm/dates";
 import { fmtInt, fmtMoney, fmtNum } from "@/lib/crm/format";
 import { dataUrlBytes, jpegToPdf } from "@/lib/pdf";
@@ -108,14 +110,14 @@ function draw(ctx: CanvasRenderingContext2D, s: Payslip, company: string, sans: 
   font(12, 600);
   text((company || "LEADUP CRM").toUpperCase(), P, y + 12, C.brand);
   font(24, 700);
-  text(`Расчётный лист · ${fmtMonth(s.month)}`, P, y + 44);
+  text(clip(ctx, s.title, inner), P, y + 44);
   font(15, 600);
   text(clip(ctx, r.op.name, inner * 0.62), P, y + 70);
   font(12.5);
   text(clip(ctx, `${s.group} · ${s.scheme}`, inner * 0.62), P, y + 90, C.sub);
   const stamp = fmtStamp(nowStamp());
   font(12.5, 600);
-  text(s.preliminary ? `Предварительно, на ${fmtDate(s.asOf)}` : "Итог за месяц", W - P, y + 70, s.preliminary ? C.brand : C.green, "right");
+  text(s.status, W - P, y + 70, s.preliminary ? C.brand : C.green, "right");
   font(11.5);
   text(`сформирован ${stamp}`, W - P, y + 90, C.dim, "right");
   y += 110;
@@ -258,13 +260,7 @@ function draw(ctx: CanvasRenderingContext2D, s: Payslip, company: string, sans: 
   // ── подвал ──
   y += 12;
   font(11.5);
-  const foot = [
-    "Лиды «не доведён» не оплачиваются.",
-    s.preliminary ? "Месяц идёт — расчёт предварительный и меняется с новыми сменами и лидами." : "",
-    "Вопросы по расчёту — руководителю.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const foot = s.foot;
   const lines = wrap(ctx, foot, inner);
   lines.forEach((l, i) => text(l, P, y + 12 + i * 17, C.dim));
   y += lines.length * 17 + P;
@@ -333,12 +329,24 @@ function wrap(ctx: CanvasRenderingContext2D, s: string, max: number): string[] {
  * чтобы переслать в мессенджер. Открывается из «Моего кабинета» и из ведомости.
  */
 export function PayslipModal({ row, cal, onClose }: { row: PayRow; cal: MonthCal; onClose: () => void }) {
-  const { data, ix, toast } = useCrm();
+  const { data, ix } = useCrm();
+  const slip = useMemo(() => buildPayslip(data, ix, cal, row), [data, ix, cal, row]);
+  return <SlipModal slip={slip} fileName={`Расчётный лист — ${row.op.name} — ${fmtMonth(cal.month)}`} onClose={onClose} />;
+}
+
+/** Расчётный лист за период выплаты (вкладка «По периодам выплат»). */
+export function PeriodPayslipModal({ row, period, start, onClose }: { row: PeriodRow; period: PayPeriod; start: DayKey; onClose: () => void }) {
+  const { data, ix, today } = useCrm();
+  const slip = useMemo(() => buildPeriodPayslip(data, ix, row, period, start, today), [data, ix, row, period, start, today]);
+  const dm = (d: string) => fmtDate(d).slice(0, 5);
+  return <SlipModal slip={slip} fileName={`Расчётный лист — ${row.op.name} — ${dm(start)}–${dm(period.to)}`} onClose={onClose} />;
+}
+
+function SlipModal({ slip, fileName: base, onClose }: { slip: Payslip; fileName: string; onClose: () => void }) {
+  const { data, toast } = useCrm();
   const pic = useRef<Handle>(null);
   const [busy, setBusy] = useState(false);
-  const slip = useMemo(() => buildPayslip(data, ix, cal, row), [data, ix, cal, row]);
   const company = data.settings.companyName || "LEADUP CRM";
-  const base = `Расчётный лист — ${row.op.name} — ${fmtMonth(cal.month)}`;
 
   const save = (href: string, name: string) => {
     const a = document.createElement("a");

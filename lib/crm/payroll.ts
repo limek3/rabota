@@ -180,17 +180,17 @@ export function tieredMonth(
   return { hourly: round2(hourly), bonus: round2(bonus), use: Array.from(use.values()).sort((a, b) => a.from - b.from) };
 }
 
-export function payrollRow(
-  op: Operator,
-  cal: MonthCal,
-  st: DataState,
-  ix: Index,
-  adjustments: Adjustment[],
-): PayRow {
+/**
+ * Начисление за месяц по день upTo включительно — без корректировок. Из него собирается и
+ * ведомость месяца (upTo = конец месяца), и выплата за период: начислено к концу периода
+ * минус начислено к его началу. Так оклад с потолком и пропорцией по норме не задваивается
+ * на стыке периодов, а сумма периодов месяца в точности равна ведомости месяца.
+ */
+export function accrual(op: Operator, cal: MonthCal, st: DataState, ix: Index, upTo?: DayKey) {
   const t = opTerms(op, cal, st, ix);
   // по факту: только закрытые дни (ix.workedTo) — и часы, и лиды. Сегодняшняя смена до закрытия
   // дня ещё идёт: иначе утром в ФОТ сидела бы целая смена, а ступень сетки прыгала от неполного дня
-  const days = monthDays(cal.month).filter((d) => d <= cal.ref && d <= ix.workedTo);
+  const days = monthDays(cal.month).filter((d) => d <= cal.ref && d <= ix.workedTo && (!upTo || d <= upTo));
   const hours = days.length ? round2(sumRange(ix.hoursOpDay.get(op.id), days[0], days[days.length - 1])) : 0;
   const leads = days.length ? sumRange(ix.opDay.get(op.id), days[0], days[days.length - 1]) : 0;
 
@@ -240,18 +240,18 @@ export function payrollRow(
     base = hours * t.hourlyRate;
     leadPay = hasBonus(t.payType) ? leads * t.leadBonus : 0;
   }
+  return { t, hours, leads, base, leadPay, salaryShare, tierUse, sv };
+}
 
-  const adj = zeroAdj();
-  for (const a of adjustments) adj[a.type] += Number(a.amount) || 0;
-
-  const gross = base + leadPay + adj.accrual + adj.bonus + adj.compensation + adj.correction;
-  const withholdBase = Math.max(0, gross - adj.compensation);
-  const withhold = (withholdBase * st.settings.withholdPct) / 100;
-  const deductions = adj.deduction;
-  const net = gross - withhold - deductions;
-  const paid = adj.advance + adj.payout;
-
-  return {
+export function payrollRow(
+  op: Operator,
+  cal: MonthCal,
+  st: DataState,
+  ix: Index,
+  adjustments: Adjustment[],
+): PayRow {
+  const { t, hours, leads, base, leadPay, salaryShare, tierUse, sv } = accrual(op, cal, st, ix);
+  return withAdjustments({
     op,
     payType: t.payType,
     salary: t.salary,
@@ -264,6 +264,31 @@ export function payrollRow(
     hours,
     leads,
     salaryShare,
+    base,
+    leadPay,
+    explicitTerms: t.explicit,
+  }, adjustments, st);
+}
+
+/** Начислено → удержания → к выплате → остаток: общая часть ведомости месяца и выплаты за период. */
+export function withAdjustments(
+  r: Omit<PayRow, "adj" | "adjustments" | "gross" | "withholdBase" | "withhold" | "deductions" | "net" | "paid" | "toPay">,
+  adjustments: Adjustment[],
+  st: DataState,
+): PayRow {
+  const { base, leadPay } = r;
+  const adj = zeroAdj();
+  for (const a of adjustments) adj[a.type] += Number(a.amount) || 0;
+
+  const gross = base + leadPay + adj.accrual + adj.bonus + adj.compensation + adj.correction;
+  const withholdBase = Math.max(0, gross - adj.compensation);
+  const withhold = (withholdBase * st.settings.withholdPct) / 100;
+  const deductions = adj.deduction;
+  const net = gross - withhold - deductions;
+  const paid = adj.advance + adj.payout;
+
+  return {
+    ...r,
     base: round2(base),
     leadPay: round2(leadPay),
     adj,
@@ -275,7 +300,6 @@ export function payrollRow(
     net: round2(net),
     paid: round2(paid),
     toPay: round2(net - paid),
-    explicitTerms: t.explicit,
   };
 }
 
@@ -298,7 +322,11 @@ export function payroll(st: DataState, ix: Index, cal: MonthCal): Payroll {
   const ops = monthOperators(st, ix, cal.month);
   const rows = ops.map((op) => payrollRow(op, cal, st, ix, (byOp.get(op.id) ?? []).sort((a, b) => a.date.localeCompare(b.date))));
   rows.sort((a, b) => a.op.name.localeCompare(b.op.name, "ru"));
+  return { rows, total: rowsTotal(rows) };
+}
 
+/** Итоги по строкам ведомости — месяца или периода выплаты. */
+export function rowsTotal(rows: PayRow[]): Payroll["total"] {
   const total = {
     hours: 0, leads: 0, base: 0, leadPay: 0, adj: zeroAdj(), gross: 0, withholdBase: 0, withhold: 0,
     deductions: 0, net: 0, paid: 0, toPay: 0,
@@ -317,7 +345,7 @@ export function payroll(st: DataState, ix: Index, cal: MonthCal): Payroll {
     total.toPay += r.toPay;
     for (const k of Object.keys(total.adj) as AdjustmentType[]) total.adj[k] += r.adj[k];
   }
-  return { rows, total };
+  return total;
 }
 
 /** Стоимость одного лида по ведомости: всё начисленное / число лидов. */

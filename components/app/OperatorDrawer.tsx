@@ -376,12 +376,13 @@ function RecentLeadsCard({ opId }: { opId: string }) {
 }
 
 function InfoCard({ row }: { row: OpRow }) {
-  const { data, ix, access } = useCrm();
+  const { data, full, ix, access } = useCrm();
   const op = ix.opById.get(row.op.id) ?? row.op;
   // стажировка считается с даты приёма по всем месяцам
   const prob = useMemo(() => probation(op, ix, data.settings), [op, ix, data.settings]);
-  // обучение сотрудника — по его аккаунту
-  const acc = data.accounts.find((a) => a.operatorId === op.id && !a.deletedAt) ?? null;
+  // обучение сотрудника — по его аккаунту; в срезе data у руководителя только свой аккаунт,
+  // а аккаунты операторов своей зоны он видит в full (в Supabase — по правилу accounts_read)
+  const acc = full.accounts.find((a) => a.operatorId === op.id && !a.deletedAt) ?? null;
   const learn = acc ? learnSummary(acc.id, acc.role, data.learn) : null;
   // условия оплаты — только тем, кому видны деньги этого человека (наставнику — не видны)
   const canPayView = canSeePay(access, row.op.id);

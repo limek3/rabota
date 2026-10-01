@@ -199,7 +199,6 @@ export function buildSheets(st: DataState, exportedAt = new Date()): SheetData[]
       rows: [
         ["Выгружено", localTime(exportedAt.toISOString())],
         ["Компания", s.companyName],
-        ["План отдела в месяц", s.teamPlan || ""],
         ["План оператора по умолчанию", s.defaultOperatorPlan || ""],
         ["Норма часов в месяц", s.defaultNormHours],
         ["Часов в рабочем дне", s.dayHours],
