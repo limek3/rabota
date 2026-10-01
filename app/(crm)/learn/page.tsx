@@ -13,7 +13,7 @@ import { mountAcademy } from "@/lib/academy/engine";
  * аккаунта (courseId "op-auto"), поэтому его видят руководитель и карточка оператора.
  */
 export default function LearnPage() {
-  const { data, me, saveLearn, resetLearn, toast } = useCrm();
+  const { data, me, access, saveLearn, resetLearn, toast } = useCrm();
   const ref = useRef<HTMLDivElement>(null);
   // движок монтируется один раз на аккаунт; свежие данные и функции берёт через ref
   const live = useRef({ data, saveLearn, resetLearn, toast });
@@ -24,13 +24,15 @@ export default function LearnPage() {
     if (!root || me.id === "__boot__") return;
     const app = mountAcademy(root, {
       accountId: me.id,
+      // стажёру по окончании — «руководитель переведёт вас в операторы»
+      trainee: access.isTrainee,
       records: () => live.current.data.learn.filter((l) => l.accountId === me.id && l.courseId === ACAD_COURSE),
       save: (itemId: string, patch: LearnPatch) => void live.current.saveLearn(ACAD_COURSE, itemId, patch),
       reset: () => void live.current.resetLearn(ACAD_COURSE),
       toast: (text: string) => live.current.toast(text, "ok"),
     });
     return () => app.destroy();
-  }, [me.id]);
+  }, [me.id, access.isTrainee]);
 
   return <div className="acad" ref={ref} />;
 }

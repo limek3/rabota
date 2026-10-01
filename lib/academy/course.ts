@@ -6,8 +6,10 @@ import type { LearnProgress } from "@/lib/crm/types";
  * Курс «Авто» для CRM: состав, меню обучения и прогресс аккаунта.
  *
  * Тот же порядок материалов, что и в движке страницы (lib/academy/engine.js):
- * модули из data.json, тренажёр Скорозвона — первым пунктом модуля про Скорозвон.
- * Прогресс — записи learn аккаунта (courseId "op-auto"), как в прежней академии.
+ * модули из data.json и последним — «Практика в Скорозвоне»: 5 глав тренажёра после
+ * аттестации, каждая засчитывается, только когда пройдена самостоятельно.
+ * Прогресс — записи learn аккаунта (courseId "op-auto"), как в прежней академии;
+ * главы тренажёра — в записи "sim" (checks "auto:<глава>:try").
  */
 
 export const ACAD_COURSE = "op-auto";
@@ -26,18 +28,7 @@ interface RawModule {
   items: AcadItem[];
 }
 
-const SIM: AcadItem = { id: "sim", t: "Тренажёр Скорозвона: смена, звонок, результат, перевод", k: "Симулятор", m: "15 мин" };
-
-export const MODULES: { t: string; items: AcadItem[] }[] = (RAW.course.modules as unknown as RawModule[]).map((m) => {
-  const items: AcadItem[] = m.items.map((i) => ({ id: i.id, t: i.t, k: i.k, m: i.m, quiz: i.quiz, final: i.final }));
-  if (/Скорозвон/.test(m.t) && !items.some((i) => i.id === "sim")) items.unshift(SIM);
-  return { t: m.t.replace(/^Модуль \d+\.\s*/, ""), items };
-});
-
-export const FLAT: AcadItem[] = MODULES.flatMap((m) => m.items);
-export const TESTS: AcadItem[] = FLAT.filter((i) => i.quiz);
-
-/** Главы тренажёра Скорозвона, пройденные самостоятельно (хранит сам тренажёр в браузере). */
+/** Главы тренажёра Скорозвона. */
 export const SIM_CHAPTERS = ["start", "call", "result", "transfer", "end"];
 export const SIM_CHAPTER_TITLES: Record<string, string> = {
   start: "Начало смены",
@@ -46,13 +37,29 @@ export const SIM_CHAPTER_TITLES: Record<string, string> = {
   transfer: "Перевод клиента менеджеру",
   end: "Перерыв и конец смены",
 };
-export function simChaptersDone(): number {
-  if (typeof window === "undefined") return 0;
+export const PRACTICE_TITLE = "Практика в Скорозвоне";
+export const simItemId = (ch: string) => `sim-${ch}`;
+const simChOf = (id: string) => (id.startsWith("sim-") ? id.slice(4) : null);
+
+export const MODULES: { t: string; items: AcadItem[]; practice?: boolean }[] = [
+  ...(RAW.course.modules as unknown as RawModule[]).map((m) => ({
+    t: m.t.replace(/^Модуль \d+\.\s*/, ""),
+    items: m.items.filter((i) => i.id !== "sim").map((i) => ({ id: i.id, t: i.t, k: i.k, m: i.m, quiz: i.quiz, final: i.final })),
+  })),
+  { t: PRACTICE_TITLE, practice: true, items: SIM_CHAPTERS.map((c) => ({ id: simItemId(c), t: SIM_CHAPTER_TITLES[c], k: "Симулятор", m: "3 мин" })) },
+];
+
+export const FLAT: AcadItem[] = MODULES.flatMap((m) => m.items);
+export const TESTS: AcadItem[] = FLAT.filter((i) => i.quiz);
+
+/** Отметки тренажёра этого аккаунта в браузере (ключ — как в движке: sz-done:<аккаунт>). */
+function localSimKeys(accountId: string): string[] {
+  if (typeof window === "undefined") return [];
   try {
-    const d = JSON.parse(window.localStorage.getItem("sz-done") || "[]") as string[];
-    return SIM_CHAPTERS.filter((c) => d.includes(`auto:${c}:try`)).length;
+    const d = JSON.parse(window.localStorage.getItem(`sz-done:${accountId}`) || "[]");
+    return Array.isArray(d) ? d : [];
   } catch {
-    return 0;
+    return [];
   }
 }
 
@@ -64,22 +71,36 @@ export interface AcadProgress {
   testsDone: number;
   tests: number;
   next: AcadItem | null;
+  /** Глав тренажёра, пройденных самостоятельно. */
   sim: number;
+  /** Итоговая аттестация сдана. */
+  certified: boolean;
+  /**
+   * Этап: start — не начинал; theory — теория и тесты; practice — аттестация сдана,
+   * идёт практика в Скорозвоне; done — всё пройдено, допуск к линии.
+   */
+  stage: "start" | "theory" | "practice" | "done";
 }
 
-/** Прогресс аккаунта по курсу «Авто». sim — главы тренажёра (только для своего аккаунта в браузере). */
-export function acadProgress(learn: LearnProgress[], accountId: string, sim = 0): AcadProgress {
+/**
+ * Прогресс аккаунта по курсу «Авто». local — свой аккаунт в этом браузере: главы
+ * тренажёра берём и из браузера (запись в CRM догоняет через секунду).
+ */
+export function acadProgress(learn: LearnProgress[], accountId: string, local = false): AcadProgress {
   const recs = new Map(learn.filter((l) => l.accountId === accountId && l.courseId === ACAD_COURSE).map((l) => [l.itemId, l]));
-  // главы тренажёра: свои — из браузера, чужие — из записи "sim" (её пишет страница обучения)
-  const simRec = recs.get("sim");
-  sim = Math.max(sim, SIM_CHAPTERS.filter((c) => simRec?.checks?.includes(`auto:${c}:try`)).length);
+  const simKeys = new Set([...(recs.get("sim")?.checks ?? []), ...(local ? localSimKeys(accountId) : [])]);
+  const tried = (ch: string) => simKeys.has(`auto:${ch}:try`);
   const isDone = (id: string) => {
+    const ch = simChOf(id);
+    if (ch) return tried(ch);
     const r = recs.get(id);
     const it = FLAT.find((x) => x.id === id);
-    if (id === "sim") return !!r?.done || sim === SIM_CHAPTERS.length;
     return it?.quiz ? !!r?.pass : !!r?.done;
   };
   const done = FLAT.filter((i) => isDone(i.id)).length;
+  const next = FLAT.find((i) => !isDone(i.id)) ?? null;
+  const fin = FLAT.find((i) => i.final);
+  const certified = !!fin && isDone(fin.id);
   return {
     isDone,
     done,
@@ -87,8 +108,10 @@ export function acadProgress(learn: LearnProgress[], accountId: string, sim = 0)
     pct: FLAT.length ? done / FLAT.length : 0,
     testsDone: TESTS.filter((i) => isDone(i.id)).length,
     tests: TESTS.length,
-    next: FLAT.find((i) => !isDone(i.id)) ?? null,
-    sim,
+    next,
+    sim: SIM_CHAPTERS.filter(tried).length,
+    certified,
+    stage: !next ? "done" : certified ? "practice" : done > 0 || simKeys.size > 0 ? "theory" : "start",
   };
 }
 
@@ -107,7 +130,7 @@ export const ACAD_NAV: { g: string; items: AcadNavItem[] }[] = [
     items: [
       { r: "home", t: "Главная", i: "home", hint: "Рабочий стол: следующий шаг и прогресс" },
       { r: "course", t: "Курс «Авто»", i: "cap", hint: "Все модули по порядку", count: (p) => `${p.done}/${p.total}` },
-      { r: "sim", t: "Скорозвон", i: "phone", hint: "Тренажёр Скорозвона", count: (p) => `${p.sim}/5` },
+      { r: "sim", t: "Скорозвон", i: "phone", hint: "Тренажёр Скорозвона — в курсе это практика после аттестации", count: (p) => `${p.sim}/5` },
       { r: "tests", t: "Тесты", i: "test", hint: "Тесты модулей и аттестация", count: (p) => `${p.testsDone}/${p.tests}` },
       { r: "progress", t: "Мой прогресс", i: "target", hint: "Что пройдено и что осталось" },
     ],

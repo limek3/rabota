@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { homeFor } from "@/lib/crm/access";
-import { ACAD_NAV, acadActive, acadProgress, simChaptersDone } from "@/lib/academy/course";
+import { ACAD_NAV, acadActive, acadProgress } from "@/lib/academy/course";
 import { Icon } from "@/components/ui/icons";
 import { Progress } from "@/components/ui/kit";
 
@@ -43,7 +43,7 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
   useEffect(() => setHash(window.location.hash), [pathname]);
 
   const prog = useMemo(
-    () => acadProgress(data.learn, me.id, simChaptersDone()),
+    () => acadProgress(data.learn, me.id, true),
     // tick — тренажёр пишет свои главы в браузер и сообщает об этом событием
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data.learn, me.id, tick],

@@ -3,16 +3,18 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
-import { ACAD_COURSE, FLAT, MODULES, SIM_CHAPTERS, SIM_CHAPTER_TITLES, TESTS, acadProgress } from "@/lib/academy/course";
-import type { LearnProgress, Operator } from "@/lib/crm/types";
+import { ACAD_COURSE, FLAT, MODULES, PRACTICE_TITLE, SIM_CHAPTERS, SIM_CHAPTER_TITLES, TESTS, acadProgress } from "@/lib/academy/course";
+import type { Account, LearnProgress, Operator } from "@/lib/crm/types";
+import { canTouchOp } from "@/lib/crm/access";
 import { Avatar, Progress } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 import { RoleChip } from "@/components/app/AccountMenu";
 
 /**
  * «Обучение команды» — руководитель видит, на каком этапе каждый стажёр и оператор:
- * прогресс курса «Авто», тесты (лучший и последний результат, попытки), главы
- * тренажёра Скорозвона и когда человек последний раз занимался.
+ * теория и тесты → аттестация → практика в Скорозвоне → «Готов к линии». Тесты (лучший
+ * и последний результат, попытки), главы тренажёра и когда человек последний раз занимался.
+ * Стажёра, прошедшего всё, можно одной кнопкой перевести в операторы.
  *
  * Данные — записи learn из CRM; они приходят по подписке Supabase, поэтому страница
  * обновляется сама, пока человек учится. Супервайзер видит свои группы, наставник — свою.
@@ -35,6 +37,7 @@ function ago(iso: string | null, now: number): string {
 
 interface Row {
   op: Operator;
+  acc: Account | null;
   accountId: string | null;
   trainee: boolean;
   group: string;
@@ -46,7 +49,7 @@ interface Row {
 }
 
 export default function TeamLearningPage() {
-  const { data, full, access } = useCrm();
+  const { data, full, access, saveOperator, saveAccount, confirm, toast } = useCrm();
   const router = useRouter();
   const allowed = !access.isOp || access.isMentor;
   useEffect(() => {
@@ -73,11 +76,12 @@ export default function TeamLearningPage() {
         const acc = full.accounts.find((a) => a.operatorId === op.id && !a.deletedAt) ?? null;
         const mine = acc ? data.learn.filter((l) => l.accountId === acc.id && l.courseId === ACAD_COURSE) : [];
         const recs = new Map(mine.map((l) => [l.itemId, l]));
-        const prog = acc ? acadProgress(data.learn, acc.id, 0) : null;
+        const prog = acc ? acadProgress(data.learn, acc.id) : null;
         const last = mine.reduce<string | null>((m, l) => (!m || (l.updatedAt ?? "") > m ? l.updatedAt ?? m : m), null);
         const bests = TESTS.map((t) => recs.get(t.id)?.best).filter((x): x is number => typeof x === "number");
         return {
           op,
+          acc,
           accountId: acc?.id ?? null,
           trainee: op.role === "trainee",
           group: op.groupId ? groups.get(op.groupId) ?? "—" : "без группы",
@@ -99,6 +103,23 @@ export default function TeamLearningPage() {
   const avg = base.length ? base.reduce((s, r) => s + (r.prog?.pct ?? 0), 0) / base.length : 0;
   const finalTest = FLAT.find((i) => i.final);
   const certified = finalTest ? base.filter((r) => r.recs.get(finalTest.id)?.pass).length : 0;
+  const ready = trainees.filter((r) => r.prog?.stage === "done").length;
+
+  const canPromote = (r: Row) => r.trainee && access.can.manageOperators && canTouchOp(access, r.op.id);
+  /** Стажёр прошёл всё — роль «стажёр» в карточке меняется на «оператор», открываются рабочие разделы. */
+  const promote = async (r: Row) => {
+    const ok = await confirm({
+      title: `Перевести ${r.op.name} в операторы?`,
+      text: "Теория, аттестация и практика в Скорозвоне пройдены. В карточке роль «стажёр» сменится на «оператор» — откроются лиды, план, график и заработок. Обучение останется доступным.",
+      ok: "Перевести",
+    });
+    if (!ok) return;
+    const saved = await saveOperator({ ...r.op, role: "operator" });
+    if (!saved) return;
+    // стартовая страница стажёра — обучение; оператору — личный кабинет
+    if (r.acc && access.can.manageAccounts && r.acc.prefs?.homePage === "/learn") await saveAccount({ ...r.acc, prefs: { ...r.acc.prefs, homePage: "/me" } });
+    toast(`${r.op.name} — теперь оператор`);
+  };
 
   if (!allowed) return null;
 
@@ -128,7 +149,8 @@ export default function TeamLearningPage() {
         <Kpi icon="users" label={scope === "trainee" ? "Стажёров" : "Операторов"} value={String(base.length)} sub={scope === "trainee" ? "роль «стажёр» в карточке" : "без уволенных"} />
         <Kpi icon="play" label="Учатся сейчас" value={String(live)} sub={`активность за ${LIVE_MIN} мин`} tone={live ? "good" : undefined} />
         <Kpi icon="target" label="Средний прогресс" value={`${Math.round(avg * 100)}%`} sub={`курса «Авто», ${FLAT.length} материалов`} />
-        <Kpi icon="star" label="Сдали аттестацию" value={`${certified} из ${base.length}`} sub={`курс пройден целиком: ${finished}`} />
+        <Kpi icon="star" label="Сдали аттестацию" value={`${certified} из ${base.length}`} sub={`и практику в Скорозвоне: ${finished}`} />
+        {scope === "trainee" && <Kpi icon="check" label="Готовы к линии" value={String(ready)} sub={ready ? "можно переводить в операторы" : "пока никто не прошёл всё"} tone={ready ? "good" : undefined} />}
       </div>
 
       <div className="card" style={{ overflow: "auto" }}>
@@ -169,7 +191,25 @@ export default function TeamLearningPage() {
                       {!r.accountId ? (
                         <span className="muted">нет аккаунта — заведите в Настройках</span>
                       ) : !p?.next ? (
-                        <span style={{ color: "var(--c-green-fg)", fontWeight: 600 }}>✓ Курс пройден</span>
+                        <span className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ color: "var(--c-green-fg)", fontWeight: 600 }}>✓ {r.trainee ? "Готов к линии" : "Курс пройден"}</span>
+                          {canPromote(r) && (
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void promote(r);
+                              }}
+                            >
+                              Перевести в операторы
+                            </button>
+                          )}
+                        </span>
+                      ) : p.stage === "practice" ? (
+                        <span>
+                          <span style={{ fontSize: 11.5, color: "var(--c-green-fg)", display: "block" }}>✓ Аттестация сдана · {PRACTICE_TITLE.toLowerCase()}</span>
+                          Глава {SIM_CHAPTERS.indexOf(p.next.id.slice(4)) + 1} из {SIM_CHAPTERS.length}: {p.next.t}
+                        </span>
                       ) : (
                         <span>
                           <span style={{ fontSize: 11.5, color: "var(--dim)", display: "block" }}>
@@ -289,7 +329,10 @@ function Detail({ r, now }: { r: Row; now: number }) {
           })}
         </div>
         <h3 className="card-title" style={{ marginTop: 16 }}>
-          Тренажёр Скорозвона
+          {PRACTICE_TITLE}
+          <span className="card-sub" style={{ margin: "0 0 0 8px", fontWeight: 400 }}>
+            {p.certified ? "после аттестации · засчитывается «Пройти самому»" : "откроется после аттестации · смотреть можно уже сейчас"}
+          </span>
         </h3>
         <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 8 }}>
           {SIM_CHAPTERS.map((c, i) => {

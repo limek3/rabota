@@ -8,7 +8,7 @@ import type { AccountRole, LearnProgress } from "@/lib/crm/types";
 import { fmtPct } from "@/lib/crm/format";
 import { Chip, Progress } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
-import { acadProgress, simChaptersDone } from "@/lib/academy/course";
+import { acadProgress } from "@/lib/academy/course";
 
 /**
  * Сводка по программе обучения аккаунта: сколько пройдено и что открыть дальше.
@@ -17,7 +17,7 @@ import { acadProgress, simChaptersDone } from "@/lib/academy/course";
  */
 export function learnSummary(accountId: string, role: AccountRole, learn: LearnProgress[], mine = false) {
   if (role === "operator") {
-    const a = acadProgress(learn, accountId, mine ? simChaptersDone() : 0);
+    const a = acadProgress(learn, accountId, mine);
     return {
       total: a.total,
       passed: a.done,

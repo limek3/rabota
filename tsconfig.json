@@ -18,7 +18,7 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next-preview/types/**/*.ts"],
   // vexa-dashboard-v30 — снимок старой версии приложения со своим package.json и
   // своим tsconfig. Корневой include ("**/*.tsx") затягивал его сюда, а его
   // "@/..." резолвились по корневым paths — то есть старый код собирался против

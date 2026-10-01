@@ -8,6 +8,8 @@ const { version } = createRequire(import.meta.url)("./package.json");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // отдельная папка сборки для второго dev-сервера (превью рядом с основным): NEXT_DIST_DIR=.next-preview
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // Static export so the Electron shell (electron/main.js) can serve ./out
   // without a Node server. `next dev` works as usual.
   output: "export",
