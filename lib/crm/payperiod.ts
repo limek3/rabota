@@ -9,6 +9,7 @@ import { round2 } from "./format";
  *
  *   Период     — payPeriodDays дней подряд от payPeriodStart (по умолчанию 14 от 22.09.2026);
  *   Выплата    — через payDelayDays дней после конца периода (05.10 → 09.10);
+ *   Реестр     — за REGISTRY_DAYS дня до выплаты подаём реестр сумм к переводу (вт → пт);
  *   Первый     — один раз длиннее: забирает всё отработанное до payPeriodStart (работать
  *                начали 16.09 — первая выплата 09.10 за 16.09–05.10).
  *
@@ -30,11 +31,19 @@ export interface PayPeriod {
   to: DayKey;
   /** День выплаты. */
   pay: DayKey;
+  /** День подачи реестра: суммы к переводу должны быть готовы. */
+  registry: DayKey;
   /** Первый период: забирает дни до from. */
   first: boolean;
 }
 
 const MS_DAY = 86_400_000;
+/** Реестр — за 3 дня до выплаты: выплата в пятницу, реестр во вторник. */
+export const REGISTRY_DAYS = 3;
+const registryOf = (to: DayKey, pay: DayKey): DayKey => {
+  const d = addDays(pay, -REGISTRY_DAYS);
+  return d > to ? d : addDays(to, 1) < pay ? addDays(to, 1) : pay;
+};
 const dayNum = (d: DayKey) => Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / MS_DAY);
 
 /**
@@ -43,11 +52,12 @@ const dayNum = (d: DayKey) => Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7)
  */
 export function periodAt(s: DataState["settings"], idx: number): PayPeriod {
   const list = s.paySchedule;
-  if (idx < list.length) return { idx, ...list[idx], first: idx === 0 };
+  if (idx < list.length) return { idx, ...list[idx], registry: registryOf(list[idx].to, list[idx].pay), first: idx === 0 };
   const origin = list.length ? addDays(list[list.length - 1].to, 1) : s.payPeriodStart;
   const from = addDays(origin, (idx - list.length) * s.payPeriodDays);
   const to = addDays(from, s.payPeriodDays - 1);
-  return { idx, from, to, pay: addDays(to, s.payDelayDays), first: idx === 0 };
+  const pay = addDays(to, s.payDelayDays);
+  return { idx, from, to, pay, registry: registryOf(to, pay), first: idx === 0 };
 }
 
 /** Номер периода, в который попадает день (всё до начала — первый период). */

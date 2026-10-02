@@ -437,3 +437,7 @@ export function fundForecast(
 export function costPerLead(p: Payroll): number {
   return safeDiv(p.total.gross, p.total.leads);
 }
+
+/** Налог самозанятого сверху: сумма к переводу = остаток + TAX_PCT%, до рубля. */
+export const TAX_PCT = 6;
+export const withTax = (n: number) => (n > 0.005 ? Math.round(n * (1 + TAX_PCT / 100)) : 0);

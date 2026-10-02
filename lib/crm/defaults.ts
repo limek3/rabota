@@ -74,6 +74,17 @@ export const DEFAULT_REGIONS: RegionSettings = {
 /** Отчёт РОП: лимиты себестоимости лида — авто не более 300 ₽, недвижимость не более 350 ₽. */
 export const DEFAULT_ROP: RopSettings = { telecomMonth: 0, overheadMonth: 0, capAuto: 300, capRe: 350, groupTrack: {}, hirePlan: {} };
 
+/**
+ * График выплат: периоды пн–вс, во вторник после периода — реестр сумм к переводу, в пятницу —
+ * выплата (вс → пт = 5 дней). Первый период длиннее и кончается в понедельник: 16.09–05.10,
+ * реестр 06.10, выплата 09.10. Второй добирает до воскресенья: 06.10–18.10 → 23.10.
+ * Дальше по правилу: 19.10–01.11 → 06.11 и т. д.
+ */
+export const PAY_SCHEDULE_2026: PaySlot[] = [
+  { from: "2026-09-16", to: "2026-10-05", pay: "2026-10-09" },
+  { from: "2026-10-06", to: "2026-10-18", pay: "2026-10-23" },
+];
+
 export const DEFAULT_SETTINGS: Settings = {
   companyName: "Отдел лидогенерации",
   reportMonth: "",
@@ -105,8 +116,8 @@ export const DEFAULT_SETTINGS: Settings = {
   prorateSalary: true,
   payPeriodStart: "2026-09-22",
   payPeriodDays: 14,
-  payDelayDays: 4,
-  paySchedule: [],
+  payDelayDays: 5,
+  paySchedule: PAY_SCHEDULE_2026,
   aheadPct: 110,
   normalPct: 95,
   lagPct: 80,
@@ -303,6 +314,11 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   s.payPeriodDays = Math.round(num(s.payPeriodDays, DEFAULT_SETTINGS.payPeriodDays, 7, 31));
   s.payDelayDays = Math.round(num(s.payDelayDays, DEFAULT_SETTINGS.payDelayDays, 0, 30));
   s.paySchedule = normalizeSchedule(s.paySchedule);
+  // прежнее правило (вт–пн, выплата через 4 дня) → пн–вс, реестр во вторник, выплата в пятницу
+  if (!s.paySchedule.length && s.payPeriodStart === "2026-09-22" && s.payPeriodDays === 14 && s.payDelayDays === 4) {
+    s.paySchedule = PAY_SCHEDULE_2026.map((r) => ({ ...r }));
+    s.payDelayDays = 5;
+  }
   s.leadRevenue = num(s.leadRevenue, DEFAULT_SETTINGS.leadRevenue, 0, 10_000_000);
   s.payrollCapPct = num(s.payrollCapPct, DEFAULT_SETTINGS.payrollCapPct, 0, 100);
   s.aheadPct = num(s.aheadPct, 110, 0, 1000);

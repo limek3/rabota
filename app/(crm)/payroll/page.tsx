@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCrm, type AdjustmentInput } from "@/lib/crm/store";
 import { approvePctFor, approvePctWhere, goneLast, incomeBySegment, incomePerLead, isGone, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
 import { isRegionalLead } from "@/lib/crm/regions";
-import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, payrollRow, type PayRow } from "@/lib/crm/payroll";
+import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, payrollRow, TAX_PCT, type PayRow } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
 import { fmtDate, fmtDayShort, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
@@ -18,6 +18,8 @@ import { ApproveMonthEditor } from "@/components/app/ApproveSettings";
 import { PayslipModal } from "@/components/app/Payslip";
 import { PayoutHistory, usePayouts } from "@/components/app/PayoutHistory";
 import { PeriodPayroll } from "@/components/app/PeriodPayroll";
+import { REGISTRY_DAYS } from "@/lib/crm/payperiod";
+import { TaxSum } from "@/components/app/TaxSum";
 
 const ADJ_TYPES: AdjustmentType[] = ["accrual", "bonus", "compensation", "correction", "deduction", "advance", "payout"];
 const ADJ_HUE: Record<AdjustmentType, string> = {
@@ -238,7 +240,7 @@ export default function PayrollPage() {
         title="Зарплата"
         sub={
           view === "periods"
-            ? data.settings.paySchedule.length ? "Выплаты по графику из Настроек → График выплат · считается из смен, лидов и корректировок" : `Выплаты раз в ${data.settings.payPeriodDays} дней: выплата через ${data.settings.payDelayDays} дн. после конца периода · считается из смен, лидов и корректировок`
+            ? data.settings.paySchedule.length ? `Выплаты по графику · реестр за ${REGISTRY_DAYS} дня до выплаты (остаток + ${TAX_PCT}%) · считается из смен, лидов и корректировок` : `Выплаты раз в ${data.settings.payPeriodDays} дней: выплата через ${data.settings.payDelayDays} дн. после конца периода · считается из смен, лидов и корректировок`
             : // до закрытия дня сегодняшние смены ещё идут — в ведомости их нет, и это надо видеть
           workedTo < today && month === today.slice(0, 7)
             ? `${fmtMonth(month)} · по ${fmtDayShort(workedTo)} включительно — смены за сегодня войдут в ${data.settings.dayCloseHour}:00`
@@ -332,6 +334,7 @@ export default function PayrollPage() {
                   <th className="r">К выплате</th>
                   <th className="r" title="Аванс + выплаты">Выплачено</th>
                   <th className="r" style={{ fontWeight: 700 }}>Остаток</th>
+                  <th className="r" title={`Остаток + ${TAX_PCT}% налога самозанятого — сумма к переводу`}>Налог +{TAX_PCT}%</th>
                   <th />
                 </tr>
               </thead>
@@ -363,6 +366,7 @@ export default function PayrollPage() {
                       <td className="r num">{fmtMoney(sec.total.net)}</td>
                       <td className="r num">{fmtMoney(sec.total.paid)}</td>
                       <td className="r num">{fmtMoney(sec.total.toPay)}</td>
+                      <td className="r num"><TaxSum value={sec.total.toPay} copy={false} /></td>
                       <td />
                     </tr>
                     {!closed &&
@@ -372,7 +376,7 @@ export default function PayrollPage() {
                         const firstGone = isGone(r.op) && (i === 0 || !isGone(sec.rows[i - 1].op));
                         return (
                         <Fragment key={r.op.id}>
-                        {firstGone && <GoneSepRow count={sec.rows.filter((x) => isGone(x.op)).length} colSpan={14} indent={28} />}
+                        {firstGone && <GoneSepRow count={sec.rows.filter((x) => isGone(x.op)).length} colSpan={15} indent={28} />}
                         <tr className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""} ${r.op.status === "fired" ? "row-stripe" : ""} ${f.className}`} style={f.style} onClick={() => setOpenId(r.op.id)}>
                           <td className="sticky-col" style={{ paddingLeft: 28 }}>
                             <span className="row" style={{ gap: 8 }}>
@@ -402,6 +406,7 @@ export default function PayrollPage() {
                           <td className="r num">{fmtMoney(r.net)}</td>
                           <td className="r num" title={adjTitle(r, ["advance", "payout"])}>{fmtMoney(r.paid)}</td>
                           <td className="r num" style={{ fontWeight: 600, color: r.toPay < 0 ? "var(--c-red-fg)" : undefined }}>{fmtMoney(r.toPay)}</td>
+                          <td className="r num" style={{ fontWeight: 600 }}><TaxSum value={r.toPay} /></td>
                           <td className="r" onClick={(e) => e.stopPropagation()}>
                             {canEditPay(access, r.op.id) && (
                               <span className="row-actions">
@@ -441,6 +446,7 @@ export default function PayrollPage() {
                   <td className="r num">{fmtMoney(vt.total.net)}</td>
                   <td className="r num">{fmtMoney(vt.total.paid)}</td>
                   <td className="r num">{fmtMoney(vt.total.toPay)}</td>
+                  <td className="r num"><TaxSum value={vt.total.toPay} copy={false} /></td>
                   <td />
                 </tr>
               </tfoot>
@@ -728,6 +734,15 @@ function PayDrawer({ row: r, planValue, onClose, onAdj, onPay }: { row: PayRow; 
               </button>
             )}
           </div>
+          {r.toPay > 0.005 && (
+            <div className="row" style={{ paddingTop: 6, fontSize: 13.5, gap: 10 }}>
+              <span style={{ flex: 1 }}>
+                С налогом +{TAX_PCT}%
+                <span style={{ display: "block", fontSize: 11.5, color: "var(--dim)" }}>сумма к переводу самозанятому</span>
+              </span>
+              <span className="num" style={{ fontWeight: 600 }}><TaxSum value={r.toPay} /></span>
+            </div>
+          )}
         </div>
 
         {r.sv && <SvCard r={r} />}

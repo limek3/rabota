@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { useCrm } from "@/lib/crm/store";
 import type { PayPeriod, PeriodRow } from "@/lib/crm/payperiod";
-import { hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered } from "@/lib/crm/payroll";
+import { TAX_PCT, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered } from "@/lib/crm/payroll";
 import { ADJ_LABEL, PAY_LABEL, type AdjustmentType, type DayKey } from "@/lib/crm/types";
 import { WEEKDAYS_SHORT, addDays, fmtDate, fmtMonth, isoWeekday } from "@/lib/crm/dates";
 import { fmtInt, fmtMoney, fmtNum, fmtPct } from "@/lib/crm/format";
@@ -13,6 +13,7 @@ import { Icon } from "@/components/ui/icons";
 import { tierRange } from "@/components/app/RateGrids";
 import { PayoutHistory } from "@/components/app/PayoutHistory";
 import { PeriodPayslipModal } from "@/components/app/Payslip";
+import { TaxSum } from "@/components/app/TaxSum";
 
 /**
  * Карточка сотрудника за период выплаты — как в зарплате за месяц: расчёт строками,
@@ -108,6 +109,15 @@ export function PeriodDrawer({ row: r, period, start, onClose, onPay }: { row: P
               </button>
             )}
           </div>
+          {r.toPay > 0.005 && (
+            <div className="row" style={{ paddingTop: 6, fontSize: 13.5, gap: 10 }}>
+              <span style={{ flex: 1 }}>
+                С налогом +{TAX_PCT}%
+                <span style={{ display: "block", fontSize: 11.5, color: "var(--dim)" }}>сумма к переводу самозанятому</span>
+              </span>
+              <span className="num" style={{ fontWeight: 600 }}><TaxSum value={r.toPay} /></span>
+            </div>
+          )}
           {r.kpiPending && (
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--dim)" }}>
               KPI за {fmtMonth(r.kpiPending).toLowerCase()} посчитается после закрытия месяца и придёт в выплату, в период которой попадёт 1-е число следующего месяца.

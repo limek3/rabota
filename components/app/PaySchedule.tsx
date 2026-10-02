@@ -3,7 +3,7 @@
 import { useCrm } from "@/lib/crm/store";
 import type { PaySlot, Settings } from "@/lib/crm/types";
 import { normalizeSchedule } from "@/lib/crm/defaults";
-import { periodAt, periodIndexOf, type PayPeriod } from "@/lib/crm/payperiod";
+import { REGISTRY_DAYS, periodAt, periodIndexOf, type PayPeriod } from "@/lib/crm/payperiod";
 import { WEEKDAYS_SHORT, fmtDate, isoWeekday } from "@/lib/crm/dates";
 import { Chip, Field, NumInput } from "@/components/ui/kit";
 import { DateInput } from "@/components/ui/select";
@@ -75,7 +75,7 @@ export function PayScheduleSection({ value: f, set, bare }: { value: Settings; s
         <Field label={manual ? "Дальше: длина периода, дней" : "Длина периода, дней"} hint="14 — выплата раз в две недели">
           <NumInput value={f.payPeriodDays} onChange={(v) => set("payPeriodDays", Math.max(7, Math.min(31, Math.round(v ?? 14))))} max={31} />
         </Field>
-        <Field label={manual ? "Дальше: выплата через, дней" : "Выплата через, дней"} hint="После конца периода: 05.10 → 09.10 — это 4 дня">
+        <Field label={manual ? "Дальше: выплата через, дней" : "Выплата через, дней"} hint={`После конца периода: вс 18.10 → пт 23.10 — это 5 дней. Реестр — за ${REGISTRY_DAYS} дня до выплаты`}>
           <NumInput value={f.payDelayDays} onChange={(v) => set("payDelayDays", Math.max(0, Math.min(30, Math.round(v ?? 4))))} max={30} />
         </Field>
       </div>
@@ -88,6 +88,7 @@ export function PayScheduleSection({ value: f, set, bare }: { value: Settings; s
               <th>Период с</th>
               <th>по</th>
               <th className="r">Дней</th>
+              <th title={`За ${REGISTRY_DAYS} дня до выплаты — суммы к переводу`}>Реестр</th>
               <th>Выплата</th>
               <th className="r" title="Сколько дней между концом периода и выплатой">После периода</th>
               <th />
@@ -108,6 +109,7 @@ export function PayScheduleSection({ value: f, set, bare }: { value: Settings; s
                   <DateInput size="sm" width={140} value={r.to} min={r.from} onChange={(v) => v && upd(i, { to: v })} ariaLabel="Конец периода" />
                 </td>
                 <td className="r num">{span(r.from, r.to) + 1}</td>
+                <td className="num muted">{fmtDate(periodAt(f, i).registry).slice(0, 5)} {wd(periodAt(f, i).registry)}</td>
                 <td>
                   <span className="row" style={{ gap: 8 }}>
                     <DateInput size="sm" width={140} value={r.pay} min={r.to} onChange={(v) => v && upd(i, { pay: v })} ariaLabel="День выплаты" />
@@ -129,6 +131,7 @@ export function PayScheduleSection({ value: f, set, bare }: { value: Settings; s
                 <td className="num">{fmtDate(p.from)}</td>
                 <td className="num">{fmtDate(p.to)}</td>
                 <td className="r num">{span(p.from, p.to) + 1}</td>
+                <td className="num">{fmtDate(p.registry).slice(0, 5)} {wd(p.registry)}</td>
                 <td>
                   <span className="row" style={{ gap: 8 }}>
                     <span className="num">{fmtDate(p.pay)}</span>

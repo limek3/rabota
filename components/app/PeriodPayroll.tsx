@@ -4,13 +4,14 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type React
 import { useCrm } from "@/lib/crm/store";
 import { goneLast, isGone, sumRange } from "@/lib/crm/calc";
 import { dataStart, defaultPeriod, periodAt, periodIndexOf, periodPayroll, periodsUpTo, type PayPeriod, type PeriodRow } from "@/lib/crm/payperiod";
-import { rowsTotal } from "@/lib/crm/payroll";
+import { TAX_PCT, rowsTotal, withTax } from "@/lib/crm/payroll";
 import { NO_GROUP_LABEL, PAY_LABEL, type Settings } from "@/lib/crm/types";
 import { WEEKDAYS_SHORT, addDays, addMonths, fmtDate, fmtMonth, isoWeekday, monthOf, monthStart } from "@/lib/crm/dates";
 import { fmtInt, fmtMoney, fmtNum, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, Empty, GoneSepRow, GoneTag, Kpi, Modal, Swatch, foldRow, useFoldGroups, useWheelHScroll } from "@/components/ui/kit";
 import { PayScheduleSection } from "@/components/app/PaySchedule";
 import { PeriodDrawer } from "@/components/app/PeriodDrawer";
+import { TaxSum } from "@/components/app/TaxSum";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canEditPay, canTouchOp } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -123,13 +124,17 @@ export function PeriodPayroll() {
   const leadsAll = sumRange(ix.day, prAll.start, leadsTo);
   const leadsOpen = leadsTo > ix.workedTo ? sumRange(ix.day, addDays(ix.workedTo, 1), leadsTo) : 0;
 
-  // статус периода: идёт / закрыт и ждёт выплаты / день выплаты / выплата прошла
+  // статус периода: идёт / закрыт, ждёт реестра / реестр сегодня / ждёт выплаты / день выплаты / выплата прошла
   const daysTo = Math.round((Date.parse(period.pay) - Date.parse(today)) / 86_400_000);
   const status =
     today <= period.to
-      ? { hue: "blue", text: `Идёт период · до ${dm(period.to)}` }
-      : today < period.pay
-        ? { hue: "amber", text: `Закрыт · выплата через ${daysTo} ${daysTo === 1 ? "день" : daysTo < 5 ? "дня" : "дней"}` }
+      ? { hue: "blue", text: `Идёт период · до ${dm(period.to)} · реестр ${dm(period.registry)} (${wd(period.registry)})` }
+      : today < period.registry
+        ? { hue: "amber", text: `Закрыт · реестр ${dm(period.registry)} (${wd(period.registry)})` }
+        : today === period.registry && today < period.pay
+          ? { hue: "amber", text: "Сегодня подать реестр" }
+          : today < period.pay
+        ? { hue: "amber", text: `Реестр подан · выплата через ${daysTo} ${daysTo === 1 ? "день" : daysTo < 5 ? "дня" : "дней"}` }
         : today === period.pay
           ? { hue: "amber", text: "Сегодня день выплаты" }
           : t.toPay > 0.005
@@ -192,8 +197,11 @@ export function PeriodPayroll() {
               {fmtDate(prAll.start)} – {fmtDate(period.to)} · {spanDays} дн.
               {period.first && prAll.start < period.from && <span className="muted"> — первый, поэтому длиннее обычного: с первого рабочего дня, дальше по {s.payPeriodDays} дн.</span>}
             </Line>
+            <Line k="Реестр">
+              {fmtDate(period.registry)} ({wd(period.registry)}) — суммы к переводу: остаток + {TAX_PCT}% налога самозанятого
+            </Line>
             <Line k="Выплата">
-              {fmtDate(period.pay)} ({wd(period.pay)}) — через {s.payDelayDays} дн. после конца периода
+              {fmtDate(period.pay)} ({wd(period.pay)}) — через {Math.round((Date.parse(period.pay) - Date.parse(period.to)) / 86_400_000)} дн. после конца периода
             </Line>
             <Line k="Операторы">часы и лиды закрытых дней периода; ставка часа и бонус за лид — по ступени сетки каждой смены</Line>
             <Line k="Оклад">по отработанным по графику дням: оклад ÷ рабочие дни месяца × отработанные дни периода</Line>
@@ -215,7 +223,7 @@ export function PeriodPayroll() {
                 <span>
                   {dm(p.from)} – {dm(p.to)}
                 </span>
-                <span className="muted">→</span>
+                <span className="muted">→ реестр {dm(p.registry)} ·</span>
                 <b>
                   {dm(p.pay)} ({wd(p.pay)})
                 </b>
@@ -232,6 +240,12 @@ export function PeriodPayroll() {
         <Kpi label="К выплате" value={fmtMoney(t.net)} sub={`в день выплаты ${dm(period.pay)}`} />
         <Kpi label="Уже выплачено" value={fmtMoney(t.paid)} sub={`аванс ${fmtMoney(t.adj.advance)}`} />
         <Kpi label="Остаток" value={fmtMoney(t.toPay)} sub={`${fmtInt(rowsVisible.filter((r) => r.toPay > 0.005).length)} чел. ждут выплаты`} tone={t.toPay > 0.005 && today > period.pay ? "bad" : undefined} />
+        <Kpi
+          label={`В реестр · +${TAX_PCT}%`}
+          value={fmtMoney(rowsVisible.reduce((a, r) => a + withTax(r.toPay), 0))}
+          sub={`подать ${dm(period.registry)} (${wd(period.registry)}) · выплата ${dm(period.pay)}`}
+          title={`Сумма к переводу: остаток каждого сотрудника + ${TAX_PCT}% налога самозанятого, до рубля`}
+        />
         <Kpi
           label="Лиды и часы"
           value={fmtInt(t.leads)}
@@ -276,6 +290,7 @@ export function PeriodPayroll() {
                   <th className="r">К выплате</th>
                   <th className="r">Выплачено</th>
                   <th className="r" style={{ fontWeight: 700 }}>Остаток</th>
+                  <th className="r" title={`Остаток + ${TAX_PCT}% налога самозанятого — сумма к переводу`}>Налог +{TAX_PCT}%</th>
                   <th />
                 </tr>
               </thead>
@@ -304,6 +319,7 @@ export function PeriodPayroll() {
                       <td className="r num">{fmtMoney(sec.total.net)}</td>
                       <td className="r num">{fmtMoney(sec.total.paid)}</td>
                       <td className="r num">{fmtMoney(sec.total.toPay)}</td>
+                      <td className="r num"><TaxSum value={sec.total.toPay} copy={false} /></td>
                       <td />
                     </tr>
                     {!closed &&
@@ -312,7 +328,7 @@ export function PeriodPayroll() {
                         const firstGone = isGone(r.op) && (i === 0 || !isGone(sec.rows[i - 1].op));
                         return (
                           <Fragment key={r.op.id}>
-                            {firstGone && <GoneSepRow count={sec.rows.filter((x) => isGone(x.op)).length} colSpan={13} indent={28} />}
+                            {firstGone && <GoneSepRow count={sec.rows.filter((x) => isGone(x.op)).length} colSpan={14} indent={28} />}
                             <tr className={`clickable ${f.className}`} style={f.style} onClick={() => setOpen(r.op.id)}>
                               <td className="sticky-col" style={{ paddingLeft: 28 }}>
                                 <span className="row" style={{ gap: 8 }}>
@@ -338,6 +354,7 @@ export function PeriodPayroll() {
                               <td className="r num" style={{ fontWeight: 600, color: r.toPay < -0.005 ? "var(--c-red-fg)" : r.toPay <= 0.005 && r.net > 0 ? "var(--c-green-fg)" : undefined }}>
                                 {r.toPay <= 0.005 && r.net > 0 ? "✓ 0 ₽" : fmtMoney(r.toPay)}
                               </td>
+                              <td className="r num" style={{ fontWeight: 600 }}><TaxSum value={r.toPay} /></td>
                               <td className="r" onClick={(e) => e.stopPropagation()}>
                                 {canEditPay(access, r.op.id) && r.toPay > 0.005 && (
                                   <span className="row-actions">
@@ -371,6 +388,7 @@ export function PeriodPayroll() {
                   <td className="r num">{fmtMoney(vt.net)}</td>
                   <td className="r num">{fmtMoney(vt.paid)}</td>
                   <td className="r num">{fmtMoney(vt.toPay)}</td>
+                  <td className="r num"><TaxSum value={vt.toPay} copy={false} /></td>
                   <td />
                 </tr>
               </tfoot>
