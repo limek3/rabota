@@ -79,7 +79,11 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
     } catch {
       /* нет хранилища — на стартовую */
     }
-    router.push(to && access.routes.has("/" + (to.split("/")[1] || "")) ? to : homeFor(access));
+    const route = "/" + (to.split("/")[1] || "");
+    let target = to && route !== "/learn" && access.routes.has(route) ? to : homeFor(access);
+    // «назад» никогда не ведёт обратно в обучение — иначе кнопка ничего не делает
+    if (target.startsWith("/learn")) target = ["/me", "/dashboard", "/leads"].find((r) => access.routes.has(r)) ?? "/settings";
+    router.push(target);
   };
 
   /* плашка активного пункта — как в основном меню */

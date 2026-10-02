@@ -3,6 +3,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
+import * as db from "@/lib/crm/db";
+import * as remote from "@/lib/crm/remote";
 import { ACAD_COURSE, FLAT, MODULES, PRACTICE_TITLE, SIM_CHAPTERS, SIM_CHAPTER_TITLES, TESTS, acadProgress } from "@/lib/academy/course";
 import type { Account, LearnProgress, Operator } from "@/lib/crm/types";
 import { canTouchOp } from "@/lib/crm/access";
@@ -117,7 +119,11 @@ export default function TeamLearningPage() {
     const saved = await saveOperator({ ...r.op, role: "operator" });
     if (!saved) return;
     // стартовая страница стажёра — обучение; оператору — личный кабинет
-    if (r.acc && access.can.manageAccounts && r.acc.prefs?.homePage === "/learn") await saveAccount({ ...r.acc, prefs: { ...r.acc.prefs, homePage: "/me" } });
+    // РОП меняет аккаунт сам; супервайзер — через функцию базы, только стартовую своего человека
+    if (r.acc && r.acc.prefs?.homePage === "/learn") {
+      if (access.can.manageAccounts) await saveAccount({ ...r.acc, prefs: { ...r.acc.prefs, homePage: "/me" } });
+      else if (db.REMOTE) await remote.traineeHome(r.op.id);
+    }
     toast(`${r.op.name} — теперь оператор`);
   };
 

@@ -343,6 +343,16 @@ export async function mergeUpload(state: DataState, myEmail: string): Promise<Re
   return counts;
 }
 
+/**
+ * Стажёр переведён в операторы: стартовая аккаунта «/learn» → «/me». Супервайзер чужие
+ * аккаунты не меняет — для этого функция crm_trainee_home (миграция 20261002000002).
+ * Нет функции или прав — false: стартовую «/learn» у оператора приложение и так обходит.
+ */
+export async function traineeHome(operatorId: string): Promise<boolean> {
+  const { error } = await supabase().rpc("crm_trainee_home", { p_operator_id: operatorId });
+  return !error;
+}
+
 /** Первый вход: если РОПа ещё нет — вошедший становится РОПом. Возвращает id своего аккаунта или null. */
 export async function bootstrap(name: string): Promise<string | null> {
   const { data, error } = await supabase().rpc("crm_bootstrap", { p_name: name });

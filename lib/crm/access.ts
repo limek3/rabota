@@ -310,7 +310,10 @@ export function scopeData(st: DataState, a: Access): DataState {
 export function homeFor(a: Access): string {
   if (a.isTrainee) return "/learn";
   const pref = a.account.prefs.homePage;
-  if (pref && a.routes.has(pref)) return pref;
+  // «/learn» — стартовая стажёра; после перевода в операторы её мог не сменить тот, кто
+  // переводил (у супервайзера нет прав на аккаунты), — тогда ведём в рабочие разделы
+  const traineeLeft = a.isOp && pref === "/learn";
+  if (pref && !traineeLeft && a.routes.has(pref)) return pref;
   if (a.isOp && a.routes.has("/me")) return "/me";
   return a.routes.has("/dashboard") ? "/dashboard" : "/leads";
 }
