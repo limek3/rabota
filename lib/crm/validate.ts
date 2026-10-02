@@ -19,7 +19,7 @@ import type {
 import { CANDIDATE_STAGES, LEAD_SOURCE, LEAD_STATUSES, NOTE_METRICS } from "./types";
 import { normalizePrefs, normalizeSettings, normalizeTiers } from "./defaults";
 import { isDayKey, isMonthKey, isStamp } from "./dates";
-import { normPhone } from "./format";
+import { capName, normPhone } from "./format";
 
 /**
  * Проверка целостности и приведение внешних данных (импорт/резервная копия).
@@ -144,7 +144,7 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
       .map((l) => ({
         id: str(l.id),
         at: str(l.at),
-        client: str(l.client),
+        client: capName(str(l.client)),
         phone: normPhone(str(l.phone)),
         projectId: l.projectId ? str(l.projectId) : null,
         operatorId: str(l.operatorId),

@@ -172,3 +172,25 @@ export function firstName(full: string): string {
   if (!parts.length) return "";
   return parts.length >= 3 ? parts[1] : parts[0];
 }
+
+/**
+ * Имя клиента с большой буквы: «василий» → «Василий», «анна-мария» → «Анна-Мария»,
+ * «СЕРГЕЙ» (капслок) → «Сергей». Остальное не трогаем: «Виталий Николаевич» как есть.
+ */
+export function capName(raw: string): string {
+  return (raw || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((w) =>
+      w
+        .split("-")
+        .map((p) => {
+          const caps = p.length > 2 && /\p{L}/u.test(p) && p === p.toUpperCase();
+          const s = caps ? p.toLowerCase() : p;
+          return s.charAt(0).toUpperCase() + s.slice(1);
+        })
+        .join("-"),
+    )
+    .join(" ");
+}

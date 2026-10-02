@@ -3,6 +3,7 @@
 import type { DataState, Settings } from "./types";
 import { emptyState, normalizeSettings } from "./defaults";
 import { cleanLeadExportLog, cleanLeadExports } from "./validate";
+import { capName } from "./format";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -81,6 +82,8 @@ export function fromRow<T>(table: Table, row: Record<string, unknown>): T {
       out[k] = def === NOW ? "" : def;
     } else out[k] = v;
   }
+  // имя клиента с большой буквы — и у старых лидов, записанных как попало
+  if (table === "leads" && typeof out.client === "string") out.client = capName(out.client);
   return out as T;
 }
 

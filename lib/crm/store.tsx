@@ -53,7 +53,7 @@ import { planId, shiftId, uniqueId } from "./ids";
 import * as db from "./db";
 import * as remote from "./remote";
 import { diffRecords, diffSettings, type AuditCtx } from "./audit";
-import { LEADS, SKOROZVON_LINK_EXAMPLE, fmtPhone, isSkorozvonLink, normLink, normPhone, plural, skorozvonLinkPhone } from "./format";
+import { LEADS, SKOROZVON_LINK_EXAMPLE, capName, fmtPhone, isSkorozvonLink, normLink, normPhone, plural, skorozvonLinkPhone } from "./format";
 import { cleanLeadExportLog, cleanLeadExports, counts, repair, sanitize, toSnapshot } from "./validate";
 import { stripDemo } from "./purge";
 import { syncClock } from "@/lib/clock";
@@ -681,7 +681,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const lead: Lead = {
         id: prev?.id ?? uniqueId("ld", new Set(st.leads.map((l) => l.id))),
         at,
-        client: input.client.trim(),
+        client: capName(input.client),
         phone: normPhone(input.phone),
         projectId: input.projectId || null,
         operatorId: input.operatorId,
