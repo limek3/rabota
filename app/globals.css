@@ -1624,3 +1624,44 @@ button {
   --sch-pre-bg: transparent;
   --sch-pre-line: rgba(160, 160, 160, 0.11);
 }
+
+/* ── фирменные галочки ─────────────────────────────────────────────────
+   Нативный чекбокс в каждой ОС свой и в тёмной теме приезжает белым квадратом.
+   Рисуем сами: рамка в тон интерфейса, отмеченный — заливка акцентом (--brand)
+   и галочка цветом текста на акценте (--on-brand): в светлой теме чёрный квадрат
+   с белой галочкой, в тёмной — светлый с тёмной. «Отмечены не все» — черта.
+   Переключатель (Switch, .sw) — свой вид, его не трогаем. */
+input[type="checkbox"]:not(.sw input) {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border-radius: 4px;
+  border: 1.5px solid var(--ink-25);
+  background: var(--bg-panel);
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+input[type="checkbox"]:not(.sw input)::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: var(--on-brand);
+  clip-path: polygon(12% 48%, 0 62%, 40% 100%, 100% 22%, 87% 9%, 39% 72%);
+  transform: scale(0);
+  transition: transform 120ms var(--ease);
+}
+input[type="checkbox"]:not(.sw input):hover:not(:disabled) { border-color: var(--ink-35); }
+input[type="checkbox"]:not(.sw input):checked,
+input[type="checkbox"]:not(.sw input):indeterminate { background: var(--brand); border-color: var(--brand); }
+input[type="checkbox"]:not(.sw input):checked::after { transform: scale(1); }
+input[type="checkbox"]:not(.sw input):indeterminate::after { clip-path: none; width: 8px; height: 2px; border-radius: 1px; transform: scale(1); }
+input[type="checkbox"]:not(.sw input):focus-visible { outline: none; box-shadow: 0 0 0 3px var(--brand-tint); border-color: var(--brand-border); }
+input[type="checkbox"]:not(.sw input):checked:focus-visible { border-color: var(--brand); }
+input[type="checkbox"]:not(.sw input):disabled { opacity: 0.45; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { input[type="checkbox"]:not(.sw input)::after { transition: none; } }

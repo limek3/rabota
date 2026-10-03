@@ -82,7 +82,7 @@ export function AuditLog() {
     <section className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 className="card-title" style={{ fontSize: 15 }}>
+          <h2 className="card-title">
             <Icon name="list" size={15} className="title-ic" />Журнал изменений
           </h2>
           <p className="card-sub">

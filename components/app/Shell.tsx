@@ -444,7 +444,8 @@ export function Shell({ children }: { children: ReactNode }) {
               marginLeft: 0,
             }}
           >
-            <div id="app-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative" }}>
+            {/* место под полосу прокрутки держим всегда: иначе короткие и длинные страницы стоят по-разному и при переходе контент прыгает */}
+            <div id="app-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative", scrollbarGutter: "stable" }}>
               <div className="app-content" style={{ padding: "24px 30px 48px", maxWidth: 1680, margin: "0 auto" }}>
                 <Body>{children}</Body>
               </div>

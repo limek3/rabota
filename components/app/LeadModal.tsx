@@ -1,18 +1,26 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useCrm, type LeadPreset } from "@/lib/crm/store";
 import type { Lead, LeadStatus } from "@/lib/crm/types";
 import { LEAD_SOURCE, LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
-import { Avatar, Field, LeadStatusChip, Modal } from "@/components/ui/kit";
+import { Avatar, Chip, Modal, RegionTag } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canCreateLeadFor, canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
 import { SKOROZVON_LINK_EXAMPLE, fmtPhone, isSkorozvonLink, normLink, normPhone, shortName, skorozvonLinkPhone } from "@/lib/crm/format";
-import { fmtStamp, nowStamp } from "@/lib/crm/dates";
+import { fmtDate, fmtDay, fmtStamp, nowStamp } from "@/lib/crm/dates";
 import { hasLeadLinkColumn, hasLeadRegionColumn } from "@/lib/crm/remote";
 import { SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
+
+/**
+ * Лид в новом виде. Одна логика (useLeadDraft) — два места:
+ *  • LeadPanel — панель справа на странице «Лиды»: сверху действия СВ (статус, Скорозвон),
+ *    ниже данные лида (правятся на месте, «Сохранить» появляется, когда что-то поменяли);
+ *  • LeadModal — попап: новый лид (оператор записывает передачу) или лид, открытый с другой страницы.
+ * Прежнее окно — LeadModalClassic.tsx.
+ */
 
 const LAST_OP = "leadup.lastOperator";
 const LAST_PR = "leadup.lastProject";
@@ -33,12 +41,26 @@ function remember(key: string, v: string) {
   }
 }
 
-export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPreset }) {
-  const { data, full, ix, closeModal, saveLead, setLeadStatus, deleteLead, confirm, toast, access, me, remote } = useCrm();
-  // в Supabase ещё нет колонки для ссылки (не выполнен SQL) — предупреждаем у самого поля
-  const linkNotStored = remote && !hasLeadLinkColumn();
+const STATUS_META: Record<LeadStatus, { icon: IconName; hint: string }> = {
+  work: { icon: "clock", hint: "Менеджер ещё работает. В факте и в оплате, пока не отклонён" },
+  done: { icon: "check", hint: "Менеджер подтвердил. В факте и в оплате оператора" },
+  failed: { icon: "close", hint: "Сорвался. Уходит из факта и из оплаты, нужна причина" },
+};
+
+/** Что изменится для оператора при смене статуса: было → станет. */
+const STATUS_EFFECT: Record<LeadStatus, Record<LeadStatus, string>> = {
+  work: { work: "", done: "Лид останется в факте и в оплате.", failed: "Лид уйдёт из факта и из оплаты оператора." },
+  done: { done: "", work: "Лид останется в факте, но снова ждёт проверки.", failed: "Лид уйдёт из факта и из оплаты оператора." },
+  failed: { failed: "", work: "Лид вернётся в факт и в оплату.", done: "Лид вернётся в факт и в оплату." },
+};
+
+/* ════════════════════════════════════════════════════════════════════
+   Черновик лида: поля, проверки, сохранение, удаление
+   ════════════════════════════════════════════════════════════════════ */
+
+function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
+  const { data, full, ix, saveLead, deleteLead, confirm, toast, access, me, remote } = useCrm();
   const s = data.settings;
-  // в списке — только те, за кого этот аккаунт может записывать лиды
   const liveOps = useMemo(
     () =>
       data.operators
@@ -47,16 +69,17 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     [data.operators, access],
   );
   const liveProjects = useMemo(() => data.projects.filter((p) => !p.deletedAt && p.active).sort((a, b) => a.sort - b.sort), [data.projects]);
+  const regionList = useMemo(() => [...s.regions.main, ...s.regions.regional], [s.regions]);
 
-  const initOp = () => {
+  const [operatorId, setOperatorId] = useState(() => {
     if (lead) return lead.operatorId;
     if (access.isOp && access.opId) return access.opId;
     if (preset?.operatorId) return preset.operatorId;
     const last = remembered(LAST_OP);
     if (last && liveOps.some((o) => o.id === last)) return last;
     return liveOps.length === 1 ? liveOps[0].id : "";
-  };
-  const initPr = () => {
+  });
+  const [projectId, setProjectId] = useState(() => {
     if (lead) return lead.projectId ?? "";
     if (preset?.projectId) return preset.projectId;
     const def = me.prefs.defaultProjectId;
@@ -64,62 +87,59 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     const last = remembered(LAST_PR);
     if (last && liveProjects.some((p) => p.id === last)) return last;
     return liveProjects.length === 1 ? liveProjects[0].id : "";
-  };
-
-  const [operatorId, setOperatorId] = useState(initOp);
-  const [projectId, setProjectId] = useState(initPr);
+  });
   const [client, setClient] = useState(lead?.client ?? preset?.client ?? "");
   const [phone, setPhone] = useState(lead ? fmtPhone(lead.phone) : preset?.phone ?? "");
   const [comment, setComment] = useState(lead?.comment ?? "");
   const [link, setLink] = useState(lead?.link ?? preset?.link ?? "");
-  // регион: у нового лида — последний выбранный (если он ещё в списках), у старого — свой
-  const regionList = useMemo(() => [...s.regions.main, ...s.regions.regional], [s.regions]);
   const [region, setRegion] = useState(() => {
     if (lead) return lead.region ?? "";
     if (preset?.region) return preset.region;
     const last = remembered(LAST_RG);
     return last && regionList.includes(last) ? last : "";
   });
-  // время нового лида, которое не трогали руками, берётся в момент записи, а не открытия окна
-  // оператор время не выбирает: его ставит система по серверу (МСК)
   const [groupId, setGroupId] = useState<string>(lead ? lead.groupId ?? "" : "");
-  const [status, setStatus] = useState<LeadStatus>(preset?.status ?? lead?.status ?? "work");
-  const [reason, setReason] = useState(lead?.statusReason ?? "");
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
-  const clientRef = useRef<HTMLInputElement>(null);
   const [added, setAdded] = useState(0);
+  // номер, который подставили из ссылки: новая ссылка его заменит, вписанный руками — нет
+  const autoPhone = useRef("");
+
+  const reset = () => {
+    if (!lead) return;
+    setOperatorId(lead.operatorId);
+    setProjectId(lead.projectId ?? "");
+    setClient(lead.client);
+    setPhone(fmtPhone(lead.phone));
+    setComment(lead.comment);
+    setLink(lead.link ?? "");
+    setRegion(lead.region ?? "");
+    setGroupId(lead.groupId ?? "");
+    setTried(false);
+  };
 
   // оператор из списка ушёл (удалён/уволен) — в режиме правки всё равно показываем его
-  const opOptions = useMemo(() => {
-    if (lead && !liveOps.some((o) => o.id === lead.operatorId)) {
+  const opOpts = useMemo<Opt[]>(() => {
+    const list = [...liveOps];
+    if (lead && !list.some((o) => o.id === lead.operatorId)) {
       const o = ix.opById.get(lead.operatorId);
-      if (o) return [...liveOps, o];
+      if (o) list.push(o);
     }
-    return liveOps;
+    return list.map((o) => ({
+      value: o.id,
+      label: shortName(o.name),
+      hint: [o.groupId ? ix.groupById.get(o.groupId)?.name ?? "" : "без группы", o.deletedAt ? "удалён" : o.status === "fired" ? "уволен" : ""].filter(Boolean).join(" · "),
+      icon: <Avatar name={o.name} id={o.id} size={20} />,
+    }));
   }, [lead, liveOps, ix]);
-  const projectOptions = useMemo(() => {
-    if (lead?.projectId && !liveProjects.some((p) => p.id === lead.projectId)) {
+  const projectOpts = useMemo<Opt[]>(() => {
+    const list = [...liveProjects];
+    if (lead?.projectId && !list.some((p) => p.id === lead.projectId)) {
       const p = data.projects.find((x) => x.id === lead.projectId);
-      if (p) return [...liveProjects, p];
+      if (p) list.push(p);
     }
-    return liveProjects;
+    return list.map((p) => ({ value: p.id, label: p.name + (p.deletedAt ? " (удалён)" : ""), icon: dot(p.color) }));
   }, [lead, liveProjects, data.projects]);
-
-  const opOpts = useMemo<Opt[]>(
-    () =>
-      opOptions.map((o) => ({
-        value: o.id,
-        label: shortName(o.name),
-        hint: [o.groupId ? ix.groupById.get(o.groupId)?.name ?? "" : "без группы", o.deletedAt ? "удалён" : o.status === "fired" ? "уволен" : ""].filter(Boolean).join(" · "),
-        icon: <Avatar name={o.name} id={o.id} size={20} />,
-      })),
-    [opOptions, ix],
-  );
-  const projectOpts = useMemo<Opt[]>(
-    () => projectOptions.map((p) => ({ value: p.id, label: p.name + (p.deletedAt ? " (удалён)" : ""), icon: dot(p.color) })),
-    [projectOptions],
-  );
   const groupOpts = useMemo<Opt[]>(
     () => [
       { value: "", label: NO_GROUP_LABEL, icon: dot("gray") },
@@ -129,7 +149,6 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     ],
     [data.groups, lead?.groupId],
   );
-
   const regionOpts = useMemo<Opt[]>(() => {
     const opts: Opt[] = [
       ...s.regions.main.map((r) => ({ value: r, label: r, group: "Основа", hint: SEGMENT_LABEL.main })),
@@ -140,76 +159,64 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
     return opts;
   }, [s.regions, region, regionList]);
 
-  // причины, которые уже писали, — подсказки, чтобы формулировки не расходились
-  const reasons = useMemo(() => {
-    const seen = new Set<string>();
-    for (let i = data.leads.length - 1; i >= 0 && seen.size < 40; i--) {
-      const l = data.leads[i];
-      if (l.status === "failed" && l.statusReason) seen.add(l.statusReason);
-    }
-    return Array.from(seen);
-  }, [data.leads]);
-
   const phoneNorm = normPhone(phone);
-  // для проверки дублей: время лида (у нового — «сейчас» по Москве)
   const at = lead?.at ?? nowStamp();
   const dup = useMemo(
     () => (phoneNorm.length >= 10 ? findDuplicate(data.leads, phoneNorm, at, s.duplicateDays, lead?.id) : null),
     [data.leads, phoneNorm, at, s.duplicateDays, lead?.id],
   );
 
-  const errOp = !operatorId ? "Выберите оператора" : null;
-  const errPr = liveProjects.length > 0 && !projectId ? "Выберите проект" : null;
-  // новый лид — только полный: клиент, телефон, ссылка. Старые записи без них правятся как раньше
+  // новый лид — только полный: клиент, телефон, ссылка, регион. Старые записи без них правятся как раньше
   const isNew = !lead;
   const linkNorm = normLink(link);
-  const errContact = isNew ? (!client.trim() ? "Укажите имя клиента" : null) : !client.trim() && !phoneNorm ? "Укажите имя клиента или телефон" : null;
-  const errPhone = isNew
-    ? !phone.trim()
-      ? "Укажите телефон"
-      : phoneNorm.length < 10
-        ? "Номер неполный"
-        : null
-    : phone.trim() && phoneNorm.length < 6
-      ? "Слишком короткий номер"
-      : null;
-  const errRegion = isNew && regionList.length > 0 && !region ? "Выберите регион" : null;
-  // ссылка — только из Скорозвона; проверяем у нового лида и если ссылку поменяли (старые записи правятся как раньше)
   const linkChanged = isNew || linkNorm !== (lead?.link ?? "");
   const linkPhone = skorozvonLinkPhone(linkNorm);
-  const errLink =
-    link.trim() && !linkNorm
-      ? "Не похоже на ссылку — вставьте адрес целиком"
-      : isNew && !linkNorm
-        ? "Вставьте ссылку на лид из Скорозвона"
-        : linkNorm && linkChanged && !isSkorozvonLink(linkNorm)
-          ? `Нужна ссылка из Скорозвона: ${SKOROZVON_LINK_EXAMPLE}`
-          : linkNorm && linkPhone && phoneNorm.length >= 10 && linkPhone !== phoneNorm && (linkChanged || phoneNorm !== normPhone(lead?.phone ?? ""))
-            ? `Ссылка от другого лида: в ней номер ${fmtPhone(linkPhone)}, а в лиде ${fmtPhone(phoneNorm)}`
-            : null;
-  const missing = isNew ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!errRegion && "регион"].filter(Boolean) : [];
-  const canReview = !!lead && canReviewLead(access, lead);
-  const errReason = canReview && status === "failed" && !reason.trim() ? "Укажите причину" : null;
-  const statusChanged = !!lead && (status !== lead.status || (status === "failed" && reason.trim() !== lead.statusReason));
-  const invalid = !!(errOp || errPr || errContact || errPhone || errLink || errRegion || errReason);
+  const err = {
+    op: !operatorId ? "Выберите оператора" : null,
+    pr: liveProjects.length > 0 && !projectId ? "Выберите проект" : null,
+    client: isNew ? (!client.trim() ? "Укажите имя клиента" : null) : !client.trim() && !phoneNorm ? "Укажите имя клиента или телефон" : null,
+    phone: isNew
+      ? !phone.trim()
+        ? "Укажите телефон"
+        : phoneNorm.length < 10
+          ? "Номер неполный"
+          : null
+      : phone.trim() && phoneNorm.length < 6
+        ? "Слишком короткий номер"
+        : null,
+    region: isNew && regionList.length > 0 && !region ? "Выберите регион" : null,
+    link:
+      link.trim() && !linkNorm
+        ? "Не похоже на ссылку — вставьте адрес целиком"
+        : isNew && !linkNorm
+          ? "Вставьте ссылку на лид из Скорозвона"
+          : linkNorm && linkChanged && !isSkorozvonLink(linkNorm)
+            ? `Нужна ссылка из Скорозвона: ${SKOROZVON_LINK_EXAMPLE}`
+            : linkNorm && linkPhone && phoneNorm.length >= 10 && linkPhone !== phoneNorm && (linkChanged || phoneNorm !== normPhone(lead?.phone ?? ""))
+              ? `Ссылка от другого лида: в ней номер ${fmtPhone(linkPhone)}, а в лиде ${fmtPhone(phoneNorm)}`
+              : null,
+  };
+  const invalid = Object.values(err).some(Boolean);
+  const missing = isNew ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!err.region && "регион"].filter(Boolean) : [];
 
-  const submit = async (more: boolean) => {
+  const dirty =
+    !!lead &&
+    (operatorId !== lead.operatorId ||
+      projectId !== (lead.projectId ?? "") ||
+      client !== lead.client ||
+      phoneNorm !== normPhone(lead.phone) ||
+      comment !== lead.comment ||
+      linkNorm !== (lead.link ?? "") ||
+      region !== (lead.region ?? "") ||
+      groupId !== (lead.groupId ?? ""));
+
+  const readOnly = !!lead && !canEditLead(access, lead, full);
+  const canDelete = !!lead && canEditLead(access, lead, full, true);
+
+  /** Сохранить поля. Новый лид: more — очистить форму под следующий. Возвращает, получилось ли. */
+  const save = async (more = false): Promise<boolean> => {
     setTried(true);
-    if (busy) return;
-    // проверяющий без прав на правку полей — сохраняем только статус
-    if (lead && readOnly) {
-      if (errReason) return;
-      if (statusChanged) {
-        setBusy(true);
-        const n = await setLeadStatus([lead.id], status, reason);
-        setBusy(false);
-        if (!n) return;
-        toast(`Статус: ${LEAD_STATUS_LABEL[status]}`);
-      }
-      closeModal();
-      return;
-    }
-    if (invalid) return;
+    if (busy || invalid || readOnly) return false;
     setBusy(true);
     const saved = await saveLead({
       id: lead?.id,
@@ -226,13 +233,17 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
       comment,
       ...(lead ? { groupId: groupId || null } : {}),
     });
-    if (saved && lead && canReview && statusChanged) await setLeadStatus([lead.id], status, reason);
     setBusy(false);
-    if (!saved) return;
+    if (!saved) return false;
     remember(LAST_OP, operatorId);
     if (projectId) remember(LAST_PR, projectId);
     if (region) remember(LAST_RG, region);
-    if (more && !lead) {
+    if (lead) {
+      toast("Лид изменён");
+      setTried(false);
+      return true;
+    }
+    if (more) {
       setAdded((n) => n + 1);
       toast(`Лид записан: ${shortName(ix.opById.get(operatorId)?.name ?? "")}`);
       setClient("");
@@ -240,318 +251,636 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
       setComment("");
       setLink("");
       setTried(false);
-      clientRef.current?.focus();
+      return true;
+    }
+    toast("Лид записан — показатели обновлены");
+    return true;
+  };
+
+  const remove = async (): Promise<boolean> => {
+    if (!lead) return false;
+    const ok = await confirm({ title: "Удалить лид?", text: "Удаляйте только ошибочно внесённые записи. Лид пропадёт из всех показателей.", ok: "Удалить", danger: true });
+    if (!ok) return false;
+    await deleteLead(lead.id);
+    return true;
+  };
+
+  return {
+    lead,
+    isNew,
+    s,
+    remote,
+    noOps: liveOps.length === 0 && !lead,
+    noProjects: liveProjects.length === 0,
+    f: { operatorId, projectId, client, phone, comment, link, region, groupId },
+    set: {
+      operatorId: (v: string) => {
+        setOperatorId(v);
+        // при правке: лид другого оператора — и группа его
+        if (lead) setGroupId(ix.opById.get(v)?.groupId ?? "");
+      },
+      projectId: setProjectId,
+      client: setClient,
+      phone: setPhone,
+      comment: setComment,
+      link: (v: string) => {
+        setLink(v);
+        const p = skorozvonLinkPhone(normLink(v));
+        if (p && (!phone.trim() || normPhone(phone) === autoPhone.current)) {
+          autoPhone.current = p;
+          setPhone(fmtPhone(p));
+        }
+      },
+      region: setRegion,
+      groupId: setGroupId,
+    },
+    opts: { op: opOpts, project: projectOpts, group: groupOpts, region: regionOpts },
+    phoneNorm,
+    linkNorm,
+    linkPhone,
+    dup,
+    err,
+    tried,
+    missing,
+    dirty,
+    readOnly,
+    canDelete,
+    busy,
+    added,
+    save,
+    remove,
+    reset,
+  };
+}
+type Draft = ReturnType<typeof useLeadDraft>;
+
+/* ════════════════════════════════════════════════════════════════════
+   Поля лида (общие для панели и попапа)
+   ════════════════════════════════════════════════════════════════════ */
+
+function F({ label, req, error, hint, children, wide }: { label: string; req?: boolean; error?: string | null; hint?: ReactNode; children: ReactNode; wide?: boolean }) {
+  return (
+    <label className={`lf-f${wide ? " wide" : ""}`}>
+      <span className="lf-l">
+        {label}
+        {req && <span className="req">*</span>}
+      </span>
+      {children}
+      {error ? <span className="field-err">{error}</span> : hint ? <span className="field-hint">{hint}</span> : null}
+    </label>
+  );
+}
+
+function Sec({ icon, title, right, children }: { icon: IconName; title: string; right?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="lf-sec">
+      <div className="l2-sec-t">
+        <Icon name={icon} size={14} /> {title}
+        {right && <span style={{ marginLeft: "auto" }}>{right}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function LinkInput({ d }: { d: Draft }) {
+  return (
+    <div className="lead-link">
+      <Icon name="link" size={15} />
+      <input
+        className="inp"
+        value={d.f.link}
+        onChange={(e) => d.set.link(e.target.value)}
+        onBlur={() => d.linkNorm && d.set.link(d.linkNorm)}
+        placeholder="https://app.skorozvon.ru/#/leads/…"
+        inputMode="url"
+        spellCheck={false}
+        aria-invalid={d.tried && !!d.err.link}
+        readOnly={d.readOnly}
+      />
+      {d.linkNorm && (
+        <a className="btn btn-sm btn-ghost" href={d.linkNorm} target="_blank" rel="noreferrer noopener" title="Открыть в новой вкладке">
+          Открыть <Icon name="arrowR" size={12} />
+        </a>
+      )}
+    </div>
+  );
+}
+
+function regionHint(d: Draft): ReactNode {
+  if (d.remote && !hasLeadRegionColumn())
+    return <span style={{ color: "var(--c-red-fg)" }}>Регион пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260926000002_lead_region.sql</span>;
+  if (!d.f.region) return undefined;
+  return regionSegment(d.f.region, d.s) === "regional"
+    ? `Регионы: апрув ${d.s.regions.regionalApprovePct}%, ${d.s.regions.regionalLeadRevenue.toLocaleString("ru-RU")} ₽ за лид`
+    : "Основа: цена и апрув — как у проекта";
+}
+
+function dupHint(d: Draft, opName: (id: string) => string): ReactNode {
+  if (!d.dup) return undefined;
+  return (
+    <span style={{ color: "var(--c-amber-fg)" }}>
+      Номер уже передавали {fmtStamp(d.dup.at)} ({shortName(opName(d.dup.operatorId)) || "—"}). Не дубль ли?
+    </span>
+  );
+}
+
+/** Поля для правки: клиент, ссылка, оператор и проект, регион, группа, комментарий. */
+function LeadFields({ d, compact }: { d: Draft; compact?: boolean }) {
+  const { access, ix } = useCrm();
+  const linkNotStored = d.remote && !hasLeadLinkColumn();
+  const dh = dupHint(d, (id) => ix.opById.get(id)?.name ?? "");
+  const linkSec = (
+    <Sec icon="external" title="Лид в Скорозвоне">
+      <F
+        label="Ссылка на лид"
+        req={d.isNew}
+        wide
+        // не та ссылка (не Скорозвон, чужой номер) — видно сразу после вставки
+        error={d.tried || d.linkNorm ? d.err.link : null}
+        hint={
+          linkNotStored ? (
+            <span style={{ color: "var(--c-red-fg)" }}>Ссылка пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260925000001_lead_link_time.sql</span>
+          ) : d.isNew ? (
+            "Скопируйте адрес лида из Скорозвона — номер подставится сам"
+          ) : undefined
+        }
+      >
+        <LinkInput d={d} />
+      </F>
+    </Sec>
+  );
+  // новый лид: сначала ссылка из Скорозвона — номер из неё подставится сам
+  return (
+    <>
+      {d.isNew && linkSec}
+      <Sec icon="user" title="Клиент">
+        <div className="lf-grid">
+          <F label="Имя" req={d.isNew} error={d.tried ? d.err.client : null}>
+            <input className="inp" value={d.f.client} onChange={(e) => d.set.client(e.target.value)} placeholder="Имя клиента" readOnly={d.readOnly} />
+          </F>
+          <F label="Телефон" req={d.isNew} error={d.tried ? d.err.phone : null} hint={dh}>
+            <input
+              className="inp"
+              value={d.f.phone}
+              onChange={(e) => d.set.phone(e.target.value)}
+              onBlur={() => d.phoneNorm.length === 11 && d.set.phone(fmtPhone(d.phoneNorm))}
+              placeholder="+7 900 000-00-00"
+              inputMode="tel"
+              aria-invalid={d.tried && !!d.err.phone}
+              readOnly={d.readOnly}
+            />
+          </F>
+        </div>
+      </Sec>
+
+      {!d.isNew && linkSec}
+
+      <Sec icon="folder" title="Оператор, проект и регион">
+        <div className="lf-grid">
+          <F label="Оператор" wide error={d.tried ? d.err.op : null}>
+            <Select value={d.f.operatorId} options={d.opts.op} onChange={d.set.operatorId} disabled={access.isOp || d.readOnly} invalid={d.tried && !!d.err.op} ariaLabel="Оператор" minPopWidth={300} />
+          </F>
+          <F label="Проект" error={d.tried ? d.err.pr : null} hint={d.noProjects ? "Справочник проектов пуст" : undefined}>
+            <Select value={d.f.projectId} options={d.opts.project} onChange={d.set.projectId} invalid={d.tried && !!d.err.pr} ariaLabel="Проект" disabled={d.readOnly} />
+          </F>
+          <F label="Регион" req={d.isNew} error={d.tried ? d.err.region : null} hint={regionHint(d)}>
+            <Select value={d.f.region} options={d.opts.region} onChange={d.set.region} invalid={d.tried && !!d.err.region} ariaLabel="Регион" disabled={d.readOnly} placeholder="Выберите регион" minPopWidth={240} />
+          </F>
+          {d.lead ? (
+            <F label="Группа на момент передачи" wide hint={compact ? undefined : "Меняется сама, если сменить оператора"}>
+              <Select value={d.f.groupId} options={d.opts.group} onChange={d.set.groupId} ariaLabel="Группа" disabled={d.readOnly || access.isOp} />
+            </F>
+          ) : (
+            <F label="Время передачи, МСК" wide hint="Ставится само в момент записи">
+              <div className="lead-time">
+                <Icon name="clock" size={14} />
+                сейчас {nowStamp().slice(11)}
+              </div>
+            </F>
+          )}
+        </div>
+      </Sec>
+
+      <Sec icon="doc" title="Комментарий оператора">
+        <textarea className="inp lf-ta" value={d.f.comment} onChange={(e) => d.set.comment(e.target.value)} rows={compact ? 2 : 3} placeholder="Что важно знать менеджеру" readOnly={d.readOnly} />
+      </Sec>
+    </>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Статус: быстрые действия СВ
+   ════════════════════════════════════════════════════════════════════ */
+
+/** Частые причины «не доведён» — по всем лидам, самые частые сверху. */
+function useFailReasons(): string[] {
+  const { data } = useCrm();
+  return useMemo(() => {
+    const cnt = new Map<string, number>();
+    for (let i = data.leads.length - 1, seen = 0; i >= 0 && seen < 400; i--) {
+      const l = data.leads[i];
+      if (l.status !== "failed" || !l.statusReason.trim()) continue;
+      seen++;
+      const r = l.statusReason.trim();
+      cnt.set(r, (cnt.get(r) ?? 0) + 1);
+    }
+    return [...cnt.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([r]) => r);
+  }, [data.leads]);
+}
+
+/**
+ * Статус лида тремя кнопками. «В работе» и «Доведён» ставятся сразу, «Не доведён» — после причины.
+ * failIntent — открыть сразу с причиной (из меню строки «Не доведён…»).
+ */
+function StatusActions({ lead, failIntent }: { lead: Lead; failIntent?: boolean }) {
+  const { access, setLeadStatus, toast } = useCrm();
+  const canReview = canReviewLead(access, lead);
+  const reasons = useFailReasons();
+  const [asking, setAsking] = useState(!!failIntent && canReview);
+  const [reason, setReason] = useState(lead.status === "failed" ? lead.statusReason : "");
+  const [busy, setBusy] = useState(false);
+  const inpRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (asking) inpRef.current?.focus();
+  }, [asking]);
+
+  const apply = async (st: LeadStatus, why = "") => {
+    if (busy) return;
+    setBusy(true);
+    const n = await setLeadStatus([lead.id], st, why);
+    setBusy(false);
+    if (!n) return;
+    toast(`Статус: ${LEAD_STATUS_LABEL[st]}`);
+    setAsking(false);
+  };
+  const pick = (st: LeadStatus) => {
+    if (st === "failed") {
+      setReason(lead.status === "failed" ? lead.statusReason : "");
+      setAsking(true);
       return;
     }
-    toast(lead ? "Лид изменён" : "Лид записан — показатели обновлены");
-    closeModal();
+    setAsking(false);
+    if (st !== lead.status) void apply(st);
   };
 
-  const canDelete = !!lead && canEditLead(access, lead, full, true);
-  const readOnly = !!lead && !canEditLead(access, lead, full);
+  return (
+    <div className="lf-status">
+      {canReview ? (
+        <div className="lf-st3" role="radiogroup" aria-label="Статус лида">
+          {LEAD_STATUSES.map((st) => {
+            const on = asking ? st === "failed" : lead.status === st;
+            return (
+              <button key={st} type="button" role="radio" aria-checked={on} data-hue={LEAD_STATUS_HUE[st]} className={on ? "on" : ""} onClick={() => pick(st)} disabled={busy} title={STATUS_META[st].hint}>
+                <Icon name={STATUS_META[st].icon} size={14} stroke={2.4} />
+                {LEAD_STATUS_LABEL[st]}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="row" style={{ gap: 8, flexWrap: "wrap", fontSize: 12.5 }}>
+          <Chip hue={LEAD_STATUS_HUE[lead.status]} dot>
+            {LEAD_STATUS_LABEL[lead.status]}
+          </Chip>
+          <span className="o2-muted">Статус ставит супервайзер группы или РОП</span>
+        </div>
+      )}
 
-  const onDelete = async () => {
-    if (!lead) return;
-    const ok = await confirm({ title: "Удалить лид?", text: "Удаляйте только ошибочно внесённые записи. Лид пропадёт из всех показателей.", ok: "Удалить", danger: true });
+      {asking && (
+        <div className="lf-why">
+          {lead.status !== "failed" && (
+            <div className="st-change" data-hue="red">
+              <Icon name="arrowR" size={14} />
+              <span>
+                <b>{LEAD_STATUS_LABEL[lead.status]}</b> → <b>Не доведён</b>. {STATUS_EFFECT[lead.status].failed}
+              </span>
+            </div>
+          )}
+          <span className="lf-l">Почему не доведён</span>
+          {reasons.length > 0 && (
+            <div className="lf-reasons">
+              {reasons.map((r) => (
+                <button key={r} type="button" className={reason.trim() === r ? "on" : ""} onClick={() => setReason(r)} title={r}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
+          <input
+            ref={inpRef}
+            className="inp"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={reasons.length ? "Или впишите свою причину" : "Причина — обязательно"}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && reason.trim()) void apply("failed", reason.trim());
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setAsking(false);
+              }
+            }}
+          />
+          <div className="row" style={{ gap: 8 }}>
+            <button type="button" className="o2-btn lf-danger" disabled={!reason.trim() || busy} onClick={() => void apply("failed", reason.trim())}>
+              <Icon name="close" size={13} stroke={2.4} />
+              {lead.status === "failed" ? "Сохранить причину" : "Не доведён"}
+            </button>
+            <button type="button" className="o2-btn" style={{ border: 0, background: "none", fontWeight: 500, color: "var(--text-sub)" }} onClick={() => setAsking(false)}>
+              Отмена
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!asking && lead.status === "failed" && lead.statusReason && (
+        <div className="lf-reason-now">
+          <span className="o2-muted">Причина:</span> {lead.statusReason}
+        </div>
+      )}
+      <div className="st-stamp">
+        {lead.statusBy || lead.statusAt ? (
+          <>
+            «{LEAD_STATUS_LABEL[lead.status]}»{lead.statusBy && <> — поставил(а) <b>{lead.statusBy}</b></>}
+            {lead.statusAt && <>, {fmtStamp(lead.statusAt)} МСК</>}
+          </>
+        ) : (
+          "Статус ещё не меняли — «В работе» с момента записи"
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Карточка существующего лида — тело (панель и попап)
+   ════════════════════════════════════════════════════════════════════ */
+
+function LeadBody({ d, lead, failIntent, compact }: { d: Draft; lead: Lead; failIntent?: boolean; compact?: boolean }) {
+  const { data, ix } = useCrm();
+  const op = ix.opById.get(lead.operatorId);
+  const g = lead.groupId ? ix.groupById.get(lead.groupId) : null;
+  const p = lead.projectId ? ix.projectById.get(lead.projectId) : null;
+  const exported = data.leadExports[lead.id];
+  const day = lead.at.slice(0, 10);
+
+  return (
+    <>
+      {/* действия — первыми: СВ открыл лид, проверил в Скорозвоне, поставил статус */}
+      <section className="lf-acts">
+        {lead.link ? (
+          <a className="o2-btn lf-sk" href={lead.link} target="_blank" rel="noreferrer noopener">
+            <Icon name="external" size={14} /> Открыть в Скорозвоне
+          </a>
+        ) : (
+          <span className="o2-btn lf-sk" style={{ opacity: 0.5 }} title="У лида нет ссылки">
+            <Icon name="external" size={14} /> Ссылки на Скорозвон нет
+          </span>
+        )}
+        <StatusActions key={`${lead.id}:${lead.status}:${lead.statusAt ?? ""}`} lead={lead} failIntent={failIntent} />
+      </section>
+
+      {d.readOnly ? (
+        <>
+          <section className="l2-grid">
+            <Fact icon="user" k="Клиент" v={<span className="l2-two"><span>{lead.client || "Без имени"}</span><span className="o2-muted num">{fmtPhone(lead.phone) || "номер не указан"}</span></span>} />
+            <Fact icon="user" k="Оператор" v={<span className="l2-two"><span>{op ? shortName(op.name) : "—"}</span><span className="o2-muted">{g ? g.name : NO_GROUP_LABEL}</span></span>} />
+            <Fact icon="folder" k="Проект" v={p ? <Chip hue={p.color}>{p.name}</Chip> : "Без проекта"} />
+            <Fact icon="pin" k="Регион" v={<RegionTag region={lead.region} />} />
+          </section>
+          <Sec icon="doc" title="Комментарий оператора">
+            <div className="l2-note">{lead.comment || <span className="o2-muted">Без комментария</span>}</div>
+          </Sec>
+        </>
+      ) : (
+        <LeadFields d={d} compact={compact} />
+      )}
+
+      <Sec icon="clock" title="История">
+        <div className="l2-hist">
+          <span>Передан</span>
+          <b>
+            {fmtDate(day)} в {lead.at.slice(11, 16)} МСК
+          </b>
+          <span>Записан</span>
+          <b>{fmtStamp(lead.createdAt)}</b>
+          <span>Источник</span>
+          <b>{lead.source || LEAD_SOURCE}</b>
+          {exported && (
+            <>
+              <span>Номер выгружен</span>
+              <b>{fmtStamp(exported)}</b>
+            </>
+          )}
+        </div>
+      </Sec>
+
+      {d.readOnly && (
+        <div className="o2-muted" style={{ fontSize: 11.5 }}>
+          Поля лида менять нельзя: у вашего аккаунта нет прав или истекло время на исправление.
+        </div>
+      )}
+    </>
+  );
+}
+
+function Fact({ icon, k, v }: { icon: IconName; k: string; v: ReactNode }) {
+  return (
+    <div className="l2-fact">
+      <span className="k">{k}</span>
+      <span className="v">
+        <Icon name={icon} size={15} />
+        <span style={{ minWidth: 0 }}>{v}</span>
+      </span>
+    </div>
+  );
+}
+
+/** Нижняя панель: удалить слева; «Сохранить», когда поля поменяли. */
+function SaveBar({ d, onDeleted, onCancel }: { d: Draft; onDeleted: () => void; onCancel?: () => void }) {
+  if (!d.dirty && !d.canDelete && !onCancel) return null;
+  return (
+    <div className="lf-bar">
+      {d.canDelete && (
+        <button type="button" className="o2-btn lf-del" onClick={async () => (await d.remove()) && onDeleted()} title="Удалить ошибочную запись">
+          <Icon name="trash" size={13} />
+          Удалить
+        </button>
+      )}
+      <span style={{ flex: 1 }} />
+      {d.dirty ? (
+        <>
+          <button type="button" className="o2-btn" onClick={d.reset} disabled={d.busy}>
+            Вернуть
+          </button>
+          <button type="button" className="o2-btn pri" onClick={() => void d.save()} disabled={d.busy} title="Ctrl+Enter">
+            <Icon name="check" size={13} /> Сохранить
+          </button>
+        </>
+      ) : (
+        onCancel && (
+          <button type="button" className="o2-btn" onClick={onCancel}>
+            Закрыть
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+function onCtrlEnter(fn: () => void) {
+  return (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      fn();
+    }
+  };
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Панель справа на странице «Лиды»
+   ════════════════════════════════════════════════════════════════════ */
+
+export function LeadPanel({ lead, onClose, failIntent }: { lead: Lead; onClose: () => void; failIntent?: boolean }) {
+  const d = useLeadDraft(lead);
+  const { ix } = useCrm();
+  const op = ix.opById.get(lead.operatorId);
+  return (
+    <aside className="card o2-side lf-side" onKeyDown={onCtrlEnter(() => d.dirty && void d.save())}>
+      <div className="o2-side-h">
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="nm">{lead.client || "Лид без имени"}</div>
+          <div className="gr">
+            {fmtPhone(lead.phone) || "номер не указан"} · {fmtDay(lead.at.slice(0, 10), true)}, {lead.at.slice(11, 16)}
+            {op ? ` · ${shortName(op.name)}` : ""}
+          </div>
+        </div>
+        <Chip hue={LEAD_STATUS_HUE[lead.status]} dot>
+          {LEAD_STATUS_LABEL[lead.status]}
+        </Chip>
+        <button className="x" onClick={onClose} aria-label="Закрыть" style={{ marginLeft: 6 }}>
+          <Icon name="close" size={16} />
+        </button>
+      </div>
+      <LeadBody d={d} lead={lead} failIntent={failIntent} compact />
+      <SaveBar d={d} onDeleted={onClose} />
+    </aside>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Попап: новый лид или лид, открытый с другой страницы
+   ════════════════════════════════════════════════════════════════════ */
+
+export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPreset }) {
+  const { closeModal, data } = useCrm();
+  // лид могли поменять, пока окно открыто (статус) — показываем свежий
+  const live = lead ? data.leads.find((l) => l.id === lead.id) ?? lead : null;
+  return live ? <LeadEditModal lead={live} failIntent={preset?.status === "failed"} onClose={closeModal} /> : <LeadCreateModal preset={preset} onClose={closeModal} />;
+}
+
+function LeadEditModal({ lead, failIntent, onClose }: { lead: Lead; failIntent?: boolean; onClose: () => void }) {
+  const d = useLeadDraft(lead);
+  return (
+    <Modal
+      title={
+        <span className="lf-mh">
+          {lead.client || "Лид без имени"}
+          <Chip hue={LEAD_STATUS_HUE[lead.status]} dot>
+            {LEAD_STATUS_LABEL[lead.status]}
+          </Chip>
+        </span>
+      }
+      onClose={onClose}
+      width={560}
+      footer={<SaveBar d={d} onDeleted={onClose} onCancel={onClose} />}
+    >
+      <div className="lf-body" onKeyDown={onCtrlEnter(() => d.dirty && void d.save())}>
+        <LeadBody d={d} lead={lead} failIntent={failIntent} />
+      </div>
+    </Modal>
+  );
+}
+
+function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: () => void }) {
+  const { access, ix } = useCrm();
+  const d = useLeadDraft(null, preset);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const op = ix.opById.get(d.f.operatorId);
+
+  const submit = async (more: boolean) => {
+    const ok = await d.save(more);
     if (!ok) return;
-    await deleteLead(lead.id);
-    closeModal();
+    if (more) bodyRef.current?.querySelector<HTMLInputElement>(".lead-link input")?.focus();
+    else onClose();
   };
 
-  const noOps = liveOps.length === 0 && !lead;
+  // курсор — сразу в ссылку из Скорозвона
+  useEffect(() => {
+    bodyRef.current?.querySelector<HTMLInputElement>(".lead-link input")?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Modal
-      title={lead ? "Лид" : "Передан лид"}
-      onClose={closeModal}
+      title={
+        <span className="lf-mh">
+          <span className="lf-mh-ic">
+            <Icon name="plus" size={15} stroke={2.4} />
+          </span>
+          Передан лид
+        </span>
+      }
+      onClose={onClose}
       width={560}
       footer={
-        noOps ? (
-          <button className="btn" onClick={closeModal}>
+        d.noOps ? (
+          <button className="o2-btn" onClick={onClose}>
             Закрыть
           </button>
         ) : (
-          <>
-            {canDelete && (
-              <button className="btn btn-danger" onClick={onDelete} style={{ marginRight: "auto" }}>
-                <Icon name="trash" size={14} /> Удалить
-              </button>
-            )}
-            {!lead && added > 0 && <span style={{ marginRight: "auto", fontSize: 12, color: "var(--dim)" }}>Записано в этой серии: {added}</span>}
-            <button className="btn" onClick={closeModal}>
+          <div className="lf-bar" style={{ margin: 0, padding: 0, border: 0, position: "static" }}>
+            {d.added > 0 && <span className="o2-muted" style={{ fontSize: 12 }}>Записано подряд: {d.added}</span>}
+            <span style={{ flex: 1 }} />
+            <button type="button" className="o2-btn" onClick={onClose}>
               Отмена
             </button>
-            {!lead && (
-              <button className="btn" onClick={() => void submit(true)} disabled={busy} title="Сохранить и сразу ввести следующий">
-                Сохранить и ещё
-              </button>
-            )}
-            {(!readOnly || canReview) && (
-              <button className="btn btn-primary" onClick={() => void submit(false)} disabled={busy} title="Ctrl+Enter">
-                {!lead ? "Записать лид" : statusChanged ? `Сохранить · «${LEAD_STATUS_LABEL[status]}»` : "Сохранить"}
-              </button>
-            )}
-          </>
+            <button type="button" className="o2-btn" onClick={() => void submit(true)} disabled={d.busy} title="Записать и сразу ввести следующий">
+              Записать и ещё
+            </button>
+            <button type="button" className="o2-btn pri" onClick={() => void submit(false)} disabled={d.busy} title="Ctrl+Enter">
+              <Icon name="check" size={13} /> Записать лид
+            </button>
+          </div>
         )
       }
     >
-      {noOps ? (
+      {d.noOps ? (
         <div style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.55 }}>
           {access.isOp
             ? "Ваш аккаунт не привязан к карточке оператора или запись лидов для операторов выключена. Обратитесь к руководителю."
             : "Сначала добавьте хотя бы одного активного оператора (в вашей зоне) — лид всегда привязан к оператору, который его передал."}
         </div>
       ) : (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              void submit(false);
-            }
-          }}
-          style={{ display: "flex", flexDirection: "column", gap: 12 }}
-        >
-          {lead &&
-            (canReview ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, borderRadius: 8, background: "var(--bg-strip)", border: "1px solid var(--ink-07)" }}>
-                <Field label="Статус лида">
-                  <StatusPicker value={status} current={lead.status} onChange={setStatus} />
-                </Field>
-                {statusChanged && status !== lead.status && (
-                  <div className="st-change" data-hue={LEAD_STATUS_HUE[status]}>
-                    <Icon name="arrowR" size={14} />
-                    <span>
-                      <b>{LEAD_STATUS_LABEL[lead.status]}</b> → <b>{LEAD_STATUS_LABEL[status]}</b>. {STATUS_EFFECT[lead.status][status]} Применится после «Сохранить».
-                    </span>
-                  </div>
-                )}
-                {status === "failed" && (
-                  <Field label="Причина — почему не доведён" error={tried ? errReason : null}>
-                    <input
-                      className="inp"
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      list="lead-fail-reasons"
-                      placeholder="Обязательно"
-                      autoFocus={preset?.status === "failed"}
-                      aria-invalid={tried && !!errReason}
-                    />
-                    <datalist id="lead-fail-reasons">
-                      {reasons.map((r) => (
-                        <option key={r} value={r} />
-                      ))}
-                    </datalist>
-                  </Field>
-                )}
-                <StatusStamp lead={lead} />
+        <div className="lf-body" ref={bodyRef} onKeyDown={onCtrlEnter(() => void submit(false))}>
+          {access.isOp && op && (
+            <div className="lf-who">
+              <Avatar name={op.name} id={op.id} size={30} />
+              <div>
+                <b>{op.name}</b>
+                <span>Лид запишется на вас · статус «В работе», доведён или нет — отметит супервайзер</span>
               </div>
-            ) : (
-              <div className="row" style={{ gap: 8, flexWrap: "wrap", fontSize: 12.5 }}>
-                <LeadStatusChip lead={lead} />
-                {lead.status === "failed" && lead.statusReason && <span>Причина: {lead.statusReason}</span>}
-                {lead.statusBy && <span style={{ color: "var(--dim)" }}>· {lead.statusBy}{lead.statusAt ? `, ${fmtStamp(lead.statusAt)} МСК` : ""}</span>}
-              </div>
-            ))}
-          <div className="grid2">
-            <Field label="Оператор" error={tried ? errOp : null}>
-              <Select
-                value={operatorId}
-                options={opOpts}
-                onChange={(v) => {
-                  setOperatorId(v);
-                  // при правке: лид другого оператора — и группа его
-                  if (lead) setGroupId(ix.opById.get(v)?.groupId ?? "");
-                }}
-                disabled={access.isOp || readOnly}
-                autoFocus={!operatorId}
-                invalid={tried && !!errOp}
-                ariaLabel="Оператор"
-                minPopWidth={320}
-              />
-            </Field>
-            <Field label="Проект" error={tried ? errPr : null} hint={liveProjects.length === 0 ? "Справочник проектов пуст — заполните в «Проектах»" : undefined}>
-              <Select value={projectId} options={projectOpts} onChange={setProjectId} invalid={tried && !!errPr} ariaLabel="Проект" disabled={readOnly} />
-            </Field>
-          </div>
-          <div className="grid2">
-            <Field label={isNew ? <Req>Клиент</Req> : "Клиент"} error={tried ? errContact : null}>
-              <input ref={clientRef} className="inp" value={client} onChange={(e) => setClient(e.target.value)} placeholder="Имя клиента" autoFocus={!!operatorId && preset?.status !== "failed"} />
-            </Field>
-            <Field
-              label={isNew ? <Req>Телефон</Req> : "Телефон"}
-              error={tried ? errPhone : null}
-              hint={
-                dup ? (
-                  <span style={{ color: "var(--c-amber-fg)" }}>
-                    Этот номер уже передавали {fmtStamp(dup.at)} ({shortName(ix.opById.get(dup.operatorId)?.name ?? "—")}). Проверьте, не дубль ли.
-                  </span>
-                ) : undefined
-              }
-            >
-              <input
-                className="inp"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                onBlur={() => phoneNorm.length === 11 && setPhone(fmtPhone(phoneNorm))}
-                placeholder="+7 900 000-00-00"
-                inputMode="tel"
-                aria-invalid={tried && !!errPhone}
-              />
-            </Field>
-          </div>
-          <Field
-            label={isNew ? <Req>Ссылка на лид</Req> : "Ссылка на лид"}
-            // не та ссылка (не Скорозвон, чужой номер) — видно сразу после вставки, не дожидаясь «Сохранить»
-            error={tried || linkNorm ? errLink : null}
-            hint={
-              linkNotStored ? (
-                <span style={{ color: "var(--c-red-fg)" }}>Ссылка пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260925000001_lead_link_time.sql</span>
-              ) : !tried || !errLink ? (
-                "Ссылка на лид в Скорозвоне (app.skorozvon.ru/#/leads/…) — чтобы супервайзер проверил в один клик"
-              ) : undefined
-            }
-          >
-            <div className="lead-link">
-              <Icon name="link" size={15} />
-              <input
-                className="inp"
-                value={link}
-                onChange={(e) => setLink(e.target.value)}
-                onBlur={() => linkNorm && setLink(linkNorm)}
-                placeholder="https://app.skorozvon.ru/#/leads/…"
-                inputMode="url"
-                spellCheck={false}
-                aria-invalid={tried && !!errLink}
-                readOnly={readOnly}
-              />
-              {linkNorm && (
-                <a className="btn btn-sm btn-ghost" href={linkNorm} target="_blank" rel="noreferrer noopener" title="Открыть в новой вкладке">
-                  Открыть <Icon name="arrowR" size={12} />
-                </a>
-              )}
-            </div>
-          </Field>
-          <div className="grid2">
-            <Field
-              label={isNew ? <Req>Регион</Req> : "Регион"}
-              error={tried ? errRegion : null}
-              hint={
-                remote && !hasLeadRegionColumn() ? (
-                  <span style={{ color: "var(--c-red-fg)" }}>Регион пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260926000002_lead_region.sql</span>
-                ) : region ? (
-                  (() => {
-                    const seg = regionSegment(region, s);
-                    return seg === "regional"
-                      ? `Регионы: апрув ${s.regions.regionalApprovePct}%, ${s.regions.regionalLeadRevenue.toLocaleString("ru-RU")} ₽ за лид`
-                      : "Основа: цена и апрув — как у проекта";
-                  })()
-                ) : undefined
-              }
-            >
-              <Select value={region} options={regionOpts} onChange={setRegion} invalid={tried && !!errRegion} ariaLabel="Регион" disabled={readOnly} placeholder="Выберите регион" />
-            </Field>
-            {/* время никто не выбирает: ставит сервер по Москве в момент записи, при правке не меняется */}
-            <Field label="Время передачи, МСК" hint={lead ? "Время записи менять нельзя" : "Ставится само в момент записи — по Москве, по часам сервера"}>
-              <div className="lead-time">
-                <Icon name="clock" size={14} />
-                {lead ? fmtStamp(lead.at) : `сейчас ${nowStamp().slice(11)}`}
-              </div>
-            </Field>
-            {lead && (
-              <Field label="Группа на момент передачи" hint="Меняется сама, если сменить оператора">
-                <Select value={groupId} options={groupOpts} onChange={setGroupId} ariaLabel="Группа" disabled={readOnly || access.isOp} />
-              </Field>
-            )}
-          </div>
-          <Field label="Комментарий оператора">
-            <textarea className="inp" value={comment} onChange={(e) => setComment(e.target.value)} rows={2} placeholder="Что важно знать менеджеру" />
-          </Field>
-          {missing.length > 0 && (
-            <div className="lead-missing">
-              <Icon name="alert" size={13} /> Чтобы записать лид, заполните: {missing.join(", ")}
             </div>
           )}
-          <div style={{ fontSize: 11.5, color: "var(--dim)" }}>
-            Источник: {LEAD_SOURCE}. {lead ? "" : "Новый лид попадает в статус «в работе» — доведён он или нет, отмечает супервайзер."}
-            {readOnly && (canReview ? " Поля лида менять нельзя — только статус." : " Изменить эту запись нельзя: у вашего аккаунта нет прав или истекло время на исправление.")}
-          </div>
-          <button type="submit" hidden />
-        </form>
+          <LeadFields d={d} />
+          {d.missing.length > 0 && (
+            <div className="lead-missing">
+              <Icon name="alert" size={13} /> Чтобы записать лид, заполните: {d.missing.join(", ")}
+            </div>
+          )}
+          <div style={{ fontSize: 11.5, color: "var(--dim)" }}>Источник: {LEAD_SOURCE}. Время ставится само — по Москве, по часам сервера.</div>
+        </div>
       )}
     </Modal>
-  );
-}
-
-/* ── статус лида: выбор карточками, что он значит и кто его поставил ── */
-
-const STATUS_META: Record<LeadStatus, { icon: IconName; hint: string }> = {
-  work: { icon: "clock", hint: "Передан, менеджер ещё работает. В факте и в оплате, пока не отклонён" },
-  done: { icon: "check", hint: "Менеджер подтвердил. В факте и в оплате оператора" },
-  failed: { icon: "close", hint: "Сорвался. Уходит из факта и из оплаты, нужна причина" },
-};
-
-/** Что изменится для оператора при смене статуса: было → станет. */
-const STATUS_EFFECT: Record<LeadStatus, Record<LeadStatus, string>> = {
-  work: { work: "", done: "Лид останется в факте и в оплате.", failed: "Лид уйдёт из факта и из оплаты оператора." },
-  done: { done: "", work: "Лид останется в факте, но снова ждёт проверки.", failed: "Лид уйдёт из факта и из оплаты оператора." },
-  failed: { failed: "", work: "Лид вернётся в факт и в оплату.", done: "Лид вернётся в факт и в оплату." },
-};
-
-function StatusPicker({ value, current, onChange }: { value: LeadStatus; current: LeadStatus; onChange: (s: LeadStatus) => void }) {
-  return (
-    <div className="st-pick" role="radiogroup" aria-label="Статус лида">
-      {LEAD_STATUSES.map((st) => (
-        <button
-          key={st}
-          type="button"
-          role="radio"
-          aria-checked={value === st}
-          className="st-opt"
-          data-hue={LEAD_STATUS_HUE[st]}
-          onClick={() => onChange(st)}
-        >
-          <span className="st-opt-ico">
-            <Icon name={STATUS_META[st].icon} size={15} stroke={2.2} />
-          </span>
-          <span className="st-opt-title">
-            {LEAD_STATUS_LABEL[st]}
-            {st === current && <em>сейчас</em>}
-          </span>
-          <span className="st-opt-hint">{STATUS_META[st].hint}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** «Доведён — поставил Оленчук Борис, 24.09.2026 14:05 МСК». */
-function StatusStamp({ lead }: { lead: Lead }) {
-  if (!lead.statusBy && !lead.statusAt) return <div className="st-stamp">Статус ещё не меняли — лид «В работе» с момента записи</div>;
-  return (
-    <div className="st-stamp">
-      Сейчас <b>«{LEAD_STATUS_LABEL[lead.status]}»</b>
-      {lead.statusBy && (
-        <>
-          {" "}— поставил(а) <b>{lead.statusBy}</b>
-        </>
-      )}
-      {lead.statusAt && <>, {fmtStamp(lead.statusAt)} МСК</>}
-    </div>
-  );
-}
-
-/** Подпись обязательного поля. */
-function Req({ children }: { children: ReactNode }) {
-  return (
-    <>
-      {children}
-      <span className="req" aria-hidden>
-        *
-      </span>
-    </>
   );
 }

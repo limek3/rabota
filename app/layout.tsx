@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import { TitleBar } from "@/components/TitleBar";
 import "./globals.css";
 import "./crm.css";
+import "./dash2.css";
+import "./ops2.css";
 import "./learn.css";
 import "./academy.css";
 

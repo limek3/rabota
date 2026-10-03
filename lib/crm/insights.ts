@@ -288,10 +288,10 @@ export function noteEffect(n: Pick<OpNote, "operatorId" | "date" | "metric">, ix
   return { early, daysAfter: after.length, before: b, after: a, change: !early && before.length >= 3 && b > 0 ? a / b - 1 : null };
 }
 
-export const NOTE_METRIC_LABEL: Record<OpNote["metric"], string> = { lph: "лиды в час", hours: "часы за смену", leads: "лиды за смену" };
+export const NOTE_METRIC_LABEL: Record<OpNote["metric"], string> = { lph: "конверсия", hours: "часы за смену", leads: "лиды за смену" };
 
 /** Значение показателя заметки для подписи. */
-export const fmtNoteMetric = (m: OpNote["metric"], v: number) => (m === "lph" ? fmtNum(v, 2) : fmtNum(v));
+export const fmtNoteMetric = (m: OpNote["metric"], v: number) => (m === "lph" ? fmtPct(v) : fmtNum(v));
 
 /* ── сводка по группе: разброс внутри ──────────────────────────────── */
 

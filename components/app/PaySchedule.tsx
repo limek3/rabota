@@ -37,8 +37,8 @@ export function PayScheduleSection({ value: f, set, bare }: { value: Settings; s
       <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {!bare && (
-            <h2 className="card-title" style={{ fontSize: 15 }}>
-              <Icon name="calendar" size={16} className="title-ic" />
+            <h2 className="card-title">
+              <Icon name="calendar" size={15} className="title-ic" />
               График выплат
             </h2>
           )}

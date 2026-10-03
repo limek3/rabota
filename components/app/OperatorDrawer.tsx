@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
-import { dailyRows, monthCal, probation, type OpRow } from "@/lib/crm/calc";
+import { dailyRows, monthCal, probation, WORKED_TYPES, type MonthCal, type OpRow } from "@/lib/crm/calc";
 import { NO_GROUP_LABEL, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, type OperatorStatus } from "@/lib/crm/types";
-import { fmtDate, fmtMonth, fmtStamp, monthEnd, monthStart } from "@/lib/crm/dates";
+import { fmtDate, fmtMonth, fmtStamp, isoWeekday, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, telegramUser } from "@/lib/crm/format";
 import { PayoutHistory } from "@/components/app/PayoutHistory";
 import { Avatar, Chip, Conv, EmploymentTag, Kpi, LeadLinkButton, LeadStatusChip, Progress, Sheet, StatusChip } from "@/components/ui/kit";
@@ -16,6 +16,10 @@ import { Icon } from "@/components/ui/icons";
 import { hasBonus, isHourlyTiered, isSalary, isTiered } from "@/lib/crm/payroll";
 import { learnSummary } from "@/components/learn/Progress";
 import { OperatorInsight, OperatorNotes, useOpNotes } from "@/components/app/OperatorCoach";
+import { GapCard, Hero, WeekCard } from "@/components/app/DashboardV2";
+
+/** Временный переключатель: карточка в стиле новой «Сводки». false — прежний вид. */
+const CARD_V2 = true;
 
 const EMP_HUE: Record<OperatorStatus, string> = { active: "green", pause: "indigo", fired: "gray" };
 
@@ -127,19 +131,25 @@ export function OperatorDrawer({ row, onClose }: { row: OpRow; onClose: () => vo
     <Sheet onClose={onClose} head={head}>
       <div className="op-sheet">
         <div className="op-sheet-main">
-          <div className="card card-pad op-hero">
-            <PlanFact row={row} />
-            <KpiGrid row={row} n={4} />
-          </div>
-          <div className="op-pair">
-            <CumulativeCard row={row} />
-            <ShiftsCard row={row} coach />
-          </div>
-          <div className="op-pair">
-            <OutputCard row={row} />
-            <RecentLeadsCard opId={op.id} />
-          </div>
-          {canSeePay(access, op.id) && <PayoutsCard opId={op.id} />}
+          {CARD_V2 ? (
+            <MainV2 row={row} canPay={canSeePay(access, op.id)} />
+          ) : (
+            <>
+              <div className="card card-pad op-hero">
+                <PlanFact row={row} />
+                <KpiGrid row={row} n={4} />
+              </div>
+              <div className="op-pair">
+                <CumulativeCard row={row} />
+                <ShiftsCard row={row} coach />
+              </div>
+              <div className="op-pair">
+                <OutputCard row={row} />
+                <RecentLeadsCard opId={op.id} />
+              </div>
+              {canSeePay(access, op.id) && <PayoutsCard opId={op.id} />}
+            </>
+          )}
         </div>
         {/* разбор и заметки — только руководителям: в «Моих показателях» оператора их нет */}
         <div className="op-sheet-side">
@@ -177,6 +187,151 @@ export function OperatorStats({ row }: { row: OpRow; wide?: boolean }) {
     </>
   );
 }
+
+/* ── карточка в стиле «Сводки» (CARD_V2) ───────────────────────────── */
+
+const DOW_V2 = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const ABSENT_V2: Record<string, string> = { vacation: "О", sick: "Б", platform: "П" };
+
+function MainV2({ row, canPay }: { row: OpRow; canPay: boolean }) {
+  const { data, ix, month, today } = useCrm();
+  const cal = useMemo(() => monthCal(month, data.settings, today), [month, data.settings, today]);
+  const d = useDaily(row);
+  const ref = cal.phase === "future" ? cal.days[0] : cal.ref;
+  return (
+    <div className="d2">
+      <Hero cal={cal} plan={row.terms.plan} p={row.pace} who="op" />
+      <OpStrip row={row} />
+      <div className="d2-charts">
+        <GapCard rows={d.rows} cal={cal} p={row.pace} />
+        <WeekCard cal={cal} p={row.pace} ref_={ref} counts={ix.opDay.get(row.op.id)} />
+      </div>
+      <ShiftStrip row={row} cal={cal} />
+      <div className="op-pair">
+        <OutputCard row={row} />
+        <RecentLeadsCard opId={row.op.id} />
+      </div>
+      {canPay && <PayoutsCard opId={row.op.id} />}
+    </div>
+  );
+}
+
+/** Оперативные цифры одной строкой — как показатели в шапке «Сводки». */
+function OpStrip({ row }: { row: OpRow }) {
+  const p = row.pace;
+  const items: { l: string; v: ReactNode; u: string; tone?: "red" | "green" }[] = [
+    { l: "Сегодня / вчера", v: `${fmtInt(p.today)} / ${fmtInt(p.yesterday)}`, u: "лидов за день" },
+    { l: "Неделя / прошлая", v: `${fmtInt(p.thisWeek)} / ${fmtInt(p.prevWeek)}`, u: "лидов за неделю" },
+    { l: "Часы", v: fmtNum(row.hours, 0), u: `к дате ${fmtNum(row.normToDate, 0)} · норма ${fmtNum(row.norm, 0)}`, tone: row.norm > 0 && row.hoursDelta < -0.5 ? "red" : undefined },
+    { l: "Конверсия", v: <Conv value={row.lph} />, u: `${row.daysWorked} смен · отсутствий ${row.absentDays}` },
+    { l: "Среднее за смену", v: fmtNum(row.avgPerWorkday), u: "лидов в рабочий день" },
+    { l: "Лучший день", v: p.best ? fmtInt(p.best.count) : "—", u: p.best ? fmtDate(p.best.day).slice(0, 5) : "лидов пока нет" },
+  ];
+  return (
+    <section className="card d2-strip">
+      {items.map((k) => (
+        <div key={k.l} className="d2-kpi">
+          <div className="d2-kpi-l">{k.l}</div>
+          <div className={`d2-kpi-v${k.tone === "red" ? " d2-red" : k.tone === "green" ? " d2-green" : ""}`}>{k.v}</div>
+          <div className="d2-kpi-u">{k.u}</div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/**
+ * Месяц одной полосой, как строка тепловой карты в «Сводке»: лиды и часы по дням,
+ * красный 0 — смена без лидов, точка над днём — заметка СВ (видно «до» и «после» разговора).
+ */
+function ShiftStrip({ row, cal }: { row: OpRow; cal: MonthCal }) {
+  const { ix } = useCrm();
+  const notes = useOpNotes(row.op.id);
+  const noteOn = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const n of notes) m.set(n.date, [...(m.get(n.date) ?? []), n.text]);
+    return m;
+  }, [notes]);
+  const id = row.op.id;
+  const counts = ix.opDay.get(id);
+  const hours = ix.hoursOpDay.get(id);
+  const days = cal.days;
+  let max = 1;
+  for (const d of days) max = Math.max(max, counts?.get(d) ?? 0);
+  const todayIdx = cal.phase === "current" ? days.indexOf(cal.today) : -1;
+  const NAME_W = 64;
+  const daily = row.pace.dailyPlan;
+  const future = (d: string) => cal.phase === "future" || d > cal.ref;
+  const shade = (v: number): CSSProperties => {
+    const k = Math.min(1, v / max);
+    return { background: `color-mix(in srgb, var(--c-green-fg) ${Math.round(18 + 62 * k)}%, var(--bg-panel))`, color: k > 0.55 ? "var(--bg-panel)" : "var(--text)" };
+  };
+  const dow = (d: string) => DOW_V2[isoWeekday(d) - 1];
+
+  return (
+    <section className="card d2-hm">
+      <div className="d2-hm-head">
+        <div>
+          <h3 className="d2-h" style={{ marginTop: 3 }}>Смены и лиды за месяц</h3>
+          <div style={{ fontSize: 11.5, color: "var(--dim)", marginTop: 2 }}>
+            {daily > 0 ? `План дня ${fmtNum(daily)} · ` : ""}точка над днём — заметка СВ
+          </div>
+        </div>
+        <div className="d2-leg" style={{ marginTop: 6 }}>
+          <span>
+            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "color-mix(in srgb, var(--c-green-fg) 30%, var(--bg-panel))" }} />
+            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--c-green-fg)", marginLeft: -3 }} />
+            Больше лидов
+          </span>
+          <span><i style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--c-red-fg)" }} />0 лидов на смене</span>
+          <span><i style={{ width: 10, height: 0, borderTop: "1.5px dashed var(--dim)" }} />Нет смены</span>
+          <span><i style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--brand)" }} />Заметка</span>
+        </div>
+      </div>
+      <div className="d2-hm-scroll">
+        <div className="d2-grid" style={{ gridTemplateColumns: `${NAME_W}px repeat(${days.length}, minmax(20px, 1fr))`, minWidth: 640 }}>
+          <div className="dh" />
+          {days.map((d, i) => {
+            const n = noteOn.get(d);
+            return (
+              <div key={d} className="dh" data-off={String(!cal.isWork(d))} data-today={String(i === todayIdx)} title={n ? `Заметка: ${n.join(" · ")}` : undefined} style={{ position: "relative" }}>
+                {n && <span style={{ position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)", width: 5, height: 5, borderRadius: "50%", background: "var(--brand)" }} />}
+                {Number(d.slice(8))}
+                <br />
+                {dow(d)}
+              </div>
+            );
+          })}
+          <div className="nm" style={{ color: "var(--text-sub)" }}>Лиды</div>
+          {days.map((d) => {
+            if (future(d)) return <div key={d} className="c f">—</div>;
+            const v = counts?.get(d) ?? 0;
+            const sh = ix.shift.get(`${d}|${id}`);
+            const tip = `${Number(d.slice(8))} ${dow(d)}: ${v} лид.${daily > 0 && v > 0 ? ` (${fmtPct(v / daily)} плана дня)` : ""}`;
+            if (v > 0) return <div key={d} className="c" style={shade(v)} title={tip}>{v}</div>;
+            if (sh && WORKED_TYPES.has(sh.type) && sh.hours > 0) return <div key={d} className="c z" title={`${tip} · смена ${sh.hours} ч`}>0</div>;
+            if (sh && ABSENT_V2[sh.type]) return <div key={d} className="c a" title={tip}>{ABSENT_V2[sh.type]}</div>;
+            return <div key={d} className="c n">—</div>;
+          })}
+          <div className="nm" style={{ color: "var(--text-sub)" }}>Часы</div>
+          {days.map((d) => {
+            if (future(d)) {
+              const sh = ix.shift.get(`${d}|${id}`);
+              // наперёд — запланированные смены, бледно
+              return <div key={d} className="c f" title={sh ? `по графику ${sh.hours} ч` : undefined}>{sh && sh.hours > 0 ? fmtNum(sh.hours, 0) : "—"}</div>;
+            }
+            const h = hours?.get(d) ?? 0;
+            return h > 0 ? <div key={d} className="c" style={{ background: "var(--ink-05)", color: "var(--text-sub)" }}>{fmtNum(h, 0)}</div> : <div key={d} className="c n">—</div>;
+          })}
+          {todayIdx >= 0 && (
+            <div className="d2-today" style={{ left: `calc(${NAME_W}px + (100% - ${NAME_W}px) * ${todayIdx} / ${days.length})`, width: `calc((100% - ${NAME_W}px) / ${days.length})` }} />
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 
 /* ── блоки карточки ────────────────────────────────────────────────── */
 

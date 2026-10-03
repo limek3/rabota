@@ -26,8 +26,8 @@ function Section({ title, icon, sub, action, children }: { title: string; icon?:
     <section className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 className="card-title" style={{ fontSize: 15 }}>
-            {icon && <Icon name={icon} size={16} className="title-ic" />}
+          <h2 className="card-title">
+            {icon && <Icon name={icon} size={15} className="title-ic" />}
             {title}
           </h2>
           {sub && <p className="card-sub">{sub}</p>}
