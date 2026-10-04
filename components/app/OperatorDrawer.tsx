@@ -1,15 +1,16 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { usePeriodModel } from "@/lib/crm/hooks";
 import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { dailyRows, monthCal, probation, WORKED_TYPES, type MonthCal, type OpRow } from "@/lib/crm/calc";
 import { NO_GROUP_LABEL, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, type OperatorStatus } from "@/lib/crm/types";
-import { fmtDate, fmtMonth, fmtStamp, isoWeekday, monthEnd, monthStart } from "@/lib/crm/dates";
+import { addDays, addMonths, fmtDate, fmtMonth, fmtRange, fmtStamp, isoWeekday, monthEnd, monthOf, monthStart, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, telegramUser } from "@/lib/crm/format";
 import { PayoutHistory } from "@/components/app/PayoutHistory";
 import { Avatar, Chip, Conv, EmploymentTag, Kpi, LeadLinkButton, LeadStatusChip, Progress, Sheet, StatusChip } from "@/components/ui/kit";
-import { Select, dot, type Opt } from "@/components/ui/select";
+import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canManageOperator, canSeePay } from "@/lib/crm/access";
 import { CumulativeChart, Legend, ShiftLeadsChart } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
@@ -193,20 +194,70 @@ export function OperatorStats({ row }: { row: OpRow; wide?: boolean }) {
 const DOW_V2 = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const ABSENT_V2: Record<string, string> = { vacation: "О", sick: "Б", platform: "П" };
 
+type OpSpan = "week" | "month" | "range";
+
 function MainV2({ row, canPay }: { row: OpRow; canPay: boolean }) {
-  const { data, ix, month, today } = useCrm();
+  const { data, ix, month, setMonth, today } = useCrm();
   const cal = useMemo(() => monthCal(month, data.settings, today), [month, data.settings, today]);
-  const d = useDaily(row);
   const ref = cal.phase === "future" ? cal.days[0] : cal.ref;
+
+  // период карточки: месяц — общий месяц приложения; неделя — пн–вс со стрелками; период — с… по…
+  const [span, setSpan] = useState<OpSpan>("month");
+  const [anchor, setAnchor] = useState(() => (monthOf(today) === month ? today : monthStart(month)));
+  const [range, setRange] = useState(() => ({ from: monthStart(month), to: monthOf(today) === month ? today : monthEnd(month) }));
+  const pm = usePeriodModel(span === "week" ? { from: weekStart(anchor), to: weekEnd(anchor) } : span === "range" ? range : null);
+  const prow = (pm && pm.ops.find((r) => r.op.id === row.op.id)) || row;
+  const pcal = pm ? pm.cal : cal;
+  const daily = useMemo(
+    () => dailyRows(pcal, prow.terms.plan, ix.opDay.get(row.op.id), ix.hoursOpDay.get(row.op.id)),
+    [pcal, prow.terms.plan, ix, row.op.id],
+  );
+  const setMode = (k: OpSpan) => {
+    if (k === span) return;
+    if (k === "month" && span === "week") setMonth(monthOf(anchor));
+    setSpan(k);
+  };
+  const shift = (dir: 1 | -1) => (span === "week" ? setAnchor((a) => addDays(a, 7 * dir)) : setMonth(addMonths(month, dir)));
+  const label = span === "week" ? fmtRange(weekStart(anchor), weekEnd(anchor)) : fmtMonth(month);
+
+  const tools = (
+    <div className="op-span">
+      <div className="o2-seg" role="group" aria-label="Период карточки">
+        {(["week", "month", "range"] as OpSpan[]).map((k) => (
+          <button key={k} type="button" className={span === k ? "on" : ""} onClick={() => setMode(k)} aria-pressed={span === k}>
+            {k === "week" ? "Неделя" : k === "month" ? "Месяц" : "Период"}
+          </button>
+        ))}
+      </div>
+      {span === "range" ? (
+        <div className="op-span-nav">
+          <DateInput width={128} value={range.from} onChange={(d) => d && setRange((r) => ({ from: d, to: d > r.to ? d : r.to }))} ariaLabel="С" />
+          <span style={{ color: "var(--dim)" }}>—</span>
+          <DateInput width={128} value={range.to} onChange={(d) => d && setRange((r) => ({ to: d, from: d < r.from ? d : r.from }))} ariaLabel="По" />
+        </div>
+      ) : (
+        <div className="op-span-nav">
+          <button type="button" className="o2-ib" onClick={() => shift(-1)} aria-label={span === "week" ? "Предыдущая неделя" : "Предыдущий месяц"}>
+            <Icon name="chevL" size={15} />
+          </button>
+          <span className="op-span-l">{label}</span>
+          <button type="button" className="o2-ib" onClick={() => shift(1)} aria-label={span === "week" ? "Следующая неделя" : "Следующий месяц"}>
+            <Icon name="chevR" size={15} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="d2">
-      <Hero cal={cal} plan={row.terms.plan} p={row.pace} who="op" />
-      <OpStrip row={row} />
+      <Hero cal={pcal} plan={prow.terms.plan} p={prow.pace} who="op" span={span} tools={tools} />
+      <OpStrip row={prow} />
       <div className="d2-charts">
-        <GapCard rows={d.rows} cal={cal} p={row.pace} />
+        <GapCard rows={daily} cal={pcal} p={prow.pace} span={span} />
         <WeekCard cal={cal} p={row.pace} ref_={ref} counts={ix.opDay.get(row.op.id)} />
       </div>
-      <ShiftStrip row={row} cal={cal} />
+      <ShiftStrip row={prow} cal={pcal} title={span === "week" ? "Смены и лиды за неделю" : span === "range" ? "Смены и лиды за период" : undefined} />
       <div className="op-pair">
         <OutputCard row={row} />
         <RecentLeadsCard opId={row.op.id} />
@@ -244,7 +295,7 @@ function OpStrip({ row }: { row: OpRow }) {
  * Месяц одной полосой, как строка тепловой карты в «Сводке»: лиды и часы по дням,
  * красный 0 — смена без лидов, точка над днём — заметка СВ (видно «до» и «после» разговора).
  */
-function ShiftStrip({ row, cal }: { row: OpRow; cal: MonthCal }) {
+function ShiftStrip({ row, cal, title = "Смены и лиды за месяц" }: { row: OpRow; cal: MonthCal; title?: string }) {
   const { ix } = useCrm();
   const notes = useOpNotes(row.op.id);
   const noteOn = useMemo(() => {
@@ -272,7 +323,7 @@ function ShiftStrip({ row, cal }: { row: OpRow; cal: MonthCal }) {
     <section className="card d2-hm">
       <div className="d2-hm-head">
         <div>
-          <h3 className="d2-h" style={{ marginTop: 3 }}>Смены и лиды за месяц</h3>
+          <h3 className="d2-h" style={{ marginTop: 3 }}>{title}</h3>
           <div style={{ fontSize: 11.5, color: "var(--dim)", marginTop: 2 }}>
             {daily > 0 ? `План дня ${fmtNum(daily)} · ` : ""}точка над днём — заметка СВ
           </div>

@@ -16,6 +16,7 @@ import { dot, Select, uiZoom, type Opt } from "@/components/ui/select";
 import { ColumnPicker, useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { Onboarding } from "@/components/app/DashboardClassic";
 import { StickyHead } from "@/components/app/StickyHead";
+import { buildInsights, LAG_HINT, LAG_LABEL } from "@/lib/crm/insights";
 
 /**
  * «Сводка» v2: один вывод вместо россыпи плиток, список действий наверху,
@@ -217,12 +218,14 @@ function buildScope(m: MonthModel, keys: string[] | null, ix: Index, s: Settings
 const SCOPE_KEY = "leadup.dashboard.scope";
 
 /** Период сводки: день, неделя (пн–вс) или месяц — как в «Лидах». */
-export type Span = "day" | "week" | "month";
+/** range — произвольный период (карточка оператора). */
+export type Span = "day" | "week" | "month" | "range";
 /** Слова периода: «за месяц», «к концу недели», «Месяц закрыт». */
 const SPAN_W: Record<Span, { acc: string; gen: string; closed: string; notYet: string }> = {
   day: { acc: "день", gen: "дня", closed: "День закрыт", notYet: "День ещё не начался" },
   week: { acc: "неделю", gen: "недели", closed: "Неделя закрыта", notYet: "Неделя ещё не началась" },
   month: { acc: "месяц", gen: "месяца", closed: "Месяц закрыт", notYet: "Месяц ещё не начался" },
+  range: { acc: "период", gen: "периода", closed: "Период закрыт", notYet: "Период ещё не начался" },
 };
 const dayShort = (d: DayKey) => `${dayNum(d)} ${MON_SHORT[Number(d.slice(5, 7)) - 1]}`;
 
@@ -353,6 +356,8 @@ export function DashboardV2() {
   // липкая шапка: главный блок ушёл вверх — сверху остаются период, группа и три главных числа
   const heroRef = useRef<HTMLDivElement>(null);
   const stickGap = span === "day" || cal.phase === "past" ? p.fact - p.plan : p.deviation;
+  // задачи на сегодня — про людей и группы месяца, от выбранного периода не зависят
+  const tasks = useTasks(mm, msc.line, msc.groups);
   // выбор отдела/группы — одни и те же варианты в шапке страницы и в липкой шапке
   const scopeOpts: Opt[] = [
     { value: "all", label: access.isHead ? "Весь отдел" : "Все мои группы", icon: <Icon name={access.isHead ? "users" : "groups"} size={14} /> },
@@ -393,7 +398,12 @@ export function DashboardV2() {
         />
       )}
       <PageHead
-        title={title}
+        title={
+          <span className="row" style={{ gap: 12, flexWrap: "nowrap" }}>
+            {title}
+            {!empty && <TasksChip tasks={tasks} />}
+          </span>
+        }
         sub={sub}
         actions={
           <>
@@ -437,7 +447,7 @@ export function DashboardV2() {
           <div ref={heroRef}>
             <Hero cal={cal} plan={sc.plan} p={p} today={todayInfo} span={span} conv={sc.lph} hours={sc.hours} onShift={onShift} />
           </div>
-          {cur && <Actions m={mm} line={msc.line} groups={msc.groups} />}
+          <PeopleCard m={m} line={sc.line} span={span} />
           <div className="d2-charts">
             {span === "day" ? <HourCard day={anchor} keys={keys} plan={p.plan} /> : <GapCard rows={rows} cal={cal} p={p} span={span} />}
             {span === "day" && wm && wsc ? (
@@ -486,6 +496,7 @@ export function Hero({
   conv,
   hours,
   onShift,
+  tools,
 }: {
   cal: MonthCal;
   plan: number;
@@ -497,6 +508,8 @@ export function Hero({
   conv?: number | null;
   hours?: number;
   onShift?: number;
+  /** Справа от факта, когда блока «сегодня» нет: переключатель периода (карточка оператора). */
+  tools?: ReactNode;
 }) {
   const one = who === "op";
   const cur = cal.phase === "current";
@@ -665,6 +678,7 @@ export function Hero({
               </div>
             </div>
           )}
+          {!today && tools && <div className="d2-hero-tools">{tools}</div>}
           <div className="d2-alert" data-hue={hue}>
             <Icon name={hue === "green" ? "check" : hue === "red" ? "alert" : "info"} size={22} />
             <div>{text}</div>
@@ -730,13 +744,23 @@ export function Hero({
   );
 }
 
-/* ── что сделать сейчас ────────────────────────────────────────────── */
+/* ── задачи на сегодня: значок у заголовка, список по клику ─────────── */
 
-function Actions({ m, line, groups }: { m: MonthModel; line: OpRow[]; groups: GroupRow[] }) {
+interface Task {
+  hue: "red" | "amber";
+  icon: IconName;
+  title: string;
+  n: number;
+  who: string;
+  href: string;
+  btn: string;
+}
+
+/** Что требует действия сегодня: на смене без лидов, без смен на неделю, без смены сегодня, группа без плана. */
+function useTasks(m: MonthModel, line: OpRow[], groups: GroupRow[]): Task[] {
   const { ix, today } = useCrm();
   const workday = m.cal.isWork(today);
-
-  const v = useMemo(() => {
+  return useMemo(() => {
     const zero: OpRow[] = [];
     const noToday: OpRow[] = [];
     const noWeek: OpRow[] = [];
@@ -752,100 +776,238 @@ function Actions({ m, line, groups }: { m: MonthModel; line: OpRow[]; groups: Gr
         continue;
       }
       if (sh) continue; // выходной, отпуск или больничный отмечены в графике
-      // одна карточка на человека: без смен на неделю вперёд важнее, чем «нет смены сегодня»
+      // одна задача на человека: без смен на неделю вперёд важнее, чем «нет смены сегодня»
       if (!ahead.some((d) => ix.shift.has(`${d}|${op.id}`))) noWeek.push(r);
       else if (workday) noToday.push(r);
     }
     const noPlan = groups.filter((g) => g.group && !g.group.deletedAt && g.plan <= 0);
-    return { zero, noToday, noWeek, noPlan };
+    const people = (n: number) => `${n} ${plural(n, ["человек", "человека", "человек"])}`;
+    const all: Task[] = [
+      { hue: "red", icon: "phone", title: "На смене, но 0 лидов", n: zero.length, who: `${people(zero.length)} · ${names(zero)}`, href: "/operators", btn: "Проверить" },
+      { hue: "amber", icon: "calendar", title: "Нет смен на неделю", n: noWeek.length, who: `${people(noWeek.length)} · ${names(noWeek)}`, href: "/schedule", btn: "Назначить смены" },
+      { hue: "red", icon: "clock", title: "Без смены сегодня", n: noToday.length, who: `${people(noToday.length)} · ${names(noToday)}`, href: "/schedule", btn: "Закрыть слот" },
+      { hue: "amber", icon: "target", title: "Группа без плана", n: noPlan.length, who: noPlan.map((g) => g.name).join(", "), href: "/plans", btn: "Поставить план" },
+    ];
+    return all.filter((t) => t.n > 0);
   }, [line, ix, today, workday, groups]);
+}
 
-  const people = (n: number) => `${n} ${plural(n, ["человек", "человека", "человек"])}`;
-  const tasks: { hue: "red" | "amber"; icon: IconName; title: string; n: number; who: string; desc: string; href: string; btn: string; ok: string }[] = [
-    {
-      hue: "red",
-      icon: "phone",
-      title: "На смене, но 0 лидов",
-      n: v.zero.length,
-      who: `${people(v.zero.length)} · ${names(v.zero)}`,
-      desc: "Смена идёт, а лидов сегодня ещё нет.",
-      href: "/operators",
-      btn: "Проверить загрузку",
-      ok: "У всех на смене лиды идут",
-    },
-    {
-      hue: "amber",
-      icon: "calendar",
-      title: "Нет смен на неделю",
-      n: v.noWeek.length,
-      who: `${people(v.noWeek.length)} · ${names(v.noWeek)}`,
-      desc: "Ни одной смены на 7 дней вперёд.",
-      href: "/schedule",
-      btn: "Назначить смены",
-      ok: "У всех есть смены на неделю",
-    },
-    {
-      hue: "red",
-      icon: "clock",
-      title: "Без смены сегодня",
-      n: v.noToday.length,
-      who: `${people(v.noToday.length)} · ${names(v.noToday)}`,
-      desc: "В графике на сегодня пусто — риск недобора.",
-      href: "/schedule",
-      btn: "Закрыть слот",
-      ok: workday ? "Сегодня у всех есть смена" : "Сегодня выходной по графику",
-    },
-    {
-      hue: "amber",
-      icon: "target",
-      title: "Группа без плана",
-      n: v.noPlan.length,
-      who: v.noPlan.map((g) => g.name).join(", "),
-      desc: "План на месяц — 0 лидов: темп и прогноз группы не считаются.",
-      href: "/plans",
-      btn: "Поставить план",
-      ok: "План задан всем группам",
-    },
-  ];
-  const open = tasks.filter((t) => t.n > 0).length;
+function TasksChip({ tasks }: { tasks: Task[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key);
+    };
+  }, [open]);
+  if (!tasks.length)
+    return (
+      <span className="d2-tasks" data-ok="true" title="Все проверки на сегодня в порядке">
+        <Icon name="check" size={13} />
+        задач нет
+      </span>
+    );
+  const red = tasks.some((t) => t.hue === "red");
+  return (
+    <span className="d2-tasks-w" ref={ref}>
+      <button type="button" className="d2-tasks" data-hue={red ? "red" : "amber"} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <Icon name="alert" size={13} />
+        {tasks.length} {plural(tasks.length, ["задача", "задачи", "задач"])}
+        <Icon name="chevR" size={12} className={`grp-chev${open ? " open" : ""}`} />
+      </button>
+      {open && (
+        <div className="d2-tasks-pop card" role="dialog" aria-label="Задачи на сегодня">
+          {tasks.map((t) => (
+            <div key={t.title} className="d2-tasks-row" data-hue={t.hue}>
+              <span className="ic">
+                <Icon name={t.icon} size={15} />
+              </span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="t">
+                  {t.title}
+                  <b>{t.n}</b>
+                </div>
+                <div className="w" title={t.who}>{t.who}</div>
+              </div>
+              <Link href={t.href} className="d2-task-btn" onClick={() => setOpen(false)}>
+                {t.btn}
+                <Icon name="arrowR" size={12} />
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
+/* ── люди периода: лучшие, отстающие, динамика, факты ─────────────── */
+
+/**
+ * Кого похвалить и с кем поговорить за выбранный период. Лучшие — по факту; отстающие — по разрыву
+ * к плану на дату, с причиной (часы / лиды в час / план выше обычной работы); динамика — темп
+ * последних смен к предыдущим (не зависит от периода); внизу — факты периода.
+ */
+function PeopleCard({ m, line, span }: { m: MonthModel; line: OpRow[]; span: Span }) {
+  const { ix, data } = useCrm();
+  const router = useRouter();
+  const norm = data.settings.convNormPct / 100;
+  const ins = useMemo(() => buildInsights(m.ops, ix, m.cal), [m, ix]);
+  const past = m.cal.phase === "past";
+  const gapOf = (r: OpRow) => (span === "day" || past ? r.pace.fact - r.terms.plan : r.pace.deviation);
+  const ratioOf = (r: OpRow) => (span === "day" || past ? r.pace.pct : r.pace.paceRatio);
+
+  const v = useMemo(() => {
+    const pool = line.filter((r) => !r.op.deletedAt && r.op.status !== "fired");
+    const best = pool.filter((r) => r.pace.fact > 0).sort((a, b) => b.pace.fact - a.pace.fact || ratioOf(b) - ratioOf(a)).slice(0, 3);
+    const behind = pool
+      .filter((r) => r.terms.plan > 0 && r.op.role !== "trainee" && r.op.status === "active" && gapOf(r) < -0.5)
+      .sort((a, b) => gapOf(a) - gapOf(b))
+      .slice(0, 3);
+    const tempo = pool
+      .filter((r) => r.op.status === "active")
+      .map((r) => ({ r, t: ins.byOp.get(r.op.id)?.tempo }))
+      .filter((x): x is { r: OpRow; t: NonNullable<typeof x.t> } => !!x.t && x.t.change != null);
+    // вклад в результат: доля каждого в лидах периода — топ-3 и «остальные»
+    const total = pool.reduce((a, r) => a + r.pace.fact, 0);
+    const byFact = pool.filter((r) => r.pace.fact > 0).sort((a, b) => b.pace.fact - a.pace.fact);
+    const share = { total, top: byFact.slice(0, 3), rest: byFact.slice(3).reduce((a, r) => a + r.pace.fact, 0), restN: Math.max(0, byFact.length - 3) };
+    // факты: лучшая конверсия (от 8 ч), больше всех часов, смены без лидов подряд
+    const conv = pool.filter((r) => r.lph != null && r.hours >= 8).sort((a, b) => (b.lph ?? 0) - (a.lph ?? 0))[0] ?? null;
+    const hours = pool.filter((r) => r.hours > 0).sort((a, b) => b.hours - a.hours)[0] ?? null;
+    const zero = tempo.filter((x) => x.t.zeroStreak >= 2).sort((a, b) => b.t.zeroStreak - a.t.zeroStreak)[0] ?? null;
+    return { best, behind, share, conv, hours, zero };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [line, ins, span, past]);
+
+  const open = (r: OpRow) => router.push(`/operators?id=${encodeURIComponent(r.op.id)}`);
+  const what = span === "day" ? "дня" : span === "week" ? "недели" : "месяца";
+  const empty = !v.best.length && !v.behind.length;
+  if (empty) return null;
 
   return (
-    <section className="card d2-todo">
-      <div className="d2-todo-h">
-        <h3 className="d2-h"><Icon name="bolt" size={15} className="title-ic" />Что сделать сейчас</h3>
-        <span className="d2-todo-sum" data-ok={String(open === 0)}>
-          <Icon name={open ? "alert" : "check"} size={13} />
-          {open ? `${open} из ${tasks.length} ${plural(open, ["требует", "требуют", "требуют"])} внимания` : "Всё в порядке"}
-        </span>
+    <section className="card d2-pp">
+      <div className="d2-pp-h">
+        <h3 className="d2-h">
+          <Icon name="users" size={15} className="title-ic" />
+          Люди {what}
+        </h3>
+        <span className="d2-pp-sub">кого похвалить и с кем поговорить</span>
       </div>
-      <div className="d2-todo-grid">
-        {tasks.map((t) => {
-          const done = t.n === 0;
-          return (
-            <div key={t.title} className="d2-task" data-hue={done ? "ok" : t.hue}>
-              <div className="d2-task-hd">
-                <span className="d2-task-ic">
-                  <Icon name={done ? "check" : t.icon} size={16} />
+      <div className="d2-pp-grid">
+        {/* лучшие */}
+        <div className="d2-pp-col">
+          <div className="d2-pp-ct">
+            <Icon name="star" size={13} /> Лучшие
+          </div>
+          {v.best.map((r, i) => {
+            const ratio = ratioOf(r);
+            return (
+              <button key={r.op.id} type="button" className="d2-pp-row" onClick={() => open(r)}>
+                <span className="d2-pp-rank" data-rank={i + 1} title={i === 0 ? `Лучший ${what}` : undefined}>{i + 1}</span>
+                <Avatar name={r.op.name} id={r.op.id} size={26} />
+                <span className="d2-pp-n">
+                  <b>{shortName(r.op.name)}</b>
+                  <i>{r.terms.plan > 0 ? `${fmtPct(ratio)} плана${span === "month" && !past ? " на сегодня" : ""}` : "без плана"}</i>
                 </span>
-                <span className="d2-task-t">{t.title}</span>
-                <span className="d2-task-n">{done ? "" : t.n}</span>
+                <span className="d2-pp-v">
+                  <b>{fmtInt(r.pace.fact)}</b>
+                  <i>{plural(r.pace.fact, LEADS)}</i>
+                </span>
+              </button>
+            );
+          })}
+          {!v.best.length && <div className="d2-pp-none">Лидов за период ещё нет</div>}
+        </div>
+
+        {/* отстающие */}
+        <div className="d2-pp-col">
+          <div className="d2-pp-ct">
+            <Icon name="alert" size={13} /> Отстают
+          </div>
+          {v.behind.map((r) => {
+            const reason = ins.byOp.get(r.op.id)?.reason;
+            return (
+              <button key={r.op.id} type="button" className="d2-pp-row" onClick={() => open(r)} title={reason ? LAG_HINT[reason.kind] : undefined}>
+                <Avatar name={r.op.name} id={r.op.id} size={26} />
+                <span className="d2-pp-n">
+                  <b>{shortName(r.op.name)}</b>
+                  <i>{reason ? LAG_LABEL[reason.kind] : `${fmtPct(ratioOf(r))} плана`}</i>
+                </span>
+                <span className="d2-pp-v">
+                  <b className="d2-red">{fmtSigned(Math.round(gapOf(r)))}</b>
+                  <i>{fmtPct(ratioOf(r))}</i>
+                </span>
+              </button>
+            );
+          })}
+          {!v.behind.length && <div className="d2-pp-none d2-green">Все идут по плану</div>}
+        </div>
+
+        {/* вклад в результат */}
+        <div className="d2-pp-col">
+          <div className="d2-pp-ct" title="Доля каждого в лидах за период">
+            <Icon name="chart" size={13} /> Вклад в результат
+          </div>
+          {v.share.total > 0 ? (
+            <>
+              <div className="d2-pp-share" role="img" aria-label="Доли в лидах периода">
+                {v.share.top.map((r, i) => (
+                  <i key={r.op.id} data-i={i} style={{ width: `${(r.pace.fact / v.share.total) * 100}%` }} title={`${shortName(r.op.name)} — ${fmtPct(r.pace.fact / v.share.total)}`} />
+                ))}
+                {v.share.rest > 0 && <i data-i="rest" style={{ width: `${(v.share.rest / v.share.total) * 100}%` }} title={`Остальные ${v.share.restN} — ${fmtPct(v.share.rest / v.share.total)}`} />}
               </div>
-              {done ? (
-                <div className="d2-task-ok">{t.ok}</div>
-              ) : (
-                <>
-                  <div className="d2-task-who" title={t.who}>{t.who}</div>
-                  <div className="d2-task-ds">{t.desc}</div>
-                  <Link href={t.href} className="d2-task-btn">
-                    {t.btn}
-                    <Icon name="arrowR" size={13} />
-                  </Link>
-                </>
+              {v.share.top.map((r, i) => (
+                <button key={r.op.id} type="button" className="d2-pp-row d2-pp-srow" onClick={() => open(r)}>
+                  <span className="d2-pp-sw" data-i={i} />
+                  <span className="d2-pp-n">
+                    <b>{shortName(r.op.name)}</b>
+                  </span>
+                  <span className="d2-pp-v">
+                    <b>{fmtPct(r.pace.fact / v.share.total)}</b>
+                    <i>{fmtInt(r.pace.fact)} {plural(r.pace.fact, LEADS)}</i>
+                  </span>
+                </button>
+              ))}
+              {v.share.restN > 0 && (
+                <div className="d2-pp-concl">
+                  {v.share.top.length} {plural(v.share.top.length, ["человек даёт", "человека дают", "человек дают"])}{" "}
+                  <b>{fmtPct((v.share.total - v.share.rest) / v.share.total)}</b> лидов · остальные {v.share.restN} — {fmtPct(v.share.rest / v.share.total)}
+                </div>
               )}
-            </div>
-          );
-        })}
+            </>
+          ) : (
+            <div className="d2-pp-none">Лидов за период ещё нет</div>
+          )}
+        </div>
       </div>
+
+      {/* факты периода */}
+      {(v.conv || v.hours || v.zero) && (
+        <div className="d2-pp-facts">
+          {v.conv && (
+            <button type="button" onClick={() => open(v.conv!)}>
+              <Icon name="target" size={13} /> Лучшая конверсия <b className={norm > 0 && (v.conv.lph ?? 0) >= norm ? "d2-green" : undefined}>{fmtPct(v.conv.lph ?? 0)}</b> {shortName(v.conv.op.name)}
+            </button>
+          )}
+          {v.hours && (
+            <button type="button" onClick={() => open(v.hours!)}>
+              <Icon name="clock" size={13} /> Больше всех часов <b>{fmtNum(v.hours.hours, 1)}</b> {shortName(v.hours.op.name)}
+            </button>
+          )}
+          {v.zero && (
+            <button type="button" className="bad" onClick={() => open(v.zero!.r)}>
+              <Icon name="phone" size={13} /> {v.zero.t.zeroStreak} {plural(v.zero.t.zeroStreak, ["смена", "смены", "смен"])} без лидов <b>{shortName(v.zero.r.op.name)}</b>
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }

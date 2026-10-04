@@ -304,3 +304,83 @@
 .d2-bar .fill, .d2-bar .hatch { transition: width 0.55s var(--ease), left 0.55s var(--ease), background 0.3s; }
 .d2-bar .dot, .d2-bar .tick, .d2-bar .lab, .d2-bar .pill { transition: left 0.55s var(--ease), transform 0.55s var(--ease), top 0.3s; }
 @media (prefers-reduced-motion: reduce) { .d2-bar .fill, .d2-bar .hatch, .d2-bar .dot, .d2-bar .tick, .d2-bar .lab, .d2-bar .pill { transition: none; } }
+
+/* задачи на сегодня — значок у заголовка «Сводки», список по клику */
+.d2-tasks-w { position: relative; display: inline-flex; }
+.d2-tasks { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 0; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0; cursor: pointer; background: var(--c-amber-bg); color: var(--c-amber-fg); }
+.d2-tasks[data-hue="red"] { background: var(--c-red-bg); color: var(--c-red-fg); }
+.d2-tasks[data-ok="true"] { background: var(--ink-05); color: var(--text-sub); font-weight: 500; cursor: default; }
+.d2-tasks .grp-chev { color: currentColor; }
+.d2-tasks-pop { position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; width: 420px; padding: 6px; display: flex; flex-direction: column; gap: 2px; background: var(--bg-modal); box-shadow: var(--shadow-xl); animation: d2TipIn 0.14s var(--ease); }
+.d2-tasks-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px; }
+.d2-tasks-row:hover { background: var(--ink-03); }
+.d2-tasks-row .ic { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 8px; color: var(--c-amber-fg); background: var(--c-amber-bg); }
+.d2-tasks-row[data-hue="red"] .ic { color: var(--c-red-fg); background: var(--c-red-bg); }
+.d2-tasks-row .t { display: flex; align-items: baseline; gap: 6px; font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--text); }
+.d2-tasks-row .t b { font-size: 13px; color: var(--c-amber-fg); }
+.d2-tasks-row[data-hue="red"] .t b { color: var(--c-red-fg); }
+.d2-tasks-row .w { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d2-tasks-row .d2-task-btn { margin-top: 0; height: 26px; padding: 0 10px; --h: var(--text); font-size: 11.5px; letter-spacing: 0; }
+
+/* «Люди периода»: лучшие, отстающие, динамика смен, факты */
+.d2-pp { padding: 12px 14px 12px; }
+.d2-pp-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.d2-pp-sub { font-size: 12px; color: var(--dim); }
+.d2-pp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 10px; border-top: 1px solid var(--ink-05); }
+.d2-pp-col { min-width: 0; padding: 10px 14px 4px; border-left: 1px solid var(--ink-06); display: flex; flex-direction: column; gap: 2px; }
+.d2-pp-col:first-child { border-left: 0; padding-left: 2px; }
+.d2-pp-ct { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--text-sub); text-transform: none; margin-bottom: 4px; }
+.d2-pp-row { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 8px; border: 0; border-radius: 8px; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; transition: background 0.15s var(--ease); }
+.d2-pp-row:hover { background: var(--ink-03); }
+.d2-pp-rank { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 50%; font-size: 11px; font-weight: 700; color: var(--text-sub); background: var(--ink-06); }
+.d2-pp-rank[data-rank="1"] { color: var(--c-amber-fg); background: var(--c-amber-bg); box-shadow: inset 0 0 0 1px var(--c-amber-bd); }
+.d2-pp-rank[data-rank="2"] { color: var(--text); background: var(--ink-10); }
+.d2-pp-rank[data-rank="3"] { color: color-mix(in srgb, var(--c-amber-fg) 60%, var(--c-red-fg)); background: color-mix(in srgb, var(--c-amber-bg) 60%, var(--c-red-bg)); }
+.d2-pp-n { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.d2-pp-n b { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d2-pp-n i { font-style: normal; font-size: 11.5px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d2-pp-v { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-variant-numeric: tabular-nums; }
+.d2-pp-v b { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.d2-pp-v i { font-style: normal; font-size: 11px; color: var(--dim); }
+/* медаль №1 переливается, как метка «лучший» */
+.d2-pp-rank[data-rank="1"] { position: relative; overflow: hidden; }
+.d2-pp-rank[data-rank="1"]::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.6) 50%, transparent 70%); background-size: 260% 100%; background-repeat: no-repeat; mix-blend-mode: overlay; animation: badgeShine 2.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .d2-pp-rank[data-rank="1"]::after { animation: none; opacity: 0; } }
+.d2-pp-none { font-size: 12.5px; color: var(--dim); padding: 10px 8px; }
+.d2-pp-facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--ink-05); }
+.d2-pp-facts button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--ink-08); background: var(--bg-panel); font: inherit; font-size: 12px; color: var(--text-sub); cursor: pointer; }
+.d2-pp-facts button:hover { border-color: var(--ink-15); color: var(--text); }
+.d2-pp-facts button b { font-weight: 700; color: var(--text); }
+.d2-pp-facts button.bad, .d2-pp-facts button.bad b { color: var(--c-red-fg); }
+@container (max-width: 900px) {
+  .d2-pp-grid { grid-template-columns: 1fr; }
+  .d2-pp-col { border-left: 0; border-top: 1px solid var(--ink-06); padding-left: 2px; }
+  .d2-pp-col:first-child { border-top: 0; }
+}
+
+/* «вклад в результат»: полоса долей — от тёмного к светлому, без цвета (это не план) */
+.d2-pp-share { display: flex; height: 12px; border-radius: 4px; overflow: hidden; gap: 2px; margin: 4px 8px 8px; background: var(--ink-04); }
+.d2-pp-share i { display: block; height: 100%; min-width: 3px; transition: width 0.5s var(--ease); }
+.d2-pp-share i[data-i="0"], .d2-pp-sw[data-i="0"] { background: var(--text); }
+.d2-pp-share i[data-i="1"], .d2-pp-sw[data-i="1"] { background: color-mix(in srgb, var(--text) 62%, var(--bg-panel)); }
+.d2-pp-share i[data-i="2"], .d2-pp-sw[data-i="2"] { background: color-mix(in srgb, var(--text) 38%, var(--bg-panel)); }
+.d2-pp-share i[data-i="rest"] { background: var(--ink-12); }
+.d2-pp-srow { min-height: 36px; }
+.d2-pp-sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.d2-pp-concl { font-size: 12px; color: var(--text-sub); padding: 6px 8px 2px; }
+.d2-pp-concl b { color: var(--text); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .d2-pp-share i { transition: none; } }
+
+/* карточка оператора: переключатель «неделя / месяц / период» справа от факта */
+.d2-hero-tools { justify-self: end; align-self: start; min-width: 0; }
+.op-span { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.op-span-nav { display: flex; align-items: center; gap: 6px; }
+.op-span-l { min-width: 150px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; border: 1px solid var(--ctrl-border); border-radius: 8px; background: var(--bg-panel); font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; }
+@container (max-width: 640px) { .d2-hero-tools { justify-self: start; } .op-span { align-items: flex-start; } }
+/* переключатель периода в карточке — постоянной ширины: при смене неделя/месяц/период блок не прыгает */
+.op-span { width: 292px; }
+.op-span .o2-seg { width: 100%; }
+.op-span .o2-seg button { flex: 1; }
+.op-span-nav { width: 100%; height: 34px; }
+.op-span-l { flex: 1; min-width: 0; }
+.op-span-nav > div:has(input) { flex: 1; min-width: 0; }
