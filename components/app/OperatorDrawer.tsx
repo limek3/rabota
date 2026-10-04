@@ -154,7 +154,7 @@ export function OperatorDrawer({ row, onClose }: { row: OpRow; onClose: () => vo
         {/* разбор и заметки — только руководителям: в «Моих показателях» оператора их нет */}
         <div className="op-sheet-side">
           <OperatorInsight row={row} />
-          <OperatorNotes opId={op.id} />
+          <OperatorNotes opId={op.id} variant="card" />
           <InfoCard row={row} />
         </div>
       </div>
@@ -444,7 +444,7 @@ function OutputCard({ row }: { row: OpRow }) {
             <th>Выработка</th>
             <th className="r">Лидов</th>
             <th className="r">Часов</th>
-            <th className="r">Лидов/час</th>
+            <th className="r" title="Лиды ÷ часы, в процентах (0,75 лид/ч = 75%)">Конверсия</th>
           </tr>
         </thead>
         <tbody>
@@ -463,7 +463,7 @@ function OutputCard({ row }: { row: OpRow }) {
               ) : (
                 <>
                   <td className="r num">{fmtNum(x.h)}</td>
-                  <td className="r num">{x.h > 0 ? fmtNum(x.c / x.h, 2) : "—"}</td>
+                  <td className="r num" title={x.h > 0 ? `${fmtNum(x.c / x.h, 2)} лид/ч` : undefined}>{x.h > 0 ? fmtPct(x.c / x.h) : "—"}</td>
                 </>
               )}
             </tr>

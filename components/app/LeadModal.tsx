@@ -445,7 +445,7 @@ function LeadFields({ d, compact }: { d: Draft; compact?: boolean }) {
             <Select value={d.f.projectId} options={d.opts.project} onChange={d.set.projectId} invalid={d.tried && !!d.err.pr} ariaLabel="Проект" disabled={d.readOnly} />
           </F>
           <F label="Регион" req={d.isNew} error={d.tried ? d.err.region : null} hint={regionHint(d)}>
-            <Select value={d.f.region} options={d.opts.region} onChange={d.set.region} invalid={d.tried && !!d.err.region} ariaLabel="Регион" disabled={d.readOnly} placeholder="Выберите регион" minPopWidth={240} />
+            <Select value={d.f.region} options={d.opts.region} onChange={d.set.region} invalid={d.tried && !!d.err.region} ariaLabel="Регион" disabled={d.readOnly} placeholder="Регион" minPopWidth={240} />
           </F>
           {d.lead ? (
             <F label="Группа на момент передачи" wide hint={compact ? undefined : "Меняется сама, если сменить оператора"}>
@@ -586,7 +586,7 @@ function StatusActions({ lead, failIntent }: { lead: Lead; failIntent?: boolean 
               <Icon name="close" size={13} stroke={2.4} />
               {lead.status === "failed" ? "Сохранить причину" : "Не доведён"}
             </button>
-            <button type="button" className="o2-btn" style={{ border: 0, background: "none", fontWeight: 500, color: "var(--text-sub)" }} onClick={() => setAsking(false)}>
+            <button type="button" className="o2-btn ghost" onClick={() => setAsking(false)}>
               Отмена
             </button>
           </div>

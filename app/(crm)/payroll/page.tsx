@@ -4,20 +4,23 @@ import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useCrm, type AdjustmentInput } from "@/lib/crm/store";
 import { approvePctFor, approvePctWhere, goneLast, incomeBySegment, incomePerLead, isGone, monthCal, opTerms, type MonthCal } from "@/lib/crm/calc";
-import { isRegionalLead } from "@/lib/crm/regions";
 import { costPerLead, fundForecast, fundStat, hasBonus, isHourlyTiered, isSalary, isSvVolume, isTiered, payroll, payrollRow, TAX_PCT, type PayRow } from "@/lib/crm/payroll";
 import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
 import { fmtDate, fmtDayShort, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
 import { PAYOUTS, fmtInt, fmtMoney, fmtNum, fmtPct, plural, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Drawer, Empty, Field, GoneSepRow, GoneTag, Kpi, Modal, MonthSwitcher, NumInput, PageHead, Seg, Swatch, downloadText, foldRow, toCsv, useFoldGroups, useWheelHScroll } from "@/components/ui/kit";
+import { Avatar, Chip, Drawer, Empty, Field, GoneTag, Modal, NumInput, Pager, Swatch, downloadText, foldRow, toCsv, useFoldGroups } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
+import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { canEditPay, canTouchOp } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 import { ApproveMonthEditor } from "@/components/app/ApproveSettings";
 import { PayslipModal } from "@/components/app/Payslip";
 import { PayoutHistory, usePayouts } from "@/components/app/PayoutHistory";
-import { PeriodPayroll } from "@/components/app/PeriodPayroll";
+import { PeriodNav, PeriodPayroll, usePeriodPayroll } from "@/components/app/PeriodPayroll";
+import { MonthSide } from "@/components/app/PaySide";
+import { MonthNav, SideEmpty, Tile } from "@/components/app/V2Kit";
+import { Popover } from "@/components/app/OperatorsV2";
 import { REGISTRY_DAYS } from "@/lib/crm/payperiod";
 import { TaxSum } from "@/components/app/TaxSum";
 
@@ -68,11 +71,44 @@ function payrollOf(rows: PayRow[]) {
   return { rows, total };
 }
 
+/* ── столбцы помесячной ведомости ─────────────────────────────────── */
+const MCOLS = ["scheme", "hours", "leads", "base", "bonus", "prem", "extra", "gross", "withhold", "net", "paid", "toPay", "tax"] as const;
+type MCol = (typeof MCOLS)[number];
+const MSHOWN: MCol[] = ["hours", "leads", "gross", "withhold", "paid", "toPay", "tax"];
+const MCOL_LABEL: Record<MCol, string> = {
+  scheme: "Схема", hours: "Часы", leads: "Лиды", base: "База", bonus: "Бонус за лиды", prem: "Премии", extra: "Доп.", gross: "Начислено",
+  withhold: "Удержано", net: "К выплате", paid: "Выплачено", toPay: "Остаток", tax: "К переводу",
+};
+const MCOL_HINT: Partial<Record<MCol, string>> = {
+  base: "Оклад (с учётом пропорции) или часы × ставка",
+  bonus: "Лиды × бонус за лид",
+  prem: "Премии за месяц",
+  extra: "Доп. начисления, компенсации, корректировки",
+  withhold: "Процент удержания + удержания",
+  net: "Начислено минус удержано",
+  paid: "Аванс + выплаты",
+  tax: `Остаток + ${TAX_PCT}% налога самозанятого — сумма к переводу`,
+};
+
+function mergeVisible(full: string[], visibleNext: string[]): string[] {
+  const vis = new Set(visibleNext);
+  let i = 0;
+  return full.map((k) => (vis.has(k) ? visibleNext[i++] : k));
+}
+
+type View = "periods" | "sheet" | "payouts";
+const VIEWS: { value: View; label: string }[] = [
+  { value: "periods", label: "По периодам" },
+  { value: "sheet", label: "За месяц" },
+  { value: "payouts", label: "Выплаты" },
+];
+
 export default function PayrollPage() {
   const { data, ix, month, setMonth, today, workedTo, saveTerms, saveAdjustment, toast, confirm, access } = useCrm();
   // «По периодам» — кому и сколько выплатить в день выплаты (главный вид);
   // «За месяц» — начисления месяца для ФОТ и аналитики; «История выплат» — все выплаты
-  const [view, setView] = useState<"periods" | "sheet" | "payouts">("periods");
+  const [view, setView] = useState<View>("periods");
+  const pp = usePeriodPayroll();
   const cal = useMemo(() => monthCal(month, data.settings, today), [month, data.settings, today]);
   const prAll = useMemo(() => payroll(data, ix, cal), [data, ix, cal]);
   // супервайзер, видящий все группы, всё равно смотрит зарплату только своих
@@ -83,11 +119,16 @@ export default function PayrollPage() {
     return payrollOf(rows);
   }, [prAll, access]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [selId, setSelId] = useState<string | null>(null);
   const [adjFor, setAdjFor] = useState<{ opId: string; adj?: Adjustment } | null>(null);
   const [q, setQ] = useState("");
 
   const [grp, setGrp] = useState("");
+  const vis = useColumnVisibility("payroll-month", MCOLS, MSHOWN);
+  const colOrder = useColumnOrder("payroll-month", MCOLS);
+  const shown = useMemo(() => colOrder.order.filter((k) => vis.shown.has(k)) as MCol[], [colOrder.order, vis.shown]);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const colDrag = useColumnDrag({ wrapRef, order: shown, onChange: (next) => colOrder.save(mergeVisible(colOrder.order, next)) });
   const fold = useFoldGroups(wrapRef);
 
   // группа строки: супервайзер — в группе, которую ведёт; остальные — по карточке
@@ -144,6 +185,7 @@ export default function PayrollPage() {
     return [{ value: "", label: "Все группы" }, ...list];
   }, [pr.rows, groupOf, ix]);
   const openRow = openId ? pr.rows.find((r) => r.op.id === openId) ?? null : null;
+  const selRow = selId ? pr.rows.find((r) => r.op.id === selId) ?? null : null;
   const t = pr.total;
   const unfixed = pr.rows.filter((r) => !r.explicitTerms).length;
 
@@ -151,44 +193,7 @@ export default function PayrollPage() {
      регионы — цена регионального лида и апрув регионов из настроек */
   const approve = useMemo(() => approvePctFor(data, ix, month), [data, ix, month]);
   const income = useMemo(() => incomePerLead(data, month), [data, month]);
-  const regionalN = useMemo(
-    () => data.leads.filter((l) => l.status !== "failed" && l.at.slice(0, 7) === month && isRegionalLead(l, data.settings)).length,
-    [data.leads, data.settings, month],
-  );
-  const rg = data.settings.regions;
-  // доход месяца по сегментам — сводка в карточке «Доход и ФОТ»
-  const seg = useMemo(() => incomeBySegment(data, month), [data, month]);
-  const regionNote = regionalN > 0 ? ` · регионы: ${fmtInt(regionalN)} лид. × ${fmtMoney(rg.regionalLeadRevenue)} × ${fmtNum(rg.regionalApprovePct)}%` : "";
   const fund = useMemo(() => fundStat(t.gross, t.leads, income, data.settings.payrollCapPct), [t.gross, t.leads, income, data.settings.payrollCapPct]);
-  /* прогноз: фонд растёт по отработанным дням, доход — по Run Rate лидов */
-  const forecast = useMemo(() => {
-    if (cal.phase !== "current") return null;
-    const elapsed = cal.wIdx(cal.ref);
-    const ahead = cal.workdays.filter((d) => d > cal.ref);
-    const rr = elapsed > 0 ? Math.round((t.leads / elapsed) * cal.W) : t.leads;
-    return fundForecast(t.gross, t.leads, rr, elapsed, cal.W, income, data.settings.payrollCapPct, ahead);
-  }, [cal, t.gross, t.leads, income, data.settings.payrollCapPct]);
-
-  const fundByGroup = useMemo(() => {
-    const map = new Map<string, { name: string; color: string; people: number; leads: number; gross: number; ops: Set<string> }>();
-    for (const r of pr.rows) {
-      const key = groupOf(r);
-      const g = key === NO_GROUP ? null : ix.groupById.get(key);
-      const cur = map.get(key) ?? { name: g?.name ?? NO_GROUP_LABEL, color: g?.color ?? "gray", people: 0, leads: 0, gross: 0, ops: new Set<string>() };
-      cur.ops.add(r.op.id);
-      cur.people += 1;
-      cur.leads += r.leads;
-      cur.gross += r.gross;
-      map.set(key, cur);
-    }
-    return Array.from(map.entries())
-      .map(([id, v]) => {
-        // апрув группы — по проектам её лидов
-        const approve = approvePctWhere(data, month, (l) => v.ops.has(l.operatorId));
-        return { id, ...v, approve, stat: fundStat(v.gross, v.leads, incomePerLead(data, month, (l) => v.ops.has(l.operatorId)), data.settings.payrollCapPct) };
-      })
-      .sort((a, b) => b.gross - a.gross);
-  }, [pr.rows, ix, groupOf, data, month]);
 
   /**
    * Выплатить остаток одной кнопкой: запись «Выплата» на сумму остатка ведомости, датой сегодня.
@@ -231,403 +236,615 @@ export default function PayrollPage() {
     body.push(["ИТОГО", "", t.hours, "", t.leads, t.base, t.leadPay, t.adj.accrual, t.adj.bonus, t.adj.compensation, t.adj.correction, t.gross, t.withhold, t.deductions, t.net, t.adj.advance, t.adj.payout, t.toPay]);
     downloadText(`payroll_${month}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
   };
-  // колесо мыши листает широкую ведомость вбок (если она влезла по высоте или курсор на шапке)
-  useWheelHScroll(wrapRef, { auto: true, watch: pr.rows.length > 0 });
+
+  const sub =
+    view === "periods"
+      ? data.settings.paySchedule.length
+        ? `Кому и сколько выплатить · реестр за ${REGISTRY_DAYS} дня до выплаты, остаток + ${TAX_PCT}%`
+        : `Выплаты раз в ${data.settings.payPeriodDays} дней, через ${data.settings.payDelayDays} дн. после конца периода`
+      : view === "payouts"
+        ? "Все авансы и выплаты — по дате выплаты"
+        : // до закрытия дня сегодняшние смены ещё идут — в ведомости их нет, и это надо видеть
+          workedTo < today && month === today.slice(0, 7)
+          ? `${fmtMonth(month)} · по ${fmtDayShort(workedTo)} включительно — смены за сегодня войдут в ${data.settings.dayCloseHour}:00`
+          : `${fmtMonth(month)} · из смен, лидов и корректировок`;
+  const stHue = pp.status.hue === "blue" ? "gray" : pp.status.hue;
+
+  /* ── ячейки помесячной ведомости ───────────────────────────────────── */
+  const dash = <span className="o2-muted">—</span>;
+  const cell = (c: MCol, r: PayRow) => {
+    switch (c) {
+      case "scheme":
+        return <td key={c} data-col={c} className="o2-muted">{PAY_LABEL[r.payType]}</td>;
+      case "hours":
+        return (
+          <td key={c} data-col={c} className="r" title={isSalary(r.payType) ? `норма ${fmtNum(r.normHours, 0)} ч` : undefined}>
+            {fmtNum(r.hours)}
+          </td>
+        );
+      case "leads":
+        return <td key={c} data-col={c} className="r">{fmtInt(r.leads)}</td>;
+      case "base":
+        return <td key={c} data-col={c} className="r">{fmtMoney(r.base)}</td>;
+      case "bonus":
+        return <td key={c} data-col={c} className="r">{hasBonus(r.payType) ? fmtMoney(r.leadPay) : dash}</td>;
+      case "prem":
+        return (
+          <td key={c} data-col={c} className="r" title={adjTitle(r, ["bonus"])}>
+            {r.adj.bonus ? <span style={{ color: "var(--c-green-fg)", fontWeight: 600 }}>+{fmtMoney(r.adj.bonus)}</span> : dash}
+          </td>
+        );
+      case "extra":
+        return (
+          <td key={c} data-col={c} className="r" title={adjTitle(r, ["accrual", "compensation", "correction"])}>
+            {extraOf(r.adj) ? fmtMoney(extraOf(r.adj)) : dash}
+          </td>
+        );
+      case "gross":
+        return (
+          <td key={c} data-col={c} className="r" style={{ fontWeight: 600 }} title={`база ${fmtMoney(r.base)} · бонус ${fmtMoney(r.leadPay)} · премии ${fmtMoney(r.adj.bonus)} · доп. ${fmtMoney(extraOf(r.adj))}`}>
+            {fmtMoney(r.gross)}
+          </td>
+        );
+      case "withhold":
+        return (
+          <td key={c} data-col={c} className="r" title={adjTitle(r, ["deduction"])}>
+            {r.withhold + r.deductions ? fmtMoney(r.withhold + r.deductions) : dash}
+          </td>
+        );
+      case "net":
+        return <td key={c} data-col={c} className="r">{fmtMoney(r.net)}</td>;
+      case "paid":
+        return (
+          <td key={c} data-col={c} className="r" title={adjTitle(r, ["advance", "payout"])}>
+            {r.paid ? fmtMoney(r.paid) : dash}
+          </td>
+        );
+      case "toPay":
+        return (
+          <td key={c} data-col={c} className="r" style={{ fontWeight: 600, color: r.toPay < -0.005 ? "var(--c-red-fg)" : r.toPay <= 0.005 && r.net > 0 ? "var(--c-green-fg)" : undefined }}>
+            {r.toPay <= 0.005 && r.net > 0 ? "✓ 0 ₽" : fmtMoney(r.toPay)}
+          </td>
+        );
+      case "tax":
+        return (
+          <td key={c} data-col={c} className="r" style={{ fontWeight: 600 }}>
+            <TaxSum value={r.toPay} />
+          </td>
+        );
+    }
+  };
+  const totalCell = (c: MCol, x: ReturnType<typeof payrollOf>["total"]) => {
+    switch (c) {
+      case "scheme":
+        return <td key={c} data-col={c} />;
+      case "hours":
+        return <td key={c} data-col={c} className="r">{fmtNum(x.hours)}</td>;
+      case "leads":
+        return <td key={c} data-col={c} className="r">{fmtInt(x.leads)}</td>;
+      case "base":
+        return <td key={c} data-col={c} className="r">{fmtMoney(x.base)}</td>;
+      case "bonus":
+        return <td key={c} data-col={c} className="r">{fmtMoney(x.leadPay)}</td>;
+      case "prem":
+        return <td key={c} data-col={c} className="r">{x.adj.bonus ? fmtMoney(x.adj.bonus) : "—"}</td>;
+      case "extra":
+        return <td key={c} data-col={c} className="r">{extraOf(x.adj) ? fmtMoney(extraOf(x.adj)) : "—"}</td>;
+      case "gross":
+        return <td key={c} data-col={c} className="r">{fmtMoney(x.gross)}</td>;
+      case "withhold":
+        return <td key={c} data-col={c} className="r">{fmtMoney(x.withhold + x.deductions)}</td>;
+      case "net":
+        return <td key={c} data-col={c} className="r">{fmtMoney(x.net)}</td>;
+      case "paid":
+        return <td key={c} data-col={c} className="r">{fmtMoney(x.paid)}</td>;
+      case "toPay":
+        return <td key={c} data-col={c} className="r">{fmtMoney(x.toPay)}</td>;
+      case "tax":
+        return (
+          <td key={c} data-col={c} className="r">
+            <TaxSum value={x.toPay} copy={false} />
+          </td>
+        );
+    }
+  };
 
   return (
-    <div className="stack">
-      <PageHead
-        title="Зарплата"
-        sub={
-          view === "periods"
-            ? data.settings.paySchedule.length ? `Выплаты по графику · реестр за ${REGISTRY_DAYS} дня до выплаты (остаток + ${TAX_PCT}%) · считается из смен, лидов и корректировок` : `Выплаты раз в ${data.settings.payPeriodDays} дней: выплата через ${data.settings.payDelayDays} дн. после конца периода · считается из смен, лидов и корректировок`
-            : // до закрытия дня сегодняшние смены ещё идут — в ведомости их нет, и это надо видеть
-          workedTo < today && month === today.slice(0, 7)
-            ? `${fmtMonth(month)} · по ${fmtDayShort(workedTo)} включительно — смены за сегодня войдут в ${data.settings.dayCloseHour}:00`
-            : `${fmtMonth(month)} · считается из смен, лидов и корректировок; меняется график — меняется ведомость`
-        }
-        actions={
-          <>
-            {view !== "periods" && <MonthSwitcher value={month} onChange={setMonth} />}
-            {view !== "periods" && access.can.editPayroll && unfixed > 0 && cal.phase !== "future" && (
-              <button className="btn" onClick={() => void freezeAll()} title="Записать условия месяца, чтобы правки карточек не меняли эту ведомость">
-                <Icon name="check" size={14} /> Зафиксировать условия
-              </button>
+    <div className="stack" style={{ gap: 0 }}>
+      {/* ── заголовок ─────────────────────────────────────────────── */}
+      <div className="o2-head">
+        <div className="o2-head-l">
+          <h1 className="o2-title">Зарплата</h1>
+          <div className="o2-sub" title={view === "periods" ? `${pp.status.text} · ${sub}` : sub}>
+            {view === "periods" ? (
+              <>
+                <i className="o2-sub-dot" data-hue={stHue} />
+                {pp.status.text}
+              </>
+            ) : (
+              sub
             )}
-            {view !== "periods" && <button className="btn" onClick={exportCsv} disabled={!pr.rows.length}>
-              <Icon name="download" size={14} /> CSV
-            </button>}
-            {access.can.editPayroll && (
-              <button className="btn btn-primary" onClick={() => setAdjFor({ opId: "" })} disabled={!pr.rows.length}>
-                <Icon name="plus" size={14} stroke={2.2} /> Начисление
+          </div>
+        </div>
+        <div className="o2-tools">
+          {view === "periods" ? <PeriodNav pp={pp} /> : <MonthNav month={month} onChange={setMonth} />}
+          <div className="o2-seg" role="group">
+            {VIEWS.map((v) => (
+              <button key={v.value} className={view === v.value ? "on" : ""} onClick={() => setView(v.value)}>
+                {v.label}
               </button>
-            )}
-          </>
-        }
-      />
-
-      <Seg<"periods" | "sheet" | "payouts">
-        value={view}
-        onChange={setView}
-        options={[
-          { value: "periods", label: "По периодам выплат" },
-          { value: "sheet", label: "За месяц" },
-          { value: "payouts", label: "История выплат" },
-        ]}
-        style={{ alignSelf: "flex-start" }}
-      />
+            ))}
+          </div>
+          {access.can.editPayroll && (
+            <button className="o2-btn pri" onClick={() => setAdjFor({ opId: "" })} disabled={!pr.rows.length}>
+              <Icon name="plus" size={14} stroke={2.2} /> Начисление
+            </button>
+          )}
+        </div>
+      </div>
 
       {view === "periods" ? (
-        <PeriodPayroll />
+        <PeriodPayroll pp={pp} onAdj={access.can.editPayroll ? (opId, adj) => setAdjFor({ opId, adj }) : undefined} />
       ) : view === "payouts" ? (
         <PayoutsView month={month} toPay={t.toPay} q={q} setQ={setQ} />
       ) : (
-      <>
-      <div className="kpi-grid">
-        <Kpi label="Начислено" value={fmtMoney(t.gross)} sub={`база ${fmtMoney(t.base)} · бонусы ${fmtMoney(t.leadPay)}`} />
-        <Kpi label="Удержано" value={fmtMoney(t.withhold + t.deductions)} sub={`${data.settings.withholdPct}% — ${fmtMoney(t.withhold)}`} />
-        <Kpi label="К выплате всего" value={fmtMoney(t.net)} sub="начислено минус удержано" />
-        <Kpi label="Уже выплачено" value={fmtMoney(t.paid)} sub={`аванс ${fmtMoney(t.adj.advance)}`} />
-        <Kpi label="Остаток к выплате" value={fmtMoney(t.toPay)} sub="за вычетом выплаченного" />
-        <Kpi label="Стоимость лида" value={t.leads ? fmtMoney(costPerLead(pr)) : "—"} sub={`${fmtInt(t.leads)} лидов · ${fmtNum(t.hours, 0)} ч`} title="Начислено / переданные лиды" />
-        <Kpi
-          label="ФОТ к доходу"
-          value={fund.revenue > 0 ? fmtPct(fund.pct) : "—"}
-          sub={fund.revenue > 0 ? `норматив ${data.settings.payrollCapPct}% · апрув ${fmtNum(approve)}% · доход ${fmtMoney(fund.revenue)}` : data.settings.leadRevenue > 0 ? "апрув заказчика 0%" : "укажите цену лида в настройках"}
-          tone={fund.revenue > 0 ? (fund.ok ? "good" : "bad") : undefined}
-          title={`Фонд оплаты труда ${fmtMoney(fund.fund)} против дохода ${fmtMoney(fund.revenue)}: основа — лиды × ${fmtMoney(data.settings.leadRevenue)} × апрув по проектам${regionNote}`}
-        />
-      </div>
+        <div className="o2-body has-side">
+          <div className="o2-main">
+            {/* ── показатели месяца ─────────────────────────────────── */}
+            <div className="card o2-kpis">
+              <Tile icon="calc" label="Начислено" value={fmtMoney(t.gross)} line={`база ${fmtMoney(t.base)}`} sub={`бонусы ${fmtMoney(t.leadPay)}`} />
+              <Tile icon="trend" label="Удержано" value={fmtMoney(t.withhold + t.deductions)} line={`${data.settings.withholdPct}% — ${fmtMoney(t.withhold)}`} sub="кроме компенсаций" />
+              <Tile icon="wallet" label="К выплате" value={fmtMoney(t.net)} line={`выплачено ${fmtMoney(t.paid)}`} sub={`аванс ${fmtMoney(t.adj.advance)}`} />
+              <Tile
+                icon="hourglass"
+                label="Остаток"
+                hue={t.toPay > 0.005 ? "amber" : "green"}
+                value={fmtMoney(t.toPay)}
+                line={`${fmtInt(pr.rows.filter((r) => r.toPay > 0.005).length)} чел. ждут`}
+                sub="после выплат"
+              />
+              <Tile icon="coin" label="Стоимость лида" value={t.leads ? fmtMoney(costPerLead(pr)) : "—"} line={`${fmtInt(t.leads)} лидов`} sub={`${fmtNum(t.hours, 0)} ч`} title="Начислено / переданные лиды" />
+              <Tile
+                icon="target"
+                label="ФОТ к доходу"
+                hue={fund.revenue > 0 ? (fund.ok ? "green" : "red") : undefined}
+                tone={fund.revenue > 0 ? (fund.ok ? "good" : "bad") : undefined}
+                value={fund.revenue > 0 ? fmtPct(fund.pct) : "—"}
+                line={fund.revenue > 0 ? `норматив ${data.settings.payrollCapPct}%` : data.settings.leadRevenue > 0 ? "апрув заказчика 0%" : "нет цены лида"}
+                sub={fund.revenue > 0 ? `апрув ${fmtNum(approve)}%` : "в настройках"}
+                title={`Фонд оплаты труда ${fmtMoney(fund.fund)} против дохода ${fmtMoney(fund.revenue)}`}
+              />
+            </div>
 
-      {pr.rows.length === 0 ? (
-        <div className="card">
-          <Empty icon="wallet" title="Ведомость пуста" text="В этом месяце нет операторов в штате и нет начислений." />
+            {pr.rows.length === 0 ? (
+              <div className="card">
+                <Empty icon="wallet" title="Ведомость пуста" text="В этом месяце нет операторов в штате и нет начислений." />
+              </div>
+            ) : (
+              <>
+                {/* ── фильтры ───────────────────────────────────────── */}
+                <div className="card o2-filters">
+                  <label className="o2-search">
+                    <Icon name="search" size={14} />
+                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по сотруднику…" />
+                  </label>
+                  {groupOpts.length > 2 && <Select value={grp} options={groupOpts} onChange={setGrp} width={170} ariaLabel="Группа" />}
+                  {access.can.editPayroll && unfixed > 0 && cal.phase !== "future" && (
+                    <button className="o2-btn" onClick={() => void freezeAll()} title="Записать условия месяца, чтобы правки карточек не меняли эту ведомость">
+                      <Icon name="check" size={14} /> Зафиксировать условия
+                    </button>
+                  )}
+                  <button className="o2-btn" onClick={exportCsv} title="Выгрузить ведомость месяца">
+                    <Icon name="download" size={14} /> CSV
+                  </button>
+                  <span className="o2-found" title={`Оклад ${data.settings.prorateSalary ? "пропорционален часам, если норма не выполнена" : "платится полностью"} · удержание ${data.settings.withholdPct}% (кроме компенсаций)`}>
+                    Найдено: {fmtInt(rows.length)}
+                  </span>
+                  <Popover
+                    align="right"
+                    button={(open, toggle, ref) => (
+                      <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
+                        <Icon name="dashboard" size={15} />
+                      </button>
+                    )}
+                  >
+                    <div className="tt">Столбцы</div>
+                    {MCOLS.map((k) => (
+                      <label key={k} title={MCOL_HINT[k]}>
+                        <input type="checkbox" className="o2-cb" checked={vis.shown.has(k)} onChange={() => vis.toggle(k)} />
+                        {MCOL_LABEL[k]}
+                      </label>
+                    ))}
+                    <div className="sep" />
+                    <div className="tt">Порядок — перетащите заголовок столбца</div>
+                    {vis.custom && (
+                      <button className="it" onClick={vis.reset}>
+                        <Icon name="check" size={13} /> По умолчанию
+                      </button>
+                    )}
+                    {colOrder.custom && (
+                      <button className="it" onClick={colOrder.reset}>
+                        <Icon name="refresh" size={13} /> Вернуть порядок столбцов
+                      </button>
+                    )}
+                  </Popover>
+                </div>
+
+                {/* ── ведомость ─────────────────────────────────────── */}
+                <div className="card o2-card">
+                  {rows.length === 0 ? (
+                    <div style={{ padding: 28, textAlign: "center", color: "var(--dim)", fontSize: 13 }}>Никого не нашли — поменяйте поиск или группу.</div>
+                  ) : (
+                    <div className="o2-scroll" ref={wrapRef}>
+                      <table className="o2-tbl pay-tbl">
+                        <thead>
+                          <tr>
+                            <th>Сотрудник</th>
+                            {shown.map((c) => {
+                              const hp = colDrag.headProps(c);
+                              return (
+                                <th key={c} {...hp} className={`${hp.className}${c === "scheme" ? "" : " r"}`} title={MCOL_HINT[c] ? `${MCOL_HINT[c]}. Перетащите, чтобы переставить` : "Перетащите, чтобы переставить столбец"}>
+                                  {MCOL_LABEL[c]}
+                                </th>
+                              );
+                            })}
+                            <th style={{ width: 44 }} />
+                          </tr>
+                        </thead>
+                        {sections.map((sec) => {
+                          const closed = fold.isClosed(sec.id);
+                          const phase = fold.phase(sec.id);
+                          return (
+                            <tbody key={sec.id} data-fold={sec.id}>
+                              <tr className="grp-head" onClick={() => fold.toggle(sec.id)} title={closed ? "Развернуть группу" : "Свернуть группу"} aria-expanded={!closed}>
+                                <td>
+                                  <span className="row" style={{ gap: 8 }}>
+                                    <Icon name="chevR" size={14} className={`grp-chev${closed || phase === "out" ? "" : " open"}`} />
+                                    <Swatch hue={sec.color} />
+                                    <span>{sec.name}</span>
+                                    <span className="grp-head-sub" title={sec.supervisor ? `Супервайзер: ${sec.supervisor}` : undefined}>
+                                      {sec.rows.length} чел.
+                                    </span>
+                                  </span>
+                                </td>
+                                {shown.map((c) => totalCell(c, sec.total))}
+                                <td />
+                              </tr>
+                              {!closed &&
+                                sec.rows.map((r, i) => {
+                                  const f = foldRow(phase, i);
+                                  // уволенные — в конце группы, за разделителем
+                                  const firstGone = isGone(r.op) && (i === 0 || !isGone(sec.rows[i - 1].op));
+                                  const canPay = canEditPay(access, r.op.id);
+                                  return (
+                                    <Fragment key={r.op.id}>
+                                      {firstGone && (
+                                        <tr className="gone-sep">
+                                          <td colSpan={shown.length + 2}>Уволены · {sec.rows.filter((x) => isGone(x.op)).length}</td>
+                                        </tr>
+                                      )}
+                                      <tr
+                                        className={`${f.className}${selRow?.op.id === r.op.id ? " sel" : ""}${r.op.status === "fired" ? " dim" : ""}`}
+                                        style={f.style}
+                                        onClick={() => setSelId(selRow?.op.id === r.op.id ? null : r.op.id)}
+                                      >
+                                        <td>
+                                          <span className="row" style={{ gap: 10 }}>
+                                            <Avatar name={r.op.name} id={r.op.id} size={26} />
+                                            <span className="l2-two">
+                                              <span>
+                                                {shortName(r.op.name)}
+                                                {isSv(r) && <span className="pay-sv">СВ</span>}
+                                                {r.explicitTerms && (
+                                                  <span title="Условия месяца зафиксированы" style={{ color: "var(--text-sub)", marginLeft: 4 }}>
+                                                    •
+                                                  </span>
+                                                )}
+                                                <GoneTag op={r.op} />
+                                              </span>
+                                                    </span>
+                                          </span>
+                                        </td>
+                                        {shown.map((c) => cell(c, r))}
+                                        <td className="r" onClick={(e) => e.stopPropagation()}>
+                                          <span className="pay-acts">
+                                            <Popover
+                                              align="right"
+                                              button={(open, toggle, ref) => (
+                                                <button ref={ref} className="o2-kebab" onClick={toggle} aria-expanded={open} aria-label="Действия">
+                                                  <Icon name="list" size={15} />
+                                                </button>
+                                              )}
+                                            >
+                                              {(close) => (
+                                                <>
+                                                  <button className="it" onClick={() => { close(); setSelId(r.op.id); }}>
+                                                    <Icon name="info" size={14} /> Показать справа
+                                                  </button>
+                                                  <button className="it" onClick={() => { close(); setOpenId(r.op.id); }}>
+                                                    <Icon name="calc" size={14} /> Подробный расчёт и условия
+                                                  </button>
+                                                  {canPay && r.toPay > 0.005 && (
+                                                    <button className="it" onClick={() => { close(); void payRest(r); }}>
+                                                      <Icon name="wallet" size={14} /> Выплатить {fmtMoney(r.toPay)}
+                                                    </button>
+                                                  )}
+                                                  {canPay && (
+                                                    <button className="it" onClick={() => { close(); setAdjFor({ opId: r.op.id }); }}>
+                                                      <Icon name="plus" size={14} /> Начисление / выплата
+                                                    </button>
+                                                  )}
+                                                </>
+                                              )}
+                                            </Popover>
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    </Fragment>
+                                  );
+                                })}
+                            </tbody>
+                          );
+                        })}
+                        <tfoot>
+                          <tr>
+                            <td>
+                              Итого · {vt.rows}
+                              {vt.rows !== pr.rows.length && <span className="o2-muted"> из {pr.rows.length}</span>}
+                            </td>
+                            {shown.map((c) => totalCell(c, vt.total))}
+                            <td />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <FundCard pr={pr} groupOf={groupOf} />
+              </>
+            )}
+          </div>
+
+          {selRow ? (
+            <MonthSide
+              key={selRow.op.id}
+              r={selRow}
+              onPay={() => void payRest(selRow)}
+              onAdj={access.can.editPayroll ? (a) => setAdjFor({ opId: selRow.op.id, adj: a }) : undefined}
+              onOpen={() => setOpenId(selRow.op.id)}
+              onClose={() => setSelId(null)}
+            />
+          ) : (
+            <SideEmpty
+              icon="wallet"
+              title="Выберите сотрудника"
+              text="Нажмите на строку — здесь появятся остаток к выплате, расчёт за месяц, начисления и история выплат."
+              ghosts={["К выплате", "Расчёт за месяц", "Начисления и выплаты", "Условия месяца"]}
+            />
+          )}
         </div>
-      ) : (
-        <>
-          <div className="toolbar">
-            <div style={{ position: "relative", width: 260 }}>
-              <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: 10, color: "var(--dim)" }} />
-              <input className="inp" style={{ paddingLeft: 30 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Оператор" />
-            </div>
-            {groupOpts.length > 2 && (
-              <Select value={grp} options={groupOpts} onChange={setGrp} width={220} ariaLabel="Группа" title="Показать группу" />
-            )}
-            <span style={{ fontSize: 12, color: "var(--dim)" }}>
-              Оклад {data.settings.prorateSalary ? "пропорционален часам, если норма не выполнена" : "платится полностью"} · удержание {data.settings.withholdPct}% (кроме компенсаций)
-            </span>
-          </div>
-          <div ref={wrapRef} className="tbl-wrap" style={{ maxHeight: "max(300px, calc(100vh / var(--ui-scale, 1) - 360px))" }}>
-            <table className="tbl tbl-fit">
-              <thead>
-                <tr>
-                  <th className="sticky-col" style={{ minWidth: 240 }}>Оператор</th>
-                  <th>Схема</th>
-                  <th className="r">Часы</th>
-                  <th className="r">Лиды</th>
-                  <th className="r bl" title="Оклад (с учётом пропорции) или часы × ставка">База</th>
-                  <th className="r" title="Лиды × бонус за лид">Бонус за лиды</th>
-                  <th className="r" title="Премии за месяц">Премии</th>
-                  <th className="r" title="Доп. начисления, компенсации, корректировки">Доп.</th>
-                  <th className="r" style={{ fontWeight: 700 }}>Начислено</th>
-                  <th className="r bl" title="Процент удержания + удержания">Удержано</th>
-                  <th className="r">К выплате</th>
-                  <th className="r" title="Аванс + выплаты">Выплачено</th>
-                  <th className="r" style={{ fontWeight: 700 }}>Остаток</th>
-                  <th className="r" title={`Остаток + ${TAX_PCT}% налога самозанятого — сумма к переводу`}>Налог +{TAX_PCT}%</th>
-                  <th />
-                </tr>
-              </thead>
-              {sections.map((sec) => {
-                const closed = fold.isClosed(sec.id);
-                const phase = fold.phase(sec.id);
-                return (
-                  <tbody key={sec.id} data-fold={sec.id}>
-                    <tr className="grp-head" onClick={() => fold.toggle(sec.id)} title={closed ? "Развернуть группу" : "Свернуть группу"} aria-expanded={!closed}>
-                      <td className="sticky-col">
-                        <span className="row" style={{ gap: 8 }}>
-                          <Icon name="chevR" size={14} className={`grp-chev${closed || phase === "out" ? "" : " open"}`} />
-                          <Swatch hue={sec.color} />
-                          <span>{sec.name}</span>
-                          <span className="grp-head-sub">
-                            {sec.rows.length} чел.{sec.supervisor ? ` · супервайзер ${sec.supervisor}` : ""}
-                          </span>
-                        </span>
-                      </td>
-                      <td />
-                      <td className="r num">{fmtNum(sec.total.hours)}</td>
-                      <td className="r num">{fmtInt(sec.total.leads)}</td>
-                      <td className="r num bl">{fmtMoney(sec.total.base)}</td>
-                      <td className="r num">{fmtMoney(sec.total.leadPay)}</td>
-                      <td className="r num">{sec.total.adj.bonus ? fmtMoney(sec.total.adj.bonus) : "—"}</td>
-                      <td className="r num">{extraOf(sec.total.adj) ? fmtMoney(extraOf(sec.total.adj)) : "—"}</td>
-                      <td className="r num">{fmtMoney(sec.total.gross)}</td>
-                      <td className="r num bl">{fmtMoney(sec.total.withhold + sec.total.deductions)}</td>
-                      <td className="r num">{fmtMoney(sec.total.net)}</td>
-                      <td className="r num">{fmtMoney(sec.total.paid)}</td>
-                      <td className="r num">{fmtMoney(sec.total.toPay)}</td>
-                      <td className="r num"><TaxSum value={sec.total.toPay} copy={false} /></td>
-                      <td />
-                    </tr>
-                    {!closed &&
-                      sec.rows.map((r, i) => {
-                        const f = foldRow(phase, i);
-                        // уволенные — в конце группы, за разделителем
-                        const firstGone = isGone(r.op) && (i === 0 || !isGone(sec.rows[i - 1].op));
-                        return (
-                        <Fragment key={r.op.id}>
-                        {firstGone && <GoneSepRow count={sec.rows.filter((x) => isGone(x.op)).length} colSpan={15} indent={28} />}
-                        <tr className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""} ${r.op.status === "fired" ? "row-stripe" : ""} ${f.className}`} style={f.style} onClick={() => setOpenId(r.op.id)}>
-                          <td className="sticky-col" style={{ paddingLeft: 28 }}>
-                            <span className="row" style={{ gap: 8 }}>
-                              <Avatar name={r.op.name} id={r.op.id} size={24} />
-                              {shortName(r.op.name)}
-                              {isSv(r) && <Chip hue="indigo">СВ</Chip>}
-                              {r.explicitTerms && <span title="Условия месяца зафиксированы" style={{ color: "var(--brand)" }}>•</span>}
-                              <GoneTag op={r.op} />
-                            </span>
-                          </td>
-                          <td className="muted">{PAY_LABEL[r.payType]}</td>
-                          <td className="r num">
-                            {fmtNum(r.hours)}
-                            {isSalary(r.payType) && <span className="muted"> / {fmtNum(r.normHours, 0)}</span>}
-                          </td>
-                          <td className="r num">{fmtInt(r.leads)}</td>
-                          <td className="r num bl">{fmtMoney(r.base)}</td>
-                          <td className="r num">{hasBonus(r.payType) ? fmtMoney(r.leadPay) : <span className="muted">—</span>}</td>
-                          <td className="r num" title={adjTitle(r, ["bonus"])}>
-                            {r.adj.bonus ? <span style={{ color: "var(--c-green-fg)", fontWeight: 600 }}>+{fmtMoney(r.adj.bonus)}</span> : <span className="muted">—</span>}
-                          </td>
-                          <td className="r num" title={adjTitle(r, ["accrual", "compensation", "correction"])}>
-                            {extraOf(r.adj) ? fmtMoney(extraOf(r.adj)) : <span className="muted">—</span>}
-                          </td>
-                          <td className="r num" style={{ fontWeight: 600 }}>{fmtMoney(r.gross)}</td>
-                          <td className="r num bl" title={adjTitle(r, ["deduction"])}>{fmtMoney(r.withhold + r.deductions)}</td>
-                          <td className="r num">{fmtMoney(r.net)}</td>
-                          <td className="r num" title={adjTitle(r, ["advance", "payout"])}>{fmtMoney(r.paid)}</td>
-                          <td className="r num" style={{ fontWeight: 600, color: r.toPay < 0 ? "var(--c-red-fg)" : undefined }}>{fmtMoney(r.toPay)}</td>
-                          <td className="r num" style={{ fontWeight: 600 }}><TaxSum value={r.toPay} /></td>
-                          <td className="r" onClick={(e) => e.stopPropagation()}>
-                            {canEditPay(access, r.op.id) && (
-                              <span className="row-actions">
-                                {r.toPay > 0.005 && (
-                                  <button className="btn btn-ghost btn-sm" title={`Выплатить остаток ${fmtMoney(r.toPay)}`} onClick={() => void payRest(r)}>
-                                    <Icon name="wallet" size={13} /> Выплатить
-                                  </button>
-                                )}
-                                <button className="btn btn-ghost btn-sm btn-icon" title="Добавить начисление/выплату" onClick={() => setAdjFor({ opId: r.op.id })}>
-                                  <Icon name="plus" size={14} />
-                                </button>
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                        </Fragment>
-                        );
-                      })}
-                  </tbody>
-                );
-              })}
-              <tfoot>
-                <tr>
-                  <td className="sticky-col">
-                    Итого · {vt.rows}
-                    {vt.rows !== pr.rows.length && <span className="muted"> из {pr.rows.length}</span>}
-                  </td>
-                  <td />
-                  <td className="r num">{fmtNum(vt.total.hours)}</td>
-                  <td className="r num">{fmtInt(vt.total.leads)}</td>
-                  <td className="r num bl">{fmtMoney(vt.total.base)}</td>
-                  <td className="r num">{fmtMoney(vt.total.leadPay)}</td>
-                  <td className="r num">{fmtMoney(vt.total.adj.bonus)}</td>
-                  <td className="r num">{fmtMoney(extraOf(vt.total.adj))}</td>
-                  <td className="r num">{fmtMoney(vt.total.gross)}</td>
-                  <td className="r num bl">{fmtMoney(vt.total.withhold + vt.total.deductions)}</td>
-                  <td className="r num">{fmtMoney(vt.total.net)}</td>
-                  <td className="r num">{fmtMoney(vt.total.paid)}</td>
-                  <td className="r num">{fmtMoney(vt.total.toPay)}</td>
-                  <td className="r num"><TaxSum value={vt.total.toPay} copy={false} /></td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          {/* ФОТ по группам: фонд против дохода и норматив, который нельзя превышать */}
-          <div className="card card-tbl" style={{ overflow: "hidden" }}>
-            <div className="card-head" style={{ padding: "16px 18px 0" }}>
-              <div>
-                <h3 className="card-title"><Icon name="coin" size={15} className="title-ic" />Доход и ФОТ</h3>
-                <p className="card-sub">
-                  {fmtMonth(month)} · доход = лиды × цена лида × апрув заказчика · норматив ФОТ — не выше {data.settings.payrollCapPct}% дохода
-                </p>
-              </div>
-              {access.can.systemSettings && (
-                <Link href="/settings?tab=system" className="btn btn-sm btn-ghost" title="Цены лидов, апрув регионов и норматив ФОТ">
-                  Цены и норматив <Icon name="chevR" size={13} />
-                </Link>
-              )}
-            </div>
-            {/* откуда доход: основа и регионы — лиды, цена, апрув, доход */}
-            <div className="tbl-wrap" style={{ border: "none", borderRadius: 0, marginTop: 12 }}>
-              <table className="tbl tbl-fit">
-                <thead>
-                  <tr>
-                    <th style={{ minWidth: 180 }}>Сегмент</th>
-                    <th className="r">Лиды</th>
-                    <th className="r">Цена лида</th>
-                    <th className="r" title="Основа — средневзвешенный по проектам её лидов; регионы — из настроек">Апрув</th>
-                    <th className="r">Доход с лида</th>
-                    <th className="r">Доход</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(["main", "regional"] as const).map((k) => {
-                    const g = seg[k];
-                    if (k === "regional" && !g.leads) return null;
-                    return (
-                      <tr key={k}>
-                        <td>
-                          <span className="row" style={{ gap: 8 }}>
-                            <Chip hue={k === "main" ? "gray" : "amber"}>{k === "main" ? "основа" : "регионы"}</Chip>
-                            <span className="muted" style={{ fontSize: 12 }}>
-                              {(k === "main" ? rg.main : rg.regional).join(", ")}
-                            </span>
-                          </span>
-                        </td>
-                        <td className="r num">{fmtInt(g.leads)}</td>
-                        <td className="r num">{g.price > 0 ? fmtMoney(g.price) : <span style={{ color: "var(--c-red-fg)" }}>не задана</span>}</td>
-                        <td className="r num">{fmtNum(g.approve)}%</td>
-                        <td className="r num muted">{fmtMoney((g.price * g.approve) / 100)}</td>
-                        <td className="r num" style={{ fontWeight: 600 }}>{g.revenue ? fmtMoney(g.revenue) : "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td>Итого доход</td>
-                    <td className="r num">{fmtInt(seg.main.leads + seg.regional.leads)}</td>
-                    <td />
-                    <td />
-                    <td className="r num muted">{fmtMoney(income)}</td>
-                    <td className="r num">{fund.revenue ? fmtMoney(fund.revenue) : "—"}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            <div className="row" style={{ gap: 18, flexWrap: "wrap", padding: "12px 18px 0", fontSize: 13 }}>
-              <span>
-                ФОТ <b className="num">{fmtMoney(fund.fund)}</b>
-              </span>
-              <span>
-                ФОТ к доходу{" "}
-                <b className="num" style={{ color: fund.revenue ? (fund.ok ? "var(--c-green-fg)" : "var(--c-red-fg)") : undefined }}>
-                  {fund.revenue ? fmtPct(fund.pct) : "—"}
-                </b>{" "}
-                <span className="muted">при нормативе {data.settings.payrollCapPct}%</span>
-              </span>
-              {fund.revenue > 0 && (
-                <span>
-                  {fund.over > 0 ? "Превышение" : "Запас до норматива"}{" "}
-                  <b className="num" style={{ color: fund.over > 0 ? "var(--c-red-fg)" : undefined }}>
-                    {fmtMoney(fund.over > 0 ? fund.over : fund.revenue * fund.cap - fund.fund)}
-                  </b>
-                </span>
-              )}
-              {!data.settings.leadRevenue && <span style={{ color: "var(--c-red-fg)" }}>Укажите цену лида основы в настройках — без неё доход не считается</span>}
-            </div>
-            {forecast && forecast.revenue > 0 && (
-              <div
-                className={`note-line ${forecast.ok ? "ok" : "warn"}`}
-                style={{ margin: "12px 18px 0" }}
-              >
-                <Icon name={forecast.ok ? "check" : "alert"} size={15} stroke={2.2} />
-                <span>
-                  <b>
-                    Прогноз на конец месяца: ФОТ {fmtMoney(forecast.fund)} при доходе {fmtMoney(forecast.revenue)} — {fmtPct(forecast.pct)}.
-                  </b>{" "}
-                  {forecast.ok
-                    ? `Норматив ${data.settings.payrollCapPct}% держится, запас ${fmtMoney(forecast.revenue * forecast.cap - forecast.fund)}.`
-                    : forecast.alreadyOver
-                      ? `Норматив ${data.settings.payrollCapPct}% уже превышен: чтобы выйти в него, до конца месяца нужно ${fmtInt(forecast.leadsNeeded)} лидов вместо ${fmtInt(income > 0 ? Math.round(forecast.revenue / income) : 0)}.`
-                      : forecast.crossDay
-                        ? `При таком темпе выйдете за ${data.settings.payrollCapPct}% ${fmtDate(forecast.crossDay)}. Чтобы уложиться, нужно ${fmtInt(forecast.leadsNeeded)} лидов за месяц.`
-                        : `Норматив ${data.settings.payrollCapPct}% будет превышен: нужно ${fmtInt(forecast.leadsNeeded)} лидов за месяц.`}
-                </span>
-              </div>
-            )}
-            <div className="tbl-wrap" style={{ border: "none", borderRadius: 0, marginTop: 12 }}>
-              <table className="tbl tbl-fit">
-                <thead>
-                  <tr>
-                    <th style={{ minWidth: 180 }}>Группа</th>
-                    <th className="r">Людей</th>
-                    <th className="r">Лиды</th>
-                    <th className="r" title="Апрув заказчика по проектам лидов группы">Апрув</th>
-                    <th className="r" title="Лиды × цена лида × апрув">Доход</th>
-                    <th className="r">ФОТ</th>
-                    <th className="r">% ФОТ</th>
-                    <th className="r">Запас до норматива</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fundByGroup.map((g) => {
-                    const room = g.stat.revenue * g.stat.cap - g.stat.fund;
-                    return (
-                      <tr key={g.id}>
-                        <td>
-                          <span className="row" style={{ gap: 8 }}>
-                            <Swatch hue={g.color} />
-                            {g.name}
-                          </span>
-                        </td>
-                        <td className="r num muted">{fmtInt(g.people)}</td>
-                        <td className="r num">{fmtInt(g.leads)}</td>
-                        <td className="r num muted">{fmtNum(g.approve)}%</td>
-                        <td className="r num muted">{g.stat.revenue ? fmtMoney(g.stat.revenue) : "—"}</td>
-                        <td className="r num">{fmtMoney(g.stat.fund)}</td>
-                        <td className="r num" style={{ color: g.stat.revenue ? (g.stat.ok ? "var(--c-green-fg)" : "var(--c-red-fg)") : undefined, fontWeight: 600 }}>
-                          {g.stat.revenue ? fmtPct(g.stat.pct) : "—"}
-                        </td>
-                        <td className="r num" style={{ color: room < 0 ? "var(--c-red-fg)" : undefined }}>
-                          {g.stat.revenue ? (room >= 0 ? fmtMoney(room) : `−${fmtMoney(-room)}`) : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td>Итого</td>
-                    <td className="r num">{fmtInt(pr.rows.length)}</td>
-                    <td className="r num">{fmtInt(t.leads)}</td>
-                    <td className="r num">{fmtNum(approve)}%</td>
-                    <td className="r num">{fund.revenue ? fmtMoney(fund.revenue) : "—"}</td>
-                    <td className="r num">{fmtMoney(fund.fund)}</td>
-                    <td className="r num" style={{ color: fund.revenue ? (fund.ok ? "var(--c-green-fg)" : "var(--c-red-fg)") : undefined }}>
-                      {fund.revenue ? fmtPct(fund.pct) : "—"}
-                    </td>
-                    <td className="r num">{fund.revenue ? (fund.over > 0 ? `−${fmtMoney(fund.over)}` : fmtMoney(fund.revenue * fund.cap - fund.fund)) : "—"}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            <div style={{ padding: "14px 18px 18px", borderTop: "1px solid var(--ink-06)", display: "flex", flexDirection: "column", gap: 8 }}>
-              <div>
-                <div className="card-title" style={{ fontSize: 13 }}><Icon name="checkc" size={15} className="title-ic" />Апрув основы за {fmtMonth(month).toLowerCase()} — по проектам</div>
-                <div className="card-sub">Факт от заказчика: из него доход основы и коэффициент бонуса супервайзера. Регионы — свой апрув из настроек</div>
-              </div>
-              <ApproveMonthEditor />
-            </div>
-          </div>
-        </>
-      )}
-      </>
       )}
 
       {openRow && <PayDrawer row={openRow} planValue={termsPlan(openRow)} onClose={() => setOpenId(null)} onAdj={(adj) => setAdjFor({ opId: openRow.op.id, adj })} onPay={() => void payRest(openRow)} />}
       {adjFor && <AdjustmentModal opId={adjFor.opId} adj={adjFor.adj} rows={pr.rows} cal={cal} onClose={() => setAdjFor(null)} />}
+    </div>
+  );
+}
+
+/** «Доход и ФОТ»: откуда доход (основа и регионы), фонд против норматива, прогноз, разрез по группам, апрув. */
+function FundCard({ pr, groupOf }: { pr: ReturnType<typeof payrollOf>; groupOf: (r: PayRow) => string }) {
+  const { data, ix, month, access } = useCrm();
+  const cal = useMemo(() => monthCal(month, data.settings, todayKey()), [month, data.settings]);
+  const t = pr.total;
+  const approve = useMemo(() => approvePctFor(data, ix, month), [data, ix, month]);
+  const income = useMemo(() => incomePerLead(data, month), [data, month]);
+  const seg = useMemo(() => incomeBySegment(data, month), [data, month]);
+  const rg = data.settings.regions;
+  const fund = useMemo(() => fundStat(t.gross, t.leads, income, data.settings.payrollCapPct), [t.gross, t.leads, income, data.settings.payrollCapPct]);
+  /* прогноз: фонд растёт по отработанным дням, доход — по Run Rate лидов */
+  const forecast = useMemo(() => {
+    if (cal.phase !== "current") return null;
+    const elapsed = cal.wIdx(cal.ref);
+    const ahead = cal.workdays.filter((d) => d > cal.ref);
+    const rr = elapsed > 0 ? Math.round((t.leads / elapsed) * cal.W) : t.leads;
+    return fundForecast(t.gross, t.leads, rr, elapsed, cal.W, income, data.settings.payrollCapPct, ahead);
+  }, [cal, t.gross, t.leads, income, data.settings.payrollCapPct]);
+  const fundByGroup = useMemo(() => {
+    const map = new Map<string, { name: string; color: string; people: number; leads: number; gross: number; ops: Set<string> }>();
+    for (const r of pr.rows) {
+      const key = groupOf(r);
+      const g = key === NO_GROUP ? null : ix.groupById.get(key);
+      const cur = map.get(key) ?? { name: g?.name ?? NO_GROUP_LABEL, color: g?.color ?? "gray", people: 0, leads: 0, gross: 0, ops: new Set<string>() };
+      cur.ops.add(r.op.id);
+      cur.people += 1;
+      cur.leads += r.leads;
+      cur.gross += r.gross;
+      map.set(key, cur);
+    }
+    return Array.from(map.entries())
+      .map(([id, v]) => {
+        // апрув группы — по проектам её лидов
+        const ap = approvePctWhere(data, month, (l) => v.ops.has(l.operatorId));
+        return { id, ...v, approve: ap, stat: fundStat(v.gross, v.leads, incomePerLead(data, month, (l) => v.ops.has(l.operatorId)), data.settings.payrollCapPct) };
+      })
+      .sort((a, b) => b.gross - a.gross);
+  }, [pr.rows, ix, groupOf, data, month]);
+  const cap = data.settings.payrollCapPct;
+  const fundHue = fund.revenue ? (fund.ok ? "green" : "red") : "gray";
+
+  return (
+    <div className="card pf-card">
+      <div className="pf-head">
+        <div style={{ minWidth: 0 }}>
+          <div className="d2-h">
+            <Icon name="coin" size={15} className="title-ic" />
+            Доход и ФОТ
+          </div>
+          <div className="pf-sub">
+            {fmtMonth(month)} · доход = лиды × цена лида × апрув заказчика · норматив ФОТ — не выше {cap}% дохода
+          </div>
+        </div>
+        {access.can.systemSettings && (
+          <Link href="/settings?tab=system" className="o2-btn" style={{ textDecoration: "none" }} title="Цены лидов, апрув регионов и норматив ФОТ">
+            Цены и норматив <Icon name="chevR" size={13} />
+          </Link>
+        )}
+      </div>
+
+      {/* итог: фонд, доля, запас */}
+      <div className="pf-sum">
+        <div>
+          <span>ФОТ</span>
+          <b className="num">{fmtMoney(fund.fund)}</b>
+        </div>
+        <div>
+          <span>Доход</span>
+          <b className="num">{fund.revenue ? fmtMoney(fund.revenue) : "—"}</b>
+        </div>
+        <div>
+          <span>ФОТ к доходу</span>
+          <b className={`num ${fund.revenue ? (fund.ok ? "o2-g" : "o2-r") : ""}`}>{fund.revenue ? fmtPct(fund.pct) : "—"}</b>
+        </div>
+        <div>
+          <span>{fund.over > 0 ? "Превышение" : "Запас до норматива"}</span>
+          <b className={`num ${fund.over > 0 ? "o2-r" : ""}`}>{fund.revenue ? fmtMoney(fund.over > 0 ? fund.over : fund.revenue * fund.cap - fund.fund) : "—"}</b>
+        </div>
+      </div>
+      {!data.settings.leadRevenue && <div className="pf-note" data-hue="red">Укажите цену лида основы в настройках — без неё доход не считается.</div>}
+      {forecast && forecast.revenue > 0 && (
+        <div className="pf-note" data-hue={forecast.ok ? "green" : "red"}>
+          <Icon name={forecast.ok ? "check" : "alert"} size={15} stroke={2.2} />
+          <span>
+            <b>
+              Прогноз на конец месяца: ФОТ {fmtMoney(forecast.fund)} при доходе {fmtMoney(forecast.revenue)} — {fmtPct(forecast.pct)}.
+            </b>{" "}
+            {forecast.ok
+              ? `Норматив ${cap}% держится, запас ${fmtMoney(forecast.revenue * forecast.cap - forecast.fund)}.`
+              : forecast.alreadyOver
+                ? `Норматив ${cap}% уже превышен: чтобы выйти в него, до конца месяца нужно ${fmtInt(forecast.leadsNeeded)} лидов вместо ${fmtInt(income > 0 ? Math.round(forecast.revenue / income) : 0)}.`
+                : forecast.crossDay
+                  ? `При таком темпе выйдете за ${cap}% ${fmtDate(forecast.crossDay)}. Чтобы уложиться, нужно ${fmtInt(forecast.leadsNeeded)} лидов за месяц.`
+                  : `Норматив ${cap}% будет превышен: нужно ${fmtInt(forecast.leadsNeeded)} лидов за месяц.`}
+          </span>
+        </div>
+      )}
+
+      {/* откуда доход: основа и регионы */}
+      <div className="o2-scroll">
+        <table className="o2-tbl">
+          <thead>
+            <tr>
+              <th>Сегмент</th>
+              <th className="r">Лиды</th>
+              <th className="r">Цена лида</th>
+              <th className="r" title="Основа — средневзвешенный по проектам её лидов; регионы — из настроек">Апрув</th>
+              <th className="r">Доход с лида</th>
+              <th className="r">Доход</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(["main", "regional"] as const).map((k) => {
+              const g = seg[k];
+              if (k === "regional" && !g.leads) return null;
+              return (
+                <tr key={k} className="static">
+                  <td>
+                    <span className="row" style={{ gap: 8 }}>
+                      <span className="l2-tag">{k === "main" ? "основа" : "регионы"}</span>
+                      <span className="o2-muted" style={{ fontSize: 12, whiteSpace: "normal" }}>
+                        {(k === "main" ? rg.main : rg.regional).join(", ")}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="r">{fmtInt(g.leads)}</td>
+                  <td className="r">{g.price > 0 ? fmtMoney(g.price) : <span className="o2-r">не задана</span>}</td>
+                  <td className="r">{fmtNum(g.approve)}%</td>
+                  <td className="r o2-muted">{fmtMoney((g.price * g.approve) / 100)}</td>
+                  <td className="r" style={{ fontWeight: 600 }}>{g.revenue ? fmtMoney(g.revenue) : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Итого доход</td>
+              <td className="r">{fmtInt(seg.main.leads + seg.regional.leads)}</td>
+              <td />
+              <td />
+              <td className="r o2-muted">{fmtMoney(income)}</td>
+              <td className="r">{fund.revenue ? fmtMoney(fund.revenue) : "—"}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* ФОТ по группам */}
+      <div className="o2-scroll" style={{ borderTop: "1px solid var(--ink-06)" }}>
+        <table className="o2-tbl">
+          <thead>
+            <tr>
+              <th>Группа</th>
+              <th className="r">Людей</th>
+              <th className="r">Лиды</th>
+              <th className="r" title="Апрув заказчика по проектам лидов группы">Апрув</th>
+              <th className="r" title="Лиды × цена лида × апрув">Доход</th>
+              <th className="r">ФОТ</th>
+              <th className="r">% ФОТ</th>
+              <th className="r">Запас до норматива</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fundByGroup.map((g) => {
+              const room = g.stat.revenue * g.stat.cap - g.stat.fund;
+              return (
+                <tr key={g.id} className="static">
+                  <td>
+                    <span className="row" style={{ gap: 8 }}>
+                      <Swatch hue={g.color} />
+                      {g.name}
+                    </span>
+                  </td>
+                  <td className="r o2-muted">{fmtInt(g.people)}</td>
+                  <td className="r">{fmtInt(g.leads)}</td>
+                  <td className="r o2-muted">{fmtNum(g.approve)}%</td>
+                  <td className="r o2-muted">{g.stat.revenue ? fmtMoney(g.stat.revenue) : "—"}</td>
+                  <td className="r">{fmtMoney(g.stat.fund)}</td>
+                  <td className={`r ${g.stat.revenue ? (g.stat.ok ? "o2-g" : "o2-r") : ""}`} style={{ fontWeight: 600 }}>
+                    {g.stat.revenue ? fmtPct(g.stat.pct) : "—"}
+                  </td>
+                  <td className={`r ${room < 0 ? "o2-r" : ""}`}>{g.stat.revenue ? (room >= 0 ? fmtMoney(room) : `−${fmtMoney(-room)}`) : "—"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Итого</td>
+              <td className="r">{fmtInt(pr.rows.length)}</td>
+              <td className="r">{fmtInt(t.leads)}</td>
+              <td className="r">{fmtNum(approve)}%</td>
+              <td className="r">{fund.revenue ? fmtMoney(fund.revenue) : "—"}</td>
+              <td className="r">{fmtMoney(fund.fund)}</td>
+              <td className={`r ${fundHue === "green" ? "o2-g" : fundHue === "red" ? "o2-r" : ""}`}>{fund.revenue ? fmtPct(fund.pct) : "—"}</td>
+              <td className="r">{fund.revenue ? (fund.over > 0 ? `−${fmtMoney(fund.over)}` : fmtMoney(fund.revenue * fund.cap - fund.fund)) : "—"}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div className="pf-approve">
+        <div className="o2-box-h" style={{ marginBottom: 2 }}>
+          <b>
+            <Icon name="checkc" size={13} className="mi" />
+            Апрув основы за {fmtMonth(month).toLowerCase()} — по проектам
+          </b>
+        </div>
+        <div className="pf-sub" style={{ marginBottom: 8 }}>
+          Факт от заказчика: из него доход основы и коэффициент бонуса супервайзера. Регионы — свой апрув из настроек
+        </div>
+        <ApproveMonthEditor />
+      </div>
     </div>
   );
 }
@@ -1105,7 +1322,8 @@ function AdjustmentModal({ opId, adj, rows, cal, onClose }: { opId: string; adj?
   const errAmt = !f.amount ? "Укажите сумму" : null;
 
   // что изменится в ведомости: та же формула, что у строки, с черновиком записи вместо старой
-  const row = rows.find((r) => r.op.id === f.operatorId) ?? null;
+  // ведомость на странице — за текущий месяц; запись другого месяца с ней не сравниваем
+  const row = f.month === month ? rows.find((r) => r.op.id === f.operatorId) ?? null : null;
   const preview = useMemo(() => {
     if (!row) return null;
     const others = row.adjustments.filter((a) => a.id !== adj?.id);
@@ -1211,6 +1429,8 @@ function PayoutsView({ month, toPay, q, setQ }: { month: string; toPay: number; 
   const { ix } = useCrm();
   const all = usePayouts();
   const [scope, setScope] = useState<"month" | "all">("month");
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(25);
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return all.filter(
@@ -1220,30 +1440,138 @@ function PayoutsView({ month, toPay, q, setQ }: { month: string; toPay: number; 
   const inMonth = useMemo(() => all.filter((a) => a.date.slice(0, 7) === month), [all, month]);
   const sum = (xs: Adjustment[]) => xs.reduce((acc, a) => acc + a.amount, 0);
   const people = new Set(inMonth.map((a) => a.operatorId)).size;
+  const nAdv = inMonth.filter((a) => a.type === "advance").length;
+  const nPay = inMonth.filter((a) => a.type === "payout").length;
+  const pages = Math.max(1, Math.ceil(list.length / size));
+  const cur = Math.min(page, pages);
+  const total = sum(list);
   return (
-    <>
-      <div className="kpi-grid">
-        <Kpi label={`Выплачено · ${fmtMonth(month)}`} value={fmtMoney(sum(inMonth))} sub={`${fmtInt(inMonth.length)} ${plural(inMonth.length, PAYOUTS)} · ${fmtInt(people)} чел.`} />
-        <Kpi label="Авансы" value={fmtMoney(sum(inMonth.filter((a) => a.type === "advance")))} sub="за этот месяц" />
-        <Kpi label="Выплаты" value={fmtMoney(sum(inMonth.filter((a) => a.type === "payout")))} sub="за этот месяц" />
-        <Kpi label="Остаток по ведомости" value={fmtMoney(toPay)} sub={`ещё не выплачено за ${fmtMonth(month).toLowerCase()}`} tone={toPay > 0.5 ? "warn" : "good"} />
-      </div>
-      <div className="toolbar">
-        <div style={{ position: "relative", width: 260 }}>
-          <Icon name="search" size={14} style={{ position: "absolute", left: 10, top: 10, color: "var(--dim)" }} />
-          <input className="inp" style={{ paddingLeft: 30 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Сотрудник" />
+    <div className="o2-body">
+      <div className="o2-main">
+        <div className="card o2-kpis" data-n="4">
+          <Tile icon="wallet" label={`Выплачено · ${fmtMonth(month).toLowerCase()}`} value={fmtMoney(sum(inMonth))} line={`${fmtInt(inMonth.length)} ${plural(inMonth.length, PAYOUTS)}`} sub={`${fmtInt(people)} чел.`} />
+          <Tile icon="clock" label="Авансы" value={fmtMoney(sum(inMonth.filter((a) => a.type === "advance")))} line={`${fmtInt(nAdv)} ${plural(nAdv, ["запись", "записи", "записей"])}`} sub="за этот месяц" />
+          <Tile icon="check" hue="green" label="Выплаты" value={fmtMoney(sum(inMonth.filter((a) => a.type === "payout")))} line={`${fmtInt(nPay)} ${plural(nPay, ["запись", "записи", "записей"])}`} sub="за этот месяц" />
+          <Tile
+            icon="hourglass"
+            label="Остаток по ведомости"
+            hue={toPay > 0.5 ? "amber" : "green"}
+            value={fmtMoney(toPay)}
+            line={toPay > 0.5 ? "ещё не выплачено" : "всё выплачено"}
+            sub={`за ${fmtMonth(month).toLowerCase()}`}
+          />
         </div>
-        <Seg<"month" | "all">
-          value={scope}
-          onChange={setScope}
-          options={[
-            { value: "month", label: fmtMonth(month) },
-            { value: "all", label: "Все месяцы" },
-          ]}
-        />
-        <span style={{ fontSize: 12, color: "var(--dim)" }}>По дате выплаты · «Выплатить» в ведомости записывает остаток одной кнопкой</span>
+
+        <div className="card o2-filters">
+          <label className="o2-search">
+            <Icon name="search" size={14} />
+            <input
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Поиск по сотруднику…"
+            />
+          </label>
+          <div className="o2-seg" role="group">
+            {(
+              [
+                ["month", fmtMonth(month)],
+                ["all", "Все месяцы"],
+              ] as const
+            ).map(([k, l]) => (
+              <button
+                key={k}
+                className={scope === k ? "on" : ""}
+                onClick={() => {
+                  setScope(k);
+                  setPage(1);
+                }}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          <span className="o2-muted" style={{ fontSize: 12 }}>
+            По дате выплаты · «Выплатить» в ведомости записывает остаток одной кнопкой
+          </span>
+          <span className="o2-found">Найдено: {fmtInt(list.length)}</span>
+        </div>
+
+        <div className="card o2-card">
+          {list.length === 0 ? (
+            <Empty icon="wallet" title="Выплат нет" text="Выплаты появятся здесь, как только их отметят в ведомости — кнопкой «Выплатить» или записью «Аванс» / «Выплата»." />
+          ) : (
+            <>
+              <div className="o2-scroll">
+                <table className="o2-tbl">
+                  <thead>
+                    <tr>
+                      <th>Дата</th>
+                      <th>Сотрудник</th>
+                      <th>Тип</th>
+                      <th>За ведомость</th>
+                      <th>Комментарий</th>
+                      <th className="r">Сумма</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.slice((cur - 1) * size, cur * size).map((a) => {
+                      const op = ix.opById.get(a.operatorId);
+                      return (
+                        <tr key={a.id} className="static">
+                          <td>
+                            <b style={{ fontWeight: 600 }}>{fmtDate(a.date)}</b>
+                          </td>
+                          <td>
+                            <span className="row" style={{ gap: 10 }}>
+                              <Avatar name={op?.name ?? "?"} id={a.operatorId} size={26} />
+                              <span>{shortName(op?.name ?? "—")}</span>
+                            </span>
+                          </td>
+                          <td>
+                            <span className="o2-st" data-hue={a.type === "advance" ? "amber" : "green"}>
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
+                              {ADJ_LABEL[a.type]}
+                            </span>
+                          </td>
+                          <td className="o2-muted">{fmtMonth(a.month)}</td>
+                          <td className="o2-muted" style={{ whiteSpace: "normal" }}>{a.comment || "—"}</td>
+                          <td className="r" style={{ fontWeight: 600 }}>{fmtMoney(a.amount)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={5}>
+                        Итого · {fmtInt(list.length)} {plural(list.length, PAYOUTS)}
+                      </td>
+                      <td className="r">{fmtMoney(total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              {list.length > 25 && (
+                <div className="l2-foot">
+                  <span style={{ flex: 1 }} />
+                  <Pager
+                    page={cur}
+                    size={size}
+                    total={list.length}
+                    onPage={setPage}
+                    onSize={(v) => {
+                      setSize(v);
+                      setPage(1);
+                    }}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
-      <PayoutHistory list={list} />
-    </>
+    </div>
   );
 }

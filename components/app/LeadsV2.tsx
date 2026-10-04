@@ -346,7 +346,7 @@ export function LeadsV2() {
       <div className="o2-head">
         <div>
           <h1 className="o2-title">Лиды</h1>
-          <div className="o2-sub">Журнал лидов, переданных менеджеру. Источник — Скорозвон.</div>
+          <div className="o2-sub" title="Журнал лидов, переданных менеджеру. Источник — Скорозвон.">Переданные менеджеру · Скорозвон</div>
         </div>
         <div className="o2-tools">
           {period.mode !== "range" ? (
@@ -519,14 +519,13 @@ export function LeadsV2() {
             />
             <Select width={140} value={region} options={regionOptions} onChange={setRegion} ariaLabel="Регион" minPopWidth={260} />
             {canExport && (
-              <button className={`o2-btn${notExported ? " pri" : ""}`} style={{ fontWeight: 500 }} onClick={() => setNotExported((v) => !v)} title="Только лиды с номером, который ещё не выгружали в Excel">
+              <button className={`o2-btn${notExported ? " pri" : ""}`} onClick={() => setNotExported((v) => !v)} title="Только лиды с номером, который ещё не выгружали в Excel">
                 Не выгружены · {fmtInt(notExportedCount)}
               </button>
             )}
             {filtered && (
               <button
-                className="o2-btn"
-                style={{ fontWeight: 500, border: 0, background: "none", color: "var(--text-sub)" }}
+                className="o2-btn ghost"
                 onClick={() => {
                   setOperatorId("");
                   setGroupId("");
@@ -685,7 +684,7 @@ export function LeadsV2() {
                     </button>
                   )}
                   {checked.size > 0 && (
-                    <button className="o2-btn" style={{ border: 0, background: "none", fontWeight: 500, color: "var(--text-sub)" }} onClick={() => setChecked(new Set())}>
+                    <button className="o2-btn ghost" onClick={() => setChecked(new Set())}>
                       Снять выбор
                     </button>
                   )}

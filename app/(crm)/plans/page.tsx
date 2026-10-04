@@ -67,12 +67,19 @@ function PlanInput({ value, explicit, onSave, disabled, auto }: { value: number;
 function Distribution({ plan, given, compact }: { plan: number; given: number; compact?: boolean }) {
   const d = Math.round(plan - given);
   if (plan <= 0 && given <= 0) return <span className="muted">—</span>;
-  if (d === 0) return <Chip hue="green">распределено {fmtInt(given)} из {fmtInt(plan)}</Chip>;
+  if (d === 0)
+    return compact ? (
+      <span title={`Личные планы распределены полностью: ${fmtInt(given)} из ${fmtInt(plan)}`}>
+        <Chip hue="green">✓ {fmtInt(given)} из {fmtInt(plan)}</Chip>
+      </span>
+    ) : (
+      <Chip hue="green">распределено {fmtInt(given)} из {fmtInt(plan)}</Chip>
+    );
   if (compact)
     return (
       <span title={`Сумма личных планов ${fmtInt(given)} из плана группы ${fmtInt(plan)} — ${d > 0 ? `не хватает ${fmtInt(d)}` : `лишние ${fmtInt(-d)}`}`}>
         <Chip hue="amber">
-          распределено {fmtInt(given)} из {fmtInt(plan)} · {d > 0 ? "−" : "+"}
+          {fmtInt(given)} из {fmtInt(plan)} · {d > 0 ? "−" : "+"}
           {fmtInt(Math.abs(d))}
         </Chip>
       </span>
@@ -193,8 +200,8 @@ export default function PlansPage() {
         title="Планы"
         sub={
           head
-            ? `${fmtMonth(month)} · план отдела = сумма планов групп. План группы делится между операторами — супервайзеры в планах не участвуют.`
-            : `${fmtMonth(month)} · планы ${many ? "ваших групп" : "вашей группы"} и операторов. План группы делится между операторами.`
+            ? `${fmtMonth(month)} · план отдела — сумма планов групп, план группы делится между операторами`
+            : `${fmtMonth(month)} · планы ${many ? "ваших групп" : "вашей группы"} и операторов`
         }
         actions={<MonthSwitcher value={month} onChange={setMonth} />}
       />

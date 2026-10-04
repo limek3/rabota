@@ -309,11 +309,14 @@ export function Kpi({
   const ic = icon === undefined ? kpiIcon(label) : icon;
   const toneColor = tone === "good" ? "var(--c-green-fg)" : tone === "warn" ? "var(--c-amber-fg)" : tone === "bad" ? "var(--c-red-fg)" : undefined;
   return (
-    <div className="card kpi" title={title} onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
-      <span className="kpi-label">
-        {ic && <Icon name={ic} size={13} className="kpi-ic" />}
-        {label}
-      </span>
+    <div className={`card kpi${onClick ? " click" : ""}`} title={title} onClick={onClick}>
+      {/* значок — в плашке слева, как в полосе показателей «Операторов» */}
+      {ic && (
+        <span className="kpi-icb">
+          <Icon name={ic} size={17} />
+        </span>
+      )}
+      <span className="kpi-label">{label}</span>
       <span className="kpi-value" style={toneColor ? { color: toneColor } : undefined}>
         {value}
       </span>
@@ -337,7 +340,11 @@ export function PageHead({ title, sub, actions }: { title: ReactNode; sub?: Reac
     <div className="page-head">
       <div style={{ minWidth: 0 }}>
         <h1 className="page-title">{title}</h1>
-        {sub && <p className="page-sub">{sub}</p>}
+        {sub && (
+          <p className="page-sub" title={typeof sub === "string" ? sub : undefined}>
+            {sub}
+          </p>
+        )}
       </div>
       {actions && <div className="toolbar">{actions}</div>}
     </div>
@@ -698,7 +705,9 @@ export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
   const stopAll = () => {
     running.current.forEach((a) => a.cancel());
     running.current = [];
-    if (wrapRef.current) wrapRef.current.style.overflow = "";
+    // только вертикаль: сброс всего overflow стирал и горизонтальную прокрутку контейнера (inline overflowX),
+    // таблица вылезала за карточку, а полоса прокрутки пропадала — всё ниже прыгало на её высоту
+    if (wrapRef.current) wrapRef.current.style.overflowY = "";
   };
   const track = (list: Animation[]) => {
     running.current = list;
@@ -731,7 +740,7 @@ export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
     const p = parts(el, o.key);
     if (!p) return;
     const to = el.offsetHeight;
-    el.style.overflow = "hidden";
+    el.style.overflowY = "hidden";
     const opts: KeyframeAnimationOptions = { duration: FOLD_MS, easing: FOLD_EASE };
     const list: Animation[] = [];
     for (const b of p.below) list.push(b.animate([{ transform: `translateY(${-p.rowsH}px)` }, { transform: "none" }], opts));
@@ -770,7 +779,7 @@ export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
       const chrome = el.offsetHeight - el.clientHeight;
       const to = Math.min(from, el.scrollHeight - p.rowsH + chrome);
       setPhase((ph) => ({ ...ph, [key]: "out" }));
-      el.style.overflow = "hidden";
+      el.style.overflowY = "hidden";
       const opts: KeyframeAnimationOptions = { duration: FOLD_MS, easing: FOLD_EASE, fill: "forwards" };
       const list: Animation[] = [];
       for (const b of p.below) list.push(b.animate([{ transform: "none" }, { transform: `translateY(${-p.rowsH}px)` }], opts));

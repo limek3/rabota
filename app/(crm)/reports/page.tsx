@@ -79,7 +79,7 @@ export default function ReportsPage() {
     <div className="stack">
       <PageHead
         title="Отчёты"
-        sub={access.isHead ? "Отчёт РОП и отчёт по операторам за день и неделю — картинкой или текстом, чтобы отправить в чат" : "Готовые отчёты за день и неделю — картинкой, чтобы отправить в чат"}
+        sub={access.isHead ? "Отчёт РОП и по операторам за день и неделю — картинкой или текстом для чата" : "Готовые отчёты за день и неделю — картинкой, чтобы отправить в чат"}
         actions={
           <>
             <button className="btn" onClick={download}>
@@ -97,7 +97,8 @@ export default function ReportsPage() {
         }
       />
 
-      <div className="toolbar">
+      {/* управление — шириной с картинку отчёта (960px), чтобы края совпадали */}
+      <div className="toolbar rep-w">
         {access.isHead && (
           <Seg<View>
             value={view}
@@ -148,20 +149,22 @@ export default function ReportsPage() {
             ariaLabel="Группа"
           />
         )}
-        <span className="spacer" />
         {rop ? (
-          <button className="btn btn-sm" onClick={() => setParams((v) => !v)} aria-expanded={params}>
-            <Icon name="settings" size={13} /> Параметры отчёта
+          <button className={`btn${params ? " btn-primary" : ""}`} onClick={() => setParams((v) => !v)} aria-expanded={params} title="Расходы, лимиты себестоимости лида, направления групп и план найма">
+            <Icon name="settings" size={14} /> Параметры
           </button>
         ) : (
-          <span style={{ fontSize: 12.5, color: "var(--dim)" }}>
-            {kind === "day" ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`} · {report?.rows.length ?? 0} опер.
-          </span>
+          <>
+            <span className="spacer" />
+            <span style={{ fontSize: 12.5, color: "var(--dim)" }}>
+              {kind === "day" ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`} · {report?.rows.length ?? 0} опер.
+            </span>
+          </>
         )}
       </div>
 
       {rop && (
-        <Collapse open={params}>
+        <Collapse open={params} className="rep-w">
           <RopParams />
         </Collapse>
       )}

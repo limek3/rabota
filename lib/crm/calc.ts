@@ -990,6 +990,21 @@ export interface WeekRow {
   future: boolean;
 }
 
+/**
+ * Последние n рабочих дней оператора по день upTo включительно — для мини-графиков «Динамика».
+ * Рабочий день — смена с часами по графику или хотя бы один лид; выходные, отпуск и дни без
+ * смены не считаются, иначе тренд проседает до нуля на каждом выходном.
+ */
+export function workedDays(ix: Index, opId: string, upTo: DayKey, n = 7, lookBack = 62): DayKey[] {
+  const hours = ix.plannedOpDay.get(opId);
+  const leads = ix.opDay.get(opId);
+  const out: DayKey[] = [];
+  for (let i = 0, d = upTo; i < lookBack && out.length < n; i++, d = addDays(d, -1)) {
+    if ((hours?.get(d) ?? 0) > 0 || (leads?.get(d) ?? 0) > 0) out.push(d);
+  }
+  return out.reverse();
+}
+
 export function dailyRows(cal: MonthCal, plan: number, counts: DayMap | undefined, hours?: DayMap): DayRow[] {
   let cum = 0;
   return cal.days.map((d) => {

@@ -21,6 +21,8 @@
 .o2-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; margin-top: 14px; }
 .o2-body.has-side { grid-template-columns: minmax(0, 1fr) var(--side-w); }
 :root { --side-w: 380px; }
+/* на средних экранах панель уже — таблицам слева остаётся место */
+@media (max-width: 1500px) { :root { --side-w: 340px; } }
 .o2-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 
 /* показатели */
@@ -131,10 +133,18 @@
 .o2-mini > div:first-child { border-left: 0; padding-left: 0; }
 .o2-mini b { display: block; font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
 .o2-mini span { font-size: 10.5px; color: var(--text-sub); }
-.o2-shift { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center; font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--ink-04); }
+/* смены по дням: дата | часы | конверсия | тип дня — колонки одной ширины во всех строках */
+.o2-shift { display: grid; grid-template-columns: minmax(0, 1fr) 38px 48px 82px; column-gap: 8px; align-items: center; min-height: 32px; font-size: 12px; border-bottom: 1px solid var(--ink-04); }
 .o2-shift:last-child { border-bottom: 0; }
-.o2-shift .w { display: inline-flex; align-items: center; gap: 6px; color: var(--text-sub); }
-.o2-shift .w i { width: 7px; height: 7px; border-radius: 50%; background: var(--c-green-fg); display: inline-block; }
+.o2-shift .dt { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; }
+.o2-shift .dt b { min-width: 44px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+.o2-shift .dt em { font-style: normal; min-width: 18px; color: var(--text-sub); }
+.o2-shift .dt em.rel { color: var(--text); font-weight: 600; }
+.o2-shift .hr { text-align: right; color: var(--text-sub); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.o2-shift .o2-pill { min-width: 0; width: 100%; box-sizing: border-box; }
+.o2-shift .w { display: inline-flex; align-items: center; gap: 6px; color: var(--text-sub); white-space: nowrap; min-width: 0; }
+.o2-shift .w i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--c-green-fg); display: inline-block; }
+.o2-shift .w svg { flex: none; color: var(--dim); }
 .o2-pill { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 5px; background: var(--c-gray-bg); color: var(--c-gray-fg); min-width: 44px; text-align: center; }
 .o2-pill[data-hue="green"] { background: var(--c-green-bg); color: var(--c-green-fg); }
 .o2-pill[data-hue="amber"] { background: var(--c-amber-bg); color: var(--c-amber-fg); }
@@ -321,7 +331,7 @@
 .lf-f { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .lf-f.wide { grid-column: 1 / -1; }
 .lf-l { font-size: 11.5px; color: var(--text-sub); }
-.lf-f .field-hint, .lf-f .field-err { font-size: 11px; line-height: 1.4; }
+.lf-f .field-hint, .lf-f .field-err { font-size: 11.5px; line-height: 1.4; }
 .lf-ta { height: auto; min-height: 56px; padding: 8px 10px; resize: vertical; line-height: 1.45; }
 .lf-side .inp { height: 34px; font-size: 12.5px; }
 .lf-side .lf-ta { height: auto; }
@@ -418,7 +428,7 @@
 .o2-kpi-b { flex: 1; min-width: 0; }
 .o2-kpi .l, .o2-kpi .d, .o2-kpi .s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .o2-kpi .v { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
-.o2-kpi .v .pc { font-size: 12px; font-weight: 600; color: var(--text-sub); margin-left: 7px; letter-spacing: 0; }
+.o2-kpi .v .pc { font-size: 12px; font-weight: 600; color: var(--text-sub); margin-left: 7px; letter-spacing: 0; line-height: 1; }
 .o2-kpi[data-hue="green"] .v .pc { color: var(--c-green-fg); }
 .o2-kpi[data-hue="red"] .v .pc { color: var(--c-red-fg); }
 .o2-kpi[data-hue="amber"] .v .pc { color: var(--c-amber-fg); }
@@ -450,3 +460,196 @@
 /* «График»: те же 16px между блоками */
 .stack:has(.sched) { gap: 16px; }
 .stack:has(.sched) > .page-head { margin-bottom: 0; }
+
+/* ════════════════════════════════════════════════════════════════════
+   «Зарплата» в стиле «Операторов» (payroll/page.tsx, PeriodPayroll, PaySide)
+   ════════════════════════════════════════════════════════════════════ */
+/* шапка: слева заголовок (переносится), справа инструменты — прижаты вправо */
+.o2-head > :first-child { flex: 1 1 240px; min-width: 0; }
+.o2-head > .o2-tools { margin-left: auto; justify-content: flex-end; }
+.o2-ib:disabled { opacity: 0.4; cursor: default; }
+.o2-kpis[data-n="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .o2-kpis[data-n="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* таблицы o2: группы, итоги, разделитель уволенных, раскрытие групп */
+.o2-tbl tr.grp-head td { background: var(--bg-strip); font-weight: 600; user-select: none; border-top: 1px solid var(--ink-07); border-bottom: 0; box-shadow: inset 0 -1px 0 var(--ink-06); }
+.o2-tbl tbody tr.grp-head:hover td { background: var(--bg-strip); }
+.o2-tbl tfoot td { height: 40px; padding-top: 0; padding-bottom: 0; background: var(--bg-strip); font-weight: 600; border-top: 1px solid var(--ink-08); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.o2-tbl tr.gone-sep td { height: auto; padding-top: 10px; padding-bottom: 4px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); background: var(--bg-panel); border-top: 1px dashed var(--ink-10); cursor: default; }
+.o2-tbl tbody tr.gone-sep:hover td { background: var(--bg-panel); }
+.o2-tbl tbody tr.static { cursor: default; }
+.o2-tbl tr.dim td { color: var(--dim); }
+.o2-tbl tr.fold-in > td { animation: foldIn 0.34s var(--ease) both; }
+.o2-tbl tr.fold-out > td { animation: foldOut 0.2s var(--ease) both; }
+@media (prefers-reduced-motion: reduce) { .o2-tbl tr.fold-in > td, .o2-tbl tr.fold-out > td { animation: none; } }
+.o2-tbl th.r, .o2-tbl td.r { text-align: right; }
+.pay-tbl td { height: 48px; }
+.pay-sv { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 16px; vertical-align: 1px; background: var(--ink-06); color: var(--text-sub); }
+.pay-acts { display: inline-flex; align-items: center; gap: 2px; }
+
+/* «Как считается» */
+.pp-info { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 280px); gap: 10px 24px; padding: 14px 16px; }
+.pp-lines { display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; line-height: 1.5; color: var(--text); }
+.pp-line { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 10px; }
+.pp-next { display: flex; flex-direction: column; gap: 6px; border-left: 1px solid var(--ink-07); padding-left: 18px; font-size: 12.5px; }
+.pp-next > b { font-size: 12px; color: var(--text-sub); font-weight: 600; margin-bottom: 2px; }
+.pp-next > span { display: flex; gap: 6px; flex-wrap: wrap; }
+@media (max-width: 900px) { .pp-info { grid-template-columns: 1fr; } .pp-next { border-left: 0; padding-left: 0; } }
+
+/* панель сотрудника */
+.ps-side { gap: 12px; }
+.ps-hero { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 10px; background: var(--ink-03); border: 1px solid var(--ink-07); }
+.ps-hero .l { font-size: 12px; color: var(--text-sub); }
+.ps-hero .v { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); line-height: 1.1; }
+.ps-hero .t { height: 6px; border-radius: 3px; background: var(--ink-06); overflow: hidden; margin-top: 2px; }
+.ps-hero .t b { display: block; height: 100%; border-radius: 3px; background: var(--c-green-fg); }
+.ps-hero .s { font-size: 12px; color: var(--text-sub); }
+.ps-hero .s b { color: var(--text); font-weight: 600; }
+.ps-hero .tax { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 8px; margin-top: 2px; border-top: 1px dashed var(--ink-10); font-size: 12.5px; color: var(--text-sub); }
+.ps-hero .tax > span:last-child { font-weight: 700; color: var(--text); }
+.ps-pay { width: 100%; justify-content: center; margin-top: 4px; }
+.ps-lines { display: flex; flex-direction: column; }
+.ps-line { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--ink-06); font-size: 12.5px; }
+.ps-line:last-child { border-bottom: 0; }
+.ps-line .k { flex: 1; min-width: 0; color: var(--text); }
+.ps-line .k small { display: block; font-size: 11px; color: var(--dim); line-height: 1.4; }
+.ps-line .v { white-space: nowrap; color: var(--text); }
+.ps-line.minus .v { color: var(--c-red-fg); }
+.ps-line.total { font-weight: 700; }
+.ps-list { display: flex; flex-direction: column; }
+.ps-it { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 4px 0; border-bottom: 1px solid var(--ink-04); font-size: 12.5px; }
+.ps-it:last-child { border-bottom: 0; }
+.ps-it .d { flex: none; color: var(--text-sub); min-width: 42px; }
+.ps-it .c { flex: 1; min-width: 0; color: var(--text-sub); line-height: 1.35; overflow-wrap: anywhere; }
+.ps-it b { flex: none; font-weight: 600; color: var(--text); }
+.ps-it .acts { display: inline-flex; gap: 2px; flex: none; }
+.ps-it.dim .c, .ps-it.dim .d { color: var(--dim); }
+.ps-chip { flex: none; font-size: 11px; font-weight: 500; padding: 1px 7px; border-radius: 5px; background: var(--c-gray-bg); color: var(--c-gray-fg); border: 1px solid var(--c-gray-bd); }
+.ps-chip[data-hue="green"] { background: var(--c-green-bg); color: var(--c-green-fg); border-color: var(--c-green-bd); }
+.ps-chip[data-hue="red"] { background: var(--c-red-bg); color: var(--c-red-fg); border-color: var(--c-red-bd); }
+.ps-chip[data-hue="amber"] { background: var(--c-amber-bg); color: var(--c-amber-fg); border-color: var(--c-amber-bd); }
+.ps-empty { font-size: 12px; color: var(--dim); }
+.ps-note { font-size: 11.5px; color: var(--dim); line-height: 1.45; margin-top: 8px; }
+.ps-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ps-grid > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--ink-03); min-width: 0; }
+.ps-grid span { font-size: 10.5px; color: var(--text-sub); white-space: nowrap; }
+.ps-grid b { font-size: 14px; color: var(--text); }
+.ps-grid b.o2-g { color: var(--c-green-fg); }
+.ps-grid b.o2-r { color: var(--c-red-fg); }
+.ps-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-bottom: 2px; }
+.ps-acts .o2-btn { justify-content: center; }
+
+/* «Доход и ФОТ» */
+.pf-card { overflow: hidden; }
+.pf-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 16px 12px; }
+.pf-sub { font-size: 12px; color: var(--text-sub); line-height: 1.45; margin-top: 3px; }
+.pf-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--ink-06); border-bottom: 1px solid var(--ink-06); }
+.pf-sum > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; border-left: 1px solid var(--ink-06); min-width: 0; }
+.pf-sum > div:first-child { border-left: 0; }
+.pf-sum span { font-size: 11.5px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-sum b { font-size: 18px; font-weight: 700; color: var(--text); }
+.pf-sum b.o2-g { color: var(--c-green-fg); }
+.pf-sum b.o2-r { color: var(--c-red-fg); }
+.pf-note { display: flex; gap: 8px; align-items: flex-start; margin: 12px 16px 0; padding: 9px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.5; border: 1px solid var(--c-gray-bd); background: var(--c-gray-bg); color: var(--text); }
+.pf-note[data-hue="green"] { border-color: var(--c-green-bd); background: color-mix(in srgb, var(--c-green-bg) 60%, var(--bg-panel)); }
+.pf-note[data-hue="red"] { border-color: var(--c-red-bd); background: color-mix(in srgb, var(--c-red-bg) 60%, var(--bg-panel)); }
+.pf-note > svg { flex: none; margin-top: 2px; }
+.pf-note[data-hue="green"] > svg { color: var(--c-green-fg); }
+.pf-note[data-hue="red"] > svg { color: var(--c-red-fg); }
+.pf-card > .pf-note + .o2-scroll, .pf-card > .pf-sum + .o2-scroll { margin-top: 12px; }
+.pf-card > .o2-scroll + .o2-scroll { margin-top: 0; }
+.pf-approve { padding: 14px 16px 16px; border-top: 1px solid var(--ink-06); }
+@media (max-width: 900px) { .pf-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pf-sum > div:nth-child(3) { border-left: 0; } }
+
+/* ════════════════════════════════════════════════════════════════════
+   Общий вид остальных страниц — как у «Сводки», «Лидов» и «Операторов»
+   ════════════════════════════════════════════════════════════════════ */
+/* показатели (Kpi из kit): значок в плашке слева, текст справа */
+.kpi { display: grid; grid-template-columns: 34px minmax(0, 1fr); column-gap: 12px; row-gap: 3px; align-content: start; padding: 14px 12px 12px 14px; }
+.kpi:not(:has(> .kpi-icb)) { grid-template-columns: minmax(0, 1fr); }
+.kpi > :not(.kpi-icb) { grid-column: -2 / -1; min-width: 0; }
+.kpi-icb { grid-column: 1; grid-row: 1 / span 3; align-self: start; width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--ink-04); color: var(--text-sub); }
+.kpi.click { cursor: pointer; }
+/* полоса: одна карточка, плитки разделены линиями (тенью — так линии верны при любом переносе рядов) */
+.kpi-grid { gap: 0; row-gap: 0; background: var(--bg-panel); border: 1px solid var(--line); border-radius: 11px; box-shadow: var(--shadow-xs); overflow: hidden; }
+.kpi-grid > .kpi.card, .kpi-grid > .card { border: 0; border-radius: 0; background: transparent; box-shadow: -1px 0 0 var(--ink-06), 0 -1px 0 var(--ink-06); }
+.kpi-grid > .kpi.click:hover { background: var(--ink-03); }
+.kpi-grid > .kpi { row-gap: 3px; }
+
+/* строка фильтров и вкладок страницы — в карточке, как фильтры на «Лидах» */
+.app-content > div > .stack > .toolbar { background: var(--bg-panel); border: 1px solid var(--line); border-radius: 11px; box-shadow: var(--shadow-xs); padding: 10px; }
+
+/* сегменты-вкладки на всех страницах — как .o2-seg на «Операторах» */
+.seg { padding: 3px; gap: 0; border-radius: 9px; background: var(--ink-06); border: 0; }
+.seg > button { border-radius: 7px; padding: 0 14px; font-size: 13px; }
+.seg > button[aria-pressed="true"] { box-shadow: none; }
+.field .seg > button { padding: 0 10px; }
+/* кнопки шапки — тот же вес, что у .o2-btn */
+.page-head .btn { font-weight: 600; }
+/* шапка таблицы одного цвета, включая закреплённую первую колонку */
+.tbl th.sticky-col { background: var(--sch-head); }
+/* строки таблиц на страницах — той же высоты, что на «Операторах» (в выезжающих панелях — компактнее) */
+.app-content .tbl:not(.sched) > tbody > tr > td { height: 44px; }
+/* значок в плитке показателя — 32px везде */
+.kpi { grid-template-columns: 32px minmax(0, 1fr); }
+.kpi-icb { width: 32px; height: 32px; }
+
+/* ════════════════════════════════════════════════════════════════════
+   Единый стиль: шапка, кнопки, поля, выпадающие списки, статусы, попапы
+   ════════════════════════════════════════════════════════════════════ */
+/* шапка страницы одной высоты везде: подзаголовок — одна строка (полный текст — в подсказке) */
+.page-sub, .o2-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: none; }
+.o2-sub-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; background: var(--dim); }
+.o2-sub-dot[data-hue="green"] { background: var(--c-green-fg); }
+.o2-sub-dot[data-hue="amber"] { background: var(--c-amber-fg); }
+.o2-sub-dot[data-hue="red"] { background: var(--c-red-fg); }
+
+/* кнопки: старые (.btn) и новые (.o2-btn) — одинаковые: вес 600, чёрный текст, без тени */
+.btn { font-weight: 600; box-shadow: none; }
+.btn:not(.btn-ghost):not(.btn-primary):not(.btn-danger):not(.btn-danger-solid) { color: var(--text); }
+.btn-primary { box-shadow: none; }
+.o2-btn { box-shadow: none; }
+:is(.o2-side, .lf-bar, .modal) .o2-btn { font-size: 13px; }
+.o2-btn:disabled, .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* подписи полей: в новых формах (лид, заметки) — как .field-label */
+.lf-l, .o2-nf-l { font-size: 12px; font-weight: 500; color: var(--text-sub); }
+
+/* выпадающие списки и меню (Select, «⋯» в строках, «Столбцы») — одна карточка */
+.sel-pop, .o2-pop { border-radius: 10px; border: 1px solid var(--ink-10); box-shadow: var(--shadow-xl); background: var(--bg-modal); }
+.sel-pop { padding: 6px; }
+.sel-opt { border-radius: 6px; padding: 7px 10px 7px 8px; }
+.o2-pop label, .o2-pop button.it, .o2-pop a.it { font-size: 13px; border-radius: 6px; padding: 7px 10px; }
+.o2-pop .tt { font-size: 11px; padding: 6px 10px 4px; }
+
+/* статусы в таблицах: чипы старых страниц и капсулы новых — одного размера */
+.chip, .o2-st { height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 500; line-height: 20px; }
+.o2-st { padding-left: 7px; }
+
+/* попапы: заголовок как у карточек новых страниц */
+.modal-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.modal-head { padding: 16px 18px 12px; }
+
+/* строки таблиц — 44px везде (две строки текста — выше сами) */
+.o2-tbl td { padding-top: 6px; padding-bottom: 6px; }
+.pay-tbl td { height: 44px; }
+
+/* плитки старых страниц: те же строки, что у полосы «Операторов» */
+.kpi-label { line-height: 16px; }
+.kpi-value { line-height: 28px; }
+.kpi-sub { line-height: 16px; }
+
+/* раскрывающиеся блоки в колонке с отступами 16px: закрытый блок не оставляет второй отступ, раскрытие — плавное */
+.collapse { transition: grid-template-rows 0.3s var(--ease), opacity 0.22s var(--ease), margin-top 0.3s var(--ease); }
+.o2-main > .collapse:not(.open), .stack > .collapse:not(.open) { margin-top: -16px; }
+@media (prefers-reduced-motion: reduce) { .collapse { transition: none; } }
+
+/* «призрачная» кнопка новых страниц (Отмена, Сбросить, Снять выбор) — как .btn-ghost */
+.o2-btn.ghost { border-color: transparent; background: transparent; color: var(--text-sub); }
+.o2-btn.ghost:hover { background: var(--ink-05); color: var(--text); border-color: transparent; }
+/* внутренний отступ кнопок — как у .btn */
+.o2-btn { padding: 0 13px; }
+:is(.o2-side, .lf-bar, .modal) .o2-btn { padding: 0 12px; }
+
+/* «Отчёты»: полоса управления и параметры — шириной с картинку отчёта */
+.rep-w { width: 100%; max-width: 960px; }

@@ -1,46 +1,43 @@
-/* Цифры — всегда JetBrains Mono, во всём приложении.
-   Семейство "VexaDigits" ограничено unicode-range U+0030–0039 (0–9): буквы
-   молча проваливаются в Instrument Sans, а любая цифра — где бы она ни стояла
-   (заголовок, кнопка, чип, дата) — рисуется моно. Файлы лежат в /public/fonts,
-   потому что next/font не умеет отдавать unicode-range. */
+/* Весь интерфейс — JetBrains Mono. Моно заметно шире Inter, поэтому глифы ужаты
+   через size-adjust: 90% — все px-размеры в CSS остаются прежними, а текст не
+   раздувает таблицы и кнопки. Файлы лежат в /public/fonts (size-adjust next/font
+   не отдаёт). Inter остаётся фолбэком для глифов, которых нет в моно. */
 @font-face {
-  font-family: "VexaDigits";
+  font-family: "VexaMono";
   src: url("/fonts/jetbrains-mono-400.ttf") format("truetype");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0030-0039;
+  size-adjust: 90%;
 }
 @font-face {
-  font-family: "VexaDigits";
+  font-family: "VexaMono";
   src: url("/fonts/jetbrains-mono-500.ttf") format("truetype");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0030-0039;
+  size-adjust: 90%;
 }
 @font-face {
-  font-family: "VexaDigits";
+  font-family: "VexaMono";
   src: url("/fonts/jetbrains-mono-600.ttf") format("truetype");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0030-0039;
+  size-adjust: 90%;
 }
 @font-face {
-  font-family: "VexaDigits";
+  font-family: "VexaMono";
   src: url("/fonts/jetbrains-mono-700.ttf") format("truetype");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0030-0039;
+  size-adjust: 90%;
 }
 
-/* Один стек на всё приложение: цифры моно (VexaDigits, unicode-range 0-9),
-   буквы — Inter с полной кириллицей, дальше системный фолбэк. */
 :root {
-  --font-sans: "VexaDigits", var(--font-ui), system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "VexaMono", var(--font-ui), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "VexaMono", var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 :root,
@@ -315,11 +312,7 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  /* Моно тут не место. Стоило ему попасть в фолбэк — и любой глиф, которого нет
-     в Instrument Sans, молча приезжал терминальным: строка набиралась двумя
-     гарнитурами сразу, и «почему тут другой шрифт» становилось неотлаживаемым.
-     Моно подключается явно, через fontNums, и только под цифры.
-     "VexaDigits" впереди — только цифры (unicode-range), буквы не трогает. */
+  /* весь текст — JetBrains Mono (VexaMono, см. @font-face вверху) */
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   /* Фирменный курсор Vexi. Не логотип, натянутый на стрелку, а обычный

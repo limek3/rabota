@@ -4,19 +4,17 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { useInsights, useMonthModel } from "@/lib/crm/hooks";
-import { WORKED_TYPES, sumRange, type OpRow } from "@/lib/crm/calc";
-import { canManageOperator, canNote } from "@/lib/crm/access";
-import { hasNotesTable } from "@/lib/crm/remote";
-import { NOTE_METRIC_LABEL, fmtNoteMetric, noteEffect } from "@/lib/crm/insights";
+import { WORKED_TYPES, sumRange, workedDays, type OpRow } from "@/lib/crm/calc";
+import { canManageOperator } from "@/lib/crm/access";
 import { addDays, addMonths, fmtMonth, isoWeekday, isWorkday, monthEnd, monthOf, monthStart, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName, OPS } from "@/lib/crm/format";
-import { EMPLOYMENT_LABEL, NOTE_METRICS, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, type DayKey, type DayType, type NoteMetric, type Operator, type Shift } from "@/lib/crm/types";
+import { EMPLOYMENT_LABEL, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, type DayKey, type DayType, type Operator, type Shift } from "@/lib/crm/types";
 import { Avatar, downloadText, toCsv } from "@/components/ui/kit";
-import { DateInput, Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
+import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
-import { useOpNotes } from "@/components/app/OperatorCoach";
+import { OperatorNotes, useOpNotes } from "@/components/app/OperatorCoach";
 
 /**
  * «Операторы» v2: показатели за день / неделю / месяц, баннер о проблемных, фильтры,
@@ -48,6 +46,8 @@ const PERF: { value: string; label: string; test: (p: number) => boolean }[] = [
 ];
 
 const DAY_LABEL: Record<DayType, string> = { work: "смена", training: "обучение", off: "выходной", vacation: "отпуск", sick: "больничный", platform: "платформа" };
+/** Короткая отметка нерабочего дня в «Продуктивности». */
+const DAY_MARK: Partial<Record<DayType, string>> = { off: "вых", vacation: "отп", sick: "бол", platform: "пл" };
 const DAY_HUE: Record<DayType, string> = { work: "green", training: "green", off: "gray", vacation: "amber", sick: "red", platform: "gray" };
 const DOW = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 const DOW_CAP = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -88,7 +88,11 @@ interface PRow {
   pct: number;
   left: number;
   st: StKey;
+  /** Лиды за последние 7 рабочих смен (без выходных). */
   spark: number[];
+  sparkDays: DayKey[];
+  /** Последняя смена — сегодняшняя и ещё идёт. */
+  sparkOpen: boolean;
   todayShift: Shift | undefined;
 }
 
@@ -175,7 +179,6 @@ export function OperatorsV2() {
     const days = rangeDays(from, to);
     const doneDays = started ? rangeDays(from, last) : [];
     const closedTo = last < ix.workedTo ? last : ix.workedTo;
-    const sparkDays = rangeDays(addDays(started ? last : to, -6), started ? last : to);
     return base.map((r) => {
       const op = r.op;
       const work = (d: DayKey) => isWorkday(d, s) && employed(op, d);
@@ -220,7 +223,10 @@ export function OperatorsV2() {
         pct,
         left: Math.max(0, Math.round(plan) - fact),
         st,
-        spark: sparkDays.map((d) => opDay?.get(d) ?? 0),
+        ...(() => {
+          const wd = workedDays(ix, op.id, started ? last : to);
+          return { spark: wd.map((d) => opDay?.get(d) ?? 0), sparkDays: wd, sparkOpen: wd.length > 0 && wd[wd.length - 1] === today && today > ix.workedTo };
+        })(),
         todayShift,
       };
     });
@@ -343,7 +349,7 @@ export function OperatorsV2() {
     const k = COL_SORT[c];
     const cls = `${hp.className}${k ? " s" : ""}${COL_CENTER.has(c) ? " c" : ""}`;
     return (
-      <th key={c} {...hp} className={cls} onClick={k ? () => toggleSort(k) : undefined} title="Перетащите, чтобы переставить столбец">
+      <th key={c} {...hp} className={cls} onClick={k ? () => toggleSort(k) : undefined} title={c === "spark" ? "Лиды за последние 7 рабочих смен — выходные не считаются. Перетащите, чтобы переставить столбец" : "Перетащите, чтобы переставить столбец"}>
         {c === "lph" ? <span title="Конверсия, лид/ч: факт ÷ часы, в процентах (0,6 лид/ч = 60%)">Конв.</span> : COL_LABEL[c]}
         {k && <span className="ar">{sort.key === k ? (sort.dir === 1 ? "▲" : "▼") : "↕"}</span>}
       </th>
@@ -395,7 +401,7 @@ export function OperatorsV2() {
       case "spark":
         return (
           <td key={c} data-col={c}>
-            <Spark values={x.spark} hue={x.st === "ahead" ? "green" : x.st === "ontrack" ? "amber" : x.st === "lagging" || x.st === "critical" ? "red" : "gray"} />
+            <Spark values={x.spark} days={x.sparkDays} open={x.sparkOpen} hue={x.st === "ahead" ? "green" : x.st === "ontrack" ? "amber" : x.st === "lagging" || x.st === "critical" ? "red" : "gray"} />
           </td>
         );
     }
@@ -548,7 +554,7 @@ export function OperatorsV2() {
             />
             <Popover
               button={(open, toggle, ref) => (
-                <button ref={ref} className="o2-btn" onClick={toggle} aria-expanded={open} style={{ fontWeight: 500 }}>
+                <button ref={ref} className="o2-btn" onClick={toggle} aria-expanded={open}>
                   <Icon name="funnel" size={14} />
                   Ещё фильтры
                 </button>
@@ -673,7 +679,7 @@ export function OperatorsV2() {
                           <td>
                             <span className="row" style={{ gap: 10 }}>
                               <Avatar name={x.op.name} id={x.op.id} size={26} />
-                              <span style={{ fontWeight: 500 }}>{shortName(x.op.name)}</span>
+                              <span>{shortName(x.op.name)}</span>
                             </span>
                           </td>
                           {shown.map((c) => cell(c, x))}
@@ -769,18 +775,35 @@ function StatusPill({ st }: { st: StKey }) {
   );
 }
 
-function Spark({ values, hue }: { values: number[]; hue: string }) {
+/** Лиды по последним рабочим сменам; идущая сегодня смена — полым кружком. Смен не было — пунктир. */
+function Spark({ values, days, open, hue }: { values: number[]; days: DayKey[]; open?: boolean; hue: string }) {
   const W = 72;
   const H = 22;
+  if (!values.length)
+    return (
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
+        <title>Смен не было</title>
+        <line x1={3} x2={W - 3} y1={H - 4} y2={H - 4} stroke="var(--ink-15)" strokeDasharray="2 3" />
+      </svg>
+    );
   const max = Math.max(...values, 1);
-  const pts = values.map((v, i) => [3 + (i * (W - 6)) / Math.max(1, values.length - 1), H - 4 - (v / max) * (H - 8)] as const);
+  // меньше 7 смен — точки прижаты вправо, шаг тот же
+  const step = (W - 6) / 6;
+  const x0 = W - 3 - step * (values.length - 1);
+  const pts = values.map((v, i) => [x0 + i * step, H - 4 - (v / max) * (H - 8)] as const);
   const c = hue === "gray" ? "var(--dim)" : hueVar(hue);
+  const tip = days.map((d, i) => `${dShort(d)}, ${DOW[isoWeekday(d) - 1]}: ${values[i]}${open && i === days.length - 1 ? " — смена идёт" : ""}`).join("\n");
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
-      <polyline points={pts.map((p) => p.join(",")).join(" ")} fill="none" stroke={c} strokeWidth="1.3" />
-      {pts.map((p, i) => (
-        <circle key={i} cx={p[0]} cy={p[1]} r="1.6" fill={c} />
-      ))}
+      <title>{`Лиды за последние ${values.length} ${plural(values.length, ["смену", "смены", "смен"])} (без выходных)\n${tip}`}</title>
+      {pts.length > 1 && <polyline points={pts.map((p) => p.join(",")).join(" ")} fill="none" stroke={c} strokeWidth="1.3" />}
+      {pts.map((p, i) =>
+        open && i === pts.length - 1 ? (
+          <circle key={i} cx={p[0]} cy={p[1]} r="2" fill="var(--bg-panel)" stroke={c} strokeWidth="1.2" />
+        ) : (
+          <circle key={i} cx={p[0]} cy={p[1]} r="1.6" fill={c} />
+        ),
+      )}
     </svg>
   );
 }
@@ -838,7 +861,7 @@ function SideEmpty() {
 }
 
 function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mode: Mode; forLabel: string; onClose: () => void; onOpenCard: () => void; insight?: ReturnType<typeof useInsights>["byOp"] extends Map<string, infer V> ? V : never }) {
-  const { ix, today } = useCrm();
+  const { ix, today, data } = useCrm();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
   const [metric, setMetric] = useState<"leads" | "hours" | "conv">("leads");
@@ -864,7 +887,12 @@ function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mo
   const bars = week.map((d) => {
     const leads = ix.opDay.get(op.id)?.get(d) ?? 0;
     const h = ix.hoursOpDay.get(op.id)?.get(d) ?? 0;
-    return { d, v: metric === "leads" ? leads : metric === "hours" ? h : h > 0 ? leads / h : 0 };
+    // не рабочий день — не «0», а отметка: выходной, отпуск, больничный или смены не было
+    const sh = ix.shift.get(`${d}|${op.id}`);
+    const workedDay = (ix.plannedOpDay.get(op.id)?.get(d) ?? 0) > 0 || leads > 0;
+    const calOff = !isWorkday(d, data.settings);
+    const mark = workedDay ? null : sh ? DAY_MARK[sh.type] ?? "вых" : calOff ? "вых" : "—";
+    return { d, v: metric === "leads" ? leads : metric === "hours" ? h : h > 0 ? leads / h : 0, mark, why: sh ? DAY_LABEL[sh.type] : calOff ? "выходной" : "смены не было" };
   });
   const bMax = Math.max(...bars.map((b) => b.v), metric === "conv" ? 1 : 1);
 
@@ -878,8 +906,6 @@ function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mo
       : x.left > 0
         ? `Осталось ${fmtInt(x.left)} ${plural(x.left, ["лид", "лида", "лидов"])} до плана ${forLabel}.${x.lph != null ? ` Текущая конверсия — ${fmtPct(x.lph)}.` : ""}${x.pct >= 0.8 ? " Всё в пределах нормы." : " Темп ниже нормы — стоит обсудить загрузку."}`
         : "План выполнен — держим темп.";
-  const dayLabel = (d: DayKey) =>
-    d === today ? `Сегодня, ${dShort(d)}` : d === addDays(today, -1) ? `Вчера, ${dShort(d)}` : `${dShort(d)}, ${DOW[isoWeekday(d) - 1]}`;
 
   return (
     <aside className="card o2-side">
@@ -970,7 +996,7 @@ function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mo
                 Все смены <Icon name="arrowR" size={12} />
               </button>
             </div>
-            <ShiftList shifts={shifts} opId={op.id} dayLabel={dayLabel} />
+            <ShiftList shifts={shifts} opId={op.id} />
           </div>
 
           <div className="o2-box">
@@ -998,10 +1024,22 @@ function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mo
                 const txt = metric === "conv" ? (b.v > 0 ? fmtPct(b.v) : "—") : metric === "hours" ? fmtNum(b.v) : String(b.v);
                 return (
                   <g key={b.d}>
-                    <rect x={cx - 13} y={86 - Math.max(h, 1)} width={26} height={Math.max(h, 1)} rx={2} fill={td ? "var(--c-green-fg)" : "var(--ink-10)"} />
-                    <text x={cx} y={80 - h} textAnchor="middle" fontSize="10.5" fontWeight="600" fill="var(--text)">
-                      {txt}
-                    </text>
+                    <title>{b.mark ? `${dShort(b.d)}: ${b.why}` : `${dShort(b.d)}: ${txt}`}</title>
+                    {b.mark ? (
+                      <>
+                        <rect x={cx - 7} y={83} width={14} height={3} rx={1.5} fill="var(--ink-15)" />
+                        <text x={cx} y={77} textAnchor="middle" fontSize="9.5" fill="var(--dim)">
+                          {b.mark}
+                        </text>
+                      </>
+                    ) : (
+                      <>
+                        <rect x={cx - 13} y={86 - Math.max(h, 1)} width={26} height={Math.max(h, 1)} rx={2} fill={td ? "var(--c-green-fg)" : "var(--ink-10)"} />
+                        <text x={cx} y={80 - h} textAnchor="middle" fontSize="10.5" fontWeight="600" fill="var(--text)">
+                          {txt}
+                        </text>
+                      </>
+                    )}
                     <text x={cx} y={100} textAnchor="middle" fontSize="9.5" fill="var(--text-sub)">
                       {DOW_CAP[isoWeekday(b.d) - 1]}
                     </text>
@@ -1061,7 +1099,6 @@ function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mo
               .map((d) => ({ d, s: ix.shift.get(`${d}|${op.id}`) }))
               .filter((v): v is { d: DayKey; s: Shift } => !!v.s)}
             opId={op.id}
-            dayLabel={dayLabel}
           />
         </div>
       )}
@@ -1096,18 +1133,23 @@ function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mo
         </div>
       )}
 
-      {tab === "notes" && <SideNotes opId={op.id} />}
+      {tab === "notes" && <OperatorNotes opId={op.id} />}
     </aside>
   );
 }
 
 /** Смены по дням; справа — конверсия дня (лиды ÷ часы), цвет — относительно нормы из настроек. */
-function ShiftList({ shifts, opId, dayLabel }: { shifts: { d: DayKey; s: Shift }[]; opId: string; dayLabel: (d: DayKey) => string }) {
+/**
+ * Смены по дням: дата | часы | конверсия дня (лиды ÷ часы) | тип дня. Колонки фиксированной
+ * ширины — значения стоят ровными столбцами. Цвет конверсии — относительно нормы из настроек.
+ */
+function ShiftList({ shifts, opId }: { shifts: { d: DayKey; s: Shift }[]; opId: string }) {
   const { ix, today, data } = useCrm();
   const norm = data.settings.convNormPct / 100;
   if (!shifts.length) return <div style={{ fontSize: 12, color: "var(--dim)" }}>Смен в графике нет.</div>;
+  const yesterday = addDays(today, -1);
   return (
-    <div>
+    <div className="o2-shifts">
       {shifts.map(({ d, s }) => {
         const leads = ix.opDay.get(opId)?.get(d) ?? 0;
         const w = worked(s);
@@ -1122,182 +1164,22 @@ function ShiftList({ shifts, opId, dayLabel }: { shifts: { d: DayKey; s: Shift }
               : { hue: "gray", t: "—", tip: w ? "Часы не закрыты" : "" };
         return (
           <div key={d} className="o2-shift">
-            <span>{dayLabel(d)}</span>
-            <span className="w">
-              <i style={{ background: hueVar(DAY_HUE[s.type]) }} />
-              {DAY_LABEL[s.type]}
-              {s.comment ? ` · ${s.comment}` : ""}
+            <span className="dt">
+              <b>{dShort(d)}</b>
+              <em className={d === today || d === yesterday ? "rel" : undefined}>{d === today ? "сегодня" : d === yesterday ? "вчера" : DOW[isoWeekday(d) - 1]}</em>
             </span>
-            <span style={{ color: "var(--text-sub)", minWidth: 38, textAlign: "right" }}>{s.hours > 0 ? `${fmtNum(s.hours)} ч` : ""}</span>
+            <span className="hr">{s.hours > 0 ? `${fmtNum(s.hours)} ч` : ""}</span>
             <span className="o2-pill" data-hue={pill.hue} title={pill.tip || undefined}>
               {pill.t}
+            </span>
+            <span className="w" title={s.comment || undefined}>
+              <i style={{ background: hueVar(DAY_HUE[s.type]) }} />
+              {DAY_LABEL[s.type]}
+              {s.comment && <Icon name="note" size={11} />}
             </span>
           </div>
         );
       })}
-    </div>
-  );
-}
-
-/* ── заметки СВ в панели справа ─────────────────────────────────────── */
-
-/** Частые темы разговора — подставляются в начало заметки, чтобы формулировки не расходились. */
-const NOTE_TOPICS = ["Разбор звонков", "Скрипт", "Возражения", "Часы и график", "Мотивация", "Дисциплина"];
-const NOTE_ICON: Record<NoteMetric, IconName> = { lph: "target", hours: "clock", leads: "phone" };
-const NOTE_SHORT: Record<NoteMetric, string> = { lph: "Конверсия", hours: "Часы / смена", leads: "Лиды / смена" };
-
-/**
- * Заметки СВ: тема, о чём поговорили, за каким показателем следить. Рядом с показателем —
- * его значение до разговора; у каждой заметки — что стало после (CRM считает сама).
- */
-function SideNotes({ opId }: { opId: string }) {
-  const { access, remote, today, ix, saveNote, deleteNote } = useCrm();
-  const notes = useOpNotes(opId);
-  const [text, setText] = useState("");
-  const [metric, setMetric] = useState<NoteMetric>("lph");
-  const [date, setDate] = useState(today);
-  const [busy, setBusy] = useState(false);
-  const taRef = useRef<HTMLTextAreaElement>(null);
-  const can = canNote(access, opId);
-  const missing = remote && !hasNotesTable();
-  const day = date > today ? today : date;
-
-  const effects = useMemo(() => notes.map((n) => ({ n, e: noteEffect(n, ix, today) })), [notes, ix, today]);
-  const judged = effects.filter((x) => x.e.change != null);
-  const helped = judged.filter((x) => (x.e.change ?? 0) >= 0.1).length;
-
-  const add = async () => {
-    if (!text.trim() || busy) return;
-    setBusy(true);
-    const ok = await saveNote({ operatorId: opId, date: day, text, metric });
-    setBusy(false);
-    if (ok) {
-      setText("");
-      setDate(today);
-    }
-  };
-  const topic = (t: string) => {
-    setText((v) => (v.trim() ? v : `${t}: `));
-    requestAnimationFrame(() => {
-      const el = taRef.current;
-      if (!el) return;
-      el.focus();
-      el.setSelectionRange(el.value.length, el.value.length);
-    });
-  };
-
-  return (
-    <div className="o2-box o2-notes">
-      <div className="o2-box-h" style={{ marginBottom: 2 }}>
-        <b>
-          <Icon name="note" size={13} className="mi" />
-          Заметки СВ{notes.length > 0 && <span className="o2-cnt">{notes.length}</span>}
-        </b>
-        {judged.length > 0 && (
-          <span className="o2-muted" style={{ fontSize: 11.5 }} title="Заметки, по которым уже есть по 3 смены до и после">
-            помогло {helped} из {judged.length}
-          </span>
-        )}
-      </div>
-      <div className="o2-notes-sub">О чём поговорили и за чем следить. CRM сравнит показатель до и после разговора.</div>
-
-      {missing ? (
-        <div className="ins-note-miss">
-          В базе ещё нет таблицы заметок. Выполните <code>supabase/migrations/20260927000001_op_notes.sql</code> в Supabase → SQL Editor и обновите страницу.
-        </div>
-      ) : (
-        can && (
-          <div className="o2-nf">
-            <div className="o2-topics">
-              {NOTE_TOPICS.map((t) => (
-                <button key={t} type="button" onClick={() => topic(t)}>
-                  {t}
-                </button>
-              ))}
-            </div>
-            <textarea
-              ref={taRef}
-              className="inp"
-              rows={3}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Например: разобрали 5 звонков, теряет клиента на «дорого» — дал шаблон ответа"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) void add();
-              }}
-            />
-            <div className="o2-nf-l">За чем следить · сейчас, до разговора</div>
-            <div className="o2-metrics" role="radiogroup" aria-label="Показатель">
-              {NOTE_METRICS.map((k) => {
-                const e = noteEffect({ operatorId: opId, date: day, metric: k }, ix, today);
-                return (
-                  <button key={k} type="button" role="radio" aria-checked={metric === k} className={metric === k ? "on" : ""} onClick={() => setMetric(k)} title="Среднее за 10 смен до дня разговора">
-                    <span className="k">
-                      <Icon name={NOTE_ICON[k]} size={12} />
-                      {NOTE_SHORT[k]}
-                    </span>
-                    <b>{e.before > 0 ? fmtNoteMetric(k, e.before) : "—"}</b>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="o2-nf-foot">
-              <DateInput size="sm" width={132} value={date} max={today} onChange={(v) => setDate(v || today)} ariaLabel="День разговора" />
-              <button type="button" className="o2-btn pri" style={{ marginLeft: "auto", height: 30 }} onClick={() => void add()} disabled={!text.trim() || busy} title="Ctrl+Enter">
-                <Icon name="plus" size={13} /> Добавить
-              </button>
-            </div>
-          </div>
-        )
-      )}
-
-      {notes.length === 0 ? (
-        <div className="o2-notes-empty">
-          <Icon name="note" size={18} />
-          <span>Заметок пока нет. После 1:1 запишите, о чём договорились, — через 3 смены будет видно, помог ли разговор.</span>
-        </div>
-      ) : (
-        <div className="o2-tl">
-          {effects.map(({ n, e }) => {
-            const hue = e.change == null ? "gray" : e.change >= 0.1 ? "green" : e.change <= -0.1 ? "red" : "amber";
-            const verdict = e.early ? `рано · ${e.daysAfter} из 3 смен` : e.change == null ? "мало смен до" : e.change >= 0.1 ? "помогло" : e.change <= -0.1 ? "стало хуже" : "без изменений";
-            const mine = n.authorId === access.account.id || access.isHead;
-            return (
-              <div key={n.id} className="o2-tl-it" data-hue={hue}>
-                <i className="dot" />
-                <div className="meta">
-                  <span>
-                    <b>{dShort(n.date)}</b> · {n.authorName || "—"}
-                  </span>
-                  {mine && (
-                    <button type="button" className="o2-kebab" style={{ width: 22, height: 22, marginLeft: "auto" }} title="Удалить заметку" onClick={() => void deleteNote(n.id)}>
-                      <Icon name="trash" size={12} />
-                    </button>
-                  )}
-                </div>
-                <div className="tx">{n.text}</div>
-                <div className="eff">
-                  <span className="m">
-                    <Icon name={NOTE_ICON[n.metric]} size={11} />
-                    {NOTE_METRIC_LABEL[n.metric]}
-                  </span>
-                  {e.change != null ? (
-                    <span className="num">
-                      {fmtNoteMetric(n.metric, e.before)} → <b>{fmtNoteMetric(n.metric, e.after)}</b>
-                    </span>
-                  ) : e.after > 0 ? (
-                    <span className="num">после: {fmtNoteMetric(n.metric, e.after)}</span>
-                  ) : null}
-                  <span className="o2-pill" data-hue={hue} style={{ marginLeft: "auto" }}>
-                    {e.change != null ? `${e.change >= 0 ? "+" : "−"}${fmtPct(Math.abs(e.change))} · ` : ""}
-                    {verdict}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

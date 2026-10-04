@@ -1,17 +1,18 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
-import { dailyRows, pace, sumRange, WORKED_TYPES, type DayRow, type GroupRow, type MonthCal, type MonthModel, type OpRow, type Pace } from "@/lib/crm/calc";
-import { addDays, fmtMonth, isoWeekday, rangeDays, weekStart } from "@/lib/crm/dates";
+import { dailyRows, pace, sumRange, workedDays, WORKED_TYPES, type DayRow, type GroupRow, type MonthCal, type MonthModel, type OpRow, type Pace } from "@/lib/crm/calc";
+import { addDays, fmtDay, fmtMonth, fmtRange, isoWeekday, rangeDays, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, fmtSigned, LEADS, OPS, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { NO_GROUP_LABEL, type DayKey, type DayType, type Settings } from "@/lib/crm/types";
-import { Avatar, Conv, MonthSwitcher, PageHead, StatusChip } from "@/components/ui/kit";
+import { Avatar, Collapse, Conv, MonthSwitcher, PageHead, StatusChip, foldRow, useFoldGroups } from "@/components/ui/kit";
 import { Icon, type IconName } from "@/components/ui/icons";
-import { dot, Select, type Opt } from "@/components/ui/select";
+import { dot, Select, uiZoom, type Opt } from "@/components/ui/select";
 import { ColumnPicker, useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { Onboarding } from "@/components/app/DashboardClassic";
 
@@ -31,12 +32,104 @@ function names(list: OpRow[], max = 3): string {
   return n.length > max ? `${n.slice(0, max).join(", ")} +${n.length - max}` : n.join(", ");
 }
 
-/** Шаг сетки оси: 1·2·5 × 10ⁿ, примерно на `parts` делений. */
-function niceStep(range: number, parts = 4): number {
-  const raw = Math.max(range, 1) / parts;
-  const p = 10 ** Math.floor(Math.log10(raw));
-  const k = raw / p;
-  return (k <= 1 ? 1 : k <= 2 ? 2 : k <= 5 ? 5 : 10) * p;
+/**
+ * Общая рамка графиков «Разрыв» и «Неделя»: одна высота, одни поля и ровно `parts` делений
+ * сетки — линии обеих карточек в ряду совпадают по высоте до пикселя.
+ */
+const CH = { H: 236, L: 34, R: 8, T: 24, B: 36, parts: 4 };
+
+/** 1px-линия ровно по пикселю, без размытия на два ряда. */
+const crisp = (v: number) => Math.round(v) + 0.5;
+
+/** Наименьший «круглый» шаг оси не меньше `min`: 1 · 1.5 · 2 · 2.5 · 3 · 4 · 5 · 7.5 × 10ⁿ, только целые. */
+const AXIS_K = [1, 1.5, 2, 2.5, 3, 4, 5, 7.5];
+function axisStep(min: number): number {
+  let p = 10 ** Math.floor(Math.log10(Math.max(min, 1e-6)));
+  for (;;) {
+    for (const k of AXIS_K) {
+      const s = Math.round(k * p * 1e6) / 1e6;
+      if (Number.isInteger(s) && s >= min - 1e-9) return s;
+    }
+    p *= 10;
+  }
+}
+
+/** Ось с нулём на линии сетки: ровно CH.parts делений, свободные — запасом над нулём и в сторону данных. */
+function zeroScale(lo: number, hi: number): { min: number; max: number; step: number } {
+  const P = CH.parts;
+  let s = axisStep((hi - lo) / P);
+  for (;;) {
+    let up = hi > 1e-9 ? Math.ceil(hi / s - 1e-9) : 0;
+    let dn = lo < -1e-9 ? Math.ceil(-lo / s - 1e-9) : 0;
+    if (up + dn <= P) {
+      let spare = P - up - dn;
+      if (spare && up === 0) {
+        up++;
+        spare--;
+      }
+      if (-lo >= hi) dn += spare;
+      else up += spare;
+      return { min: -dn * s, max: up * s, step: s };
+    }
+    s = axisStep(s * 1.001);
+  }
+}
+
+/** Плашка-подпись на графике; шрифт моно — ширину считаем по числу символов. */
+function Pill({ x, cy, text, color, anchor }: { x: number; cy: number; text: string; color: string; anchor: "start" | "end" | "middle" }) {
+  const w = Math.round(text.length * 5.6 + 14);
+  const x0 = Math.round(anchor === "end" ? x - w : anchor === "middle" ? x - w / 2 : x);
+  const top = Math.round(cy - 8);
+  return (
+    <g>
+      <rect x={x0 + 0.5} y={top + 0.5} width={w} height={16} rx={8} fill="var(--bg-panel)" stroke={color} strokeOpacity={0.45} />
+      <text x={x0 + w / 2 + 0.5} y={top + 12} textAnchor="middle" fontSize="10" fontWeight="600" fill={color}>
+        {text}
+      </text>
+    </g>
+  );
+}
+
+/** Подсказка дня при наведении — внутри области графика, справа от столбца или слева у края. */
+function ChartTip({ x, W, half = 6, children }: { x: number; W: number; half?: number; children: ReactNode }) {
+  const TW = 188;
+  const right = x + half + 8;
+  const left = right + TW <= W ? right : x - half - 8 - TW;
+  return (
+    <div className="d2-ctip" role="status" style={{ left: Math.max(0, Math.round(left)), top: CH.T, width: TW }}>
+      {children}
+    </div>
+  );
+}
+const useIsoLayout = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/**
+ * Ширина контейнера графика в px: SVG рисуется 1:1 с экраном, без растягивания viewBox —
+ * тогда подписи в обеих карточках одного размера, а высота не зависит от ширины колонки.
+ */
+function useChartWidth(fallback = 600) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(fallback);
+  useIsoLayout(() => {
+    const el = ref.current;
+    if (!el) return;
+    const set = () => {
+      const v = Math.round(el.clientWidth);
+      if (v > 0) setW((o) => (o === v ? o : v));
+    };
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w] as const;
+}
+
+/** Столбик со скруглённым верхом. */
+function barPath(x: number, y: number, w: number, h: number, r = 3): string {
+  if (h <= 0) return "";
+  const rr = Math.min(r, w / 2, h);
+  return `M${x},${y + h}V${y + rr}Q${x},${y} ${x + rr},${y}H${x + w - rr}Q${x + w},${y} ${x + w},${y + rr}V${y + h}Z`;
 }
 
 const isWorked = (t?: DayType, h = 0) => !!t && WORKED_TYPES.has(t) && h > 0;
@@ -203,8 +296,9 @@ export function DashboardV2() {
             <GapCard rows={rows} cal={cal} p={p} />
             <WeekCard cal={cal} p={p} ref_={ref} counts={sc.counts} />
           </div>
-          <OpsCard m={m} line={sc.line} settings={s} ref_={ref} />
-          <HeatCard m={m} sc={sc} rows={rows} />
+          {/* весь отдел (или несколько своих групп) — таблица и карта разбиты по группам */}
+          <OpsCard m={m} line={sc.line} settings={s} ref_={ref} groups={picked ? null : sc.groups} />
+          <HeatCard m={m} sc={sc} rows={rows} groups={picked ? null : sc.groups} />
         </div>
       )}
     </div>
@@ -541,18 +635,17 @@ function Actions({ m, line, groups }: { m: MonthModel; line: OpRow[]; groups: Gr
 
 export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pace }) {
   const pid = useId().replace(/:/g, "");
-  const W = 640;
-  const H = 200;
-  const L = 34;
-  const R = 8;
-  const T = 10;
-  const B = 32;
+  const [box, W] = useChartWidth();
+  const [hi, setHi] = useState<number | null>(null);
+  const { H, L, R, T, B } = CH;
   const n = rows.length;
   const sw = (W - L - R) / n;
+  const colX = (i: number) => Math.round(L + sw * i);
   const cx = (i: number) => L + sw * i + sw / 2;
 
   const lastIdx = rows.reduce((a, r, i) => (!r.future ? i : a), -1);
-  const showFc = cal.phase === "current" && lastIdx >= 0 && p.elapsedW > 0 && p.plan > 0;
+  const current = cal.phase === "current";
+  const showFc = current && lastIdx >= 0 && p.elapsedW > 0 && p.plan > 0;
   const base = lastIdx >= 0 ? rows[lastIdx].deviation : 0;
   const w0 = lastIdx >= 0 ? cal.wIdx(rows[lastIdx].day) : 0;
   // коридор: сверху — «дальше идём ровно по дневному плану» (разрыв замирает), снизу — «сохраняется текущий темп»
@@ -560,110 +653,256 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
   const fc = showFc
     ? rows.slice(lastIdx).map((r, k) => {
         const dw = cal.wIdx(r.day) - w0;
-        const a = base;
         const b = base + slope * dw;
-        return { i: lastIdx + k, hi: Math.max(a, b), lo: Math.min(a, b), mid: b };
+        return { i: lastIdx + k, day: r.day, hi: Math.max(base, b), lo: Math.min(base, b), mid: b };
       })
     : [];
 
   const vals = [0, ...rows.filter((r) => !r.future).map((r) => r.deviation), ...fc.flatMap((f) => [f.hi, f.lo])];
-  const step = niceStep(Math.max(...vals) - Math.min(...vals));
-  const yMin = Math.floor(Math.min(...vals) / step) * step;
-  const yMax = Math.max(step, Math.ceil(Math.max(...vals) / step) * step);
-  const y = (v: number) => T + ((yMax - v) / (yMax - yMin)) * (H - T - B);
-  const ticks: number[] = [];
-  for (let v = yMax; v >= yMin - 1e-9; v -= step) ticks.push(Math.round(v));
+  const sc = zeroScale(Math.min(...vals), Math.max(...vals));
+  const y = (v: number) => T + ((sc.max - v) / (sc.max - sc.min)) * (H - T - B);
+  const y0 = y(0);
+  const ticks = Array.from({ length: CH.parts + 1 }, (_, k) => sc.max - k * sc.step);
 
-  const pastCount = lastIdx + 1;
-  const bw = Math.min(22, sw * 0.62);
+  const past = rows.slice(0, lastIdx + 1);
+  const pts = past.map((r, i) => [cx(i), y(r.deviation)] as const);
+  const line = pts.map(([x, yy]) => `${x},${yy}`).join(" ");
+  const area = pts.length ? `${pts[0][0]},${y0} ${line} ${pts[pts.length - 1][0]},${y0}` : "";
+  // самая глубокая просадка и лучший момент — подписываем, если это не сегодняшняя точка
+  let minI = -1;
+  let maxI = -1;
+  past.forEach((r, i) => {
+    if (r.deviation < 0 && (minI < 0 || r.deviation < past[minI].deviation)) minI = i;
+    if (r.deviation > 0 && (maxI < 0 || r.deviation > past[maxI].deviation)) maxI = i;
+  });
+
   const endFc = fc[fc.length - 1];
+  const final = endFc ? endFc.mid : base;
+  const tone = (v: number) => (v < -0.5 ? "var(--c-red-fg)" : v > 0.5 ? "var(--c-green-fg)" : "var(--text-sub)");
+  const toneCls = (v: number) => (v < -0.5 ? "d2-red" : v > 0.5 ? "d2-green" : "");
+  const clampY = (v: number) => Math.min(H - B - 10, Math.max(T + 9, v));
+  const band = fc.length > 1 ? [...fc.map((f) => `${cx(f.i)},${y(f.hi)}`), ...[...fc].reverse().map((f) => `${cx(f.i)},${y(f.lo)}`)].join(" ") : "";
+
+  const kpis: { l: string; v: string; cls?: string; s?: string }[] = [
+    {
+      l: current ? "Разрыв сейчас" : "Разрыв",
+      v: lastIdx >= 0 ? fmtSigned(Math.round(base)) : "—",
+      cls: toneCls(base),
+      s: lastIdx >= 0 ? `на ${dayNum(rows[lastIdx].day)} ${dow(rows[lastIdx].day)}` : "месяц не начался",
+    },
+  ];
+  if (showFc) kpis.push({ l: "К концу месяца", v: fmtSigned(Math.round(final)), cls: toneCls(final), s: "при текущем темпе" });
+  if (p.needPerDay != null && p.remainingW > 0 && p.plan > 0)
+    kpis.push({ l: "Нужно в день", v: fmtNum(p.needPerDay), cls: p.needPerDay > p.dailyPlan * 1.05 ? "d2-red" : "", s: `план ${fmtNum(p.dailyPlan)}` });
+  if (lastIdx >= 0 && minI >= 0) kpis.push({ l: "Худший день", v: fmtSigned(Math.round(past[minI].deviation)), s: `${dayNum(past[minI].day)} ${dow(past[minI].day)}` });
+
+  const hv = hi != null ? rows[hi] : null;
+  const hf = hi != null ? fc.find((f) => f.i === hi) : undefined;
 
   return (
     <section className="card d2-ch">
       <div className="d2-ch-head">
         <h3 className="d2-h"><Icon name="trend" size={15} className="title-ic" />Накопительный разрыв к плану</h3>
         <div className="d2-leg">
-          <span><i style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--c-red-fg)" }} />Факт. разрыв</span>
+          <span><i className="ln" style={{ background: "var(--c-red-fg)" }} />Факт</span>
           {showFc && (
             <span>
-              <i style={{ width: 11, height: 10, background: "repeating-linear-gradient(135deg, var(--ink-25) 0 1px, transparent 1px 3px)" }} />
+              <i className="sq" style={{ background: "repeating-linear-gradient(135deg, var(--ink-25) 0 1px, transparent 1px 3px)", boxShadow: "inset 0 0 0 1px var(--ink-08)" }} />
               Прогноз (коридор)
             </span>
           )}
-          <span><i style={{ width: 11, height: 10, background: "var(--ink-06)" }} />Выходные</span>
+          <span><i className="sq" style={{ background: "var(--ink-05)" }} />Выходные</span>
         </div>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", marginTop: 8 }}>
-        <defs>
-          <pattern id={`h${pid}`} width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="4" stroke="var(--ink-25)" strokeWidth="1" />
-          </pattern>
-        </defs>
-        {rows.map((r, i) =>
-          !r.isWork ? <rect key={`w${i}`} x={L + sw * i + 1} y={T} width={sw - 2} height={H - T - B} fill="var(--ink-04)" /> : null,
-        )}
-        {cal.phase === "current" && lastIdx >= 0 && (
-          <rect x={L + sw * lastIdx + 1} y={T - 6} width={sw - 2} height={H - T + 4} fill="var(--c-red-bg)" opacity={0.85} />
-        )}
-        {ticks.map((v) => (
-          <g key={v}>
-            {v !== 0 && <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="var(--ink-05)" />}
-            <text x={L - 8} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="var(--text-sub)">
-              {v}
-            </text>
-          </g>
+      <div className="d2-gk">
+        {kpis.map((k) => (
+          <div key={k.l}>
+            <div className="d2-gk-l">{k.l}</div>
+            <div className={`d2-gk-v ${k.cls ?? ""}`}>{k.v}</div>
+            {k.s && <div className="d2-gk-s">{k.s}</div>}
+          </div>
         ))}
-        {fc.length > 1 && (
-          <>
-            <polygon
-              points={[...fc.map((f) => `${cx(f.i)},${y(f.hi)}`), ...[...fc].reverse().map((f) => `${cx(f.i)},${y(f.lo)}`)].join(" ")}
-              fill={`url(#h${pid})`}
-            />
-            {fc.slice(1).map((f) => (
-              <rect key={`f${f.i}`} x={cx(f.i) - bw / 2} y={y(Math.min(0, f.hi))} width={bw} height={Math.max(0, y(f.mid) - y(Math.min(0, f.hi)))} fill="var(--ink-06)" />
-            ))}
-            <polyline points={fc.map((f) => `${cx(f.i)},${y(f.mid)}`).join(" ")} fill="none" stroke="var(--dim)" strokeDasharray="3 3" />
-          </>
-        )}
-        <line x1={L} x2={W - R} y1={y(0)} y2={y(0)} stroke="var(--text-sub3)" strokeDasharray="3 3" />
-        {rows.slice(0, pastCount).map((r, i) => {
-          const v = r.deviation;
-          const neg = v < 0;
-          const top = Math.min(y(v), y(0));
-          const h = Math.max(1, Math.abs(y(v) - y(0)));
-          const label = pastCount <= 12 || i === lastIdx;
-          return (
-            <g key={r.day}>
-              <title>{`${dayNum(r.day)} ${dow(r.day)}: факт ${fmtInt(r.cum)}, план ${fmtNum(r.cumPlan)}, разрыв ${fmtSigned(Math.round(v))}`}</title>
-              <rect x={cx(i) - bw / 2} y={top} width={bw} height={h} fill={neg ? "var(--c-red-fg)" : "var(--c-green-fg)"} opacity={i === lastIdx ? 0.95 : 0.7} />
-              {label && Math.abs(v) >= 0.5 && (
-                <text x={cx(i)} y={neg ? y(v) + 12 : y(v) - 4} textAnchor="middle" fontSize="10.5" fontWeight="600" fill="var(--text)">
-                  {fmtSigned(Math.round(v))}
-                </text>
+      </div>
+      <div ref={box} className="d2-plot">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block" }} onMouseLeave={() => setHi(null)}>
+          <defs>
+            <pattern id={`h${pid}`} width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="4" stroke="var(--ink-25)" strokeWidth="1" />
+            </pattern>
+            <clipPath id={`cp${pid}`}>
+              <rect x={0} y={0} width={W} height={y0} />
+            </clipPath>
+            <clipPath id={`cn${pid}`}>
+              <rect x={0} y={y0} width={W} height={H} />
+            </clipPath>
+            <linearGradient id={`gn${pid}`} gradientUnits="userSpaceOnUse" x1="0" y1={y0} x2="0" y2={y(sc.min)}>
+              <stop offset="0" style={{ stopColor: "var(--c-red-fg)", stopOpacity: 0.04 }} />
+              <stop offset="1" style={{ stopColor: "var(--c-red-fg)", stopOpacity: 0.3 }} />
+            </linearGradient>
+            <linearGradient id={`gp${pid}`} gradientUnits="userSpaceOnUse" x1="0" y1={y0} x2="0" y2={y(sc.max)}>
+              <stop offset="0" style={{ stopColor: "var(--c-green-fg)", stopOpacity: 0.04 }} />
+              <stop offset="1" style={{ stopColor: "var(--c-green-fg)", stopOpacity: 0.3 }} />
+            </linearGradient>
+            <linearGradient id={`gf${pid}`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" style={{ stopColor: "var(--text-sub)", stopOpacity: 0.16 }} />
+              <stop offset="1" style={{ stopColor: "var(--text-sub)", stopOpacity: 0.05 }} />
+            </linearGradient>
+          </defs>
+
+          {rows.map((r, i) =>
+            !r.isWork ? <rect key={`w${i}`} x={colX(i) + 1} y={T} width={colX(i + 1) - colX(i) - 2} height={H - B - T} rx={2} fill="var(--ink-05)" /> : null,
+          )}
+          {hi != null && <rect x={colX(hi) + 1} y={T} width={colX(hi + 1) - colX(hi) - 2} height={H - T - 2} rx={3} fill="var(--ink-05)" />}
+          {ticks.map((v) => (
+            <g key={v}>
+              {v !== 0 && <line x1={L} x2={W - R} y1={crisp(y(v))} y2={crisp(y(v))} stroke="var(--ink-06)" />}
+              <text x={L - 8} y={Math.round(y(v)) + 3.5} textAnchor="end" fontSize="10" fill={v === 0 ? "var(--text)" : "var(--text-sub)"} fontWeight={v === 0 ? 600 : 400}>
+                {v > 0 ? `+${v}` : v}
+              </text>
+            </g>
+          ))}
+
+          {/* прогноз: веер между «дальше по плану» и «текущий темп» */}
+          {band && (
+            <g className="d2-fade" style={{ "--d": "0.55s" } as CSSProperties}>
+              <polygon points={band} fill={`url(#gf${pid})`} />
+              <polygon points={band} fill={`url(#h${pid})`} opacity={0.7} />
+              <line x1={cx(fc[0].i)} x2={cx(endFc.i)} y1={crisp(y(base))} y2={crisp(y(base))} stroke="var(--text-sub3)" strokeDasharray="1.5 3" />
+              <polyline points={fc.map((f) => `${cx(f.i)},${y(f.mid)}`).join(" ")} fill="none" stroke={tone(final)} strokeOpacity={0.75} strokeWidth={1.5} strokeDasharray="4 3" />
+              <circle cx={cx(endFc.i)} cy={y(endFc.mid)} r={3} fill="var(--bg-panel)" stroke={tone(final)} strokeWidth={1.5} />
+            </g>
+          )}
+
+          <line x1={L} x2={W - R} y1={crisp(y0)} y2={crisp(y0)} stroke="var(--text-sub3)" />
+
+          {/* факт: линия + заливка до нуля, зелёная выше плана, красная ниже */}
+          {pts.length > 0 && (
+            <>
+              <g className="d2-fade" style={{ "--d": "0.25s" } as CSSProperties}>
+                <polygon points={area} fill={`url(#gp${pid})`} clipPath={`url(#cp${pid})`} />
+                <polygon points={area} fill={`url(#gn${pid})`} clipPath={`url(#cn${pid})`} />
+              </g>
+              <polyline className="d2-draw" pathLength={1} points={line} fill="none" stroke="var(--c-green-fg)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#cp${pid})`} />
+              <polyline className="d2-draw" pathLength={1} points={line} fill="none" stroke="var(--c-red-fg)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#cn${pid})`} />
+              <g className="d2-fade" style={{ "--d": "0.45s" } as CSSProperties}>
+                {past.map((r, i) =>
+                  r.isWork && i !== lastIdx ? (
+                    <circle key={`d${i}`} cx={pts[i][0]} cy={pts[i][1]} r={2.5} fill="var(--bg-panel)" stroke={tone(r.deviation)} strokeWidth={1.5} />
+                  ) : null,
+                )}
+              </g>
+            </>
+          )}
+
+          {/* сегодня */}
+          {lastIdx >= 0 && (
+            <g className="d2-fade" style={{ "--d": "0.6s" } as CSSProperties}>
+              {current && (
+                <>
+                  <line x1={crisp(cx(lastIdx))} x2={crisp(cx(lastIdx))} y1={T - 4} y2={H - B} stroke="var(--text-sub3)" strokeDasharray="2 2" />
+                  <text x={Math.round(cx(lastIdx))} y={T - 8} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="var(--text-sub)">
+                    сегодня
+                  </text>
+                </>
+              )}
+              {current && <circle className="d2-pulse" cx={cx(lastIdx)} cy={y(base)} r={6} fill={tone(base)} />}
+              <circle cx={cx(lastIdx)} cy={y(base)} r={4.5} fill={tone(base)} stroke="var(--bg-panel)" strokeWidth={2} />
+              {Math.abs(base) >= 0.5 && (
+                <Pill
+                  x={cx(lastIdx) + (lastIdx > n - 4 ? -10 : 10)}
+                  cy={clampY(y(base) + (base < 0 ? 15 : -15))}
+                  text={fmtSigned(Math.round(base))}
+                  color={tone(base)}
+                  anchor={lastIdx > n - 4 ? "end" : "start"}
+                />
               )}
             </g>
-          );
-        })}
-        {endFc && fc.length > 2 && (
-          <text x={cx(endFc.i)} y={y(endFc.mid) + (endFc.mid < 0 ? 13 : -6)} textAnchor="end" fontSize="10" fill="var(--text-sub)">
-            {fmtSigned(Math.round(endFc.mid))} к концу месяца
-          </text>
-        )}
-        {rows.map((r, i) => {
-          const td = cal.phase === "current" && i === lastIdx;
-          const c = td ? "var(--c-red-fg)" : r.isWork ? "var(--text-sub)" : "var(--dim)";
-          return (
-            <g key={`x${i}`}>
-              <text x={cx(i)} y={H - 18} textAnchor="middle" fontSize="9.5" fill={c} fontWeight={td ? 700 : 400}>
-                {dayNum(r.day)}
-              </text>
-              <text x={cx(i)} y={H - 6} textAnchor="middle" fontSize="8.5" fill={c} fontWeight={td ? 700 : 400}>
-                {dow(r.day)}
-              </text>
+          )}
+          {minI >= 0 && minI !== lastIdx && (
+            <text className="d2-fade" x={Math.round(pts[minI][0])} y={Math.round(pts[minI][1]) + 15} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--c-red-fg)">
+              {fmtSigned(Math.round(past[minI].deviation))}
+            </text>
+          )}
+          {maxI >= 0 && maxI !== lastIdx && (
+            <text className="d2-fade" x={Math.round(pts[maxI][0])} y={Math.round(pts[maxI][1]) - 9} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--c-green-fg)">
+              {fmtSigned(Math.round(past[maxI].deviation))}
+            </text>
+          )}
+
+          {/* итог прогноза — плашкой у конца веера, внутри области графика */}
+          {endFc && fc.length > 2 && (
+            <g className="d2-fade" style={{ "--d": "0.8s" } as CSSProperties}>
+              <Pill x={cx(endFc.i) - 10} cy={clampY(y(endFc.mid))} text={`${fmtSigned(Math.round(endFc.mid))} при текущем темпе`} color={tone(final)} anchor="end" />
+              {Math.abs(y(base) - y(endFc.mid)) > 24 && Math.abs(base) >= 0.5 && (
+                <Pill x={cx(endFc.i) - 10} cy={clampY(y(base) - 13)} text={`${fmtSigned(Math.round(base))} если по плану`} color="var(--text-sub)" anchor="end" />
+              )}
             </g>
-          );
-        })}
-      </svg>
+          )}
+
+          {/* наведение: линия дня и точка на факте или прогнозе */}
+          {hv && (
+            <g pointerEvents="none">
+              <line x1={crisp(cx(hi!))} x2={crisp(cx(hi!))} y1={T} y2={H - B} stroke="var(--ink-25)" />
+              {!hv.future && <circle cx={cx(hi!)} cy={y(hv.deviation)} r={4.5} fill={tone(hv.deviation)} stroke="var(--bg-panel)" strokeWidth={2} />}
+              {hv.future && hf && <circle cx={cx(hi!)} cy={y(hf.mid)} r={4} fill="var(--bg-panel)" stroke={tone(final)} strokeWidth={2} />}
+            </g>
+          )}
+
+          {rows.map((r, i) => {
+            const td = current && i === lastIdx;
+            const on = td || i === hi;
+            const c = on ? "var(--text)" : r.isWork ? "var(--text-sub)" : "var(--dim)";
+            const x = Math.round(cx(i));
+            return (
+              <g key={`x${i}`}>
+                {(sw >= 13 || on || i % 2 === 0) && (
+                  <text x={x} y={H - B + 16} textAnchor="middle" fontSize="10" fill={c} fontWeight={on ? 700 : 400}>
+                    {dayNum(r.day)}
+                  </text>
+                )}
+                {(sw >= 17 || on) && (
+                  <text x={x} y={H - B + 29} textAnchor="middle" fontSize="9" fill={c} fontWeight={on ? 600 : 400}>
+                    {dow(r.day)}
+                  </text>
+                )}
+                <rect x={colX(i)} y={0} width={colX(i + 1) - colX(i)} height={H} fill="transparent" onMouseEnter={() => setHi(i)} />
+              </g>
+            );
+          })}
+        </svg>
+        {hv && (
+          <ChartTip x={cx(hi!)} W={W}>
+            <div className="d2-ctip-h">
+              {fmtDay(hv.day)}, {dow(hv.day)}
+              <span>{current && hi === lastIdx ? "сегодня" : !hv.isWork ? "выходной" : hv.future ? "впереди" : ""}</span>
+            </div>
+            {!hv.future ? (
+              <div className="d2-ctip-g">
+                <span>Лидов за день</span>
+                <b>{fmtInt(hv.count)}</b>
+                <span>Факт с начала</span>
+                <b>{fmtInt(hv.cum)}</b>
+                <span>По плану</span>
+                <b>{fmtNum(hv.cumPlan)}</b>
+                <span>Разрыв</span>
+                <b className={toneCls(hv.deviation)}>{fmtSigned(Math.round(hv.deviation))}</b>
+              </div>
+            ) : hf ? (
+              <div className="d2-ctip-g">
+                <span>Если по плану</span>
+                <b className={toneCls(base)}>{fmtSigned(Math.round(base))}</b>
+                <span>При текущем темпе</span>
+                <b className={toneCls(hf.mid)}>{fmtSigned(Math.round(hf.mid))}</b>
+              </div>
+            ) : (
+              <div className="d2-ctip-g">
+                <span>Ещё не наступил</span>
+                <b />
+              </div>
+            )}
+          </ChartTip>
+        )}
+      </div>
     </section>
   );
 }
@@ -671,48 +910,92 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
 /* ── эта неделя против прошлой ─────────────────────────────────────── */
 
 export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref_: DayKey; counts: Map<DayKey, number> | undefined }) {
+  const [box, W] = useChartWidth();
+  const [hi, setHi] = useState<number | null>(null);
   const ws = weekStart(ref_);
   const days = rangeDays(ws, addDays(ws, 6));
-  const cur = days.map((d) => (d <= ref_ && cal.phase !== "future" ? counts?.get(d) ?? 0 : null));
+  const live = cal.phase !== "future";
+  const cur = days.map((d) => (d <= ref_ && live ? counts?.get(d) ?? 0 : null));
   const prev = days.map((d) => counts?.get(addDays(d, -7)) ?? 0);
   const thisWeek = cur.reduce<number>((a, v) => a + (v ?? 0), 0);
   const prevWeek = prev.reduce((a, v) => a + v, 0);
   const upTo = cur.filter((v) => v != null).length;
   const prevSame = prev.slice(0, upTo).reduce((a, v) => a + v, 0);
   const change = prevSame > 0 ? thisWeek / prevSame - 1 : null;
-
-  const W = 450;
-  const H = 200;
-  const L = 28;
-  const R = 4;
-  const T = 14;
-  const B = 22;
-  const top = Math.max(...prev, ...cur.map((v) => v ?? 0), p.dailyPlan, 1);
-  const step = niceStep(top, 5);
-  const yMax = Math.ceil((top * 1.08) / step) * step;
-  const y = (v: number) => T + (1 - v / yMax) * (H - T - B);
-  const sw = (W - L - R) / 7;
-  const bw = Math.min(19, sw * 0.32);
-  const ticks: number[] = [];
-  for (let v = 0; v <= yMax + 1e-9; v += step) ticks.push(Math.round(v));
   const refIdx = cal.phase === "current" ? days.indexOf(ref_) : -1;
+  // впереди по графику — пунктиром «сколько нужно в день», чтобы закрыть месяц
+  const need = days.map((d, i) => (cal.phase === "current" && i > refIdx && cal.isWork(d) && p.needPerDay != null && p.needPerDay > 0 ? p.needPerDay : null));
+  const best = cur.reduce<number>((b, v, i) => (v != null && v > 0 && (b < 0 || v > (cur[b] ?? 0)) ? i : b), -1);
+  // неделя может начаться в прошлом месяце — там графика нет, берём будни
+  const workLike = (d: DayKey) => (d.slice(0, 7) === cal.month ? cal.isWork(d) : isoWeekday(d) <= 5);
+  const workedCur = days.filter((d, i) => cur[i] != null && (workLike(d) || (cur[i] ?? 0) > 0)).length;
+  const avg = workedCur ? thisWeek / workedCur : null;
+
+  const { H, L, R, T, B } = CH;
+  const top = Math.max(...prev, ...cur.map((v) => v ?? 0), ...need.map((v) => v ?? 0), p.dailyPlan, 1);
+  const step = axisStep((top * 1.08) / CH.parts);
+  const yMax = step * CH.parts;
+  const y = (v: number) => Math.round(T + (1 - v / yMax) * (H - T - B));
+  const y0 = y(0);
+  const sw = (W - L - R) / 7;
+  const colX = (i: number) => Math.round(L + sw * i);
+  const bw = Math.round(Math.max(6, Math.min(24, sw * 0.26)));
+  const ticks = Array.from({ length: CH.parts + 1 }, (_, k) => k * step);
+  const planY = p.dailyPlan > 0 ? T + (1 - p.dailyPlan / yMax) * (H - T - B) : null;
+
+  const kpis: { l: string; v: string; cls?: string; s: string }[] = [
+    { l: "Текущая неделя", v: fmtInt(thisWeek), s: upTo ? `за ${upTo} ${plural(upTo, DAYS)}` : "ещё не началась" },
+    { l: "Прошлая неделя", v: fmtInt(prevWeek), s: upTo && upTo < 7 ? `за те же дни ${fmtInt(prevSame)}` : "за 7 дней" },
+    {
+      l: "Изменение",
+      v: change == null ? "—" : `${change >= 0 ? "+" : "−"}${fmtPct(Math.abs(change))}`,
+      cls: change == null ? "" : change >= 0 ? "d2-green" : "d2-red",
+      s: "к тем же дням",
+    },
+    {
+      l: "В среднем",
+      v: avg == null ? "—" : fmtNum(avg),
+      cls: avg != null && p.dailyPlan > 0 && avg < p.dailyPlan ? "d2-red" : "",
+      s: best >= 0 ? `лучший ${DOW[best]} · ${fmtInt(cur[best] ?? 0)}` : "в рабочий день",
+    },
+  ];
+
+  const hd = hi != null ? days[hi] : null;
+  const hv = hi != null ? cur[hi] : null;
+  const hDiff = hi != null && hv != null ? hv - prev[hi] : null;
 
   return (
     <section className="card d2-ch">
       <div className="d2-ch-head">
         <h3 className="d2-h"><Icon name="chart" size={15} className="title-ic" />Эта неделя vs прошлая</h3>
         <div className="d2-leg">
-          <span><i style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--ink-15)" }} />Прошлая неделя</span>
-          <span><i style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--brand)" }} />Текущая неделя</span>
-          {p.dailyPlan > 0 && <span><i style={{ width: 18, height: 0, borderTop: "1.5px dashed var(--text-sub3)" }} />План ({fmtNum(p.dailyPlan)}/день)</span>}
+          <span><i className="sq" style={{ background: "var(--ink-15)" }} />Прошлая</span>
+          <span><i className="sq" style={{ background: "var(--brand)" }} />Текущая</span>
+          {need.some((v) => v != null) && <span><i className="sq" style={{ boxShadow: "inset 0 0 0 1px var(--text-sub3)" }} />Нужно</span>}
+          {p.dailyPlan > 0 && <span><i className="ln dash" />План</span>}
         </div>
       </div>
-      <div className="d2-wk">
-        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block" }}>
-          {refIdx >= 0 && <rect x={L + sw * refIdx + 4} y={T - 10} width={sw - 8} height={H - T + 8} fill="var(--c-red-bg)" opacity={0.85} />}
+      <div className="d2-gk">
+        {kpis.map((k) => (
+          <div key={k.l}>
+            <div className="d2-gk-l">{k.l}</div>
+            <div className={`d2-gk-v ${k.cls ?? ""}`}>{k.v}</div>
+            <div className="d2-gk-s">{k.s}</div>
+          </div>
+        ))}
+      </div>
+      <div ref={box} className="d2-plot">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block" }} onMouseLeave={() => setHi(null)}>
+          {refIdx >= 0 && <rect x={colX(refIdx) + 2} y={T - 18} width={colX(refIdx + 1) - colX(refIdx) - 4} height={H - T + 17} rx={6} fill="var(--ink-04)" />}
+          {hi != null && hi !== refIdx && <rect x={colX(hi) + 2} y={T - 18} width={colX(hi + 1) - colX(hi) - 4} height={H - T + 17} rx={6} fill="var(--ink-03)" />}
+          {refIdx >= 0 && (
+            <text x={Math.round(L + sw * refIdx + sw / 2)} y={T - 8} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="var(--text-sub)">
+              сегодня
+            </text>
+          )}
           {ticks.map((v) => (
             <g key={v}>
-              <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="var(--ink-05)" />
+              <line x1={L} x2={W - R} y1={crisp(y(v))} y2={crisp(y(v))} stroke={v === 0 ? "var(--text-sub3)" : "var(--ink-06)"} />
               <text x={L - 8} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="var(--text-sub)">
                 {v}
               </text>
@@ -721,50 +1004,99 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
           {days.map((d, i) => {
             const c = L + sw * i + sw / 2;
             const v = cur[i];
-            const px = v == null ? c - bw / 2 : c - bw - 1;
+            const nd = need[i];
+            const px = Math.round(c - 2) - bw;
+            const cx2 = Math.round(c + 2);
+            const td = i === refIdx;
+            const done = v != null && !td;
+            const below = done && p.dailyPlan > 0 && workLike(d) && v < p.dailyPlan;
+            const diff = v != null ? v - prev[i] : null;
+            const on = td || i === hi;
+            const dim = hi != null && hi !== i;
+            const lx = Math.round(c);
             return (
-              <g key={d}>
-                <title>{`${dow(d)} ${dayNum(d)}: ${v == null ? "ещё не наступил" : `${fmtInt(v)} лид.`} · неделей раньше ${fmtInt(prev[i])}`}</title>
-                <rect x={px} y={y(prev[i])} width={bw} height={y(0) - y(prev[i])} fill="var(--ink-15)" />
+              <g key={d} className="d2-col" style={{ opacity: dim ? 0.45 : 1 }}>
+                <path className="d2-grow" style={{ "--i": i } as CSSProperties} d={barPath(px, y(prev[i]), bw, y0 - y(prev[i]))} fill="var(--ink-15)" />
                 {prev[i] > 0 && (
-                  <text x={px + bw / 2} y={y(prev[i]) - 4} textAnchor="middle" fontSize="10" fill="var(--text-sub)">
+                  <text className="d2-fade" x={px + bw / 2} y={y(prev[i]) - 5} textAnchor="middle" fontSize="9.5" fill="var(--text-sub)">
                     {prev[i]}
                   </text>
                 )}
                 {v != null && (
                   <>
-                    <rect x={c + 1} y={y(v)} width={bw} height={Math.max(0, y(0) - y(v))} fill="var(--brand)" />
-                    <text x={c + 1 + bw / 2} y={y(v) - 4} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text)">
+                    <path
+                      className="d2-grow"
+                      style={{ "--i": i + 1 } as CSSProperties}
+                      d={barPath(cx2, y(v), bw, y0 - y(v))}
+                      fill={below ? "var(--c-red-fg)" : "var(--brand)"}
+                      opacity={below ? 0.8 : 1}
+                    />
+                    <text className="d2-fade" x={cx2 + bw / 2} y={y(v) - 5} textAnchor="middle" fontSize="10.5" fontWeight="700" fill={below ? "var(--c-red-fg)" : "var(--text)"}>
                       {v}
                     </text>
                   </>
                 )}
-                <text x={c} y={H - 6} textAnchor="middle" fontSize="10" fill={i === refIdx ? "var(--c-red-fg)" : "var(--text-sub)"} fontWeight={i === refIdx ? 700 : 400}>
-                  {DOW[i]}
+                {v == null && nd != null && (
+                  <>
+                    <rect x={cx2 + 0.5} y={y(nd) + 0.5} width={bw - 1} height={Math.max(0, y0 - y(nd) - 1)} rx={3} fill="none" stroke="var(--text-sub3)" strokeDasharray="3 2" />
+                    <text x={cx2 + bw / 2} y={y(nd) - 5} textAnchor="middle" fontSize="9.5" fill="var(--dim)">
+                      {Math.ceil(nd)}
+                    </text>
+                  </>
+                )}
+                <text x={lx} y={H - B + 16} textAnchor="middle" fontSize="10" fill={on ? "var(--text)" : "var(--text-sub)"} fontWeight={on ? 700 : 500}>
+                  {DOW[i]} <tspan fontWeight={400} fill={on ? "var(--text-sub)" : "var(--dim)"}>{dayNum(d)}</tspan>
                 </text>
+                {diff != null && (v !== 0 || prev[i] !== 0) && (
+                  <text x={lx} y={H - B + 29} textAnchor="middle" fontSize="9.5" fontWeight="600" fill={diff > 0 ? "var(--c-green-fg)" : diff < 0 ? "var(--c-red-fg)" : "var(--dim)"}>
+                    {diff === 0 ? "=" : fmtSigned(diff)}
+                  </text>
+                )}
               </g>
             );
           })}
-          {p.dailyPlan > 0 && <line x1={L} x2={W - R} y1={y(p.dailyPlan)} y2={y(p.dailyPlan)} stroke="var(--text-sub3)" strokeDasharray="4 3" />}
-        </svg>
-        <div className="d2-tot">
-          <div className="d2-tot-l">Итого за неделю</div>
-          <div className="d2-tot-v">{fmtInt(thisWeek)}</div>
-          <div className="d2-tot-s">текущая неделя</div>
-          <div className="d2-tot-v" style={{ marginTop: 12 }}>
-            {fmtInt(prevWeek)}
-          </div>
-          <div className="d2-tot-s">прошлая неделя</div>
-          {change != null && (
-            <>
-              <div className={`d2-tot-d ${change >= 0 ? "d2-green" : "d2-red"}`}>
-                {change >= 0 ? "↑" : "↓"} {change >= 0 ? "+" : "−"}
-                {fmtPct(Math.abs(change))}
-              </div>
-              <div className="d2-tot-s">к тем же дням прошлой</div>
-            </>
+          {planY != null && (
+            <g pointerEvents="none">
+              <line x1={L} x2={W - R} y1={crisp(planY)} y2={crisp(planY)} stroke="var(--text-sub)" strokeOpacity={0.6} strokeDasharray="4 3" />
+              <Pill x={W - R} cy={Math.round(planY) - 10} text={`план ${fmtNum(p.dailyPlan)}`} color="var(--text-sub)" anchor="end" />
+            </g>
           )}
-        </div>
+          {days.map((d, i) => (
+            <rect key={`h${d}`} x={colX(i)} y={0} width={colX(i + 1) - colX(i)} height={H} fill="transparent" onMouseEnter={() => setHi(i)} />
+          ))}
+        </svg>
+        {hd && (
+          <ChartTip x={L + sw * hi! + sw / 2} W={W} half={sw / 2}>
+            <div className="d2-ctip-h">
+              {DOW[hi!]}, {fmtDay(hd)}
+              <span>{hi === refIdx ? "сегодня" : hv == null ? "впереди" : !workLike(hd) ? "выходной" : ""}</span>
+            </div>
+            <div className="d2-ctip-g">
+              <span><i style={{ background: "var(--brand)" }} />Эта неделя</span>
+              <b>{hv == null ? "—" : fmtInt(hv)}</b>
+              <span><i style={{ background: "var(--ink-15)" }} />Неделей раньше</span>
+              <b>{fmtInt(prev[hi!])}</b>
+              {hDiff != null && (
+                <>
+                  <span>Разница</span>
+                  <b className={hDiff > 0 ? "d2-green" : hDiff < 0 ? "d2-red" : ""}>{hDiff === 0 ? "=" : fmtSigned(hDiff)}</b>
+                </>
+              )}
+              {need[hi!] != null && (
+                <>
+                  <span>Нужно, чтобы закрыть</span>
+                  <b>{Math.ceil(need[hi!]!)}</b>
+                </>
+              )}
+              {p.dailyPlan > 0 && workLike(hd) && (
+                <>
+                  <span>План на день</span>
+                  <b>{fmtNum(p.dailyPlan)}</b>
+                </>
+              )}
+            </div>
+          </ChartTip>
+        )}
       </div>
     </section>
   );
@@ -773,6 +1105,30 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
 /* ── операторы ─────────────────────────────────────────────────────── */
 
 const ABSENT_LABEL: Partial<Record<DayType, string>> = { off: "Выходной", vacation: "Отпуск", sick: "Больничный", platform: "Платформа" };
+
+/**
+ * Разбивка операторов по группам для сводки «весь отдел» (и «все мои группы»): порядок — как у
+ * групп сводки, затем «без группы» и отдельным блоком стажёры (у них ещё нет плана).
+ * Выбрана конкретная группа — без разбивки (null).
+ */
+const TRAINEES = "__trainees__";
+function groupSections(list: OpRow[], groups?: GroupRow[] | null): { key: string; name: string; color: string; rows: OpRow[] }[] | null {
+  if (!groups) return null;
+  const map = new Map<string, OpRow[]>();
+  for (const r of list) {
+    const key = r.op.role === "trainee" ? TRAINEES : r.groupKey;
+    map.set(key, [...(map.get(key) ?? []), r]);
+  }
+  if (!map.size) return null;
+  const order = new Map(groups.map((g, i) => [g.key, i]));
+  const rank = (key: string) => (key === TRAINEES ? 1e6 + 1 : order.get(key) ?? 1e6);
+  return [...map.entries()]
+    .map(([key, rows]) => {
+      const g = key === TRAINEES ? null : groups.find((x) => x.key === key);
+      return { key, name: key === TRAINEES ? "Стажёры" : g?.name ?? NO_GROUP_LABEL, color: g?.color ?? "gray", rows };
+    })
+    .sort((a, b) => rank(a.key) - rank(b.key) || a.name.localeCompare(b.name, "ru"));
+}
 
 /** Столбцы таблицы операторов: порядок — перетаскиванием заголовков, набор — «Столбцы». Своё у каждого аккаунта. */
 const OPS_COLS = ["status", "group", "fact", "should", "gap", "prog", "plan", "forecast", "need", "recent", "avg", "shifts", "hours", "conv", "spark"] as const;
@@ -785,13 +1141,12 @@ function mergeVisible(full: string[], visibleNext: string[]): string[] {
   return full.map((k) => (vis.has(k) ? visibleNext[i++] : k));
 }
 
-function OpsCard({ m, line, settings, ref_ }: { m: MonthModel; line: OpRow[]; settings: Settings; ref_: DayKey }) {
+function OpsCard({ m, line, settings, ref_, groups }: { m: MonthModel; line: OpRow[]; settings: Settings; ref_: DayKey; groups?: GroupRow[] | null }) {
   const { ix, today } = useCrm();
   const router = useRouter();
   const cal = m.cal;
   const cur = cal.phase === "current";
   const past = cal.phase === "past";
-  const last7 = rangeDays(addDays(ref_, -6), ref_);
   const yday = addDays(ref_, -1);
 
   const vis = useColumnVisibility("dash-ops", OPS_COLS, OPS_DEFAULT);
@@ -815,7 +1170,7 @@ function OpsCard({ m, line, settings, ref_ }: { m: MonthModel; line: OpRow[]; se
     shifts: { label: "Смен", hint: "Отработано смен в месяце" },
     hours: { label: "Часы" },
     conv: { label: "Конв.", hint: "Конверсия: лиды ÷ отработанные часы" },
-    spark: { label: "Динамика (7 дней)" },
+    spark: { label: "Динамика (7 смен)", hint: "Лиды за последние 7 рабочих смен — выходные не считаются" },
   };
 
   const list = useMemo(
@@ -827,6 +1182,10 @@ function OpsCard({ m, line, settings, ref_ }: { m: MonthModel; line: OpRow[]; se
       }),
     [line],
   );
+
+  // разбивка по группам: порядок — как у групп сводки, «без группы» в конце; внутри — по разрыву
+  const sections = useMemo(() => groupSections(list, groups), [list, groups]);
+  const fold = useFoldGroups(wrapRef);
 
   const todayState = (r: OpRow): { hue: string; label: string } => {
     if (r.op.status === "pause") return { hue: "gray", label: "На паузе" };
@@ -965,11 +1324,135 @@ function OpsCard({ m, line, settings, ref_ }: { m: MonthModel; line: OpRow[]; se
       case "spark":
         return (
           <td key={c} data-col={c} style={{ paddingTop: 2, paddingBottom: 2 }}>
-            <Spark values={last7.map((d) => ix.opDay.get(r.op.id)?.get(d) ?? 0)} days={last7} good={hasPlan && ratio * 100 >= settings.normalPct} />
+            {(() => {
+              // последние 7 рабочих смен — выходные не тянут тренд к нулю
+              const wd = workedDays(ix, r.op.id, ref_);
+              return <Spark values={wd.map((d) => ix.opDay.get(r.op.id)?.get(d) ?? 0)} days={wd} open={wd[wd.length - 1] === today && today > ix.workedTo} good={hasPlan && ratio * 100 >= settings.normalPct} />;
+            })()}
           </td>
         );
     }
   };
+
+  /** Итоги группы в строке-заголовке: те же столбцы, что у операторов. */
+  const groupCell = (c: OpsCol, rows: OpRow[]) => {
+    const withPlan = rows.filter((r) => r.terms.plan > 0);
+    const fact = rows.reduce((a, r) => a + r.pace.fact, 0);
+    const factP = withPlan.reduce((a, r) => a + r.pace.fact, 0);
+    const should = withPlan.reduce((a, r) => a + (past ? r.terms.plan : r.pace.planToDate), 0);
+    const gap = factP - should;
+    const ratio = should > 0 ? factP / should : 0;
+    const tone = ratio * 100 >= settings.normalPct ? "var(--c-green-fg)" : ratio * 100 >= settings.lagPct ? "var(--c-amber-fg)" : "var(--c-red-fg)";
+    const plan = withPlan.reduce((a, r) => a + r.terms.plan, 0);
+    const rr = withPlan.reduce((a, r) => a + r.pace.rr, 0);
+    const hours = rows.reduce((a, r) => a + r.hours, 0);
+    const closed = rows.reduce((a, r) => a + r.factClosed, 0);
+    const dash = <span className="d2-dim">—</span>;
+    switch (c) {
+      case "status": {
+        if (!cur) return <td key={c} data-col={c} />;
+        const on = rows.filter((r) => {
+          const sh = ix.shift.get(`${today}|${r.op.id}`);
+          return !!sh && isWorked(sh.type, sh.hours);
+        }).length;
+        return (
+          <td key={c} data-col={c} className="d2-sub" style={{ fontWeight: 500 }}>
+            на смене {on}
+          </td>
+        );
+      }
+      case "fact":
+        return (
+          <td key={c} data-col={c}>
+            {fmtInt(fact)}
+          </td>
+        );
+      case "should":
+        return (
+          <td key={c} data-col={c}>
+            {should > 0 ? fmtInt(Math.round(should)) : dash}
+          </td>
+        );
+      case "gap":
+        return (
+          <td key={c} data-col={c} className={should > 0 ? (gap < -0.5 ? "d2-red" : "d2-green") : undefined}>
+            {should > 0 ? fmtSigned(Math.round(gap)) : dash}
+          </td>
+        );
+      case "prog":
+        return (
+          <td key={c} data-col={c}>
+            {should > 0 ? (
+              <div className="d2-prog">
+                <div className="t">
+                  <b style={{ width: `${Math.max(ratio > 0 ? 2 : 3, Math.min(100, (ratio / 1.5) * 100))}%`, background: tone }} />
+                  <i style={{ left: `${100 / 1.5}%` }} />
+                </div>
+                <span>{fmtPct(ratio)}</span>
+              </div>
+            ) : (
+              dash
+            )}
+          </td>
+        );
+      case "plan":
+        return (
+          <td key={c} data-col={c}>
+            {plan > 0 ? fmtInt(plan) : dash}
+          </td>
+        );
+      case "forecast":
+        return (
+          <td key={c} data-col={c}>
+            {plan > 0 && factP > 0 ? (
+              <>
+                {fmtInt(Math.round(rr))}{" "}
+                <span className={rr >= plan ? "d2-green" : "d2-red"} style={{ fontSize: 11.5 }}>
+                  ({fmtPct(rr / plan)})
+                </span>
+              </>
+            ) : (
+              dash
+            )}
+          </td>
+        );
+      case "recent": {
+        const a = rows.reduce((s, r) => s + (ix.opDay.get(r.op.id)?.get(ref_) ?? 0), 0);
+        const b = rows.reduce((s, r) => s + (ix.opDay.get(r.op.id)?.get(yday) ?? 0), 0);
+        return (
+          <td key={c} data-col={c}>
+            {a} <span className="d2-dim">/ {b}</span>
+          </td>
+        );
+      }
+      case "hours":
+        return (
+          <td key={c} data-col={c}>
+            {fmtNum(hours, 1)}
+          </td>
+        );
+      case "conv":
+        return (
+          <td key={c} data-col={c}>
+            <Conv value={hours > 0 ? closed / hours : null} />
+          </td>
+        );
+      default:
+        return <td key={c} data-col={c} />;
+    }
+  };
+
+  const opRow = (r: OpRow, extra?: { className?: string; style?: CSSProperties }) => (
+    <tr key={r.op.id} className={extra?.className || undefined} style={extra?.style} onClick={() => router.push(`/operators?id=${encodeURIComponent(r.op.id)}`)}>
+      <td>
+        <span className="row" style={{ gap: 8 }}>
+          <Avatar name={r.op.name} id={r.op.id} size={20} />
+          {shortName(r.op.name)}
+        </span>
+      </td>
+      {shown.map((c) => cell(c, r))}
+    </tr>
+  );
 
   const pickCols = (keys: OpsCol[]) => keys.map((k) => ({ key: k, label: title[k].label, hint: title[k].hint }));
 
@@ -1014,19 +1497,30 @@ function OpsCard({ m, line, settings, ref_ }: { m: MonthModel; line: OpRow[]; se
                 })}
               </tr>
             </thead>
-            <tbody>
-              {list.map((r) => (
-                <tr key={r.op.id} onClick={() => router.push(`/operators?id=${encodeURIComponent(r.op.id)}`)}>
-                  <td>
-                    <span className="row" style={{ gap: 8 }}>
-                      <Avatar name={r.op.name} id={r.op.id} size={20} />
-                      {shortName(r.op.name)}
-                    </span>
-                  </td>
-                  {shown.map((c) => cell(c, r))}
-                </tr>
-              ))}
-            </tbody>
+            {sections ? (
+              sections.map((sec) => {
+                const closed = fold.isClosed(sec.key);
+                const phase = fold.phase(sec.key);
+                return (
+                  <tbody key={sec.key} data-fold={sec.key}>
+                    <tr className="grp-head" onClick={() => fold.toggle(sec.key)} aria-expanded={!closed} title={closed ? "Развернуть группу" : "Свернуть группу"}>
+                      <td>
+                        <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+                          <Icon name="chevR" size={14} className={`grp-chev${closed || phase === "out" ? "" : " open"}`} />
+                          <span className="d2-swatch" style={{ background: `var(--c-${sec.color}-fg)` }} />
+                          <span>{sec.name}</span>
+                          <span className="grp-head-sub">{sec.rows.length} чел.</span>
+                        </span>
+                      </td>
+                      {shown.map((c) => groupCell(c, sec.rows))}
+                    </tr>
+                    {!closed && sec.rows.map((r, i) => opRow(r, foldRow(phase, i)))}
+                  </tbody>
+                );
+              })
+            ) : (
+              <tbody>{list.map((r) => opRow(r))}</tbody>
+            )}
           </table>
         </div>
       )}
@@ -1034,29 +1528,44 @@ function OpsCard({ m, line, settings, ref_ }: { m: MonthModel; line: OpRow[]; se
   );
 }
 
-function Spark({ values, days, good }: { values: number[]; days: DayKey[]; good: boolean }) {
+/** Лиды по последним рабочим сменам (без выходных); идущая сегодня смена — полым кружком. */
+function Spark({ values, days, good, open }: { values: number[]; days: DayKey[]; good: boolean; open?: boolean }) {
   const W = 150;
   const H = 22;
+  if (!values.length)
+    return (
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
+        <title>Смен не было</title>
+        <line x1={3} x2={W - 3} y1={H - 3} y2={H - 3} stroke="var(--ink-15)" strokeDasharray="2 3" />
+      </svg>
+    );
   const max = Math.max(...values, 1);
-  const pts = values.map((v, i) => [3 + (i * (W - 6)) / (values.length - 1), H - 3 - (v / max) * (H - 7)] as const);
+  // меньше 7 смен — точки прижаты вправо, шаг тот же
+  const step = (W - 6) / 6;
+  const x0 = W - 3 - step * (values.length - 1);
+  const pts = values.map((v, i) => [x0 + i * step, H - 3 - (v / max) * (H - 7)] as const);
   const line = pts.map((p) => p.join(",")).join(" ");
   const c = good ? "var(--c-green-fg)" : "var(--c-red-fg)";
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
-      <title>{days.map((d, i) => `${dayNum(d)} ${dow(d)}: ${values[i]}`).join("\n")}</title>
-      <polygon points={`${pts[0][0]},${H - 2} ${line} ${pts[pts.length - 1][0]},${H - 2}`} fill={good ? "var(--c-green-bg)" : "var(--c-red-bg)"} />
-      <polyline points={line} fill="none" stroke={c} strokeWidth="1.2" />
-      {pts.map((p, i) => (
-        <circle key={i} cx={p[0]} cy={p[1]} r="1.6" fill={c} />
-      ))}
+      <title>{`Лиды за последние ${values.length} ${plural(values.length, ["смену", "смены", "смен"])} (без выходных)\n${days.map((d, i) => `${dayNum(d)} ${dow(d)}: ${values[i]}${open && i === days.length - 1 ? " — смена идёт" : ""}`).join("\n")}`}</title>
+      {pts.length > 1 && <polygon points={`${pts[0][0]},${H - 2} ${line} ${pts[pts.length - 1][0]},${H - 2}`} fill={good ? "var(--c-green-bg)" : "var(--c-red-bg)"} />}
+      {pts.length > 1 && <polyline points={line} fill="none" stroke={c} strokeWidth="1.2" />}
+      {pts.map((p, i) =>
+        open && i === pts.length - 1 ? (
+          <circle key={i} cx={p[0]} cy={p[1]} r="2" fill="var(--bg-panel)" stroke={c} strokeWidth="1.2" />
+        ) : (
+          <circle key={i} cx={p[0]} cy={p[1]} r="1.6" fill={c} />
+        ),
+      )}
     </svg>
   );
 }
 
 /* ── тепловая карта: оператор × день ───────────────────────────────── */
 
-function HeatCard({ m, sc, rows }: { m: MonthModel; sc: Scope; rows: DayRow[] }) {
-  const { ix } = useCrm();
+function HeatCard({ m, sc, rows, groups }: { m: MonthModel; sc: Scope; rows: DayRow[]; groups?: GroupRow[] | null }) {
+  const { ix, data } = useCrm();
   const cal = m.cal;
   const t = sc;
   const line = sc.line;
@@ -1072,6 +1581,116 @@ function HeatCard({ m, sc, rows }: { m: MonthModel; sc: Scope; rows: DayRow[] })
     return { background: `color-mix(in srgb, var(--c-green-fg) ${Math.round(18 + 62 * k)}%, var(--bg-panel))`, color: k > 0.55 ? "var(--bg-panel)" : "var(--text)" };
   };
   const dailyPlan = t.p.dailyPlan;
+  const norm = data.settings.convNormPct / 100;
+  const isFuture = (d: DayKey) => cal.phase === "future" || d > cal.ref;
+
+  // конверсия дня — лиды ÷ часы смен по тем же операторам, что в таблице (как в «Графике»)
+  const conv = useMemo(
+    () =>
+      days.map((d) => {
+        let leads = 0;
+        let hours = 0;
+        for (const r of ops) {
+          leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
+          hours += ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
+        }
+        return { leads, hours, v: hours > 0 ? leads / hours : null };
+      }),
+    [days, ops, ix],
+  );
+
+  /* ── выделение дней, как в «Графике»: протянуть по датам или клеткам — итоги у курсора ── */
+  const [range, setRange] = useState<{ a: number; b: number } | null>(null);
+  const [tipAt, setTipAt] = useState<{ x: number; y: number } | null>(null);
+  const drag = useRef(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const clear = () => {
+    drag.current = false;
+    setRange(null);
+    setTipAt(null);
+  };
+  useEffect(() => {
+    if (!range) return;
+    const move = (e: MouseEvent) => {
+      if (drag.current) setTipAt({ x: e.clientX / uiZoom(), y: e.clientY / uiZoom() });
+    };
+    const up = () => {
+      drag.current = false;
+    };
+    const down = (e: MouseEvent) => {
+      const el = e.target as HTMLElement;
+      if (gridRef.current?.contains(el) && el.closest?.("[data-ci]")) return;
+      clear();
+    };
+    const key = (e: KeyboardEvent) => e.key === "Escape" && clear();
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    window.addEventListener("mousedown", down);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("mousedown", down);
+      window.removeEventListener("keydown", key);
+    };
+  }, [range]);
+  const colOf = (e: React.MouseEvent) => {
+    const el = (e.target as HTMLElement).closest?.("[data-ci]") as HTMLElement | null;
+    return el ? Number(el.dataset.ci) : null;
+  };
+
+  const stats = useMemo(() => {
+    if (!range) return null;
+    const c0 = Math.min(range.a, range.b);
+    const c1 = Math.max(range.a, range.b);
+    let leads = 0;
+    let hours = 0;
+    let shifts = 0;
+    let zero = 0;
+    let workdays = 0;
+    const people = new Set<string>();
+    const per = new Map<string, { name: string; leads: number; hours: number }>();
+    for (let c = c0; c <= c1; c++) {
+      const d = days[c];
+      if (!d) continue;
+      if (cal.isWork(d)) workdays++;
+      for (const r of ops) {
+        const l = ix.opDay.get(r.op.id)?.get(d) ?? 0;
+        const h = ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
+        leads += l;
+        hours += h;
+        if (h > 0) {
+          shifts++;
+          people.add(r.op.id);
+          if (l === 0 && !isFuture(d)) zero++;
+        }
+        if (l || h) {
+          const x = per.get(r.op.id) ?? { name: r.op.name, leads: 0, hours: 0 };
+          x.leads += l;
+          x.hours += h;
+          per.set(r.op.id, x);
+        }
+      }
+    }
+    const top = [...per.values()].filter((x) => x.leads > 0).sort((a, b) => b.leads - a.leads || a.name.localeCompare(b.name, "ru")).slice(0, 3);
+    const plan = dailyPlan * workdays;
+    return { from: days[c0], to: days[c1], c0, c1, count: c1 - c0 + 1, workdays, leads, hours, shifts, zero, people: people.size, plan, top };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, days, ops, ix, cal, dailyPlan]);
+
+  const cols = `${NAME_W}px repeat(${days.length}, minmax(20px, 1fr))`;
+  // весь отдел — по группам, каждую можно свернуть
+  const sections = useMemo(() => groupSections(ops, groups), [ops, groups]);
+  const [shut, setShut] = useState<Set<string>>(() => new Set());
+  const toggleSec = (key: string) =>
+    setShut((p) => {
+      const n = new Set(p);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  const colLeft = (c: number) => `calc(${NAME_W}px + (100% - ${NAME_W}px) * ${c} / ${days.length})`;
+  const colWidth = (n: number) => `calc((100% - ${NAME_W}px) * ${n} / ${days.length})`;
 
   return (
     <section className="card d2-hm">
@@ -1085,8 +1704,13 @@ function HeatCard({ m, sc, rows }: { m: MonthModel; sc: Scope; rows: DayRow[] })
           </span>
           <span><i style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--c-red-fg)" }} />0 лидов (был на смене)</span>
           <span><i style={{ width: 10, height: 0, borderTop: "1.5px dashed var(--dim)" }} />Не было смены</span>
+          <span><b className="d2-leg-off">вых</b>Выходной</span>
           {todayIdx >= 0 && <span><i style={{ width: 11, height: 11, border: "1.5px solid var(--c-red-fg)", borderRadius: 2 }} />Сегодня</span>}
           <span><i style={{ width: 11, height: 11, background: "var(--ink-04)", borderRadius: 2 }} />Будущие дни</span>
+          <span className="d2-leg-hint">
+            <Icon name="plus" size={11} />
+            Протяните по дням — итоги за выбранные дни
+          </span>
         </div>
         <div className="d2-hm-stats">
           <div><b>{fmtInt(t.headcount)}</b><span>{plural(t.headcount, OPS)}</span></div>
@@ -1096,42 +1720,177 @@ function HeatCard({ m, sc, rows }: { m: MonthModel; sc: Scope; rows: DayRow[] })
         </div>
       </div>
       <div className="d2-hm-scroll">
-        <div className="d2-grid" style={{ gridTemplateColumns: `${NAME_W}px repeat(${days.length}, minmax(20px, 1fr))` }}>
-          <div className="dh" style={{ textAlign: "left", paddingTop: 16, fontWeight: 600, color: "var(--text)" }}>
-            Оператор
-          </div>
-          {days.map((d, i) => (
-            <div key={d} className="dh" data-off={String(!cal.isWork(d))} data-today={String(i === todayIdx)}>
-              {dayNum(d)}
-              <br />
-              {dow(d)}
+        {/* обёртка — общая для блоков сетки: выделение дней и рамка «сегодня» тянутся через все группы */}
+        <div
+          ref={gridRef}
+          className={`d2-hm-wrap${range ? " picking" : ""}`}
+          onMouseDown={(e) => {
+            if (e.button !== 0) return;
+            const ci = colOf(e);
+            if (ci == null) return;
+            e.preventDefault();
+            drag.current = true;
+            setRange({ a: ci, b: ci });
+            setTipAt({ x: e.clientX / uiZoom(), y: e.clientY / uiZoom() });
+          }}
+          onMouseOver={(e) => {
+            if (!drag.current) return;
+            const ci = colOf(e);
+            if (ci == null) return;
+            setRange((p) => (p && p.b !== ci ? { a: p.a, b: ci } : p));
+          }}
+        >
+          <div className="d2-grid" style={{ gridTemplateColumns: cols }}>
+            <div className="dh" style={{ textAlign: "left", paddingTop: 16, fontWeight: 600, color: "var(--text)" }}>
+              Оператор
             </div>
-          ))}
-          {ops.map((r) => (
-            <HeatRow key={r.op.id} r={r} days={days} cal={cal} shade={shade} />
-          ))}
-          <div className="nm tot">Итого (команда)</div>
-          {rows.map((row) => {
-            if (row.future) return <div key={row.day} className="c f tot">—</div>;
-            const good = dailyPlan > 0 && row.count >= dailyPlan;
-            const bad = row.isWork && dailyPlan > 0 && !good;
+            {days.map((d, i) => (
+              <div key={d} className="dh" data-ci={i} data-off={String(!cal.isWork(d))} data-today={String(i === todayIdx)} title={range ? undefined : "Протяните по дням, чтобы увидеть итоги"}>
+                {dayNum(d)}
+                <br />
+                {dow(d)}
+              </div>
+            ))}
+            {!sections && ops.map((r) => <HeatRow key={r.op.id} r={r} days={days} cal={cal} shade={shade} />)}
+          </div>
+
+          {/* весь отдел — по группам: заголовок с лидами группы по дням, строки сворачиваются плавно */}
+          {sections?.map((sec) => {
+            const open = !shut.has(sec.key);
             return (
-              <div
-                key={row.day}
-                className="c tot"
-                title={`${dayNum(row.day)} ${dow(row.day)}: ${row.count} из ${fmtNum(dailyPlan)}`}
-                style={good ? { background: "var(--c-green-bg)", color: "var(--c-green-fg)" } : bad ? { background: "var(--c-red-bg)", color: "var(--c-red-fg)" } : undefined}
-              >
-                {row.count}
+              <div key={sec.key} className="d2-hm-sec">
+                <div className="d2-grid d2-hm-gh" style={{ gridTemplateColumns: cols }}>
+                  <button type="button" className="nm gh" onClick={() => toggleSec(sec.key)} aria-expanded={open} title={open ? "Свернуть группу" : "Развернуть группу"}>
+                    <Icon name="chevR" size={13} className={`grp-chev${open ? " open" : ""}`} />
+                    <span className="d2-swatch" style={{ background: `var(--c-${sec.color}-fg)` }} />
+                    <span className="gh-n">{sec.name}</span>
+                    <span className="gh-c">{sec.rows.length}</span>
+                  </button>
+                  {days.map((d, i) => {
+                    if (isFuture(d)) return <div key={d} className="c f gt" data-ci={i}>—</div>;
+                    const n = sec.rows.reduce((a, r) => a + (ix.opDay.get(r.op.id)?.get(d) ?? 0), 0);
+                    return (
+                      <div key={d} className="c gt" data-ci={i} title={`${sec.name} · ${dayNum(d)} ${dow(d)}: ${n} ${plural(n, LEADS)}`}>
+                        {n || "·"}
+                      </div>
+                    );
+                  })}
+                </div>
+                <Collapse open={open}>
+                  <div className="d2-grid" style={{ gridTemplateColumns: cols }}>
+                    {sec.rows.map((r) => (
+                      <HeatRow key={r.op.id} r={r} days={days} cal={cal} shade={shade} />
+                    ))}
+                  </div>
+                </Collapse>
               </div>
             );
           })}
-          {todayIdx >= 0 && (
-            <div className="d2-today" style={{ left: `calc(${NAME_W}px + (100% - ${NAME_W}px) * ${todayIdx} / ${days.length})`, width: `calc((100% - ${NAME_W}px) / ${days.length})` }} />
-          )}
+
+          <div className="d2-grid" style={{ gridTemplateColumns: cols }}>
+            <div className="nm tot">Итого (команда)</div>
+            {rows.map((row, i) => {
+              if (row.future) return <div key={row.day} className="c f tot" data-ci={i}>—</div>;
+              const good = dailyPlan > 0 && row.count >= dailyPlan;
+              const bad = row.isWork && dailyPlan > 0 && !good;
+              return (
+                <div
+                  key={row.day}
+                  className="c tot"
+                  data-ci={i}
+                  title={`${dayNum(row.day)} ${dow(row.day)}: ${row.count} из ${fmtNum(dailyPlan)}`}
+                  style={good ? { background: "var(--c-green-bg)", color: "var(--c-green-fg)" } : bad ? { background: "var(--c-red-bg)", color: "var(--c-red-fg)" } : undefined}
+                >
+                  {row.count}
+                </div>
+              );
+            })}
+            {/* конверсия дня: только процент; цвет — относительно нормы из настроек */}
+            <div className="nm cv" title="Лиды ÷ часы смен за день">Конверсия</div>
+            {days.map((d, i) => {
+              const x = conv[i];
+              if (isFuture(d) || x.v == null) return <div key={d} className={`c cv${isFuture(d) ? " f" : " n"}`} data-ci={i}>—</div>;
+              const ok = norm > 0 ? x.v >= norm : undefined;
+              return (
+                <div key={d} className="c cv" data-ci={i} data-ok={ok === undefined ? undefined : String(ok)} title={`${dayNum(d)} ${dow(d)}: ${fmtInt(x.leads)} лид. ÷ ${fmtNum(x.hours)} ч = ${fmtNum(x.v, 2)} лид/ч${norm > 0 ? ` · норма ${fmtPct(norm)}` : ""}`}>
+                  {fmtPct(x.v)}
+                </div>
+              );
+            })}
+          </div>
+          {stats && <div className="d2-csel" style={{ left: colLeft(stats.c0), width: colWidth(stats.count) }} />}
+          {todayIdx >= 0 && <div className="d2-today" style={{ left: colLeft(todayIdx), width: colWidth(1) }} />}
         </div>
       </div>
+      {stats && tipAt && <HeatTip at={tipAt} st={stats} norm={norm} />}
     </section>
+  );
+}
+
+/** Итоги выделенных дней у курсора: лиды и план, часы, конверсия, кто был на смене, лучшие. */
+function HeatTip({
+  at,
+  st,
+  norm,
+}: {
+  at: { x: number; y: number };
+  st: { from: DayKey; to: DayKey; count: number; workdays: number; leads: number; hours: number; shifts: number; zero: number; people: number; plan: number; top: { name: string; leads: number; hours: number }[] };
+  norm: number;
+}) {
+  const W = 268;
+  const H = 250 + st.top.length * 20;
+  const vw = window.innerWidth / uiZoom();
+  const vh = window.innerHeight / uiZoom();
+  const left = at.x + 16 + W > vw - 8 ? at.x - W - 16 : at.x + 16;
+  const top = at.y + 18 + H > vh - 8 ? at.y - H - 12 : at.y + 18;
+  const conv = st.hours > 0 ? st.leads / st.hours : null;
+  const pct = st.plan > 0 ? st.leads / st.plan : null;
+  return createPortal(
+    <div className="card day-tip" role="status" style={{ left: Math.max(8, left), top: Math.max(8, top), width: W }}>
+      <div className="day-tip-head">
+        <b>{st.from === st.to ? `${fmtDay(st.from)}, ${dow(st.from)}` : fmtRange(st.from, st.to)}</b>
+        <span>
+          {st.count} {plural(st.count, DAYS)}
+          {st.count > 1 ? ` · рабочих ${st.workdays}` : ""}
+        </span>
+      </div>
+      <div className="day-tip-grid">
+        <span>Лидов</span>
+        <b className="num">
+          {fmtInt(st.leads)}
+          {st.plan > 0 && <span className="d2-dim" style={{ fontWeight: 500 }}> из {fmtNum(st.plan, 0)}</span>}
+        </b>
+        {pct != null && (
+          <>
+            <span>Выполнение плана</span>
+            <b className={pct >= 1 ? "d2-green" : "d2-red"}>{fmtPct(pct)}</b>
+          </>
+        )}
+        <span>Часов на сменах</span>
+        <b className="num">{fmtNum(st.hours)}</b>
+        <span>Конверсия</span>
+        <b className={conv == null || norm <= 0 ? undefined : conv >= norm ? "d2-green" : "d2-red"}>{conv == null ? "—" : fmtPct(conv)}</b>
+        <span>На смене</span>
+        <b className="num">
+          {fmtInt(st.people)} чел. · {fmtInt(st.shifts)} {plural(st.shifts, ["смена", "смены", "смен"])}
+        </b>
+        <span>Смен без лидов</span>
+        <b className={st.zero > 0 ? "d2-red" : undefined}>{fmtInt(st.zero)}</b>
+      </div>
+      {st.top.length > 0 && (
+        <div className="d2-tip-top">
+          <span>Больше всех лидов</span>
+          {st.top.map((x) => (
+            <div key={x.name}>
+              <i>{shortName(x.name)}</i>
+              <b className="num">{fmtInt(x.leads)}</b>
+              <em>{x.hours > 0 ? fmtPct(x.leads / x.hours) : "—"}</em>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>,
+    document.body,
   );
 }
 
@@ -1143,33 +1902,50 @@ function HeatRow({ r, days, cal, shade }: { r: OpRow; days: DayKey[]; cal: Month
       <Link className="nm" href={`/operators?id=${encodeURIComponent(r.op.id)}`} title={r.op.name}>
         {shortName(r.op.name)}
       </Link>
-      {days.map((d) => {
+      {days.map((d, i) => {
         const future = cal.phase === "future" || d > cal.ref;
-        if (future) return <div key={d} className="c f">—</div>;
-        const v = counts?.get(d) ?? 0;
         const sh = ix.shift.get(`${d}|${r.op.id}`);
+        // выходной — серым «вых»: по графику, а если день не заполнен — по календарю (пока человек в штате)
+        const employed = !(r.op.hireDate && d < r.op.hireDate) && !(r.op.fireDate && d > r.op.fireDate);
+        const dayOff = sh ? sh.type === "off" : employed && !cal.isWork(d);
+        if (future)
+          return sh?.type === "off" ? (
+            <div key={d} className="c f o" data-ci={i} title={`${dayNum(d)} ${dow(d)}: выходной`}>
+              вых
+            </div>
+          ) : (
+            <div key={d} className="c f" data-ci={i}>—</div>
+          );
+        const v = counts?.get(d) ?? 0;
         if (v > 0) {
           return (
-            <div key={d} className="c" style={shade(v)} title={`${dayNum(d)} ${dow(d)}: ${v} лид.${sh ? ` · ${sh.hours} ч` : ""}`}>
+            <div key={d} className="c" data-ci={i} style={shade(v)} title={`${dayNum(d)} ${dow(d)}: ${v} лид.${sh ? ` · ${sh.hours} ч` : ""}`}>
               {v}
             </div>
           );
         }
         if (sh && isWorked(sh.type, sh.hours)) {
           return (
-            <div key={d} className="c z" title={`${dayNum(d)} ${dow(d)}: смена ${sh.hours} ч, лидов нет`}>
+            <div key={d} className="c z" data-ci={i} title={`${dayNum(d)} ${dow(d)}: смена ${sh.hours} ч, лидов нет`}>
               0
+            </div>
+          );
+        }
+        if (dayOff) {
+          return (
+            <div key={d} className="c o" data-ci={i} title={`${dayNum(d)} ${dow(d)}: выходной`}>
+              вых
             </div>
           );
         }
         if (sh && ABSENT_LABEL[sh.type] && sh.type !== "off") {
           return (
-            <div key={d} className="c a" title={`${dayNum(d)} ${dow(d)}: ${ABSENT_LABEL[sh.type]}`}>
+            <div key={d} className="c a" data-ci={i} title={`${dayNum(d)} ${dow(d)}: ${ABSENT_LABEL[sh.type]}`}>
               {ABSENT_LABEL[sh.type]![0]}
             </div>
           );
         }
-        return <div key={d} className="c n">—</div>;
+        return <div key={d} className="c n" data-ci={i}>—</div>;
       })}
     </>
   );

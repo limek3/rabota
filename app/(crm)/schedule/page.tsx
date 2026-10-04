@@ -379,7 +379,7 @@ export default function SchedulePage() {
           <span><i className="lane work first last" />смена</span>
           <span><i className="lane plan first last" />план</span>
           <span><i className="lane train first last" />обучение</span>
-          <span title="Часы не оплачиваются и не идут в конверсию"><i className="lane plat first last" />на платформе</span>
+          <span title="Обучение на платформе — буква «П», без часов: не оплачивается и не идёт в конверсию"><i className="lane plat first last" />на платформе</span>
           <span><i className="lane sick first last" />больничный</span>
           <span><i className="lane vac first last" />отпуск</span>
           <span><i className="lane gone first last" />уволен</span>
@@ -673,6 +673,9 @@ function SchedRow({
                     <span className="lane-h num">{fmtNum(hours)}</span>
                     {d <= today && <span className="lane-n num">{n || "–"}</span>}
                   </>
+                ) : lane === "plat" ? (
+                  // обучение на платформе — буквой, без часов
+                  <span className="lane-h">П</span>
                 ) : (
                   <span className="lane-h num">{fmtNum(hours)}</span>
                 )}
