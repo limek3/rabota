@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import { getVexaBridge, type VexaBridge } from "@/lib/electron";
 
-const mono = "var(--font-mono)";
+const mono = "var(--font-sans)";
 const BAR_H = 38;
 
 export function TitleBar() {

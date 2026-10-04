@@ -1,43 +1,8 @@
-/* Весь интерфейс — JetBrains Mono. Моно заметно шире Inter, поэтому глифы ужаты
-   через size-adjust: 90% — все px-размеры в CSS остаются прежними, а текст не
-   раздувает таблицы и кнопки. Файлы лежат в /public/fonts (size-adjust next/font
-   не отдаёт). Inter остаётся фолбэком для глифов, которых нет в моно. */
-@font-face {
-  font-family: "VexaMono";
-  src: url("/fonts/jetbrains-mono-400.ttf") format("truetype");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-  size-adjust: 90%;
-}
-@font-face {
-  font-family: "VexaMono";
-  src: url("/fonts/jetbrains-mono-500.ttf") format("truetype");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-  size-adjust: 90%;
-}
-@font-face {
-  font-family: "VexaMono";
-  src: url("/fonts/jetbrains-mono-600.ttf") format("truetype");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-  size-adjust: 90%;
-}
-@font-face {
-  font-family: "VexaMono";
-  src: url("/fonts/jetbrains-mono-700.ttf") format("truetype");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-  size-adjust: 90%;
-}
-
+/* Весь интерфейс — Inter (--font-ui из layout.tsx), цифры табличные: колонки чисел стоят ровно.
+   --font-mono оставлен как алиас, чтобы старые ссылки на него тоже рисовались Inter. */
 :root {
-  --font-sans: "VexaMono", var(--font-ui), system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "VexaMono", var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: var(--font-ui), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-sans);
 }
 
 :root,
@@ -312,8 +277,10 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  /* весь текст — JetBrains Mono (VexaMono, см. @font-face вверху) */
+  /* весь текст — Inter: «l» с хвостиком (cv05) не путается с «I» и «1», цифры табличные */
   font-family: var(--font-sans);
+  font-feature-settings: "cv05", "cv08", "calt";
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   /* Фирменный курсор Vexi. Не логотип, натянутый на стрелку, а обычный
      указатель, перекрашенный в акцент (#56688f) с белой обводкой и мягкими,

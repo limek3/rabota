@@ -77,7 +77,7 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
   pointer-events: none;
   animation: sz-in 0.25s ease;}
-.acad .sz-tip .k{font-family: ui-monospace,Menlo,monospace;
+.acad .sz-tip .k{font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 700;
   color: #8a6d00;
@@ -171,7 +171,7 @@
   overflow: hidden;
   background: #fff;
   color: #222;
-  font-family: Arial, "Helvetica Neue", sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.3;}
 .acad .szx-top{position: relative;
@@ -397,11 +397,11 @@
 .acad .sz-eb{color:var(--text-sub)}
 .acad .sz-eb.ok{color:var(--c-green-fg)}
 .acad .sz-learn{color:var(--dim)}
-.acad .sz-step{font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;color:var(--dimmer)}
+.acad .sz-step{font-family: var(--font-sans);font-size:10px;letter-spacing:.16em;color:var(--dimmer)}
 .acad .sz-text b{font-size:16px;font-weight:600}
 .acad .sz-text p{color:var(--text-sub)}
 .acad .sz-tip{background:var(--bg-modal);color:var(--text);border:1px solid var(--line);box-shadow:var(--shadow-xl)}
-.acad .sz-tip .k{font-family:var(--font-mono)}
+.acad .sz-tip .k{font-family: var(--font-sans)}
 .acad .sz .btn-sm{height:30px}
 .acad .sz .sz-acts .btn{height:34px}
 .acad .sz .seg{margin:0}
@@ -411,12 +411,12 @@
 .acad .sz.full{background:var(--bg)}
 .acad .sz-chaps{gap:6px}
 .acad .sz-chap{border-color:var(--ctrl-border);background:var(--bg-panel);color:var(--text-sub);border-radius:8px;font-size:12.5px;padding:5px 11px 5px 6px;box-shadow:var(--shadow-xs)}
-.acad .sz-chap .n{background:var(--ink-05);color:var(--text-sub);font-family:var(--font-mono);width:20px;height:20px;border-radius:6px}
+.acad .sz-chap .n{background:var(--ink-05);color:var(--text-sub);font-family: var(--font-sans);width:20px;height:20px;border-radius:6px}
 .acad .sz-chap.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
 .acad .sz-chap.on .n{background:rgba(255,255,255,.18);color:var(--on-brand)}
 .acad .sz-chap.ok .n{background:var(--c-green-bg);color:var(--c-green-fg)}
 .rail-done{margin-left:auto;display:flex;color:var(--c-green-fg)}
-.rail-count{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--dim)}
+.rail-count{margin-left:auto;font-family: var(--font-sans);font-size:10.5px;color:var(--dim)}
 .app-rail-item[aria-current="page"] .rail-count{color:var(--text-sub)}
 .app-rail-item .rail-icon svg{flex:none}
 .acad .app-content{padding:24px 30px 48px;max-width:1280px;margin:0 auto}
@@ -428,27 +428,27 @@
 .acad .crumbs a{color:var(--text-sub);text-decoration:none}
 .acad .crumbs a:hover{color:var(--text)}
 .acad .sec-title{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;margin:26px 0 10px;color:var(--text)}
-.acad .sec-title .cnt{font-family:var(--font-mono);font-size:11px;color:var(--dim);font-weight:500}
+.acad .sec-title .cnt{font-family: var(--font-sans);font-size:11px;color:var(--dim);font-weight:500}
 .acad .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:12px}
 .acad .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:12px}
 .acad .cont{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:18px 20px}
 .acad .cont .ci{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:11px;background:var(--brand);color:var(--on-brand)}
 .acad .cont .ct{flex:1;min-width:220px}
-.acad .cont .ey{font-family:var(--font-mono);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.acad .cont .ey{font-family: var(--font-sans);font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .acad .cont h2{margin:4px 0 2px;font-size:18px;font-weight:650;letter-spacing:-.2px}
 .acad .cont p{margin:0;font-size:13px;color:var(--text-sub)}
 .acad .path{display:flex;flex-direction:column}
 .acad .pstep{display:flex;gap:14px;align-items:flex-start;padding:14px 18px;border-bottom:1px solid var(--ink-05);text-decoration:none;color:inherit}
 .acad .pstep:last-child{border-bottom:none}
 .acad .pstep:hover{background:var(--ink-03)}
-.acad .pnum{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;border:1px solid var(--ctrl-border);font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--text-sub);background:var(--bg-panel)}
+.acad .pnum{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;border:1px solid var(--ctrl-border);font-family: var(--font-sans);font-size:12px;font-weight:600;color:var(--text-sub);background:var(--bg-panel)}
 .acad .pstep.done .pnum{background:var(--c-green-bg);border-color:var(--c-green-bd);color:var(--c-green-fg)}
 .acad .pstep.cur .pnum{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
 .acad .pbody{flex:1;min-width:0}
 .acad .pbody b{display:block;font-size:14px;font-weight:600}
 .acad .pbody span{display:block;font-size:12.5px;color:var(--text-sub);margin-top:2px}
 .acad .pbar{width:140px;flex:none;align-self:center}
-.acad .pbar .t{font-size:11.5px;color:var(--dim);margin-bottom:5px;text-align:right;font-family:var(--font-mono)}
+.acad .pbar .t{font-size:11.5px;color:var(--dim);margin-bottom:5px;text-align:right;font-family: var(--font-sans)}
 .acad .ilist{display:flex;flex-direction:column}
 .acad .irow{display:flex;align-items:center;gap:12px;padding:11px 18px;border-top:1px solid var(--ink-05);text-decoration:none;color:inherit}
 .acad .irow:hover{background:var(--ink-03)}
@@ -461,7 +461,7 @@
 .acad .irow .st{flex:none;font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
 .acad .irow.done .st{color:var(--c-green-fg)}
 .acad .mhead{display:flex;align-items:center;gap:12px;padding:14px 18px}
-.acad .mhead .mn{font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600}
+.acad .mhead .mn{font-family: var(--font-sans);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600}
 .acad .mhead b{font-size:14.5px;font-weight:600}
 .acad .doc{padding:22px 26px;max-width:860px}
 .acad .doc p{margin:0 0 12px;font-size:14px;line-height:1.7;color:var(--text-soft)}
@@ -482,7 +482,7 @@
 .acad .tblwrap .tbl td{white-space:normal}
 .acad .say{margin:12px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .acad .say .sh{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-strip);font-size:12px;font-weight:600;color:var(--text-sub);border-bottom:1px solid var(--line)}
-.acad .say .sh .tm{margin-left:auto;font-family:var(--font-mono);font-weight:500;color:var(--dim)}
+.acad .say .sh .tm{margin-left:auto;font-family: var(--font-sans);font-weight:500;color:var(--dim)}
 .acad .say .sb{padding:12px 14px;font-size:14.5px;line-height:1.6;color:var(--text);border-left:3px solid var(--brand)}
 .acad .dlg{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;padding:12px 14px;font-size:14px;line-height:1.55}
 .acad .dlg .who{font-size:12px;font-weight:600;color:var(--dim);padding-top:2px}
@@ -497,12 +497,12 @@
 .acad .docnav .sp{flex:1}
 .acad .gate{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;color:var(--dim)}
 .acad .qc{padding:16px 18px}
-.acad .qn{font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600}
+.acad .qn{font-family: var(--font-sans);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600}
 .acad .qt{font-size:15px;font-weight:600;margin:6px 0 12px;line-height:1.45}
 .acad .opts{display:flex;flex-direction:column;gap:6px}
 .acad .opt{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--ctrl-border);border-radius:8px;background:var(--bg-panel);font:inherit;font-size:13.5px;line-height:1.45;text-align:left;color:var(--text);cursor:pointer;transition:border-color .12s,background .12s}
 .acad .opt:hover:not(:disabled){border-color:var(--ctrl-border-hover);background:var(--bg-panel-hover)}
-.acad .opt .k{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--ink-05);font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text-sub)}
+.acad .opt .k{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--ink-05);font-family: var(--font-sans);font-size:11px;font-weight:600;color:var(--text-sub)}
 .acad .opt.pick{border-color:var(--brand)}
 .acad .opt.pick .k{background:var(--brand);color:var(--on-brand)}
 .acad .opt.right{border-color:var(--c-green-bd);background:var(--c-green-bg)}
@@ -529,17 +529,17 @@
 .acad .gl span{font-size:13px;line-height:1.55;color:var(--text-sub)}
 .acad .foot{margin-top:12px;font-size:12px;color:var(--dim);line-height:1.5}
 .acad .flip{padding:22px 24px;min-height:180px;display:flex;flex-direction:column;gap:12px}
-.acad .flip .who2{font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600;text-transform:uppercase}
+.acad .flip .who2{font-family: var(--font-sans);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600;text-transform:uppercase}
 .acad .flip .said{font-size:19px;font-weight:600;line-height:1.4;letter-spacing:-.2px}
 .acad .flip .ans{font-size:14px;line-height:1.6;color:var(--text-soft);padding-left:12px;border-left:3px solid var(--brand)}
 .acad .flip .ans.dim{border-left-color:var(--ink-15);color:var(--dim)}
-.acad .tstat{display:flex;gap:16px;margin-top:12px;font-size:12.5px;color:var(--dim);font-family:var(--font-mono)}
+.acad .tstat{display:flex;gap:16px;margin-top:12px;font-size:12.5px;color:var(--dim);font-family: var(--font-sans)}
 .acad .calc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:12px}
 .acad .calc label{display:block;font-size:12px;color:var(--text-sub);margin-bottom:6px}
 .acad .calc select{width:100%}
 .acad .howto{counter-reset:h;display:flex;flex-direction:column;gap:10px}
 .acad .hstep{display:flex;gap:14px;padding:16px 18px;align-items:flex-start}
-.acad .hstep .hn{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:var(--brand);color:var(--on-brand);font-family:var(--font-mono);font-weight:600}
+.acad .hstep .hn{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:var(--brand);color:var(--on-brand);font-family: var(--font-sans);font-weight:600}
 .acad .hstep b{display:block;font-size:14.5px;margin-bottom:3px}
 .acad .hstep p{margin:0;font-size:13.5px;line-height:1.6;color:var(--text-sub)}
 .acad .hstep .btn{margin-top:10px}
@@ -594,7 +594,7 @@
 .acad .crumbrow .crumbs{margin:0;flex:1;min-width:0}
 .acad .lprog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)}
 .acad .lprog .bar-track{width:90px}
-.acad .lprog b{font-family:var(--font-mono);font-weight:500;color:var(--text-sub)}
+.acad .lprog b{font-family: var(--font-sans);font-weight:500;color:var(--text-sub)}
 .acad .kindrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
 .acad h1.mat{margin:0 0 16px;font-size:30px;font-weight:700;letter-spacing:-.7px;line-height:1.12}
 .acad .lead2{margin:-6px 0 18px;font-size:14.5px;line-height:1.6;color:var(--text-sub);max-width:760px}
@@ -604,17 +604,17 @@
 .acad .modebar .seg button{display:inline-flex;align-items:center;gap:6px}
 .acad .modebar .hint{font-size:12px;color:var(--dim);line-height:1.4;flex:1;min-width:200px}
 .acad .rsnav{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;margin-bottom:12px;background:var(--bg-panel)}
-.acad .rsnav .t{font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600;margin-right:4px}
-.acad .rsnav button{width:30px;height:28px;border:1px solid var(--ctrl-border);border-radius:7px;background:var(--bg-panel);font:inherit;font-family:var(--font-mono);font-size:12px;color:var(--text-sub);cursor:pointer}
+.acad .rsnav .t{font-family: var(--font-sans);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600;margin-right:4px}
+.acad .rsnav button{width:30px;height:28px;border:1px solid var(--ctrl-border);border-radius:7px;background:var(--bg-panel);font:inherit;font-family: var(--font-sans);font-size:12px;color:var(--text-sub);cursor:pointer}
 .acad .rsnav button:hover{border-color:var(--ctrl-border-hover);color:var(--text)}
 .acad .rstep{margin-bottom:12px;overflow:hidden}
 .acad .rstep.flash{box-shadow:0 0 0 2px var(--brand-border)}
 .acad .rsh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--ink-05)}
-.acad .rsh .n{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--brand);color:var(--on-brand);font-family:var(--font-mono);font-size:12px;font-weight:600}
+.acad .rsh .n{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--brand);color:var(--on-brand);font-family: var(--font-sans);font-size:12px;font-weight:600}
 .acad .rsh h2{margin:0;font-size:14.5px;font-weight:600}
 .acad .rsline{padding:10px 16px;border-bottom:1px solid var(--ink-05)}
 .acad .rsline:last-child{border-bottom:none}
-.acad .rsl{display:flex;gap:8px;font-family:var(--font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:600;margin-bottom:5px}
+.acad .rsl{display:flex;gap:8px;font-family: var(--font-sans);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);font-weight:600;margin-bottom:5px}
 .acad .rsl .tm{margin-left:auto;letter-spacing:0}
 .acad .rst{margin:0;font-size:15px;line-height:1.6;color:var(--text)}
 .acad .rsflags{padding:6px 16px 10px;border-top:1px solid var(--ink-05);background:var(--ink-03)}
@@ -641,7 +641,7 @@
 .acad .pal-row.sel{background:var(--brand-tint)}
 .acad .pal-row .pl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .acad .pal-row .ph{font-size:11.5px;color:var(--dim);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
-.acad .pal-g{padding:8px 10px 4px;font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600}
+.acad .pal-g{padding:8px 10px 4px;font-family: var(--font-sans);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600}
 .acad .lcard{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;text-decoration:none;color:inherit;transition:border-color .12s}
 .acad .lcard:hover{border-color:var(--ctrl-border-hover)}
 .acad .lcard .li{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:var(--ink-05);color:var(--text-sub)}
@@ -652,7 +652,7 @@
 .acad .pcard .pt{display:flex;align-items:center;gap:10px}
 .acad .pcard .pt b{font-size:14.5px}
 .acad .pcard p{margin:0;font-size:12.5px;color:var(--text-sub);line-height:1.5}
-.acad .pcard .pf{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--dim);font-family:var(--font-mono)}
+.acad .pcard .pf{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--dim);font-family: var(--font-sans)}
 .acad .pcard .pf .bar-track{flex:1}
 .acad .doc{max-width:none}
 .acad .drawer .db .doc{padding:20px 22px}
@@ -695,7 +695,7 @@
 .acad .cleg i.d{background:var(--c-green-fg)}
 .acad .cleg i.c{background:var(--brand)}
 .acad .cnext{padding:18px 20px;border-left:1px solid var(--line);background:var(--ink-03);display:flex;flex-direction:column;align-items:flex-start}
-.acad .cnext .ey{font-family:var(--font-mono);font-size:10px;letter-spacing:.14em;color:var(--dimmer);font-weight:600;margin-bottom:6px}
+.acad .cnext .ey{font-family: var(--font-sans);font-size:10px;letter-spacing:.14em;color:var(--dimmer);font-weight:600;margin-bottom:6px}
 .acad .cnext b{font-size:14.5px;line-height:1.35}
 @media (max-width:760px){
 .acad .chero{grid-template-columns:1fr}
@@ -710,12 +710,12 @@
 .acad .mcard.done .pnum{background:var(--c-green-bg);border-color:var(--c-green-bd);color:var(--c-green-fg)}
 .acad .mcard.cur .pnum{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
 .acad .mtx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.acad .mtx .mn{font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600}
+.acad .mtx .mn{font-family: var(--font-sans);font-size:10px;letter-spacing:.16em;color:var(--dimmer);font-weight:600}
 .acad .mtx b{font-size:15px;font-weight:600}
 .acad .mtx .md{font-size:13px;color:var(--text-sub);line-height:1.45}
 .acad .mtx .mm{font-size:12px;color:var(--dim);margin-top:2px}
 .acad .mst{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:8px;width:150px}
-.acad .mbar{display:flex;align-items:center;gap:8px;width:100%;font-size:11.5px;color:var(--dim);font-family:var(--font-mono);white-space:nowrap}
+.acad .mbar{display:flex;align-items:center;gap:8px;width:100%;font-size:11.5px;color:var(--dim);font-family: var(--font-sans);white-space:nowrap}
 .acad .mbar .bar-track{flex:1}
 .acad .mcv{flex:none;display:flex;color:var(--dim);margin-top:4px;transition:transform .15s}
 .acad .mhd[aria-expanded="true"] .mcv{transform:rotate(180deg)}
@@ -724,7 +724,7 @@
 .acad .irow2{position:relative;display:flex;align-items:center;gap:14px;padding:11px 18px;border-bottom:1px solid var(--ink-05);text-decoration:none;color:inherit}
 .acad .irow2:last-child{border-bottom:none}
 .acad .irow2:hover{background:var(--ink-03)}
-.acad .irow2 .ix{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--ink-05);font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--text-sub)}
+.acad .irow2 .ix{flex:none;display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--ink-05);font-family: var(--font-sans);font-size:11px;font-weight:600;color:var(--text-sub)}
 .acad .irow2.done .ix{background:var(--c-green-bg);color:var(--c-green-fg)}
 .acad .irow2.cur{background:var(--brand-tint)}
 .acad .irow2.cur::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--brand)}

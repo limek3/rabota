@@ -40,7 +40,7 @@
   background: var(--bg-panel);
 }
 .lrn-navg {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9.5px;
   font-weight: 600;
   letter-spacing: 0.16em;
@@ -508,7 +508,7 @@
 .learn-tbl td { padding: 10px 13px; border-bottom: 1px solid var(--ink-05); color: var(--text-soft); line-height: 1.5; vertical-align: top; }
 .learn-tbl tr:last-child td { border-bottom: none; }
 .learn-tbl tr.hot td { background: var(--brand-tint); color: var(--text); }
-.learn-tbl td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.learn-tbl td.num { font-family: var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .wbox { margin-top: 18px; }
 

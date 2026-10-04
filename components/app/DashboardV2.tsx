@@ -75,7 +75,7 @@ function zeroScale(lo: number, hi: number): { min: number; max: number; step: nu
   }
 }
 
-/** Плашка-подпись на графике; шрифт моно — ширину считаем по числу символов. */
+/** Плашка-подпись на графике; ширину считаем по числу символов (Inter 10px ≈ 5.6px на знак с запасом). */
 function Pill({ x, cy, text, color, anchor }: { x: number; cy: number; text: string; color: string; anchor: "start" | "end" | "middle" }) {
   const w = Math.round(text.length * 5.6 + 14);
   const x0 = Math.round(anchor === "end" ? x - w : anchor === "middle" ? x - w / 2 : x);

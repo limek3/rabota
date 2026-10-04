@@ -9,7 +9,7 @@ import "./learn.css";
 import "./academy.css";
 
 // Шрифты лежат локально (./fonts): сборка не зависит от сети.
-// Весь текст — JetBrains Mono (VexaMono в globals.css), Inter — фолбэк для недостающих глифов.
+// Весь текст — Inter.
 // Кириллица обязательна: интерфейс русский, и шрифт без неё раскладывает
 // строку двумя гарнитурами сразу — буквы системным фолбэком, латиница своим.
 const ui = localFont({
@@ -23,17 +23,6 @@ const ui = localFont({
   display: "swap",
 });
 
-const jetBrainsMono = localFont({
-  src: [
-    { path: "./fonts/jetbrains-mono-400.ttf", weight: "400", style: "normal" },
-    { path: "./fonts/jetbrains-mono-500.ttf", weight: "500", style: "normal" },
-    { path: "./fonts/jetbrains-mono-600.ttf", weight: "600", style: "normal" },
-    { path: "./fonts/jetbrains-mono-700.ttf", weight: "700", style: "normal" },
-  ],
-  variable: "--font-jetbrains-mono",
-  display: "swap",
-});
-
 export const metadata: Metadata = {
   title: { default: "LEADUP CRM", template: "%s · LEADUP" },
   description: "Операционная система руководителя отдела лидогенерации",
@@ -41,7 +30,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru" data-theme="light" className={`${ui.variable} ${jetBrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="ru" data-theme="light" className={ui.variable} suppressHydrationWarning>
       <body>
         {/* Тема — до первой отрисовки, чтобы тёмная тема не мигала светлой. */}
         <script
