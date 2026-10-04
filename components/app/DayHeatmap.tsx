@@ -23,7 +23,7 @@ interface Section {
   rows: OpRow[];
 }
 
-const hueOf = (ratio: number) => (ratio >= 1.1 ? "green" : ratio >= 0.95 ? "blue" : ratio >= 0.8 ? "amber" : "red");
+const hueOf = (ratio: number) => (ratio >= 1 ? "green" : ratio >= 0.95 ? "gray" : ratio >= 0.8 ? "amber" : "red");
 
 /** Столбцы фиксированной ширины: имя и итог, дни делят остаток поровну — сетка ровная на любой ширине. */
 const NAME_W = 200;
@@ -171,8 +171,8 @@ export function DayHeatmap({
       </div>
       <div className="hm-legend">
         {[
-          ["green", "≥ 110% плана дня"],
-          ["blue", "95–110%"],
+          ["green", "≥ 100% плана дня"],
+          ["gray", "95–100%"],
           ["amber", "80–95%"],
           ["red", "< 80%"],
         ].map(([h, l]) => (

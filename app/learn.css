@@ -442,7 +442,7 @@
   cursor: pointer;
 }
 .rsmore:hover { background: var(--brand-tint); }
-.rsmore svg { transition: transform 0.16s; }
+.rsmore svg.grp-chev { color: inherit; }
 .rsmore.open svg { transform: rotate(180deg); }
 .rsdet { padding: 14px 16px 4px; border-top: 1px solid var(--ink-06); background: var(--ink-03); }
 .rsdet > :first-child { margin-top: 0; }
@@ -858,3 +858,6 @@
 .ltiles { grid-auto-rows: auto; }
 .ltile { display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; align-content: start; }
 .ltile .tl { align-self: end; }
+
+/* оглавления уступают место липкой шапке страницы (--sh-h) */
+.lrn-nav, .tree, .rsnav, .lrn-aside { top: calc(8px + var(--sh-h, 0px)); transition: top 0.2s var(--ease); }

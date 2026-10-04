@@ -12,6 +12,7 @@ import { CumulativeChart, DailyBars, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
 import { LeadsByHour } from "@/components/app/LeadsByHour";
 import { NO_GROUP } from "@/lib/crm/types";
+import { StickyHead, planItems } from "@/components/app/StickyHead";
 
 export default function DynamicsPage() {
   const { data, ix, month, setMonth } = useCrm();
@@ -63,6 +64,14 @@ export default function DynamicsPage() {
 
   return (
     <div className="stack">
+      <StickyHead
+        title="Динамика"
+        ctx={fmtMonth(month)}
+        items={[
+          ...planItems(m.team.pace, m.team.lph, data.settings.convNormPct / 100),
+          ...(m.team.pace.plan > 0 && m.team.pace.elapsedW > 0 ? [{ l: "Прогноз", v: `${fmtInt(Math.round(m.team.pace.rr))} · ${fmtPct(m.team.pace.rrPct)}` }] : []),
+        ]}
+      />
       <PageHead
         title="Динамика"
         sub={`${fmtMonth(month)} · ${sel.label}: ${fmtInt(p.fact)} из ${fmtInt(sel.plan)} (${fmtPct(p.pct)}), прогноз ${fmtInt(p.rr)}`}
@@ -176,7 +185,7 @@ export default function DynamicsPage() {
                   <td className="r num" style={{ fontWeight: 600 }}>{w.future ? "" : fmtInt(w.fact)}</td>
                   <td className="r num">{w.future ? "" : fmtPct(w.pct)}</td>
                   <td className="r num">{w.avgPerDay == null ? "" : fmtNum(w.avgPerDay)}</td>
-                  <td className="r num" style={{ color: w.change == null ? undefined : w.change >= 0 ? "var(--c-green-fg)" : "var(--c-red-fg)" }}>{w.change == null ? "—" : fmtSignedPct(w.change)}</td>
+                  <td className="r num" style={{ color: w.change == null ? undefined : w.change >= 0 ? undefined : "var(--c-red-fg)" }}>{w.change == null ? "—" : fmtSignedPct(w.change)}</td>
                 </tr>
               ))}
             </tbody>

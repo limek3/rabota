@@ -18,6 +18,7 @@ import { PayScheduleSection } from "@/components/app/PaySchedule";
 import { ApproveMonthEditor, ApproveRules } from "@/components/app/ApproveSettings";
 import { AuditLog } from "@/components/app/AuditLog";
 import { SheetsSection } from "@/components/app/SheetsSync";
+import { StickyHead } from "@/components/app/StickyHead";
 
 type Tab = "profile" | "system" | "accounts" | "roles" | "data" | "audit";
 
@@ -126,6 +127,7 @@ export default function SettingsPage() {
 
   return (
     <div className="stack" style={{ maxWidth: 1100 }}>
+      <StickyHead title="Настройки" ctx={tabs.find((x) => x.value === tab)?.label} />
       <PageHead
         title="Настройки"
         sub={access.can.systemSettings ? "Все параметры расчётов редактируются здесь, без правки кода" : "Личные настройки вашего аккаунта"}

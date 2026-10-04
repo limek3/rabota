@@ -78,7 +78,8 @@
 /* таблица */
 .o2-card { overflow: hidden; }
 .o2-scroll { overflow-x: auto; }
-.o2-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+/* раздельные границы — см. .d2-tbl: с collapse при сворачивании групп мелькала светлая полоса */
+.o2-tbl { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
 .o2-tbl th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--text-sub); padding: 10px 10px; border-bottom: 1px solid var(--ink-06); white-space: nowrap; user-select: none; }
 .o2-tbl th.s { cursor: pointer; }
 .o2-tbl th.s:hover { color: var(--text); }
@@ -479,9 +480,7 @@
 .o2-tbl tbody tr.gone-sep:hover td { background: var(--bg-panel); }
 .o2-tbl tbody tr.static { cursor: default; }
 .o2-tbl tr.dim td { color: var(--dim); }
-.o2-tbl tr.fold-in > td { animation: foldIn 0.34s var(--ease) both; }
-.o2-tbl tr.fold-out > td { animation: foldOut 0.2s var(--ease) both; }
-@media (prefers-reduced-motion: reduce) { .o2-tbl tr.fold-in > td, .o2-tbl tr.fold-out > td { animation: none; } }
+
 .o2-tbl th.r, .o2-tbl td.r { text-align: right; }
 .pay-tbl td { height: 48px; }
 .pay-sv { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 16px; vertical-align: 1px; background: var(--ink-06); color: var(--text-sub); }
@@ -653,3 +652,8 @@
 
 /* «Отчёты»: полоса управления и параметры — шириной с картинку отчёта */
 .rep-w { width: 100%; max-width: 960px; }
+
+/* правая панель уступает место липкой шапке страницы (StickyHead ставит --sh-h на #app-scroll) */
+.o2-side { top: calc(12px + var(--sh-h, 0px)); max-height: calc(100vh / var(--ui-scale, 1) - 24px - var(--sh-h, 0px)); transition: top 0.2s var(--ease), max-height 0.2s var(--ease); }
+@media (max-width: 1180px) { .o2-side { top: auto; max-height: none; } }
+@media (prefers-reduced-motion: reduce) { .o2-side { transition: none; } }

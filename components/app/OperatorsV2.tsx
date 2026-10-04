@@ -12,6 +12,7 @@ import { EMPLOYMENT_LABEL, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, type DayKey, ty
 import { Avatar, downloadText, toCsv } from "@/components/ui/kit";
 import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
+import { StickyHead } from "@/components/app/StickyHead";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
 import { OperatorNotes, useOpNotes } from "@/components/app/OperatorCoach";
@@ -270,6 +271,9 @@ export function OperatorsV2() {
   /* ── показатели и сравнение с прошлым периодом ──────────────────── */
   const kpi = useMemo(() => {
     const live = pool.filter((x) => x.op.status !== "fired");
+    // лиды, часы и конверсия — по всем, кто работал в периоде, включая уволенных (и при скрытых уволенных):
+    // их лиды уже переданы и входят в факт команды
+    const all = rows.filter((x) => (!group || (x.op.groupId || NO_GROUP) === group) && (!onlyTrainees || x.op.role === "trainee"));
     const span = started ? rangeDays(from, last).length : 0;
     const pFrom = mode === "month" ? monthStart(addMonths(monthOf(from), -1)) : addDays(from, mode === "day" ? -1 : -7);
     const pLast = addDays(pFrom, Math.max(0, span - 1));
@@ -279,7 +283,7 @@ export function OperatorsV2() {
       let shifts = 0;
       let leadsClosed = 0;
       const closed = t < ix.workedTo ? t : ix.workedTo;
-      for (const x of live) {
+      for (const x of all) {
         const id = x.op.id;
         leads += sumRange(ix.opDay.get(id), f, t);
         leadsClosed += sumRange(ix.opDay.get(id), f, closed);
@@ -290,8 +294,8 @@ export function OperatorsV2() {
     };
     const cur = started ? sumOps(from, last, "hours") : { leads: 0, hours: 0, shifts: 0, lph: null };
     // конверсия команды — как в таблице: факт ÷ часы (с идущей сменой)
-    const fSum = live.reduce((a, x) => a + x.fact, 0);
-    const hSum = live.reduce((a, x) => a + x.hours, 0);
+    const fSum = all.reduce((a, x) => a + x.fact, 0);
+    const hSum = all.reduce((a, x) => a + x.hours, 0);
     const lphNow = hSum > 0 ? fSum / hSum : null;
     const prev = started ? sumOps(pFrom, pLast, "hours") : null;
     const headNow = live.filter((x) => x.op.status !== "fired" && employed(x.op, last)).length;
@@ -314,8 +318,9 @@ export function OperatorsV2() {
       lphDelta: prev?.lph != null && lphNow != null ? lphNow - prev.lph : null,
       crit,
     };
-  }, [pool, started, from, last, mode, ix, s]);
+  }, [pool, rows, group, onlyTrainees, started, from, last, mode, ix, s]);
 
+  const kpiRef = useRef<HTMLDivElement>(null);
   const sel = selId ? rows.find((x) => x.op.id === selId) ?? null : null;
   const drawerRow = drawerId ? m.ops.find((r) => r.op.id === drawerId) ?? null : null;
   const groups = data.groups.filter((g) => !g.deletedAt);
@@ -409,6 +414,17 @@ export function OperatorsV2() {
 
   return (
     <div className="stack" style={{ gap: 0 }}>
+      <StickyHead
+        title="Операторы"
+        ctx={`${periodLabel}${group ? ` · ${group === NO_GROUP ? NO_GROUP_LABEL : ix.groupById.get(group)?.name ?? ""}` : ""}`}
+        anchor={kpiRef}
+        items={[
+          { l: "В плане", v: kpi.meetOf ? `${fmtInt(kpi.meet)} из ${fmtInt(kpi.meetOf)}` : "—" },
+          { l: "Лидов", v: fmtInt(kpi.leads) },
+          { l: "Конв.", v: kpi.lph == null ? "—" : fmtPct(kpi.lph, 1), tone: kpi.lph == null || convNorm <= 0 ? undefined : kpi.lph >= convNorm ? "green" : "red" },
+          ...(kpi.crit.length ? [{ l: "Отстают", v: fmtInt(kpi.crit.length), tone: "red" as const }] : []),
+        ]}
+      />
       {/* ── заголовок ─────────────────────────────────────────────── */}
       <div className="o2-head">
         <div>
@@ -469,7 +485,7 @@ export function OperatorsV2() {
       <div className="o2-body has-side">
         <div className="o2-main">
           {/* ── показатели ───────────────────────────────────────── */}
-          <div className="card o2-kpis">
+          <div className="card o2-kpis" ref={kpiRef}>
             <Kpi icon="users" label="Операторов" value={fmtInt(kpi.head)} delta={kpi.headDelta === 0 ? null : { text: `${kpi.headDelta > 0 ? "+" : "−"}${Math.abs(kpi.headDelta)}`, up: kpi.headDelta > 0, good: kpi.headDelta > 0 }} sub={vsLabel} />
             <Kpi icon="check" label="Выполняют план" value={fmtInt(kpi.meet)} line={kpi.meetOf ? fmtPct(kpi.meet / kpi.meetOf) : "—"} sub={`из ${kpi.meetOf} ${plural(kpi.meetOf, OPS)}`} />
             <Kpi icon="clock" label="Средние часы" value={kpi.avgH > 0 ? fmtNum(kpi.avgH) : "—"} delta={kpi.avgHDelta == null || Math.abs(kpi.avgHDelta) < 0.05 ? null : { text: `${kpi.avgHDelta > 0 ? "+" : "−"}${fmtNum(Math.abs(kpi.avgHDelta))}`, up: kpi.avgHDelta > 0, good: kpi.avgHDelta > 0 }} sub={kpi.avgH > 0 ? vsLabel : "смены не закрыты"} title="Средние часы за смену" />
@@ -1034,7 +1050,7 @@ function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mo
                       </>
                     ) : (
                       <>
-                        <rect x={cx - 13} y={86 - Math.max(h, 1)} width={26} height={Math.max(h, 1)} rx={2} fill={td ? "var(--c-green-fg)" : "var(--ink-10)"} />
+                        <rect x={cx - 13} y={86 - Math.max(h, 1)} width={26} height={Math.max(h, 1)} rx={2} fill={td ? "var(--text)" : "var(--ink-10)"} />
                         <text x={cx} y={80 - h} textAnchor="middle" fontSize="10.5" fontWeight="600" fill="var(--text)">
                           {txt}
                         </text>

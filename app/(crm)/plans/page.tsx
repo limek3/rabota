@@ -11,6 +11,7 @@ import { Avatar, Chip, Empty, GoneSepRow, GoneTag, Kpi, MonthSwitcher, PageHead,
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canEditPlan } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
+import { StickyHead, planItems } from "@/components/app/StickyHead";
 
 type Pace = "all" | "behind" | "ok";
 const BEHIND: PaceStatus[] = ["lagging", "critical", "idle"];
@@ -196,6 +197,7 @@ export default function PlansPage() {
   const many = m.groups.length > 1;
   return (
     <div className="stack">
+      <StickyHead title="Планы" ctx={fmtMonth(month)} items={planItems(team.pace)} />
       <PageHead
         title="Планы"
         sub={

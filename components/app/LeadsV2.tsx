@@ -10,6 +10,7 @@ import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_L
 import { ClipText, Pager, RegionTag, downloadText, periodFor, toCsv, type Period, type PeriodMode } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
+import { StickyHead } from "@/components/app/StickyHead";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { SEGMENT_LABEL, regionSegment, type RegionSegment } from "@/lib/crm/regions";
 import { PhonesExport } from "@/components/app/LeadsClassic";
@@ -246,6 +247,7 @@ export function LeadsV2() {
   const someChecked = pageRows.some((l) => checked.has(l.id));
 
   const total = base.length;
+  const kpiRef = useRef<HTMLDivElement>(null);
 
   /* ── сравнение с прошлым периодом: столько же прошедших дней ───────── */
   const prev = useMemo(() => {
@@ -342,6 +344,17 @@ export function LeadsV2() {
 
   return (
     <div className="stack" style={{ gap: 0 }}>
+      <StickyHead
+        title="Лиды"
+        ctx={`${pLabel}${filtered ? " · с фильтром" : ""}`}
+        anchor={kpiRef}
+        items={[
+          { l: "Всего", v: fmtInt(total) },
+          { l: "Доведён", v: `${fmtInt(byStatus.done)}${total ? ` · ${fmtPct(share(byStatus.done, total))}` : ""}` },
+          { l: "Не доведён", v: fmtInt(byStatus.failed), tone: byStatus.failed > 0 ? "red" : undefined },
+          { l: "В работе", v: fmtInt(byStatus.work), tone: stale.length > 0 ? "amber" : undefined, hint: stale.length ? `${stale.length} ждут проверки дольше суток` : undefined },
+        ]}
+      />
       {/* ── заголовок ─────────────────────────────────────────────── */}
       <div className="o2-head">
         <div>
@@ -397,7 +410,7 @@ export function LeadsV2() {
       <div className="o2-body has-side l2-body">
         <div className="o2-main">
           {/* ── показатели (как на «Операторах»): нажатие — фильтр по статусу ── */}
-          <div className="card o2-kpis l2-kpis">
+          <div className="card o2-kpis l2-kpis" ref={kpiRef}>
             <LKpi
               icon="leads"
               label="Всего лидов"

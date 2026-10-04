@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { Academy } from "@/components/learn/Academy";
+import { StickyHead } from "@/components/app/StickyHead";
 
 /**
  * Академия супервайзера — прежняя «Академия обзвона» с программами супервайзера:
@@ -17,5 +18,10 @@ export default function SupervisorAcademyPage() {
     if (access.isOp) router.replace("/learn");
   }, [access.isOp, router]);
   if (access.isOp) return null;
-  return <Academy />;
+  return (
+    <>
+      <StickyHead title="Академия супервайзера" offset={160} />
+      <Academy />
+    </>
+  );
 }

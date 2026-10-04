@@ -827,12 +827,17 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .collapse.open { grid-template-rows: 1fr; opacity: 1; }
 .collapse-in { min-height: 0; overflow: hidden; }
 @keyframes foldIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
-@keyframes foldOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-6px); } }
-.tbl tr.fold-in > td { animation: foldIn 0.34s var(--ease) both; }
-.tbl tr.fold-out > td { animation: foldOut 0.2s var(--ease) both; }
+/* уход — только прозрачностью: сдвиг выносил каждую ячейку в отдельный слой, и на стыках слоёв
+   Chrome рисовал светлую полосу под заголовком группы */
+@keyframes foldOut { from { opacity: 1; } to { opacity: 0; } }
+/* сворачивание групп — одно на все таблицы (.tbl, «Сводка», «Операторы», «Зарплата», «Лиды») */
+:is(.tbl, .d2-tbl, .o2-tbl) tr.fold-in > td { animation: foldIn 0.34s var(--ease) both; }
+:is(.tbl, .d2-tbl, .o2-tbl) tr.fold-out > td { animation: foldOut 0.2s var(--ease) both; }
+/* сворачивание идёт: строки непрозрачные — едущий вверх блок закрывает гаснущие строки */
+[data-folding] :is(.tbl, .d2-tbl, .o2-tbl) tbody tr:not(.grp-head) > td { background-color: var(--bg-panel); }
 @media (prefers-reduced-motion: reduce) {
   .collapse, .grp-chev { transition: none; }
-  .tbl tr.fold-in > td, .tbl tr.fold-out > td { animation: none; }
+  :is(.tbl, .d2-tbl, .o2-tbl) tr.fold-in > td, :is(.tbl, .d2-tbl, .o2-tbl) tr.fold-out > td { animation: none; }
 }
 
 /* график: выделение дат по заголовкам и карточка итогов у курсора */
@@ -1093,8 +1098,7 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .tbl.sched tr.sch-grp td.sticky-col { padding-left: 16px; }
 .sched tr.sch-grp td[colspan] { border-left: none !important; }
 .sched .sch-grp-btn { display: inline-flex; align-items: center; gap: 8px; height: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
-.sched .sch-grp-btn svg { color: var(--text-sub); transition: transform 150ms ease; }
-.sched .sch-grp-btn svg.shut { transform: rotate(-90deg); }
+.sched .sch-grp-btn svg { color: var(--text-sub); }
 
 /* ── итоги справа: часы → лиды → ± к плану → конверсия ── */
 .sched .sum { font-size: 13px; font-weight: 600; background: var(--bg-panel); }
@@ -1269,7 +1273,7 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .spark-dot.last { fill: var(--sch-we-label); stroke: var(--bg-panel); stroke-width: 1; }
 .spark-dot.zero { fill: var(--c-red-fg); stroke: none; }
 .spark-trend { display: inline-block; width: 52px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; color: var(--dim); }
-.spark-trend.up { color: var(--c-green-fg); }
+.spark-trend.up { color: var(--text-sub); }
 .spark-trend.down { color: var(--c-red-fg); }
 
 /* строка показателей (Планы и др.): у всех одна сетка — подпись, значение высотой с поле ввода, пояснение */
@@ -1423,7 +1427,7 @@ body.is-col-dragging .clip-tip { display: none; }
 /* ячейки таблицы операторов */
 .ins-trend { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
 .ins-why { display: inline-flex; align-items: center; cursor: help; }
-.ins-ok { color: var(--c-green-fg); font-weight: 600; cursor: help; }
+.ins-ok { color: var(--text-sub); font-weight: 600; cursor: help; }
 .ins-x { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11.5px; font-weight: 600; background: var(--chip-bg); color: var(--chip-fg); border: 1px solid var(--chip-bd); white-space: nowrap; }
 
 /* разбор и заметки в карточке оператора */
@@ -1532,3 +1536,118 @@ body.is-col-dragging .clip-tip { display: none; }
 .col-pick-i input { margin: 0; }
 .col-pick-h { margin-left: auto; font-size: 11px; color: var(--dim); }
 .col-pick-f { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 4px 14px; border-top: 1px solid var(--ink-06); font-size: 11.5px; color: var(--dim); }
+
+/* ── заглушки загрузки (Skeletons.tsx): та же форма, что у страницы ── */
+.sk { background: linear-gradient(90deg, var(--ink-05) 25%, var(--ink-09) 37%, var(--ink-05) 63%); background-size: 400% 100%; animation: skShim 1.4s ease-in-out infinite; }
+@keyframes skShim { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+.sk-page { pointer-events: none; user-select: none; }
+.sk-card { display: block; }
+.sk-strip { display: grid; padding: 14px 0 13px; }
+.sk-strip > div { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 0 10px; border-left: 1px solid var(--ink-07); }
+.sk-strip > div:first-child { border-left: 0; }
+.sk-hero { display: grid; grid-template-columns: 290px 290px minmax(0, 1fr); gap: 26px; align-items: center; padding: 16px 22px 14px; min-height: 116px; border-bottom: 1px solid var(--ink-07); }
+.sk-hero > div:nth-child(2) { padding-left: 24px; border-left: 1px solid var(--ink-07); }
+.sk-hero + .sk-strip { border-bottom: 1px solid var(--ink-07); }
+.sk-grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.sk-tile { border: 1px solid var(--ink-08); border-radius: 10px; padding: 14px; height: 140px; display: flex; flex-direction: column; gap: 10px; }
+.sk-grid2 { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); gap: 12px; }
+.sk-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.sk-bars { display: flex; align-items: flex-end; gap: 10px; height: 160px; margin-top: 18px; padding: 0 6px; border-bottom: 1px solid var(--ink-08); }
+.sk-bars > div { flex: 1; border-radius: 4px 4px 0 0; }
+.sk-toolbar { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--ink-07); }
+.sk-table { padding: 0 16px 8px; }
+.sk-tr { display: grid; gap: 14px; align-items: center; height: 44px; border-bottom: 1px solid var(--ink-06); }
+.sk-th { height: 38px; }
+.sk-sched { padding: 10px 16px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.sk-sched-row { display: grid; grid-template-columns: 170px repeat(21, minmax(24px, 1fr)); gap: 4px; align-items: center; }
+.sk-rail { width: 236px; flex: none; padding: 14px 14px; display: flex; flex-direction: column; }
+@media (max-width: 1100px) {
+  .sk-grid4, .sk-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sk-grid2 { grid-template-columns: 1fr; }
+  .sk-hero { grid-template-columns: 1fr 1fr; }
+  .sk-hero > :last-child { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+
+/* ── плавность по всему приложению: полосы, шкалы, графики и ячейки карт перетекают
+   к новым значениям при смене периода, группы или данных, а не перескакивают ── */
+.t > b,
+.bar-fill,
+.funnel-fill,
+.dist-bar > span,
+.tier-bar > span,
+.lbar > i,
+.lprog-bar > i {
+  transition: width 0.5s var(--ease), background-color 0.3s var(--ease);
+}
+.card svg path { transition: d 0.5s var(--ease), fill 0.3s, stroke 0.3s; }
+.card svg rect { transition: x 0.5s var(--ease), y 0.5s var(--ease), width 0.5s var(--ease), height 0.5s var(--ease), fill 0.3s; }
+.card svg circle { transition: cx 0.5s var(--ease), cy 0.5s var(--ease), fill 0.3s, stroke 0.3s; }
+.card svg text { transition: transform 0.5s var(--ease), fill 0.3s; }
+.d2-grid .c,
+.hm-c { transition: background-color 0.35s var(--ease), color 0.35s var(--ease); }
+@media (prefers-reduced-motion: reduce) {
+  .t > b, .bar-fill, .funnel-fill, .dist-bar > span, .tier-bar > span, .lbar > i, .lprog-bar > i,
+  .card svg path, .card svg rect, .card svg circle, .card svg text, .d2-grid .c, .hm-c { transition: none; }
+}
+
+/* ── липкая шапка страниц (StickyHead): слот в начале области прокрутки, полоса — поверх содержимого ── */
+.sh-host { position: sticky; top: 0; height: 0; z-index: 40; }
+.sh {
+  position: absolute; left: 0; right: 0; top: 0;
+  background: color-mix(in srgb, var(--bg) 95%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ink-08); box-shadow: 0 6px 18px -12px rgba(0, 0, 0, 0.35);
+  opacity: 0; transform: translateY(-8px); pointer-events: none;
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.sh[data-on="true"] { opacity: 1; transform: none; pointer-events: auto; }
+.sh-in { max-width: 1680px; margin: 0 auto; padding: 0 30px; height: 46px; display: flex; align-items: center; gap: 18px; min-width: 0; }
+.sh-t { font-size: 14px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.sh-c { font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sh-gap { flex: 1; }
+.sh-k { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; font-size: 11.5px; color: var(--text-sub); }
+.sh-k b { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.sh-k b[data-tone="red"] { color: var(--c-red-fg); }
+.sh-k b[data-tone="green"] { color: var(--c-green-fg); }
+.sh-k b[data-tone="amber"] { color: var(--c-amber-fg); }
+.sh-up { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--ctrl-border); background: var(--bg-panel); color: var(--text-sub); cursor: pointer; flex: none; }
+.sh-up:hover { color: var(--text); }
+@media (max-width: 900px) { .sh-c { display: none; } .sh-k:nth-of-type(n + 4) { display: none; } }
+@media (prefers-reduced-motion: reduce) { .sh { transition: none; } }
+
+
+/* раскрытие строк без useFoldGroups — тот же показ, что у групп в таблицах:
+   «График» (секции; только прозрачность — у таблицы липкая колонка имён) и «На паузе» в карте дней */
+@keyframes rowFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.sched tr.sch-row > td { animation: rowFadeIn 0.3s var(--ease) both; }
+.hm tr.hm-psep[aria-expanded="true"] ~ tr > td { animation: foldIn 0.34s var(--ease) both; }
+@media (prefers-reduced-motion: reduce) { .sched tr.sch-row > td, .hm tr.hm-psep[aria-expanded="true"] ~ tr > td { animation: none; } }
+
+/* ── месяц в меню слева (RailStatus): отдел / свои группы / личный план + разбивка по группам у РОПа ── */
+.rs { display: block; width: 216px; margin: 0 10px 10px; padding: 11px 12px 10px; border-radius: 10px; border: 1px solid var(--ink-07); background: var(--bg-panel); color: inherit; text-decoration: none; transition: border-color 0.15s var(--ease), background 0.15s var(--ease); }
+.rs:hover { border-color: var(--ink-12); }
+.rs-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.rs-who { display: flex; flex-direction: column; gap: 1px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.rs-who i { font-style: normal; font-size: 10.5px; font-weight: 400; color: var(--dim); }
+.rs-pct { font-size: 18px; font-weight: 700; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.rs-pct[data-tone="ok"] { color: var(--c-green-fg); }
+.rs-pct[data-tone="behind"] { color: var(--c-red-fg); }
+.rs-sub { display: flex; justify-content: space-between; margin-top: 7px; font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.rs-sub b { font-weight: 600; color: var(--text-sub); }
+.rs-groups { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--ink-06); }
+.rs-g { display: grid; grid-template-columns: 8px minmax(0, 1fr) 46px 34px; align-items: center; gap: 7px; font-size: 11.5px; }
+.rs-dot { width: 7px; height: 7px; border-radius: 2px; }
+.rs-gn { color: var(--text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rs-gb { height: 4px; border-radius: 2px; background: var(--ink-08); overflow: hidden; }
+.rs-gb i { display: block; height: 100%; border-radius: 2px; background: var(--text-sub); transition: width 0.5s var(--ease), background-color 0.3s; }
+.rs-gb i[data-tone="ok"] { background: var(--c-green-fg); }
+.rs-gb i[data-tone="behind"] { background: var(--c-red-fg); }
+.rs-gp { text-align: right; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.rs-gp[data-tone="ok"] { color: var(--c-green-fg); }
+.rs-gp[data-tone="behind"] { color: var(--c-red-fg); }
+.rs-more { font-size: 10.5px; color: var(--dim); padding-left: 15px; }
+@media (prefers-reduced-motion: reduce) { .rs-gb i { transition: none; } }
+/* в липкой шапке — выпадающие списки (период, группа): строка не обрезается */
+.sh-c:has(.sh-ctl) { overflow: visible; }
+.sh-ctl { display: inline-flex; align-items: center; gap: 8px; }
+.sh-per { font-size: 12px; color: var(--text-sub); white-space: nowrap; }

@@ -323,7 +323,7 @@ export function Kpi({
       {(sub || delta) && (
         <span className="kpi-sub">
           {delta && (
-            <span style={{ color: delta.good == null ? "var(--dim)" : delta.good ? "var(--c-green-fg)" : "var(--c-red-fg)", fontWeight: 600, marginRight: 6 }}>
+            <span style={{ color: delta.good == null ? "var(--dim)" : delta.good ? "var(--text-sub)" : "var(--c-red-fg)", fontWeight: 600, marginRight: 6 }}>
               {delta.text}
             </span>
           )}
@@ -463,7 +463,7 @@ export function Pager({
   const from = total ? (page - 1) * size + 1 : 0;
   const to = Math.min(total, page * size);
   return (
-    <nav className="pager" aria-label="Страницы">
+    <nav className="pager" aria-label="Страницы" data-no-tween>
       <span className="pager-info num">
         {fmtInt(from)}–{fmtInt(to)} из {fmtInt(total)}
       </span>
@@ -686,8 +686,8 @@ export type FoldPhase = "in" | "out" | undefined;
  * проявляются каскадом. Строки убираются из DOM только когда всё доехало — без скачка в конце.
  * У каждой группы — <tbody data-fold={key}>, первая строка в нём — заголовок группы.
  */
-export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
-  const [closed, setClosed] = useState<Set<string>>(() => new Set());
+export function useFoldGroups(wrapRef: RefObject<HTMLElement>, initiallyClosed?: Iterable<string>) {
+  const [closed, setClosed] = useState<Set<string>>(() => new Set(initiallyClosed));
   const [phase, setPhase] = useState<Record<string, "in" | "out">>({});
   const opening = useRef<{ key: string; from: number } | null>(null);
   const running = useRef<Animation[]>([]);
@@ -707,7 +707,10 @@ export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
     running.current = [];
     // только вертикаль: сброс всего overflow стирал и горизонтальную прокрутку контейнера (inline overflowX),
     // таблица вылезала за карточку, а полоса прокрутки пропадала — всё ниже прыгало на её высоту
-    if (wrapRef.current) wrapRef.current.style.overflowY = "";
+    if (wrapRef.current) {
+      wrapRef.current.style.overflowY = "";
+      delete wrapRef.current.dataset.folding;
+    }
   };
   const track = (list: Animation[]) => {
     running.current = list;
@@ -741,6 +744,8 @@ export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
     if (!p) return;
     const to = el.offsetHeight;
     el.style.overflowY = "hidden";
+    // пока строки едут — у них непрозрачный фон: блок ниже закрывает гаснущие строки, а не просвечивает
+    el.dataset.folding = "";
     const opts: KeyframeAnimationOptions = { duration: FOLD_MS, easing: FOLD_EASE };
     const list: Animation[] = [];
     for (const b of p.below) list.push(b.animate([{ transform: `translateY(${-p.rowsH}px)` }, { transform: "none" }], opts));
@@ -780,6 +785,8 @@ export function useFoldGroups(wrapRef: RefObject<HTMLElement>) {
       const to = Math.min(from, el.scrollHeight - p.rowsH + chrome);
       setPhase((ph) => ({ ...ph, [key]: "out" }));
       el.style.overflowY = "hidden";
+      // пока строки едут — у них непрозрачный фон: блок ниже закрывает гаснущие строки, а не просвечивает
+      el.dataset.folding = "";
       const opts: KeyframeAnimationOptions = { duration: FOLD_MS, easing: FOLD_EASE, fill: "forwards" };
       const list: Animation[] = [];
       for (const b of p.below) list.push(b.animate([{ transform: "none" }, { transform: `translateY(${-p.rowsH}px)` }], opts));

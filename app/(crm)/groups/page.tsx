@@ -14,15 +14,17 @@ import { fmtInt, fmtNum, fmtPct, fmtSigned, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, Collapse, Conv, Empty, LeadN, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
 import { Select, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
+import { StickyHead, planItems } from "@/components/app/StickyHead";
 
 export default function GroupsPage() {
-  const { month, setMonth, openGroup, access } = useCrm();
+  const { data, month, setMonth, openGroup, access } = useCrm();
   const m = useMonthModel();
   const { byOp } = useInsights(m);
   const [view, setView] = useState<"cards" | "table">("cards");
 
   return (
     <div className="stack">
+      <StickyHead title="Группы" ctx={fmtMonth(month)} items={planItems(m.team.pace, m.team.lph, data.settings.convNormPct / 100)} />
       <PageHead
         title="Группы"
         sub={`${fmtMonth(month)} · факт считается по группе оператора на момент передачи лида`}

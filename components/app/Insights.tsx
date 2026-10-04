@@ -6,7 +6,7 @@ import { PACE_HUE, PACE_LABEL, type OpRow, type PaceStatus } from "@/lib/crm/cal
 import { LAG_HINT, LAG_HUE, LAG_LABEL, fmtImpact, type GroupSpread, type LagReason, type Medians, type OpInsight, type Signal, type Tempo } from "@/lib/crm/insights";
 import { NO_GROUP_LABEL } from "@/lib/crm/types";
 import { fmtNum, fmtPct, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, hueFg, hueVars } from "@/components/ui/kit";
+import { Avatar, Chip, Collapse, hueFg, hueVars } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 
 /* ── «Требует внимания»: над таблицей операторов ───────────────────── */
@@ -73,7 +73,7 @@ export function AttentionPanel({ rows, byOp, med, onOpen }: { rows: OpRow[]; byO
           сигналы по темпу, часам и лидам в час · сравнение с медианой команды
         </span>
       </button>
-      {open && (
+      <Collapse open={open}>
         <div className="ins-att-body">
           <div className="ins-att-sum">
             <div>
@@ -166,7 +166,7 @@ export function AttentionPanel({ rows, byOp, med, onOpen }: { rows: OpRow[]; byO
             )}
           </div>
         </div>
-      )}
+      </Collapse>
     </div>
   );
 }
@@ -176,7 +176,7 @@ export function AttentionPanel({ rows, byOp, med, onOpen }: { rows: OpRow[]; byO
 export function TrendCell({ t }: { t: Tempo | undefined }) {
   if (!t || t.change == null) return <span className="muted">—</span>;
   const c = t.change;
-  const tone = c >= 0.1 ? "var(--c-green-fg)" : c <= -0.1 ? "var(--c-red-fg)" : "var(--dim)";
+  const tone = c >= 0.1 ? "var(--text-sub)" : c <= -0.1 ? "var(--c-red-fg)" : "var(--dim)";
   return (
     <span className="ins-trend" style={{ color: tone }} title={`Последние 5 смен: ${fmtNum(t.last)} лида в день, 5 смен до них: ${fmtNum(t.prev)}`}>
       <b>{c >= 0.1 ? "↗" : c <= -0.1 ? "↘" : "→"}</b>

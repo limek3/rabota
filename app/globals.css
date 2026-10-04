@@ -1625,3 +1625,22 @@ input[type="checkbox"]:not(.sw input):focus-visible { outline: none; box-shadow:
 input[type="checkbox"]:not(.sw input):checked:focus-visible { border-color: var(--brand); }
 input[type="checkbox"]:not(.sw input):disabled { opacity: 0.45; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) { input[type="checkbox"]:not(.sw input)::after { transition: none; } }
+
+/* Тёмная тема: на тёмном фоне те же прозрачности, что в светлой, почти не видны — сетка, выходные,
+   столбцы прошлой недели и ячейки карт сливались. Внутри графиков и сеток поднимаем контраст;
+   кнопки, рамки карточек и прочий интерфейс не трогаем. */
+:root:not([data-theme="light"]) svg,
+:root:not([data-theme="light"]) .d2-grid,
+:root:not([data-theme="light"]) .d2-prog,
+:root:not([data-theme="light"]) .hm-card,
+:root:not([data-theme="light"]) .sched,
+:root:not([data-theme="light"]) .sk-bars {
+  --ink-03: rgba(255, 255, 255, 0.05);
+  --ink-04: rgba(255, 255, 255, 0.065);
+  --ink-05: rgba(255, 255, 255, 0.08);
+  --ink-06: rgba(255, 255, 255, 0.095);
+  --ink-08: rgba(255, 255, 255, 0.12);
+  --ink-10: rgba(255, 255, 255, 0.15);
+  --ink-15: rgba(255, 255, 255, 0.27);
+  --ink-25: rgba(255, 255, 255, 0.38);
+}

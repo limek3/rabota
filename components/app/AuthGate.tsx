@@ -12,7 +12,8 @@ import { getVexaBridge } from "@/lib/electron";
  * AUTH_ENABLED (lib/appMode.ts) включается сам, когда в .env.local есть проект
  * Supabase: без сессии — на /login. Без Supabase пропускает всех (данные в браузере).
  */
-export function AuthGate({ children }: { children: ReactNode }) {
+/** fallback — что показать, пока проверяется вход (вместо пустого экрана). */
+export function AuthGate({ children, fallback = null }: { children: ReactNode; fallback?: ReactNode }) {
   const router = useRouter();
   const [ok, setOk] = useState(!AUTH_ENABLED);
 
@@ -47,7 +48,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return b.onNavigate((path) => router.push(path));
   }, [router]);
 
-  return ok ? <>{children}</> : null;
+  return ok ? <>{children}</> : <>{fallback}</>;
 }
 
 /** Страницы входа/регистрации: без Supabase вход выключен — уводят в CRM. */

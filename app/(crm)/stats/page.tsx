@@ -9,13 +9,14 @@ import { fmtMonth, monthEnd, monthStart } from "@/lib/crm/dates";
 import { Empty, MonthSwitcher, PageHead, StatusChip } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 import { OperatorStats } from "@/components/app/OperatorDrawer";
+import { StickyHead, planItems } from "@/components/app/StickyHead";
 
 /**
  * «Мои показатели» — то, что супервайзер видит в карточке оператора, но на всю страницу
  * и только про себя: план и факт, прогноз, темп, часы, выработка, последние лиды.
  */
 export default function StatsPage() {
-  const { access, month, setMonth, me, ix } = useCrm();
+  const { data, access, month, setMonth, me, ix } = useCrm();
   const m = useMonthModel();
   const opId = access.opId;
   const row = useMemo(() => m.ops.find((r) => r.op.id === opId) ?? null, [m.ops, opId]);
@@ -31,6 +32,7 @@ export default function StatsPage() {
   const group = row?.op.groupId ? ix.groupById.get(row.op.groupId) : null;
   return (
     <div className="stack">
+      {row && <StickyHead title="Мои показатели" ctx={fmtMonth(month)} items={planItems(row.pace, row.lph, data.settings.convNormPct / 100)} />}
       <PageHead
         title="Мои показатели"
         sub={`${me.name} · ${group ? group.name : NO_GROUP_LABEL} · ${fmtMonth(month)}`}

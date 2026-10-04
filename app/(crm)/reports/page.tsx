@@ -11,6 +11,7 @@ import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { ReportCanvas, type ReportCanvasHandle } from "@/components/app/ReportCanvas";
 import { RopCanvas } from "@/components/app/RopCanvas";
+import { StickyHead } from "@/components/app/StickyHead";
 
 /**
  * Готовые отчёты за день и неделю — картинкой (скопировать PNG в буфер или скачать).
@@ -77,6 +78,7 @@ export default function ReportsPage() {
 
   return (
     <div className="stack">
+      <StickyHead title="Отчёты" />
       <PageHead
         title="Отчёты"
         sub={access.isHead ? "Отчёт РОП и по операторам за день и неделю — картинкой или текстом для чата" : "Готовые отчёты за день и неделю — картинкой, чтобы отправить в чат"}

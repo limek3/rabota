@@ -12,6 +12,7 @@ import { Chip, Empty, Kpi, MonthSwitcher, PageHead, Progress, Seg, downloadText,
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { CandidateModal } from "@/components/app/CandidateModal";
+import { StickyHead } from "@/components/app/StickyHead";
 
 /**
  * Найм и текучесть.
@@ -131,6 +132,15 @@ export default function HiringPage() {
 
   return (
     <div className="stack">
+      <StickyHead
+        title="Найм"
+        ctx={periodLabel}
+        items={[
+          { l: "Отклики", v: fmtInt(funnel.steps[0].count) },
+          { l: "Приняты", v: fmtInt(funnel.steps[3].count) },
+          { l: "В работе", v: fmtInt(openCount) },
+        ]}
+      />
       <PageHead
         title="Найм"
         sub={`${periodLabel} · в работе ${fmtInt(openCount)} ${plural(openCount, CANDS)} · в штате ${fmtInt(staff.staff.length)} ${plural(staff.staff.length, PEOPLE)}`}

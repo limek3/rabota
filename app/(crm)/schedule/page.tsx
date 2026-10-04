@@ -8,7 +8,7 @@ import { goneLast, isGone, sumRange, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, HOURS_DAY_TYPES, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Conv, Empty, Field, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg, useWheelHScroll } from "@/components/ui/kit";
+import { Avatar, Conv, Empty, Field, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg } from "@/components/ui/kit";
 import { DateInput, Select, dot, uiZoom, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
@@ -71,9 +71,7 @@ export default function SchedulePage() {
   const [range, setRange] = useState<Range | null>(null);
   const [bulk, setBulk] = useState<{ rect: { left: number; top: number; bottom: number; width: number }; cells: { opId: string; day: DayKey }[] } | null>(null);
   const dragging = useRef(false);
-  // колесо листает дни вправо-влево без Shift
   const scrollRef = useRef<HTMLDivElement>(null);
-  useWheelHScroll(scrollRef);
   // цельные полосы (больничный, отпуск, «уволен», «до приёма») рисуются в первой клетке серии и
   // накрывают остальные. Столбцы дней бывают разной ширины (таблица тянет их под итоги), поэтому
   // ширину полосы меряем по настоящим клеткам: от первой до последней клетки серии.
@@ -722,7 +720,7 @@ function SectionRow({ sec, rows, dayCount, shut, onToggle }: { sec: Section; row
     <tr className="grp-head sch-grp">
       <td className="sticky-col">
         <button type="button" className="sch-grp-btn" onClick={onToggle} aria-expanded={!shut}>
-          <Icon name="chevD" size={15} stroke={2} className={shut ? "shut" : undefined} />
+          <Icon name="chevR" size={15} stroke={2} className={`grp-chev${shut ? "" : " open"}`} />
           {sec.sv && <Icon name="star" size={13} stroke={2} className="sv-star" />}
           {sec.title} · {sec.idx.length}
           {sec.gone ? "" : " чел."}

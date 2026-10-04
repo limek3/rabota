@@ -9,6 +9,7 @@ import { NO_GROUP, NO_GROUP_LABEL, type Project } from "@/lib/crm/types";
 import { fmtInt, fmtPct, safeDiv, shortName } from "@/lib/crm/format";
 import { Chip, Collapse, Empty, HuePicker, PageHead, PeriodPicker, Progress, Seg, Swatch, downloadText, hueFg, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
+import { StickyHead } from "@/components/app/StickyHead";
 
 export default function ProjectsPage() {
   const { data, ix, today } = useCrm();
@@ -49,6 +50,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="stack">
+      <StickyHead title="Проекты" />
       <PageHead title="Проекты" sub="Справочник направлений, по которым передаются лиды, и количество лидов по ним за любой период" />
 
       <div className="cols-main" style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(360px, 1fr)" }}>

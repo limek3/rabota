@@ -264,7 +264,7 @@ function ShiftStrip({ row, cal }: { row: OpRow; cal: MonthCal }) {
   const future = (d: string) => cal.phase === "future" || d > cal.ref;
   const shade = (v: number): CSSProperties => {
     const k = Math.min(1, v / max);
-    return { background: `color-mix(in srgb, var(--c-green-fg) ${Math.round(18 + 62 * k)}%, var(--bg-panel))`, color: k > 0.55 ? "var(--bg-panel)" : "var(--text)" };
+    return { background: `color-mix(in srgb, var(--text) ${Math.round(8 + 62 * k)}%, var(--bg-panel))`, color: k > 0.5 ? "var(--bg-panel)" : "var(--text)" };
   };
   const dow = (d: string) => DOW_V2[isoWeekday(d) - 1];
 
@@ -279,8 +279,8 @@ function ShiftStrip({ row, cal }: { row: OpRow; cal: MonthCal }) {
         </div>
         <div className="d2-leg" style={{ marginTop: 6 }}>
           <span>
-            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "color-mix(in srgb, var(--c-green-fg) 30%, var(--bg-panel))" }} />
-            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--c-green-fg)", marginLeft: -3 }} />
+            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "color-mix(in srgb, var(--text) 20%, var(--bg-panel))" }} />
+            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "color-mix(in srgb, var(--text) 70%, var(--bg-panel))", marginLeft: -3 }} />
             Больше лидов
           </span>
           <span><i style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--c-red-fg)" }} />0 лидов на смене</span>

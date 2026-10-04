@@ -11,6 +11,7 @@ import { canTouchOp } from "@/lib/crm/access";
 import { Avatar, Progress } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 import { RoleChip } from "@/components/app/AccountMenu";
+import { StickyHead } from "@/components/app/StickyHead";
 
 /**
  * «Обучение команды» — руководитель видит, на каком этапе каждый стажёр и оператор:
@@ -131,6 +132,7 @@ export default function TeamLearningPage() {
 
   return (
     <div className="stack">
+      <StickyHead title="Обучение команды" />
       <div className="page-head">
         <div style={{ minWidth: 0 }}>
           <h1 className="page-title">Обучение команды</h1>
@@ -258,11 +260,11 @@ export default function TeamLearningPage() {
                       </span>
                     </td>
                     <td className="r">
-                      <Icon name="chevD" size={14} style={{ color: "var(--dim)", transform: isOpen ? "rotate(180deg)" : undefined, transition: "transform .15s" }} />
+                      <Icon name="chevR" size={14} className={`grp-chev${isOpen ? " open" : ""}`} />
                     </td>
                   </tr>
                   {isOpen && (
-                    <tr>
+                    <tr className="fold-in">
                       <td colSpan={7} style={{ background: "var(--bg-strip)", whiteSpace: "normal", padding: 16 }}>
                         <Detail r={r} now={now} />
                       </td>

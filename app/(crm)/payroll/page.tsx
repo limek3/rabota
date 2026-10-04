@@ -17,12 +17,13 @@ import { Icon } from "@/components/ui/icons";
 import { ApproveMonthEditor } from "@/components/app/ApproveSettings";
 import { PayslipModal } from "@/components/app/Payslip";
 import { PayoutHistory, usePayouts } from "@/components/app/PayoutHistory";
-import { PeriodNav, PeriodPayroll, usePeriodPayroll } from "@/components/app/PeriodPayroll";
+import { PeriodNav, PeriodPayroll, periodLabel, usePeriodPayroll } from "@/components/app/PeriodPayroll";
 import { MonthSide } from "@/components/app/PaySide";
 import { MonthNav, SideEmpty, Tile } from "@/components/app/V2Kit";
 import { Popover } from "@/components/app/OperatorsV2";
 import { REGISTRY_DAYS } from "@/lib/crm/payperiod";
 import { TaxSum } from "@/components/app/TaxSum";
+import { StickyHead } from "@/components/app/StickyHead";
 
 const ADJ_TYPES: AdjustmentType[] = ["accrual", "bonus", "compensation", "correction", "deduction", "advance", "payout"];
 const ADJ_HUE: Record<AdjustmentType, string> = {
@@ -352,6 +353,24 @@ export default function PayrollPage() {
   return (
     <div className="stack" style={{ gap: 0 }}>
       {/* ── заголовок ─────────────────────────────────────────────── */}
+      <StickyHead
+        title="Зарплата"
+        offset={240}
+        ctx={view === "periods" ? periodLabel(pp.period) : fmtMonth(month)}
+        items={
+          view === "periods"
+            ? [
+                { l: "Начислено", v: fmtMoney(pp.t.gross) },
+                { l: "К выплате", v: fmtMoney(pp.t.net) },
+                { l: "Остаток", v: fmtMoney(pp.t.toPay), tone: pp.t.toPay < -0.005 ? "red" : undefined },
+              ]
+            : [
+                { l: "Начислено", v: fmtMoney(t.gross) },
+                { l: "Выплачено", v: fmtMoney(t.paid) },
+                { l: "Остаток", v: fmtMoney(t.toPay), tone: t.toPay < -0.005 ? "red" : undefined },
+              ]
+        }
+      />
       <div className="o2-head">
         <div className="o2-head-l">
           <h1 className="o2-title">Зарплата</h1>

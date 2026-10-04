@@ -788,9 +788,119 @@ function isIdle(op: Operator, cal: MonthCal, ix: Index, s: Settings, win: Window
   return got >= s.idleDays;
 }
 
+/**
+ * Откуда модель берёт календарь, людей и планы. Месяц — как есть; день или неделя — кусок
+ * месяца (или двух), планы и нормы — долей месячных по рабочим дням куска.
+ */
+interface ModelSrc {
+  cal: MonthCal;
+  ops: Operator[];
+  terms: (op: Operator) => OpTerms;
+  win: (op: Operator) => Window | null;
+  groupPlan: (g: { key: string; group: Group | null }, opPlans: Map<ID, number>) => { plan: number; explicit: boolean };
+  contributors: (key: string, rows: OpRow[]) => number;
+}
+
 export function monthModel(st: DataState, ix: Index, month: MonthKey, today: DayKey): MonthModel {
+  const cal = monthCal(month, st.settings, today);
+  return buildModel(st, ix, {
+    cal,
+    ops: monthOperators(st, ix, month),
+    terms: (op) => opTerms(op, cal, st, ix),
+    win: (op) => employmentWindow(op, month),
+    groupPlan: (g, opPlans) => groupPlan(g, cal, st, ix, opPlans),
+    contributors: (key) => ix.groupMonthOps.get(`${month}|${key}`)?.size ?? 0,
+  });
+}
+
+/** Календарь произвольного куска дней (день, неделя) — та же форма, что у месяца. */
+export function spanCal(from: DayKey, to: DayKey, s: Settings, today: DayKey): MonthCal {
+  const days = rangeDays(from, to);
+  // выходной остаётся выходным: плана на него нет (у месяца пустой график — защита, здесь не нужна)
+  const workdays = days.filter((d) => isWorkday(d, s));
+  const workSet = new Set(workdays);
+  const cum = new Map<DayKey, number>();
+  let c = 0;
+  for (const d of days) {
+    if (workSet.has(d)) c++;
+    cum.set(d, c);
+  }
+  const phase = today > to ? "past" : today < from ? "future" : "current";
+  return {
+    month: monthOf(to),
+    days,
+    workdays,
+    W: Math.max(1, workdays.length),
+    phase,
+    today,
+    ref: phase === "past" ? to : phase === "future" ? addDays(from, -1) : today,
+    isWork: (d) => workSet.has(d),
+    wIdx: (d) => (d < from ? 0 : d > to ? c : cum.get(d) ?? 0),
+  };
+}
+
+/**
+ * Модель за день или неделю: те же показатели, что у месяца, но по куску дней.
+ * План оператора — его месячный план × доля рабочих дней куска в его рабочих днях месяца;
+ * норма часов — так же; план группы — месячный × доля рабочих дней месяца. Неделя на стыке
+ * месяцев складывается из двух частей, каждая — по своему месяцу.
+ */
+export function periodModel(st: DataState, ix: Index, from: DayKey, to: DayKey, today: DayKey): MonthModel {
   const s = st.settings;
-  const cal = monthCal(month, s, today);
+  const cal = spanCal(from, to, s, today);
+  const parts = Array.from(new Set(cal.days.map(monthOf))).map((mk) => {
+    const mc = monthCal(mk, s, today);
+    const ops = monthOperators(st, ix, mk);
+    const terms = new Map(ops.map((op) => [op.id, opTerms(op, mc, st, ix)] as const));
+    const opPlans = new Map(Array.from(terms, ([id, t]) => [id, t.plan] as const));
+    const a = from > mc.days[0] ? from : mc.days[0];
+    const b = to < mc.days[mc.days.length - 1] ? to : mc.days[mc.days.length - 1];
+    return { mk, mc, ops, terms, opPlans, share: workdaysBetween(mc, a, b) / mc.W };
+  });
+  const seen = new Set<ID>();
+  const ops = parts.flatMap((p) => p.ops).filter((op) => (seen.has(op.id) ? false : (seen.add(op.id), true)));
+  return buildModel(st, ix, {
+    cal,
+    ops,
+    terms: (op) => {
+      let plan = 0;
+      let norm = 0;
+      let base: OpTerms | undefined;
+      for (const p of parts) {
+        const t = p.terms.get(op.id);
+        if (!t) continue;
+        base = t; // условия оплаты — последнего месяца куска
+        const w = employmentWindow(op, p.mk);
+        const all = w ? workdaysBetween(p.mc, w.from, w.to) : 0;
+        if (!w || all <= 0) continue;
+        const k = workdaysBetween(p.mc, w.from > from ? w.from : from, w.to < to ? w.to : to) / all;
+        plan += t.plan * k;
+        norm += t.normHours * k;
+      }
+      return { ...(base as OpTerms), plan, normHours: norm };
+    },
+    win: (op) => {
+      const a = op.hireDate && op.hireDate > from ? op.hireDate : from;
+      const b = op.fireDate && op.fireDate < to ? op.fireDate : to;
+      return a > b ? null : { from: a, to: b };
+    },
+    groupPlan: (g) => {
+      let plan = 0;
+      let explicit = false;
+      for (const p of parts) {
+        const gp = groupPlan(g, p.mc, st, ix, p.opPlans);
+        plan += gp.plan * p.share;
+        explicit ||= gp.explicit;
+      }
+      return { plan, explicit };
+    },
+    contributors: (key, rows) => rows.filter((r) => r.groupKey === key && r.pace.fact > 0).length,
+  });
+}
+
+function buildModel(st: DataState, ix: Index, src: ModelSrc): MonthModel {
+  const s = st.settings;
+  const cal = src.cal;
   const first = cal.days[0];
   const last = cal.days[cal.days.length - 1];
   // часы — только отработанные: смены, запланированные наперёд, в факт не идут;
@@ -800,12 +910,12 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
   const ref = cal.phase === "future" ? first : cal.ref;
   const ws = weekStart(ref);
 
-  const opsList = monthOperators(st, ix, month);
+  const opsList = src.ops;
   const opPlans = new Map<ID, number>();
   const rows: OpRow[] = opsList.map((op) => {
-    const terms = opTerms(op, cal, st, ix);
+    const terms = src.terms(op);
     opPlans.set(op.id, terms.plan);
-    const win = employmentWindow(op, month);
+    const win = src.win(op);
     const p = pace(cal, terms.plan, ix.opDay.get(op.id), s, win);
     const hMap = ix.hoursOpDay.get(op.id);
     const hours = sumRange(hMap, first, factTo);
@@ -883,13 +993,13 @@ export function monthModel(st: DataState, ix: Index, month: MonthKey, today: Day
 
   const groups: GroupRow[] = Array.from(keys).map((key) => {
     const group = key === NO_GROUP ? null : ix.groupById.get(key) ?? null;
-    const gp = groupPlan({ key, group }, cal, st, ix, opPlans);
+    const gp = src.groupPlan({ key, group }, opPlans);
     const p = pace(cal, gp.plan, ix.groupDay.get(key), s);
     const hours = sumRange(ix.hoursGroupDay.get(key), first, factTo);
     const members = rows.filter((r) => r.groupKey === key && !r.op.deletedAt);
     // численность группы — без супервайзера: он не на линии
     const headcount = members.filter((r) => r.op.status === "active" && !ix.svIds.has(r.op.id)).length;
-    const contributors = ix.groupMonthOps.get(`${month}|${key}`)?.size ?? 0;
+    const contributors = src.contributors(key, rows);
     return {
       key,
       group,

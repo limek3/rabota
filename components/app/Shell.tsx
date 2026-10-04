@@ -21,27 +21,69 @@ import { signOut } from "@/lib/auth";
 import { monthModel } from "@/lib/crm/calc";
 import { currentMonth, fmtMonth } from "@/lib/crm/dates";
 import { fmtInt, fmtPct } from "@/lib/crm/format";
+import { NumberTween } from "@/components/app/NumberTween";
+import { PageSkeleton, ShellSkeleton } from "@/components/app/Skeletons";
 
+/**
+ * Месяц в меню слева. РОП — весь отдел и разбивка по группам; супервайзер и наставник — только
+ * свои группы одной суммой; оператор — его личный план. Процент зелёный, пока идём не хуже
+ * плана на дату, красный — если отстаём (как везде: цвет — только по выполнению плана).
+ */
 function RailStatus() {
   const { data, ix, today, ready, access } = useCrm();
   const m = useMemo(() => (ready ? monthModel(data, ix, currentMonth(), today) : null), [data, ix, today, ready]);
-  if (!m || (m.team.plan === 0 && m.team.pace.fact === 0)) return null;
+  if (!m) return null;
+
+  const scoped = !access.isHead && access.ownGroups.size > 0;
+  const groups = m.groups.filter((g) => (g.plan > 0 || g.pace.fact > 0) && (!scoped || access.ownGroups.has(g.key)));
   // у оператора срез данных — он сам, поэтому «команда» здесь = его личный план
-  const p = m.team.pace;
+  const t = scoped
+    ? groups.reduce((a, g) => ({ fact: a.fact + g.pace.fact, plan: a.plan + g.plan, toDate: a.toDate + g.pace.planToDate, today: a.today + g.pace.today }), { fact: 0, plan: 0, toDate: 0, today: 0 })
+    : { fact: m.team.pace.fact, plan: m.team.plan, toDate: m.team.pace.planToDate, today: m.team.pace.today };
+  if (t.plan === 0 && t.fact === 0) return null;
+
+  const pct = t.plan > 0 ? t.fact / t.plan : 0;
+  const tone = (fact: number, toDate: number, plan: number) => (plan <= 0 ? undefined : fact >= toDate - 0.5 ? "ok" : "behind");
+  const who = access.isOp && !scoped ? "Мой план" : scoped ? (groups.length === 1 ? groups[0].name : "Мои группы") : "Отдел";
   const href = access.routes.has("/dashboard") ? "/dashboard" : "/me";
+  const list = access.isHead && groups.length > 1 ? groups : [];
+  const MAX = 5;
+
   return (
-    <Link href={href} className="rail-text" style={{ display: "block", width: 216, textDecoration: "none", color: "inherit", margin: "0 10px 10px", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--ink-07)", background: "var(--bg-panel)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--text-sub)", marginBottom: 6 }}>
-        <span>{access.isOp ? "Мой план · " : ""}{fmtMonth(currentMonth())}</span>
-        <span style={{ fontWeight: 600, color: "var(--text)" }}>{fmtPct(p.pct)}</span>
-      </div>
-      <Progress value={p.pct} marker={p.plan > 0 ? p.planToDate / p.plan : undefined} />
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: "var(--dim)", marginTop: 6 }}>
-        <span>
-          {fmtInt(p.fact)} / {fmtInt(p.plan)}
+    <Link href={href} className="rail-text rs" title="Открыть сводку">
+      <div className="rs-top">
+        <span className="rs-who">
+          {who}
+          <i>{fmtMonth(currentMonth())}</i>
         </span>
-        <span>сегодня {fmtInt(p.today)}</span>
+        <b className="rs-pct" data-tone={tone(t.fact, t.toDate, t.plan)}>{t.plan > 0 ? fmtPct(pct) : "—"}</b>
       </div>
+      <Progress value={pct} marker={t.plan > 0 ? t.toDate / t.plan : undefined} hue={tone(t.fact, t.toDate, t.plan) === "behind" ? "red" : tone(t.fact, t.toDate, t.plan) === "ok" ? "green" : undefined} />
+      <div className="rs-sub">
+        <span>
+          <b>{fmtInt(t.fact)}</b> / {fmtInt(t.plan)}
+        </span>
+        <span>сегодня <b>{fmtInt(t.today)}</b></span>
+      </div>
+      {list.length > 0 && (
+        <div className="rs-groups">
+          {list.slice(0, MAX).map((g) => {
+            const gp = g.plan > 0 ? g.pace.fact / g.plan : 0;
+            const tn = tone(g.pace.fact, g.pace.planToDate, g.plan);
+            return (
+              <div key={g.key} className="rs-g" title={`${g.name}: ${fmtInt(g.pace.fact)} из ${fmtInt(g.plan)}, должно быть ${fmtInt(Math.round(g.pace.planToDate))}`}>
+                <span className="rs-dot" style={{ background: `var(--c-${g.color}-fg)` }} />
+                <span className="rs-gn">{g.name}</span>
+                <span className="rs-gb">
+                  <i data-tone={tn} style={{ width: `${Math.min(100, gp * 100)}%` }} />
+                </span>
+                <span className="rs-gp" data-tone={tn}>{g.plan > 0 ? fmtPct(gp) : "—"}</span>
+              </div>
+            );
+          })}
+          {list.length > MAX && <div className="rs-more">ещё {list.length - MAX}</div>}
+        </div>
+      )}
     </Link>
   );
 }
@@ -392,19 +434,7 @@ function Body({ children }: { children: ReactNode }) {
     );
   }
   if (ready && noAccess) return <NoAccess email={noAccess} />;
-  if (!ready) {
-    return (
-      <div className="stack" aria-busy aria-label="Загрузка">
-        <div style={{ height: 22, width: 220, borderRadius: 5, background: "var(--ink-06)", animation: "vexaSkeleton 1.2s ease-in-out infinite" }} />
-        <div className="kpi-grid">
-          {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="card" style={{ height: 78, animation: "vexaSkeleton 1.2s ease-in-out infinite" }} />
-          ))}
-        </div>
-        <div className="card" style={{ height: 280, animation: "vexaSkeleton 1.2s ease-in-out infinite" }} />
-      </div>
-    );
-  }
+  if (!ready) return <PageSkeleton route={route} />;
   if (!access.routes.has(route)) return null; // RouteGuard уже уводит на разрешённую страницу
   return (
     <div key={`${pathname}|${access.account.id}`} style={{ minWidth: 0 }}>
@@ -423,8 +453,9 @@ function Modals() {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   return (
-    <AuthGate>
+    <AuthGate fallback={<ShellSkeleton route={"/" + ((pathname || "").split("/")[1] || "")} />}>
       <CrmProvider>
         {/* clip, а не hidden: hidden-контейнер браузер может прокрутить сам (фокус, прокрутка
             к элементу) — тогда при раскрытии меню всё съезжало влево и подписи обрезались */}
@@ -446,6 +477,8 @@ export function Shell({ children }: { children: ReactNode }) {
           >
             {/* место под полосу прокрутки держим всегда: иначе короткие и длинные страницы стоят по-разному и при переходе контент прыгает */}
             <div id="app-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative", scrollbarGutter: "stable" }}>
+              {/* слот липкой шапки страницы (StickyHead): высота 0, место в раскладке не занимает */}
+              <div id="sticky-host" className="sh-host" />
               <div className="app-content" style={{ padding: "24px 30px 48px", maxWidth: 1680, margin: "0 auto" }}>
                 <Body>{children}</Body>
               </div>
@@ -458,6 +491,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <ToastHost />
         <TitleTips />
         <Hotkeys />
+        <NumberTween />
         <RouteGuard />
         <SheetsAutoSync />
       </CrmProvider>

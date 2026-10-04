@@ -624,8 +624,7 @@
 .acad .rsflag b{color:var(--text)}
 .acad .rsmore{display:flex;align-items:center;gap:6px;width:100%;padding:9px 16px;border:none;border-top:1px solid var(--ink-05);background:none;font:inherit;font-size:12.5px;color:var(--text-sub);cursor:pointer;text-align:left}
 .acad .rsmore:hover{color:var(--text);background:var(--ink-03)}
-.acad .rsmore svg{transition:transform .15s}
-.acad .rsmore.open svg{transform:rotate(90deg)}
+.acad .rsmore svg.grp-chev{color:inherit}
 .acad .rsdet{padding:4px 16px 8px;border-top:1px solid var(--ink-05)}
 .acad .rsdet .doc{padding:8px 0;max-width:none}
 .acad .notes{margin-top:22px;padding:16px 18px}
@@ -805,3 +804,6 @@
 .acad .sz-tip { align-items: center; gap: 6px 10px; padding: 10px 14px; }
 .acad .sz-tip .k { flex: none; font-family: inherit; font-size: 11.5px; font-weight: 600; letter-spacing: 0; line-height: 1; padding: 4px 8px; border-radius: 6px; font-variant-numeric: tabular-nums; }
 .acad .sz-tip em { margin-top: 2px; }
+
+/* оглавление и навигация уступают место липкой шапке страницы (--sh-h) */
+.acad .aside, .acad .rsnav { top: var(--sh-h, 0px); transition: top 0.2s var(--ease); }

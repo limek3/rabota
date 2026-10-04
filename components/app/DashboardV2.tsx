@@ -5,16 +5,17 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
-import { useMonthModel } from "@/lib/crm/hooks";
-import { dailyRows, pace, sumRange, workedDays, WORKED_TYPES, type DayRow, type GroupRow, type MonthCal, type MonthModel, type OpRow, type Pace } from "@/lib/crm/calc";
-import { addDays, fmtDay, fmtMonth, fmtRange, isoWeekday, rangeDays, weekStart } from "@/lib/crm/dates";
+import { useMonthModel, usePeriodModel } from "@/lib/crm/hooks";
+import { dailyRows, pace, sumRange, workedDays, WORKED_TYPES, type DayRow, type GroupRow, type Index, type MonthCal, type MonthModel, type OpRow, type Pace } from "@/lib/crm/calc";
+import { addDays, fmtDay, fmtMonth, fmtRange, isoWeekday, isWorkday, monthOf, monthStart, nowHour, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, fmtSigned, LEADS, OPS, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { NO_GROUP_LABEL, type DayKey, type DayType, type Settings } from "@/lib/crm/types";
-import { Avatar, Collapse, Conv, MonthSwitcher, PageHead, StatusChip, foldRow, useFoldGroups } from "@/components/ui/kit";
+import { NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Settings } from "@/lib/crm/types";
+import { Avatar, Collapse, Conv, MonthSwitcher, PageHead, StatusChip, foldRow, useConvNorm, useFoldGroups } from "@/components/ui/kit";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { dot, Select, uiZoom, type Opt } from "@/components/ui/select";
 import { ColumnPicker, useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { Onboarding } from "@/components/app/DashboardClassic";
+import { StickyHead } from "@/components/app/StickyHead";
 
 /**
  * «Сводка» v2: один вывод вместо россыпи плиток, список действий наверху,
@@ -40,6 +41,14 @@ const CH = { H: 236, L: 34, R: 8, T: 24, B: 36, parts: 4 };
 
 /** 1px-линия ровно по пикселю, без размытия на два ряда. */
 const crisp = (v: number) => Math.round(v) + 0.5;
+
+/**
+ * Плавность графиков: у <text> и <line> координаты — атрибуты, браузер их не анимирует.
+ * Подписи ставим через transform, линии и ломаные рисуем путями (d) — при смене периода
+ * или группы они перетекают в новое положение (переходы — в dash2.css, .d2-plot).
+ */
+const tr = (x: number, y: number): CSSProperties => ({ transform: `translate(${x}px, ${y}px)` });
+const ptsD = (pts: string, close = false) => (pts ? `M${pts.trim().split(/\s+/).join("L")}${close ? "Z" : ""}` : "");
 
 /** Наименьший «круглый» шаг оси не меньше `min`: 1 · 1.5 · 2 · 2.5 · 3 · 4 · 5 · 7.5 × 10ⁿ, только целые. */
 const AXIS_K = [1, 1.5, 2, 2.5, 3, 4, 5, 7.5];
@@ -83,7 +92,7 @@ function Pill({ x, cy, text, color, anchor }: { x: number; cy: number; text: str
   return (
     <g>
       <rect x={x0 + 0.5} y={top + 0.5} width={w} height={16} rx={8} fill="var(--bg-panel)" stroke={color} strokeOpacity={0.45} />
-      <text x={x0 + w / 2 + 0.5} y={top + 12} textAnchor="middle" fontSize="10" fontWeight="600" fill={color}>
+      <text style={tr(x0 + w / 2 + 0.5, top + 12)} textAnchor="middle" fontSize="10" fontWeight="600" fill={color}>
         {text}
       </text>
     </g>
@@ -157,20 +166,93 @@ function mergeDays(maps: (Map<DayKey, number> | undefined)[]): Map<DayKey, numbe
   return out;
 }
 
+/** Показатели области по модели (месяц, неделя или день): весь отдел (keys = null) или выбранные группы. */
+function buildScope(m: MonthModel, keys: string[] | null, ix: Index, s: Settings): Scope {
+  const cal = m.cal;
+  // операторы на линии: без супервайзеров и удалённых; уволенные — если работали в периоде:
+  // их лиды и часы уже в факте и конверсии команды, иначе строки не сходятся с «Итого»
+  const allLine = m.ops.filter((r) => !r.op.deletedAt && !ix.svIds.has(r.op.id) && (r.status !== "fired" || r.pace.fact > 0 || r.hours > 0));
+  if (!keys) {
+    const t = m.team;
+    return {
+      plan: t.plan,
+      p: t.pace,
+      counts: ix.day,
+      hoursMap: ix.hoursDay,
+      hours: t.hours,
+      lph: t.lph,
+      headcount: t.headcount,
+      attendance: safeDiv(t.opDays, t.pace.elapsedW),
+      line: allLine,
+      groups: m.groups,
+    };
+  }
+  const set = new Set(keys);
+  const groups = m.groups.filter((g) => set.has(g.key));
+  const plan = groups.reduce((a, g) => a + g.plan, 0);
+  const counts = mergeDays(keys.map((k) => ix.groupDay.get(k)));
+  const hoursMap = mergeDays(keys.map((k) => ix.hoursGroupDay.get(k)));
+  const p = pace(cal, plan, counts, s);
+  const first = cal.days[0];
+  const last = cal.days[cal.days.length - 1];
+  const factTo = cal.ref < last ? cal.ref : last;
+  const closedTo = factTo < ix.workedTo ? factTo : ix.workedTo;
+  const hours = sumRange(hoursMap, first, factTo);
+  const line = allLine.filter((r) => set.has(r.groupKey));
+  const opDays = line.reduce((a, r) => a + (r.hasShifts ? r.daysWorked : r.pace.fact > 0 ? r.pace.elapsedW : 0), 0);
+  return {
+    plan,
+    p,
+    counts,
+    hoursMap,
+    hours,
+    lph: hours > 0 ? sumRange(counts, first, closedTo) / hours : null,
+    headcount: line.filter((r) => r.op.status === "active").length,
+    attendance: safeDiv(opDays, p.elapsedW),
+    line,
+    groups,
+  };
+}
+
 const SCOPE_KEY = "leadup.dashboard.scope";
+
+/** Период сводки: день, неделя (пн–вс) или месяц — как в «Лидах». */
+export type Span = "day" | "week" | "month";
+/** Слова периода: «за месяц», «к концу недели», «Месяц закрыт». */
+const SPAN_W: Record<Span, { acc: string; gen: string; closed: string; notYet: string }> = {
+  day: { acc: "день", gen: "дня", closed: "День закрыт", notYet: "День ещё не начался" },
+  week: { acc: "неделю", gen: "недели", closed: "Неделя закрыта", notYet: "Неделя ещё не началась" },
+  month: { acc: "месяц", gen: "месяца", closed: "Месяц закрыт", notYet: "Месяц ещё не начался" },
+};
+const dayShort = (d: DayKey) => `${dayNum(d)} ${MON_SHORT[Number(d.slice(5, 7)) - 1]}`;
 
 export function DashboardV2() {
   const { data, ix, month, setMonth, today, access } = useCrm();
-  const m = useMonthModel();
-  const cal = m.cal;
   const s = data.settings;
+  const mm = useMonthModel();
 
-  // операторы на линии: без супервайзеров, удалённых и уволенных до месяца
-  const allLine = useMemo(() => m.ops.filter((r) => !r.op.deletedAt && !ix.svIds.has(r.op.id) && r.status !== "fired"), [m.ops, ix]);
+  // период: месяц — общий для приложения (переключатель месяцев), день и неделя — свои, от опорного дня
+  const [span, setSpan] = useState<Span>("month");
+  const [anchor, setAnchor] = useState<DayKey>(today);
+  const week = useMemo(() => ({ from: weekStart(anchor), to: weekEnd(anchor) }), [anchor]);
+  const pm = usePeriodModel(span === "day" ? { from: anchor, to: anchor } : span === "week" ? week : null);
+  // в режиме «день» график недели и тепловая карта показывают его неделю
+  const wm = usePeriodModel(span === "day" ? week : null);
+  const m = pm ?? mm;
+  const cal = m.cal;
+
+  const setMode = (k: Span) => {
+    if (k === span) return;
+    if (k === "month") setMonth(monthOf(anchor));
+    else if (span === "month") setAnchor(monthOf(today) === month ? today : monthStart(month));
+    setSpan(k);
+  };
+  const shift = (dir: 1 | -1) => setAnchor((a) => addDays(a, span === "day" ? dir : 7 * dir));
+  const spanLabel = span === "day" ? `${anchor === today ? "Сегодня" : dow(anchor)}, ${dayShort(anchor)}` : `${dayShort(week.from)} – ${dayShort(week.to)}`;
 
   // какие группы можно выбрать: РОП — все, остальные — только свои
   const own = access.isHead ? null : access.ownGroups;
-  const choices = useMemo(() => m.groups.filter((g) => (own ? own.has(g.key) : true)), [m.groups, own]);
+  const choices = useMemo(() => mm.groups.filter((g) => (own ? own.has(g.key) : true)), [mm.groups, own]);
   const [pick, setPick] = useState<string>("all");
   useEffect(() => {
     try {
@@ -190,80 +272,126 @@ export function DashboardV2() {
   };
   // выбранной группы нет среди доступных (удалили, другой аккаунт) — показываем всё доступное
   const picked = pick !== "all" ? choices.find((g) => g.key === pick) ?? null : null;
+  const keys = useMemo(() => (picked ? [picked.key] : own ? choices.map((g) => g.key) : null), [picked, own, choices]);
 
-  const sc: Scope = useMemo(() => {
-    const keys = picked ? [picked.key] : own ? choices.map((g) => g.key) : null;
-    if (!keys) {
-      const t = m.team;
-      return {
-        plan: t.plan,
-        p: t.pace,
-        counts: ix.day,
-        hoursMap: ix.hoursDay,
-        hours: t.hours,
-        lph: t.lph,
-        headcount: t.headcount,
-        attendance: safeDiv(t.opDays, t.pace.elapsedW),
-        line: allLine,
-        groups: m.groups,
-      };
-    }
-    const set = new Set(keys);
-    const groups = m.groups.filter((g) => set.has(g.key));
-    const plan = groups.reduce((a, g) => a + g.plan, 0);
-    const counts = mergeDays(keys.map((k) => ix.groupDay.get(k)));
-    const hoursMap = mergeDays(keys.map((k) => ix.hoursGroupDay.get(k)));
-    const p = pace(cal, plan, counts, s);
-    const first = cal.days[0];
-    const last = cal.days[cal.days.length - 1];
-    const factTo = cal.ref < last ? cal.ref : last;
-    const closedTo = factTo < ix.workedTo ? factTo : ix.workedTo;
-    const hours = sumRange(hoursMap, first, factTo);
-    const line = allLine.filter((r) => set.has(r.groupKey));
-    const opDays = line.reduce((a, r) => a + (r.hasShifts ? r.daysWorked : r.pace.fact > 0 ? r.pace.elapsedW : 0), 0);
-    return {
-      plan,
-      p,
-      counts,
-      hoursMap,
-      hours,
-      lph: hours > 0 ? sumRange(counts, first, closedTo) / hours : null,
-      headcount: line.filter((r) => r.op.status === "active").length,
-      attendance: safeDiv(opDays, p.elapsedW),
-      line,
-      groups,
-    };
-  }, [picked, own, choices, m, ix, cal, s, allLine]);
-
+  const sc = useMemo(() => buildScope(m, keys, ix, s), [m, keys, ix, s]);
+  // «что сделать сейчас» — про сегодня и неделю вперёд, люди и группы — из месяца
+  const msc = useMemo(() => (m === mm ? sc : buildScope(mm, keys, ix, s)), [m, mm, sc, keys, ix, s]);
+  const wsc = useMemo(() => (wm ? buildScope(wm, keys, ix, s) : null), [wm, keys, ix, s]);
   const p = sc.p;
   const rows = useMemo(() => dailyRows(cal, sc.plan, sc.counts, sc.hoursMap), [cal, sc]);
+  const wRows = useMemo(() => (wm && wsc ? dailyRows(wm.cal, wsc.plan, wsc.counts, wsc.hoursMap) : null), [wm, wsc]);
 
   const empty = data.operators.filter((o) => !o.deletedAt).length === 0 && data.leads.length === 0;
   const cur = cal.phase === "current";
   const ref = cal.phase === "future" ? cal.days[0] : cal.ref;
+  const wd = cal.workdays.length;
+  const name = span === "month" ? fmtMonth(month) : fmtRange(week.from, week.to);
 
-  const sub = cal.phase === "future"
-    ? `${fmtMonth(month)} ещё не начался · ${cal.W} ${plural(cal.W, ["рабочий день", "рабочих дня", "рабочих дней"])}`
-    : cal.phase === "past"
-      ? `${fmtMonth(month)} · месяц закрыт`
-      : `${dow(today)}, ${dayNum(today)} ${MON_SHORT[Number(today.slice(5, 7)) - 1]} · рабочий день ${p.elapsedW} из ${cal.W}`;
+  const sub =
+    span === "day"
+      ? `${dow(anchor)}, ${dayShort(anchor)} · ${wd ? "рабочий день" : "выходной по графику"}${cal.phase === "future" ? " · ещё впереди" : ""}`
+      : cal.phase === "future"
+        ? `${name} · ${SPAN_W[span].notYet.split(" ").slice(1).join(" ")} · ${wd} ${plural(wd, ["рабочий день", "рабочих дня", "рабочих дней"])}`
+        : cal.phase === "past"
+          ? `${name} · ${SPAN_W[span].closed.toLowerCase()}`
+          : `${dow(today)}, ${dayShort(today)} · рабочий день ${p.elapsedW} из ${wd}${span === "week" ? " на неделе" : ""}`;
 
-  // сегодня: лиды за день, вчера, кто на смене — для крупной цифры в главном блоке
+  // на смене в опорный день — для блока «сегодня» и для показателей дня
+  const onShift = useMemo(
+    () =>
+      sc.line.filter((r) => {
+        const sh = ix.shift.get(`${ref}|${r.op.id}`);
+        return !!sh && isWorked(sh.type, sh.hours);
+      }).length,
+    [sc.line, ix, ref],
+  );
+  // сегодня: лиды за день, вчера, кто на смене — крупно рядом с фактом (в режиме «день» это и есть факт)
   const todayInfo = useMemo<HeroToday | null>(() => {
+    // конверсия дня — лиды ÷ часы смен по графику тех же операторов
+    const convOn = (d: DayKey) => {
+      let leads = 0;
+      let hours = 0;
+      for (const r of sc.line) {
+        leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
+        hours += ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
+      }
+      return hours > 0 ? leads / hours : null;
+    };
+    if (span === "day") {
+      const d = addDays(anchor, -7);
+      const n = sc.counts?.get(d) ?? 0;
+      const diff = cal.phase === "future" ? null : p.fact - n;
+      return {
+        n,
+        yesterday: 0,
+        dayPlan: 0,
+        onShift: 0,
+        conv: convOn(d),
+        title: "Неделю назад",
+        icon: "clock",
+        lines: [
+          `${dow(d)}, ${dayShort(d)}`,
+          diff == null ? "день ещё впереди" : diff === 0 ? "столько же, сколько сейчас" : `сейчас ${diff > 0 ? "больше" : "меньше"} на ${fmtInt(Math.abs(diff))}${n > 0 ? ` (${diff > 0 ? "+" : "−"}${fmtPct(Math.abs(diff) / n)})` : ""}`,
+        ],
+      };
+    }
     if (!cur) return null;
-    const onShift = sc.line.filter((r) => {
-      const sh = ix.shift.get(`${today}|${r.op.id}`);
-      return !!sh && isWorked(sh.type, sh.hours);
-    }).length;
-    return { n: sc.counts?.get(today) ?? 0, yesterday: sc.counts?.get(addDays(today, -1)) ?? 0, dayPlan: cal.isWork(today) ? p.dailyPlan : 0, onShift };
-  }, [cur, sc, ix, today, cal, p.dailyPlan]);
+    return {
+      n: sc.counts?.get(today) ?? 0,
+      yesterday: sc.counts?.get(addDays(today, -1)) ?? 0,
+      dayPlan: cal.isWork(today) ? p.dailyPlan : 0,
+      onShift,
+      conv: convOn(today),
+    };
+  }, [cur, span, anchor, sc, ix, today, cal, p.dailyPlan, p.fact, onShift]);
 
   const ownNames = choices.map((g) => g.name).join(", ");
   const title = access.isHead ? "Сводка" : `Сводка · ${ownNames || "группы не назначены"}`;
   const showPicker = access.isHead ? choices.length > 0 : choices.length > 1;
 
+  // липкая шапка: главный блок ушёл вверх — сверху остаются период, группа и три главных числа
+  const heroRef = useRef<HTMLDivElement>(null);
+  const stickGap = span === "day" || cal.phase === "past" ? p.fact - p.plan : p.deviation;
+  // выбор отдела/группы — одни и те же варианты в шапке страницы и в липкой шапке
+  const scopeOpts: Opt[] = [
+    { value: "all", label: access.isHead ? "Весь отдел" : "Все мои группы", icon: <Icon name={access.isHead ? "users" : "groups"} size={14} /> },
+    ...choices.map<Opt>((g) => ({ value: g.key, label: g.name, group: "Группы", icon: dot(g.color), hint: g.plan > 0 ? `план ${fmtInt(g.plan)}` : "без плана" })),
+  ];
+  const spanOpts: Opt<Span>[] = [
+    { value: "day", label: "День" },
+    { value: "week", label: "Неделя" },
+    { value: "month", label: "Месяц" },
+  ];
+
   return (
     <div className="stack">
+      {!empty && (
+        <StickyHead
+          title={title}
+          ctx={
+            <span className="sh-ctl">
+              <Select<Span> size="sm" value={span} onChange={setMode} options={spanOpts} ariaLabel="Период" width={104} minPopWidth={140} />
+              <span className="sh-per">{span === "month" ? fmtMonth(month) : spanLabel}</span>
+              {showPicker ? (
+                <Select size="sm" value={picked ? picked.key : "all"} onChange={choose} options={scopeOpts} ariaLabel="Чья сводка" width={180} minPopWidth={250} />
+              ) : (
+                <span className="sh-per">{picked ? picked.name : access.isHead ? "Весь отдел" : "Все мои группы"}</span>
+              )}
+            </span>
+          }
+          anchor={heroRef}
+          items={[
+            { l: "Факт", v: fmtInt(p.fact) },
+            ...(p.plan > 0 ? [{ l: "Разрыв", v: fmtSigned(Math.round(stickGap)), tone: stickGap < -0.5 ? ("red" as const) : ("green" as const) }] : []),
+            {
+              l: "Конв.",
+              v: sc.lph == null ? "—" : fmtPct(sc.lph),
+              tone: sc.lph == null || s.convNormPct <= 0 ? undefined : sc.lph >= s.convNormPct / 100 ? ("green" as const) : ("red" as const),
+            },
+          ]}
+        />
+      )}
       <PageHead
         title={title}
         sub={sub}
@@ -276,13 +404,29 @@ export function DashboardV2() {
                 ariaLabel="Чья сводка"
                 width={210}
                 minPopWidth={250}
-                options={[
-                  { value: "all", label: access.isHead ? "Весь отдел" : "Все мои группы", icon: <Icon name={access.isHead ? "users" : "groups"} size={14} /> },
-                  ...choices.map<Opt>((g) => ({ value: g.key, label: g.name, group: "Группы", icon: dot(g.color), hint: g.plan > 0 ? `план ${fmtInt(g.plan)}` : "без плана" })),
-                ]}
+                options={scopeOpts}
               />
             )}
-            <MonthSwitcher value={month} onChange={setMonth} />
+            {span === "month" ? (
+              <MonthSwitcher value={month} onChange={setMonth} />
+            ) : (
+              <div className="o2-date">
+                <button type="button" className="o2-ib" onClick={() => shift(-1)} aria-label={span === "day" ? "Предыдущий день" : "Предыдущая неделя"}>
+                  <Icon name="chevL" size={15} />
+                </button>
+                <span className="lbl d2-span-lbl">{spanLabel}</span>
+                <button type="button" className="o2-ib" onClick={() => shift(1)} aria-label={span === "day" ? "Следующий день" : "Следующая неделя"}>
+                  <Icon name="chevR" size={15} />
+                </button>
+              </div>
+            )}
+            <div className="o2-seg d2-seg" role="group" aria-label="Период">
+              {(["day", "week", "month"] as Span[]).map((k) => (
+                <button key={k} type="button" className={span === k ? "on" : ""} onClick={() => setMode(k)} aria-pressed={span === k}>
+                  {k === "day" ? "День" : k === "week" ? "Неделя" : "Месяц"}
+                </button>
+              ))}
+            </div>
           </>
         }
       />
@@ -290,15 +434,25 @@ export function DashboardV2() {
         <Onboarding />
       ) : (
         <div className="d2">
-          <Hero cal={cal} plan={sc.plan} p={p} today={todayInfo} />
-          {cur && <Actions m={m} line={sc.line} groups={sc.groups} />}
+          <div ref={heroRef}>
+            <Hero cal={cal} plan={sc.plan} p={p} today={todayInfo} span={span} conv={sc.lph} hours={sc.hours} onShift={onShift} />
+          </div>
+          {cur && <Actions m={mm} line={msc.line} groups={msc.groups} />}
           <div className="d2-charts">
-            <GapCard rows={rows} cal={cal} p={p} />
-            <WeekCard cal={cal} p={p} ref_={ref} counts={sc.counts} />
+            {span === "day" ? <HourCard day={anchor} keys={keys} plan={p.plan} /> : <GapCard rows={rows} cal={cal} p={p} span={span} />}
+            {span === "day" && wm && wsc ? (
+              <WeekCard cal={wm.cal} p={wsc.p} ref_={wm.cal.phase === "future" ? wm.cal.days[0] : wm.cal.ref} counts={wsc.counts} focus={anchor} />
+            ) : (
+              <WeekCard cal={cal} p={p} ref_={ref} counts={sc.counts} />
+            )}
           </div>
           {/* весь отдел (или несколько своих групп) — таблица и карта разбиты по группам */}
-          <OpsCard m={m} line={sc.line} settings={s} ref_={ref} groups={picked ? null : sc.groups} />
-          <HeatCard m={m} sc={sc} rows={rows} groups={picked ? null : sc.groups} />
+          <OpsCard m={m} line={sc.line} settings={s} ref_={ref} groups={picked ? null : sc.groups} span={span} />
+          {span === "day" && wm && wsc && wRows ? (
+            <HeatCard m={wm} sc={wsc} rows={wRows} groups={picked ? null : wsc.groups} focus={anchor} />
+          ) : (
+            <HeatCard m={m} sc={sc} rows={rows} groups={picked ? null : sc.groups} />
+          )}
         </div>
       )}
     </div>
@@ -314,12 +468,42 @@ export interface HeroToday {
   yesterday: number;
   dayPlan: number;
   onShift: number;
+  /** Конверсия дня: лиды ÷ часы смен по графику (как столбец дня в тепловой карте). */
+  conv: number | null;
+  /** Свой заголовок и строки под числом — в режиме «день» блок показывает тот же день неделей раньше. */
+  title?: string;
+  icon?: IconName;
+  lines?: ReactNode[];
 }
 
-export function Hero({ cal, plan, p, who = "team", today }: { cal: MonthCal; plan: number; p: Pace; who?: "team" | "op"; today?: HeroToday | null }) {
+export function Hero({
+  cal,
+  plan,
+  p,
+  who = "team",
+  today,
+  span = "month",
+  conv,
+  hours,
+  onShift,
+}: {
+  cal: MonthCal;
+  plan: number;
+  p: Pace;
+  who?: "team" | "op";
+  today?: HeroToday | null;
+  span?: Span;
+  /** Конверсия периода (лиды ÷ часы); undefined — показатель не выводим. */
+  conv?: number | null;
+  hours?: number;
+  onShift?: number;
+}) {
   const one = who === "op";
   const cur = cal.phase === "current";
   const past = cal.phase === "past";
+  const w = SPAN_W[span];
+  const isDay = span === "day";
+  const norm = useConvNorm();
 
   let hue = "gray";
   let text: ReactNode;
@@ -327,26 +511,40 @@ export function Hero({ cal, plan, p, who = "team", today }: { cal: MonthCal; pla
     hue = "amber";
     text = (
       <>
-        План на месяц не задан — темп и прогноз не посчитать. <Link href="/plans">Задать план →</Link>
+        {isDay && !cal.workdays.length ? "Выходной по графику — плана на этот день нет." : <>План на {w.acc} не задан — темп и прогноз не посчитать.</>} <Link href="/plans">Задать план →</Link>
       </>
     );
   } else if (cal.phase === "future") {
     text = (
       <>
-        Месяц ещё не начался. План <em>{fmtInt(plan)}</em> — это <em>{fmtNum(p.dailyPlan)}</em> в рабочий день.
+        {w.notYet}. План <em>{fmtNum(plan, 0)}</em>{!isDay && <> — это <em>{fmtNum(p.dailyPlan)}</em> в рабочий день</>}.
       </>
     );
   } else if (past) {
     hue = p.pct >= 1 ? "green" : "red";
     text = p.pct >= 1 ? (
       <>
-        Месяц закрыт: план выполнен на <em>{fmtPct(p.pct)}</em>, сверх плана <em>{fmtInt(p.fact - plan)}</em>.
+        {w.closed}: план выполнен на <em>{fmtPct(p.pct)}</em>, сверх плана <em>{fmtInt(Math.round(p.fact - plan))}</em>.
       </>
     ) : (
       <>
-        Месяц закрыт: <em>{fmtPct(p.pct)}</em> плана, не хватило <em>{fmtInt(p.remaining)} {plural(p.remaining, LEADS)}</em>.
+        {w.closed}: <em>{fmtPct(p.pct)}</em> плана, не хватило <em>{fmtInt(Math.round(p.remaining))} {plural(Math.round(p.remaining), LEADS)}</em>.
       </>
     );
+  } else if (isDay) {
+    const left = Math.ceil(p.remaining);
+    hue = left > 0 ? "amber" : "green";
+    text =
+      left > 0 ? (
+        <>
+          Передали <em>{fmtInt(p.fact)}</em> из <em>{fmtNum(plan, 0)}</em> — до дневного плана ещё <em>{fmtInt(left)} {plural(left, LEADS)}</em>
+          {onShift ? <>, на смене {fmtInt(onShift)} {plural(onShift, ["человек", "человека", "человек"])}</> : null}.
+        </>
+      ) : (
+        <>
+          Дневной план выполнен: <em>{fmtInt(p.fact)}</em> из <em>{fmtNum(plan, 0)}</em> ({fmtPct(p.pct)}).
+        </>
+      );
   } else if (p.deviation < -0.5) {
     hue = "red";
     const behind = Math.round(-p.deviation);
@@ -372,21 +570,42 @@ export function Hero({ cal, plan, p, who = "team", today }: { cal: MonthCal; pla
     text = (
       <>
         {one ? "Идёт" : "Идём"} {p.deviation > 0.5 ? <>с опережением на <em>{fmtInt(Math.round(p.deviation))} {plural(Math.round(p.deviation), LEADS)}</em></> : "по плану"}. При текущем темпе{" "}
-        {one ? "выйдет" : "выйдем"} на <em>{fmtInt(p.rr)}</em> ({fmtPct(p.rrPct)} плана).
+        {one ? "выйдет" : "выйдем"} на <em>{fmtInt(Math.round(p.rr))}</em> ({fmtPct(p.rrPct)} плана){span === "week" ? " к концу недели" : ""}.
       </>
     );
   }
 
+  const planR = Math.round(plan);
+  const gapV = past ? p.fact - plan : p.deviation;
   const kpis: { l: string; ic: IconName; v: string; u: string; tone?: "red" | "green" }[] = [
-    { l: "План", ic: "target", v: fmtInt(plan), u: plural(plan, LEADS) },
+    { l: "План", ic: "target", v: fmtInt(planR), u: plural(planR, LEADS) },
     { l: "Факт", ic: "leads", v: fmtInt(p.fact), u: plural(p.fact, LEADS) },
-    { l: past ? "Должно было быть" : "Должно быть", ic: "calendar", v: fmtInt(Math.round(past ? plan : p.planToDate)), u: past ? "к концу месяца" : "к сегодня" },
-    { l: "Разрыв", ic: "move", v: fmtSigned(Math.round(past ? p.fact - plan : p.deviation)), u: plural(Math.abs(Math.round(past ? p.fact - plan : p.deviation)), LEADS), tone: (past ? p.fact - plan : p.deviation) < -0.5 ? "red" : "green" },
-    { l: "Темп", ic: "bolt", v: p.elapsedW > 0 ? fmtNum(p.avgPerDay) : "—", u: "в рабочий день" },
-    { l: "Нужно", ic: "route", v: p.needPerDay == null ? "—" : fmtNum(p.needPerDay), u: p.needPerDay == null ? (past ? "месяц закрыт" : "дней не осталось") : "в рабочий день", tone: p.needPerDay != null && p.elapsedW > 0 && p.needPerDay > p.avgPerDay ? "red" : undefined },
-    { l: "Прогноз", ic: "trend", v: p.elapsedW > 0 || past ? fmtInt(p.rr) : "—", u: plan > 0 && (p.elapsedW > 0 || past) ? `(${fmtPct(p.rrPct)})` : "по темпу" },
   ];
-  if (plan <= 0) kpis[3].tone = undefined;
+  if (isDay) {
+    // день: темп и прогноз по одному дню ничего не говорят — вместо них выполнение, часы и смена
+    kpis.push(
+      { l: "Разрыв", ic: "move", v: fmtSigned(Math.round(p.fact - plan)), u: plural(Math.abs(Math.round(p.fact - plan)), LEADS), tone: plan > 0 ? (p.fact - plan < -0.5 ? "red" : "green") : undefined },
+      { l: "Выполнение", ic: "chart", v: plan > 0 ? fmtPct(p.pct) : "—", u: "дневного плана", tone: plan > 0 ? (p.pct >= 1 ? "green" : undefined) : undefined },
+      { l: "Часы", ic: "clock", v: hours != null ? fmtNum(hours, 1) : "—", u: "отработано" },
+      { l: "На смене", ic: "users", v: fmtInt(onShift ?? 0), u: plural(onShift ?? 0, ["человек", "человека", "человек"]) },
+      { l: "На человека", ic: "leads", v: onShift ? fmtNum(p.fact / onShift) : "—", u: "лидов за смену" },
+    );
+  } else {
+    kpis.push(
+      { l: past ? "Должно было быть" : "Должно быть", ic: "calendar", v: fmtInt(Math.round(past ? plan : p.planToDate)), u: past ? `к концу ${w.gen}` : "к сегодня" },
+      { l: "Разрыв", ic: "move", v: fmtSigned(Math.round(gapV)), u: plural(Math.abs(Math.round(gapV)), LEADS), tone: plan > 0 ? (gapV < -0.5 ? "red" : "green") : undefined },
+      { l: "Темп", ic: "bolt", v: p.elapsedW > 0 ? fmtNum(p.avgPerDay) : "—", u: "в рабочий день" },
+      { l: "Нужно", ic: "route", v: p.needPerDay == null ? "—" : fmtNum(p.needPerDay), u: p.needPerDay == null ? (past ? w.closed.toLowerCase() : "дней не осталось") : "в рабочий день", tone: p.needPerDay != null && p.elapsedW > 0 && p.needPerDay > p.avgPerDay ? "red" : undefined },
+      { l: "Прогноз", ic: "trend", v: p.elapsedW > 0 || past ? fmtInt(Math.round(p.rr)) : "—", u: plan > 0 && (p.elapsedW > 0 || past) ? `(${fmtPct(p.rrPct)})` : "по темпу" },
+    );
+  }
+  const convTag = (v: number | null | undefined, hint: string) =>
+    v == null ? null : (
+      <span className="d2-conv" data-ok={norm <= 0 ? undefined : String(v >= norm)} title={`Конверсия ${hint}: лиды ÷ часы смен${norm > 0 ? ` · норма ${fmtPct(norm)}` : ""}`}>
+        {fmtPct(v)}
+        <i>конв.</i>
+      </span>
+    );
 
   // шкала: всё в одном масштабе — до плана или прогноза, что больше
   const max = Math.max(plan, p.rr, p.fact, 1);
@@ -413,28 +632,36 @@ export function Hero({ cal, plan, p, who = "team", today }: { cal: MonthCal; pla
       <div className="d2-hero-top">
         <div className="d2-fact">
           <div>
-            <div className="d2-fact-l"><Icon name="leads" size={13} className="mi" />Факт{past ? " за месяц" : ""}</div>
+            <div className="d2-fact-l"><Icon name="leads" size={13} className="mi" />Факт{past || span !== "month" ? ` за ${w.acc}` : ""}</div>
             <div className="d2-fact-n num">
               {fmtInt(p.fact)}
               <small>{plural(p.fact, LEADS)}</small>
+              {convTag(conv, `за ${w.acc}`)}
             </div>
           </div>
-          {cur && today && (
-            <div className="d2-now" title="Лиды, переданные сегодня (по Москве)">
-              <div className="d2-fact-l"><Icon name="phone" size={13} className="mi" />Сегодня передали</div>
+          {today && (
+            <div className="d2-now" title={today.title ? undefined : "Лиды, переданные сегодня (по Москве)"}>
+              <div className="d2-fact-l"><Icon name={today.icon ?? "phone"} size={13} className="mi" />{today.title ?? "Сегодня передали"}</div>
               <div className="d2-fact-n num">
                 {fmtInt(today.n)}
                 <small>{plural(today.n, LEADS)}</small>
+                {convTag(today.conv, today.title ? "неделей раньше" : "за сегодня")}
               </div>
               <div className="d2-now-s">
-                {today.dayPlan > 0 && (
-                  <span className={today.n >= today.dayPlan ? "d2-green" : undefined}>
-                    {fmtPct(today.n / today.dayPlan)} дневного плана ({fmtNum(today.dayPlan)})
-                  </span>
+                {today.lines ? (
+                  today.lines.map((l, i) => <span key={i}>{l}</span>)
+                ) : (
+                  <>
+                    {today.dayPlan > 0 && (
+                      <span className={today.n >= today.dayPlan ? "d2-green" : undefined}>
+                        {fmtPct(today.n / today.dayPlan)} дневного плана ({fmtNum(today.dayPlan)})
+                      </span>
+                    )}
+                    <span>
+                      вчера {fmtInt(today.yesterday)} · на смене {fmtInt(today.onShift)}
+                    </span>
+                  </>
                 )}
-                <span>
-                  вчера {fmtInt(today.yesterday)} · на смене {fmtInt(today.onShift)}
-                </span>
               </div>
             </div>
           )}
@@ -443,7 +670,7 @@ export function Hero({ cal, plan, p, who = "team", today }: { cal: MonthCal; pla
             <div>{text}</div>
           </div>
         </div>
-        <div className="d2-kpis">
+        <div className="d2-kpis" style={{ "--n": kpis.length } as CSSProperties}>
           {kpis.map((k) => (
             <div key={k.l} className="d2-kpi">
               <div className="d2-kpi-l">
@@ -533,92 +760,84 @@ function Actions({ m, line, groups }: { m: MonthModel; line: OpRow[]; groups: Gr
     return { zero, noToday, noWeek, noPlan };
   }, [line, ix, today, workday, groups]);
 
-  const cards: { hue: string; icon: IconName; title: string; n: number; who: ReactNode; desc: string; href: string; btn: string; ok: string }[] = [
+  const people = (n: number) => `${n} ${plural(n, ["человек", "человека", "человек"])}`;
+  const tasks: { hue: "red" | "amber"; icon: IconName; title: string; n: number; who: string; desc: string; href: string; btn: string; ok: string }[] = [
     {
       hue: "red",
       icon: "phone",
       title: "На смене, но 0 лидов",
       n: v.zero.length,
-      who: names(v.zero),
+      who: `${people(v.zero.length)} · ${names(v.zero)}`,
       desc: "Смена идёт, а лидов сегодня ещё нет.",
       href: "/operators",
       btn: "Проверить загрузку",
-      ok: "У всех на смене лиды идут.",
+      ok: "У всех на смене лиды идут",
     },
     {
       hue: "amber",
       icon: "calendar",
       title: "Нет смен на неделю",
       n: v.noWeek.length,
-      who: v.noWeek.length ? (
-        <>
-          <b>
-            {v.noWeek.length} {plural(v.noWeek.length, ["человек", "человека", "человек"])}
-          </b>
-          <br />
-          {names(v.noWeek)}
-        </>
-      ) : null,
+      who: `${people(v.noWeek.length)} · ${names(v.noWeek)}`,
       desc: "Ни одной смены на 7 дней вперёд.",
       href: "/schedule",
       btn: "Назначить смены",
-      ok: "У всех есть смены на неделю.",
+      ok: "У всех есть смены на неделю",
     },
     {
       hue: "red",
       icon: "clock",
       title: "Без смены сегодня",
       n: v.noToday.length,
-      who: names(v.noToday),
+      who: `${people(v.noToday.length)} · ${names(v.noToday)}`,
       desc: "В графике на сегодня пусто — риск недобора.",
       href: "/schedule",
       btn: "Закрыть слот",
-      ok: workday ? "Сегодня у всех есть смена." : "Сегодня выходной по графику.",
+      ok: workday ? "Сегодня у всех есть смена" : "Сегодня выходной по графику",
     },
     {
       hue: "amber",
       icon: "target",
       title: "Группа без плана",
       n: v.noPlan.length,
-      who: v.noPlan.length ? (
-        <>
-          <b>{v.noPlan.map((g) => g.name).join(", ")}</b>
-          <br />
-          План на месяц: <b>0 лидов</b>
-        </>
-      ) : null,
-      desc: "У группы не установлен план.",
+      who: v.noPlan.map((g) => g.name).join(", "),
+      desc: "План на месяц — 0 лидов: темп и прогноз группы не считаются.",
       href: "/plans",
       btn: "Поставить план",
-      ok: "План задан всем группам.",
+      ok: "План задан всем группам",
     },
   ];
+  const open = tasks.filter((t) => t.n > 0).length;
 
   return (
-    <section className="card card-pad" style={{ padding: "12px 12px" }}>
-      <h3 className="d2-h"><Icon name="bolt" size={15} className="title-ic" />Что сделать сейчас</h3>
-      <div className="d2-acts">
-        {cards.map((c) => {
-          const done = c.n === 0;
+    <section className="card d2-todo">
+      <div className="d2-todo-h">
+        <h3 className="d2-h"><Icon name="bolt" size={15} className="title-ic" />Что сделать сейчас</h3>
+        <span className="d2-todo-sum" data-ok={String(open === 0)}>
+          <Icon name={open ? "alert" : "check"} size={13} />
+          {open ? `${open} из ${tasks.length} ${plural(open, ["требует", "требуют", "требуют"])} внимания` : "Всё в порядке"}
+        </span>
+      </div>
+      <div className="d2-todo-grid">
+        {tasks.map((t) => {
+          const done = t.n === 0;
           return (
-            <div key={c.title} className="d2-ac" data-hue={done ? "green" : c.hue}>
-              <div className="d2-ac-hd">
-                <div className="d2-ac-ic">
-                  <Icon name={done ? "check" : c.icon} size={22} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div className="d2-ac-t">
-                    <span>{c.title}</span>
-                    <span className="d2-ac-n">{c.n}</span>
-                  </div>
-                  <div className="d2-ac-who">{done ? <span style={{ color: "var(--text-sub)" }}>{c.ok}</span> : c.who}</div>
-                </div>
+            <div key={t.title} className="d2-task" data-hue={done ? "ok" : t.hue}>
+              <div className="d2-task-hd">
+                <span className="d2-task-ic">
+                  <Icon name={done ? "check" : t.icon} size={16} />
+                </span>
+                <span className="d2-task-t">{t.title}</span>
+                <span className="d2-task-n">{done ? "" : t.n}</span>
               </div>
-              {!done && (
+              {done ? (
+                <div className="d2-task-ok">{t.ok}</div>
+              ) : (
                 <>
-                  <div className="d2-ac-ds">{c.desc}</div>
-                  <Link href={c.href} className="d2-ac-btn">
-                    {c.btn}
+                  <div className="d2-task-who" title={t.who}>{t.who}</div>
+                  <div className="d2-task-ds">{t.desc}</div>
+                  <Link href={t.href} className="d2-task-btn">
+                    {t.btn}
                     <Icon name="arrowR" size={13} />
                   </Link>
                 </>
@@ -633,7 +852,7 @@ function Actions({ m, line, groups }: { m: MonthModel; line: OpRow[]; groups: Gr
 
 /* ── накопительный разрыв к плану ──────────────────────────────────── */
 
-export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pace }) {
+export function GapCard({ rows, cal, p, span = "month" }: { rows: DayRow[]; cal: MonthCal; p: Pace; span?: Span }) {
   const pid = useId().replace(/:/g, "");
   const [box, W] = useChartWidth();
   const [hi, setHi] = useState<number | null>(null);
@@ -691,7 +910,7 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
       s: lastIdx >= 0 ? `на ${dayNum(rows[lastIdx].day)} ${dow(rows[lastIdx].day)}` : "месяц не начался",
     },
   ];
-  if (showFc) kpis.push({ l: "К концу месяца", v: fmtSigned(Math.round(final)), cls: toneCls(final), s: "при текущем темпе" });
+  if (showFc) kpis.push({ l: `К концу ${SPAN_W[span].gen}`, v: fmtSigned(Math.round(final)), cls: toneCls(final), s: "при текущем темпе" });
   if (p.needPerDay != null && p.remainingW > 0 && p.plan > 0)
     kpis.push({ l: "Нужно в день", v: fmtNum(p.needPerDay), cls: p.needPerDay > p.dailyPlan * 1.05 ? "d2-red" : "", s: `план ${fmtNum(p.dailyPlan)}` });
   if (lastIdx >= 0 && minI >= 0) kpis.push({ l: "Худший день", v: fmtSigned(Math.round(past[minI].deviation)), s: `${dayNum(past[minI].day)} ${dow(past[minI].day)}` });
@@ -755,8 +974,8 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
           {hi != null && <rect x={colX(hi) + 1} y={T} width={colX(hi + 1) - colX(hi) - 2} height={H - T - 2} rx={3} fill="var(--ink-05)" />}
           {ticks.map((v) => (
             <g key={v}>
-              {v !== 0 && <line x1={L} x2={W - R} y1={crisp(y(v))} y2={crisp(y(v))} stroke="var(--ink-06)" />}
-              <text x={L - 8} y={Math.round(y(v)) + 3.5} textAnchor="end" fontSize="10" fill={v === 0 ? "var(--text)" : "var(--text-sub)"} fontWeight={v === 0 ? 600 : 400}>
+              {v !== 0 && <path fill="none" d={`M${L},${crisp(y(v))}H${W - R}`} stroke="var(--ink-06)" />}
+              <text style={tr(L - 8, Math.round(y(v)) + 3.5)} textAnchor="end" fontSize="10" fill={v === 0 ? "var(--text)" : "var(--text-sub)"} fontWeight={v === 0 ? 600 : 400}>
                 {v > 0 ? `+${v}` : v}
               </text>
             </g>
@@ -765,25 +984,25 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
           {/* прогноз: веер между «дальше по плану» и «текущий темп» */}
           {band && (
             <g className="d2-fade" style={{ "--d": "0.55s" } as CSSProperties}>
-              <polygon points={band} fill={`url(#gf${pid})`} />
-              <polygon points={band} fill={`url(#h${pid})`} opacity={0.7} />
-              <line x1={cx(fc[0].i)} x2={cx(endFc.i)} y1={crisp(y(base))} y2={crisp(y(base))} stroke="var(--text-sub3)" strokeDasharray="1.5 3" />
-              <polyline points={fc.map((f) => `${cx(f.i)},${y(f.mid)}`).join(" ")} fill="none" stroke={tone(final)} strokeOpacity={0.75} strokeWidth={1.5} strokeDasharray="4 3" />
+              <path d={ptsD(band, true)} fill={`url(#gf${pid})`} />
+              <path d={ptsD(band, true)} fill={`url(#h${pid})`} opacity={0.7} />
+              <path fill="none" d={`M${cx(fc[0].i)},${crisp(y(base))}H${cx(endFc.i)}`} stroke="var(--text-sub3)" strokeDasharray="1.5 3" />
+              <path d={ptsD(fc.map((f) => `${cx(f.i)},${y(f.mid)}`).join(" "), false)} fill="none" stroke={tone(final)} strokeOpacity={0.75} strokeWidth={1.5} strokeDasharray="4 3" />
               <circle cx={cx(endFc.i)} cy={y(endFc.mid)} r={3} fill="var(--bg-panel)" stroke={tone(final)} strokeWidth={1.5} />
             </g>
           )}
 
-          <line x1={L} x2={W - R} y1={crisp(y0)} y2={crisp(y0)} stroke="var(--text-sub3)" />
+          <path fill="none" d={`M${L},${crisp(y0)}H${W - R}`} stroke="var(--text-sub3)" />
 
           {/* факт: линия + заливка до нуля, зелёная выше плана, красная ниже */}
           {pts.length > 0 && (
             <>
               <g className="d2-fade" style={{ "--d": "0.25s" } as CSSProperties}>
-                <polygon points={area} fill={`url(#gp${pid})`} clipPath={`url(#cp${pid})`} />
-                <polygon points={area} fill={`url(#gn${pid})`} clipPath={`url(#cn${pid})`} />
+                <path d={ptsD(area, true)} fill={`url(#gp${pid})`} clipPath={`url(#cp${pid})`} />
+                <path d={ptsD(area, true)} fill={`url(#gn${pid})`} clipPath={`url(#cn${pid})`} />
               </g>
-              <polyline className="d2-draw" pathLength={1} points={line} fill="none" stroke="var(--c-green-fg)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#cp${pid})`} />
-              <polyline className="d2-draw" pathLength={1} points={line} fill="none" stroke="var(--c-red-fg)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#cn${pid})`} />
+              <path className="d2-draw" pathLength={1} d={ptsD(line, false)} fill="none" stroke="var(--c-green-fg)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#cp${pid})`} />
+              <path className="d2-draw" pathLength={1} d={ptsD(line, false)} fill="none" stroke="var(--c-red-fg)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" clipPath={`url(#cn${pid})`} />
               <g className="d2-fade" style={{ "--d": "0.45s" } as CSSProperties}>
                 {past.map((r, i) =>
                   r.isWork && i !== lastIdx ? (
@@ -799,8 +1018,8 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
             <g className="d2-fade" style={{ "--d": "0.6s" } as CSSProperties}>
               {current && (
                 <>
-                  <line x1={crisp(cx(lastIdx))} x2={crisp(cx(lastIdx))} y1={T - 4} y2={H - B} stroke="var(--text-sub3)" strokeDasharray="2 2" />
-                  <text x={Math.round(cx(lastIdx))} y={T - 8} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="var(--text-sub)">
+                  <path fill="none" d={`M${crisp(cx(lastIdx))},${T - 4}V${H - B}`} stroke="var(--text-sub3)" strokeDasharray="2 2" />
+                  <text style={tr(Math.round(cx(lastIdx)), T - 8)} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="var(--text-sub)">
                     сегодня
                   </text>
                 </>
@@ -819,12 +1038,12 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
             </g>
           )}
           {minI >= 0 && minI !== lastIdx && (
-            <text className="d2-fade" x={Math.round(pts[minI][0])} y={Math.round(pts[minI][1]) + 15} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--c-red-fg)">
+            <text className="d2-fade" style={tr(Math.round(pts[minI][0]), Math.round(pts[minI][1]) + 15)} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--c-red-fg)">
               {fmtSigned(Math.round(past[minI].deviation))}
             </text>
           )}
           {maxI >= 0 && maxI !== lastIdx && (
-            <text className="d2-fade" x={Math.round(pts[maxI][0])} y={Math.round(pts[maxI][1]) - 9} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--c-green-fg)">
+            <text className="d2-fade" style={tr(Math.round(pts[maxI][0]), Math.round(pts[maxI][1]) - 9)} textAnchor="middle" fontSize="10" fontWeight="600" fill="var(--c-green-fg)">
               {fmtSigned(Math.round(past[maxI].deviation))}
             </text>
           )}
@@ -842,7 +1061,7 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
           {/* наведение: линия дня и точка на факте или прогнозе */}
           {hv && (
             <g pointerEvents="none">
-              <line x1={crisp(cx(hi!))} x2={crisp(cx(hi!))} y1={T} y2={H - B} stroke="var(--ink-25)" />
+              <path fill="none" d={`M${crisp(cx(hi!))},${T}V${H - B}`} stroke="var(--ink-25)" />
               {!hv.future && <circle cx={cx(hi!)} cy={y(hv.deviation)} r={4.5} fill={tone(hv.deviation)} stroke="var(--bg-panel)" strokeWidth={2} />}
               {hv.future && hf && <circle cx={cx(hi!)} cy={y(hf.mid)} r={4} fill="var(--bg-panel)" stroke={tone(final)} strokeWidth={2} />}
             </g>
@@ -856,12 +1075,12 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
             return (
               <g key={`x${i}`}>
                 {(sw >= 13 || on || i % 2 === 0) && (
-                  <text x={x} y={H - B + 16} textAnchor="middle" fontSize="10" fill={c} fontWeight={on ? 700 : 400}>
+                  <text style={tr(x, H - B + 16)} textAnchor="middle" fontSize="10" fill={c} fontWeight={on ? 700 : 400}>
                     {dayNum(r.day)}
                   </text>
                 )}
                 {(sw >= 17 || on) && (
-                  <text x={x} y={H - B + 29} textAnchor="middle" fontSize="9" fill={c} fontWeight={on ? 600 : 400}>
+                  <text style={tr(x, H - B + 29)} textAnchor="middle" fontSize="9" fill={c} fontWeight={on ? 600 : 400}>
                     {dow(r.day)}
                   </text>
                 )}
@@ -909,7 +1128,8 @@ export function GapCard({ rows, cal, p }: { rows: DayRow[]; cal: MonthCal; p: Pa
 
 /* ── эта неделя против прошлой ─────────────────────────────────────── */
 
-export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref_: DayKey; counts: Map<DayKey, number> | undefined }) {
+export function WeekCard({ cal, p, ref_, counts, focus }: { cal: MonthCal; p: Pace; ref_: DayKey; counts: Map<DayKey, number> | undefined; focus?: DayKey }) {
+  const { data } = useCrm();
   const [box, W] = useChartWidth();
   const [hi, setHi] = useState<number | null>(null);
   const ws = weekStart(ref_);
@@ -922,12 +1142,14 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
   const upTo = cur.filter((v) => v != null).length;
   const prevSame = prev.slice(0, upTo).reduce((a, v) => a + v, 0);
   const change = prevSame > 0 ? thisWeek / prevSame - 1 : null;
-  const refIdx = cal.phase === "current" ? days.indexOf(ref_) : -1;
+  const refIdx = cal.phase === "current" ? days.indexOf(cal.today) : -1;
+  // режим «день»: выбранный день отмечен так же, как «сегодня»
+  const fIdx = focus && focus !== cal.today ? days.indexOf(focus) : -1;
   // впереди по графику — пунктиром «сколько нужно в день», чтобы закрыть месяц
   const need = days.map((d, i) => (cal.phase === "current" && i > refIdx && cal.isWork(d) && p.needPerDay != null && p.needPerDay > 0 ? p.needPerDay : null));
   const best = cur.reduce<number>((b, v, i) => (v != null && v > 0 && (b < 0 || v > (cur[b] ?? 0)) ? i : b), -1);
-  // неделя может начаться в прошлом месяце — там графика нет, берём будни
-  const workLike = (d: DayKey) => (d.slice(0, 7) === cal.month ? cal.isWork(d) : isoWeekday(d) <= 5);
+  // рабочий день — по графику из настроек: неделя может захватывать соседний месяц
+  const workLike = (d: DayKey) => isWorkday(d, data.settings);
   const workedCur = days.filter((d, i) => cur[i] != null && (workLike(d) || (cur[i] ?? 0) > 0)).length;
   const avg = workedCur ? thisWeek / workedCur : null;
 
@@ -949,7 +1171,7 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
     {
       l: "Изменение",
       v: change == null ? "—" : `${change >= 0 ? "+" : "−"}${fmtPct(Math.abs(change))}`,
-      cls: change == null ? "" : change >= 0 ? "d2-green" : "d2-red",
+      cls: change == null || change >= 0 ? "" : "d2-red",
       s: "к тем же дням",
     },
     {
@@ -987,16 +1209,22 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
       <div ref={box} className="d2-plot">
         <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block" }} onMouseLeave={() => setHi(null)}>
           {refIdx >= 0 && <rect x={colX(refIdx) + 2} y={T - 18} width={colX(refIdx + 1) - colX(refIdx) - 4} height={H - T + 17} rx={6} fill="var(--ink-04)" />}
-          {hi != null && hi !== refIdx && <rect x={colX(hi) + 2} y={T - 18} width={colX(hi + 1) - colX(hi) - 4} height={H - T + 17} rx={6} fill="var(--ink-03)" />}
+          {hi != null && hi !== refIdx && hi !== fIdx && <rect x={colX(hi) + 2} y={T - 18} width={colX(hi + 1) - colX(hi) - 4} height={H - T + 17} rx={6} fill="var(--ink-03)" />}
+          {fIdx >= 0 && <rect x={colX(fIdx) + 2} y={T - 18} width={colX(fIdx + 1) - colX(fIdx) - 4} height={H - T + 17} rx={6} fill="var(--ink-04)" />}
           {refIdx >= 0 && (
-            <text x={Math.round(L + sw * refIdx + sw / 2)} y={T - 8} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="var(--text-sub)">
+            <text style={tr(Math.round(L + sw * refIdx + sw / 2), T - 8)} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="var(--text-sub)">
               сегодня
+            </text>
+          )}
+          {fIdx >= 0 && (
+            <text style={tr(Math.round(L + sw * fIdx + sw / 2), T - 8)} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="var(--text-sub)">
+              выбран
             </text>
           )}
           {ticks.map((v) => (
             <g key={v}>
-              <line x1={L} x2={W - R} y1={crisp(y(v))} y2={crisp(y(v))} stroke={v === 0 ? "var(--text-sub3)" : "var(--ink-06)"} />
-              <text x={L - 8} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="var(--text-sub)">
+              <path fill="none" d={`M${L},${crisp(y(v))}H${W - R}`} stroke={v === 0 ? "var(--text-sub3)" : "var(--ink-06)"} />
+              <text style={tr(L - 8, y(v) + 3.5)} textAnchor="end" fontSize="10" fill="var(--text-sub)">
                 {v}
               </text>
             </g>
@@ -1011,14 +1239,14 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
             const done = v != null && !td;
             const below = done && p.dailyPlan > 0 && workLike(d) && v < p.dailyPlan;
             const diff = v != null ? v - prev[i] : null;
-            const on = td || i === hi;
+            const on = td || i === hi || i === fIdx;
             const dim = hi != null && hi !== i;
             const lx = Math.round(c);
             return (
               <g key={d} className="d2-col" style={{ opacity: dim ? 0.45 : 1 }}>
                 <path className="d2-grow" style={{ "--i": i } as CSSProperties} d={barPath(px, y(prev[i]), bw, y0 - y(prev[i]))} fill="var(--ink-15)" />
                 {prev[i] > 0 && (
-                  <text className="d2-fade" x={px + bw / 2} y={y(prev[i]) - 5} textAnchor="middle" fontSize="9.5" fill="var(--text-sub)">
+                  <text className="d2-fade" style={tr(px + bw / 2, y(prev[i]) - 5)} textAnchor="middle" fontSize="9.5" fill="var(--text-sub)">
                     {prev[i]}
                   </text>
                 )}
@@ -1031,7 +1259,7 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
                       fill={below ? "var(--c-red-fg)" : "var(--brand)"}
                       opacity={below ? 0.8 : 1}
                     />
-                    <text className="d2-fade" x={cx2 + bw / 2} y={y(v) - 5} textAnchor="middle" fontSize="10.5" fontWeight="700" fill={below ? "var(--c-red-fg)" : "var(--text)"}>
+                    <text className="d2-fade" style={tr(cx2 + bw / 2, y(v) - 5)} textAnchor="middle" fontSize="10.5" fontWeight="700" fill={below ? "var(--c-red-fg)" : "var(--text)"}>
                       {v}
                     </text>
                   </>
@@ -1039,16 +1267,16 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
                 {v == null && nd != null && (
                   <>
                     <rect x={cx2 + 0.5} y={y(nd) + 0.5} width={bw - 1} height={Math.max(0, y0 - y(nd) - 1)} rx={3} fill="none" stroke="var(--text-sub3)" strokeDasharray="3 2" />
-                    <text x={cx2 + bw / 2} y={y(nd) - 5} textAnchor="middle" fontSize="9.5" fill="var(--dim)">
+                    <text style={tr(cx2 + bw / 2, y(nd) - 5)} textAnchor="middle" fontSize="9.5" fill="var(--dim)">
                       {Math.ceil(nd)}
                     </text>
                   </>
                 )}
-                <text x={lx} y={H - B + 16} textAnchor="middle" fontSize="10" fill={on ? "var(--text)" : "var(--text-sub)"} fontWeight={on ? 700 : 500}>
+                <text style={tr(lx, H - B + 16)} textAnchor="middle" fontSize="10" fill={on ? "var(--text)" : "var(--text-sub)"} fontWeight={on ? 700 : 500}>
                   {DOW[i]} <tspan fontWeight={400} fill={on ? "var(--text-sub)" : "var(--dim)"}>{dayNum(d)}</tspan>
                 </text>
                 {diff != null && (v !== 0 || prev[i] !== 0) && (
-                  <text x={lx} y={H - B + 29} textAnchor="middle" fontSize="9.5" fontWeight="600" fill={diff > 0 ? "var(--c-green-fg)" : diff < 0 ? "var(--c-red-fg)" : "var(--dim)"}>
+                  <text style={tr(lx, H - B + 29)} textAnchor="middle" fontSize="9.5" fontWeight="600" fill={diff < 0 ? "var(--c-red-fg)" : diff > 0 ? "var(--text-sub)" : "var(--dim)"}>
                     {diff === 0 ? "=" : fmtSigned(diff)}
                   </text>
                 )}
@@ -1057,7 +1285,7 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
           })}
           {planY != null && (
             <g pointerEvents="none">
-              <line x1={L} x2={W - R} y1={crisp(planY)} y2={crisp(planY)} stroke="var(--text-sub)" strokeOpacity={0.6} strokeDasharray="4 3" />
+              <path fill="none" d={`M${L},${crisp(planY)}H${W - R}`} stroke="var(--text-sub)" strokeOpacity={0.6} strokeDasharray="4 3" />
               <Pill x={W - R} cy={Math.round(planY) - 10} text={`план ${fmtNum(p.dailyPlan)}`} color="var(--text-sub)" anchor="end" />
             </g>
           )}
@@ -1079,7 +1307,7 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
               {hDiff != null && (
                 <>
                   <span>Разница</span>
-                  <b className={hDiff > 0 ? "d2-green" : hDiff < 0 ? "d2-red" : ""}>{hDiff === 0 ? "=" : fmtSigned(hDiff)}</b>
+                  <b className={hDiff < 0 ? "d2-red" : ""}>{hDiff === 0 ? "=" : fmtSigned(hDiff)}</b>
                 </>
               )}
               {need[hi!] != null && (
@@ -1102,30 +1330,206 @@ export function WeekCard({ cal, p, ref_, counts }: { cal: MonthCal; p: Pace; ref
   );
 }
 
+/* ── лиды по часам: режим «день» ───────────────────────────────────── */
+
+/** День против того же дня неделей раньше — по часам (время лида — по Москве, как в журнале). */
+function HourCard({ day, keys, plan }: { day: DayKey; keys: string[] | null; plan: number }) {
+  const { data, today } = useCrm();
+  const [box, W] = useChartWidth();
+  const [hi, setHi] = useState<number | null>(null);
+  const prevDay = addDays(day, -7);
+  const { cur, prev } = useMemo(() => {
+    const set = keys ? new Set(keys) : null;
+    const cur = new Array<number>(24).fill(0);
+    const prev = new Array<number>(24).fill(0);
+    for (const l of data.leads) {
+      // как в факте: «не доведён» не считается
+      if (l.status === "failed") continue;
+      const d = l.at.slice(0, 10);
+      if (d !== day && d !== prevDay) continue;
+      if (set && !set.has(l.groupId || NO_GROUP)) continue;
+      const h = Number(l.at.slice(11, 13));
+      if (!(h >= 0 && h < 24)) continue;
+      (d === day ? cur : prev)[h]++;
+    }
+    return { cur, prev };
+  }, [data.leads, day, prevDay, keys]);
+
+  const isToday = day === today;
+  const future = day > today;
+  const nowH = isToday ? nowHour() : future ? -1 : 23;
+  const any = (a: number[]) => a.findIndex((v) => v > 0);
+  const lastAny = (a: number[]) => 23 - [...a].reverse().findIndex((v) => v > 0);
+  const firstH = Math.min(9, ...[any(cur), any(prev)].filter((h) => h >= 0));
+  const lastH = Math.max(20, ...[cur, prev].filter((a) => any(a) >= 0).map(lastAny), isToday ? nowH : 0);
+  const hours = rangeHours(firstH, Math.min(23, lastH));
+  const val = (h: number) => (h > nowH ? null : cur[h]);
+
+  const total = cur.reduce((a, v) => a + v, 0);
+  const prevTotal = prev.reduce((a, v) => a + v, 0);
+  const prevTo = prev.slice(0, nowH + 1).reduce((a, v) => a + v, 0);
+  const totalTo = cur.slice(0, nowH + 1).reduce((a, v) => a + v, 0);
+  const change = prevTo > 0 && !future ? totalTo / prevTo - 1 : null;
+  const peak = cur.reduce((b, v, h) => (v > 0 && (b < 0 || v > cur[b]) ? h : b), -1);
+  const slot = (h: number) => `${h}:00–${h + 1}:00`;
+
+  const { H, L, R, T, B } = CH;
+  const top = Math.max(...hours.map((h) => Math.max(cur[h], prev[h])), 1);
+  const step = axisStep((top * 1.08) / CH.parts);
+  const yMax = step * CH.parts;
+  const y = (v: number) => Math.round(T + (1 - v / yMax) * (H - T - B));
+  const y0 = y(0);
+  const n = hours.length;
+  const sw = (W - L - R) / n;
+  const colX = (i: number) => Math.round(L + sw * i);
+  const bw = Math.round(Math.max(4, Math.min(16, sw * 0.3)));
+  const ticks = Array.from({ length: CH.parts + 1 }, (_, k) => k * step);
+  const nowIdx = isToday ? hours.indexOf(nowH) : -1;
+
+  const kpis: { l: string; v: string; cls?: string; s: string }[] = [
+    { l: isToday ? "Сегодня" : "За день", v: fmtInt(total), s: future ? "ещё впереди" : isToday ? `к ${nowH + 1}:00` : plan > 0 ? `из ${fmtNum(plan, 0)} по плану` : "лидов" },
+    { l: "Неделю назад", v: fmtInt(prevTotal), s: isToday ? `к этому часу ${fmtInt(prevTo)}` : `${dow(prevDay)}, ${dayShort(prevDay)}` },
+    {
+      l: "Изменение",
+      v: change == null ? "—" : `${change >= 0 ? "+" : "−"}${fmtPct(Math.abs(change))}`,
+      cls: change == null || change >= 0 ? "" : "d2-red",
+      s: isToday ? "к тому же часу" : "к прошлой неделе",
+    },
+    { l: "Пиковый час", v: peak >= 0 ? `${peak}:00` : "—", s: peak >= 0 ? `${fmtInt(cur[peak])} ${plural(cur[peak], LEADS)}` : "лидов не было" },
+  ];
+
+  const hh = hi != null ? hours[hi] : null;
+  const cumTo = (h: number) => cur.slice(0, h + 1).reduce((a, v) => a + v, 0);
+
+  return (
+    <section className="card d2-ch">
+      <div className="d2-ch-head">
+        <h3 className="d2-h"><Icon name="clock" size={15} className="title-ic" />Лиды по часам</h3>
+        <div className="d2-leg">
+          <span><i className="sq" style={{ background: "var(--ink-15)" }} />Неделю назад</span>
+          <span><i className="sq" style={{ background: "var(--brand)" }} />{isToday ? "Сегодня" : dayShort(day)}</span>
+        </div>
+      </div>
+      <div className="d2-gk">
+        {kpis.map((k) => (
+          <div key={k.l}>
+            <div className="d2-gk-l">{k.l}</div>
+            <div className={`d2-gk-v ${k.cls ?? ""}`}>{k.v}</div>
+            <div className="d2-gk-s">{k.s}</div>
+          </div>
+        ))}
+      </div>
+      <div ref={box} className="d2-plot">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ display: "block" }} onMouseLeave={() => setHi(null)}>
+          {nowIdx >= 0 && <rect x={colX(nowIdx) + 2} y={T - 18} width={colX(nowIdx + 1) - colX(nowIdx) - 4} height={H - T + 17} rx={6} fill="var(--ink-04)" />}
+          {hi != null && hi !== nowIdx && <rect x={colX(hi) + 2} y={T - 18} width={colX(hi + 1) - colX(hi) - 4} height={H - T + 17} rx={6} fill="var(--ink-03)" />}
+          {nowIdx >= 0 && (
+            <text style={tr(Math.round(L + sw * nowIdx + sw / 2), T - 8)} textAnchor="middle" fontSize="9.5" fontWeight="600" fill="var(--text-sub)">
+              сейчас
+            </text>
+          )}
+          {ticks.map((v) => (
+            <g key={v}>
+              <path fill="none" d={`M${L},${crisp(y(v))}H${W - R}`} stroke={v === 0 ? "var(--text-sub3)" : "var(--ink-06)"} />
+              <text style={tr(L - 8, y(v) + 3.5)} textAnchor="end" fontSize="10" fill="var(--text-sub)">
+                {v}
+              </text>
+            </g>
+          ))}
+          {hours.map((h, i) => {
+            const c = L + sw * i + sw / 2;
+            const v = val(h);
+            const px = Math.round(c - 1.5) - bw;
+            const cx2 = Math.round(c + 1.5);
+            const on = i === nowIdx || i === hi;
+            const dim = hi != null && hi !== i;
+            const lx = Math.round(c);
+            const diff = v != null ? v - prev[h] : null;
+            return (
+              <g key={h} className="d2-col" style={{ opacity: dim ? 0.45 : 1 }}>
+                <path className="d2-grow" style={{ "--i": i * 0.5 } as CSSProperties} d={barPath(px, y(prev[h]), bw, y0 - y(prev[h]), 2)} fill="var(--ink-15)" />
+                {v != null && (
+                  <>
+                    <path className="d2-grow" style={{ "--i": i * 0.5 + 0.5 } as CSSProperties} d={barPath(cx2, y(v), bw, y0 - y(v), 2)} fill="var(--brand)" />
+                    {v > 0 && (
+                      <text className="d2-fade" style={tr(cx2 + bw / 2, y(v) - 5)} textAnchor="middle" fontSize="10" fontWeight="700" fill="var(--text)">
+                        {v}
+                      </text>
+                    )}
+                  </>
+                )}
+                <text style={tr(lx, H - B + 16)} textAnchor="middle" fontSize="10" fill={on ? "var(--text)" : "var(--text-sub)"} fontWeight={on ? 700 : 500}>
+                  {h}
+                  <tspan fontWeight={400} fill="var(--dim)">:00</tspan>
+                </text>
+                {diff != null && (v !== 0 || prev[h] !== 0) && (
+                  <text style={tr(lx, H - B + 29)} textAnchor="middle" fontSize="9.5" fontWeight="600" fill={diff < 0 ? "var(--c-red-fg)" : diff > 0 ? "var(--text-sub)" : "var(--dim)"}>
+                    {diff === 0 ? "=" : fmtSigned(diff)}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+          {hours.map((h, i) => (
+            <rect key={`h${h}`} x={colX(i)} y={0} width={colX(i + 1) - colX(i)} height={H} fill="transparent" onMouseEnter={() => setHi(i)} />
+          ))}
+        </svg>
+        {hh != null && (
+          <ChartTip x={L + sw * hi! + sw / 2} W={W} half={sw / 2}>
+            <div className="d2-ctip-h">
+              {slot(hh)}
+              <span>{hi === nowIdx ? "сейчас" : val(hh) == null ? "впереди" : ""}</span>
+            </div>
+            <div className="d2-ctip-g">
+              <span><i style={{ background: "var(--brand)" }} />{isToday ? "Сегодня" : dayShort(day)}</span>
+              <b>{val(hh) == null ? "—" : fmtInt(cur[hh])}</b>
+              <span><i style={{ background: "var(--ink-15)" }} />Неделю назад</span>
+              <b>{fmtInt(prev[hh])}</b>
+              {val(hh) != null && (
+                <>
+                  <span>С начала дня</span>
+                  <b>
+                    {fmtInt(cumTo(hh))}
+                    {plan > 0 && <span className="d2-dim" style={{ fontWeight: 500 }}> из {fmtNum(plan, 0)}</span>}
+                  </b>
+                </>
+              )}
+            </div>
+          </ChartTip>
+        )}
+      </div>
+    </section>
+  );
+}
+
+const rangeHours = (a: number, b: number) => Array.from({ length: Math.max(1, b - a + 1) }, (_, i) => a + i);
+
 /* ── операторы ─────────────────────────────────────────────────────── */
 
 const ABSENT_LABEL: Partial<Record<DayType, string>> = { off: "Выходной", vacation: "Отпуск", sick: "Больничный", platform: "Платформа" };
 
 /**
  * Разбивка операторов по группам для сводки «весь отдел» (и «все мои группы»): порядок — как у
- * групп сводки, затем «без группы» и отдельным блоком стажёры (у них ещё нет плана).
+ * групп сводки, затем «без группы», отдельными блоками стажёры (у них ещё нет плана) и уволенные,
+ * работавшие в периоде (их лиды и часы — в итогах команды).
  * Выбрана конкретная группа — без разбивки (null).
  */
 const TRAINEES = "__trainees__";
+const GONE = "__gone__";
 function groupSections(list: OpRow[], groups?: GroupRow[] | null): { key: string; name: string; color: string; rows: OpRow[] }[] | null {
   if (!groups) return null;
   const map = new Map<string, OpRow[]>();
   for (const r of list) {
-    const key = r.op.role === "trainee" ? TRAINEES : r.groupKey;
+    const key = r.op.status === "fired" ? GONE : r.op.role === "trainee" ? TRAINEES : r.groupKey;
     map.set(key, [...(map.get(key) ?? []), r]);
   }
   if (!map.size) return null;
   const order = new Map(groups.map((g, i) => [g.key, i]));
-  const rank = (key: string) => (key === TRAINEES ? 1e6 + 1 : order.get(key) ?? 1e6);
+  const rank = (key: string) => (key === GONE ? 1e6 + 2 : key === TRAINEES ? 1e6 + 1 : order.get(key) ?? 1e6);
   return [...map.entries()]
     .map(([key, rows]) => {
-      const g = key === TRAINEES ? null : groups.find((x) => x.key === key);
-      return { key, name: key === TRAINEES ? "Стажёры" : g?.name ?? NO_GROUP_LABEL, color: g?.color ?? "gray", rows };
+      const g = key === TRAINEES || key === GONE ? null : groups.find((x) => x.key === key);
+      return { key, name: key === GONE ? "Уволены" : key === TRAINEES ? "Стажёры" : g?.name ?? NO_GROUP_LABEL, color: g?.color ?? "gray", rows };
     })
     .sort((a, b) => rank(a.key) - rank(b.key) || a.name.localeCompare(b.name, "ru"));
 }
@@ -1141,7 +1545,9 @@ function mergeVisible(full: string[], visibleNext: string[]): string[] {
   return full.map((k) => (vis.has(k) ? visibleNext[i++] : k));
 }
 
-function OpsCard({ m, line, settings, ref_, groups }: { m: MonthModel; line: OpRow[]; settings: Settings; ref_: DayKey; groups?: GroupRow[] | null }) {
+function OpsCard({ m, line, settings, ref_, groups, span = "month" }: { m: MonthModel; line: OpRow[]; settings: Settings; ref_: DayKey; groups?: GroupRow[] | null; span?: Span }) {
+  const w = SPAN_W[span];
+  const isDay = span === "day";
   const { ix, today } = useCrm();
   const router = useRouter();
   const cal = m.cal;
@@ -1158,16 +1564,16 @@ function OpsCard({ m, line, settings, ref_, groups }: { m: MonthModel; line: OpR
   const title: Record<OpsCol, { label: string; hint?: string }> = {
     status: { label: cur ? "Сегодня" : "Статус" },
     group: { label: "Группа" },
-    fact: { label: "Факт", hint: "Лидов за месяц" },
-    should: { label: past ? "План" : "Должно быть", hint: past ? "План на месяц" : "Сколько должно быть к сегодня по плану" },
+    fact: { label: "Факт", hint: `Лидов за ${w.acc}` },
+    should: { label: past ? "План" : "Должно быть", hint: past ? `План на ${w.acc}` : "Сколько должно быть к сегодня по плану" },
     gap: { label: "Разрыв", hint: "Факт минус «должно быть»" },
     prog: { label: `Выполнение плана${past ? "" : " на сегодня"}` },
-    plan: { label: "План на месяц" },
-    forecast: { label: "Прогноз", hint: "Сколько выйдет к концу месяца при текущем темпе" },
-    need: { label: "Нужно в день", hint: "Сколько лидов в рабочий день нужно до конца месяца, чтобы закрыть план" },
+    plan: { label: `План на ${w.acc}` },
+    forecast: { label: "Прогноз", hint: `Сколько выйдет к концу ${w.gen} при текущем темпе` },
+    need: { label: "Нужно в день", hint: `Сколько лидов в рабочий день нужно до конца ${w.gen}, чтобы закрыть план` },
     recent: { label: cur ? "Сегодня / вчера" : "Посл. день / до него", hint: "Лиды за последние два дня" },
     avg: { label: "В среднем за смену", hint: "Лидов в рабочий день" },
-    shifts: { label: "Смен", hint: "Отработано смен в месяце" },
+    shifts: { label: "Смен", hint: `Отработано смен за ${w.acc}` },
     hours: { label: "Часы" },
     conv: { label: "Конв.", hint: "Конверсия: лиды ÷ отработанные часы" },
     spark: { label: "Динамика (7 смен)", hint: "Лиды за последние 7 рабочих смен — выходные не считаются" },
@@ -1185,9 +1591,11 @@ function OpsCard({ m, line, settings, ref_, groups }: { m: MonthModel; line: OpR
 
   // разбивка по группам: порядок — как у групп сводки, «без группы» в конце; внутри — по разрыву
   const sections = useMemo(() => groupSections(list, groups), [list, groups]);
-  const fold = useFoldGroups(wrapRef);
+  // стажёры и уволенные при входе свёрнуты: у стажёров нет плана, уволенные — только для сверки итогов
+  const fold = useFoldGroups(wrapRef, [TRAINEES, GONE]);
 
   const todayState = (r: OpRow): { hue: string; label: string } => {
+    if (r.op.status === "fired") return { hue: "gray", label: "Уволен" };
     if (r.op.status === "pause") return { hue: "gray", label: "На паузе" };
     const sh = ix.shift.get(`${today}|${r.op.id}`);
     if (sh && isWorked(sh.type, sh.hours)) {
@@ -1264,13 +1672,13 @@ function OpsCard({ m, line, settings, ref_, groups }: { m: MonthModel; line: OpR
       case "plan":
         return (
           <td key={c} data-col={c}>
-            {hasPlan ? fmtInt(r.terms.plan) : dash}
+            {hasPlan ? fmtNum(r.terms.plan, 0) : dash}
           </td>
         );
       case "forecast":
         return (
           <td key={c} data-col={c}>
-            {hasPlan && r.pace.fact > 0 ? (
+            {hasPlan && r.pace.fact > 0 && !isDay ? (
               <>
                 {fmtInt(Math.round(r.pace.rr))}{" "}
                 <span className={r.pace.rrPct >= 1 ? "d2-green" : "d2-red"} style={{ fontSize: 11.5 }}>
@@ -1285,7 +1693,7 @@ function OpsCard({ m, line, settings, ref_, groups }: { m: MonthModel; line: OpR
       case "need":
         return (
           <td key={c} data-col={c}>
-            {hasPlan && !past && r.pace.needPerDay != null ? fmtNum(r.pace.needPerDay) : dash}
+            {hasPlan && !past && !isDay && r.pace.needPerDay != null ? fmtNum(r.pace.needPerDay) : dash}
           </td>
         );
       case "recent": {
@@ -1398,13 +1806,13 @@ function OpsCard({ m, line, settings, ref_, groups }: { m: MonthModel; line: OpR
       case "plan":
         return (
           <td key={c} data-col={c}>
-            {plan > 0 ? fmtInt(plan) : dash}
+            {plan > 0 ? fmtNum(plan, 0) : dash}
           </td>
         );
       case "forecast":
         return (
           <td key={c} data-col={c}>
-            {plan > 0 && factP > 0 ? (
+            {plan > 0 && factP > 0 && !isDay ? (
               <>
                 {fmtInt(Math.round(rr))}{" "}
                 <span className={rr >= plan ? "d2-green" : "d2-red"} style={{ fontSize: 11.5 }}>
@@ -1442,12 +1850,34 @@ function OpsCard({ m, line, settings, ref_, groups }: { m: MonthModel; line: OpR
     }
   };
 
+  /**
+   * Метка «лучший»: больше всех лидов за выбранный период — дня, недели или месяца (факт периода).
+   * Если лучших больше двух — метку не ставим: это уже не «лучший», а ничья.
+   */
+  const badges = useMemo(() => {
+    const out = new Map<string, { k: string; icon: IconName; text: string; title: string }[]>();
+    const best = line.reduce((a, r) => Math.max(a, r.pace.fact), 0);
+    const tops = best > 0 ? line.filter((r) => r.pace.fact === best) : [];
+    if (tops.length && tops.length <= 2) {
+      const what = span === "day" ? "дня" : span === "week" ? "недели" : "месяца";
+      for (const r of tops)
+        out.set(r.op.id, [{ k: `best-${span}`, icon: "star", text: `лучший ${what}`, title: `${fmtInt(best)} ${plural(best, LEADS)} — больше всех за ${w.acc}` }]);
+    }
+    return out;
+  }, [line, span, w.acc]);
+
   const opRow = (r: OpRow, extra?: { className?: string; style?: CSSProperties }) => (
     <tr key={r.op.id} className={extra?.className || undefined} style={extra?.style} onClick={() => router.push(`/operators?id=${encodeURIComponent(r.op.id)}`)}>
       <td>
-        <span className="row" style={{ gap: 8 }}>
+        <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
           <Avatar name={r.op.name} id={r.op.id} size={20} />
           {shortName(r.op.name)}
+          {badges.get(r.op.id)?.map((b) => (
+            <span key={b.k} className="d2-badge" data-k={b.k} title={b.title}>
+              <Icon name={b.icon} size={11} />
+              {b.text}
+            </span>
+          ))}
         </span>
       </td>
       {shown.map((c) => cell(c, r))}
@@ -1480,7 +1910,7 @@ function OpsCard({ m, line, settings, ref_, groups }: { m: MonthModel; line: OpR
         />
       </div>
       {list.length === 0 ? (
-        <div style={{ padding: "12px 16px", fontSize: 13, color: "var(--dim)" }}>В этом месяце нет операторов.</div>
+        <div style={{ padding: "12px 16px", fontSize: 13, color: "var(--dim)" }}>В этом периоде нет операторов.</div>
       ) : (
         <div style={{ overflowX: "auto" }} ref={wrapRef}>
           <table className="d2-tbl">
@@ -1564,7 +1994,7 @@ function Spark({ values, days, good, open }: { values: number[]; days: DayKey[];
 
 /* ── тепловая карта: оператор × день ───────────────────────────────── */
 
-function HeatCard({ m, sc, rows, groups }: { m: MonthModel; sc: Scope; rows: DayRow[]; groups?: GroupRow[] | null }) {
+function HeatCard({ m, sc, rows, groups, focus }: { m: MonthModel; sc: Scope; rows: DayRow[]; groups?: GroupRow[] | null; focus?: DayKey }) {
   const { ix, data } = useCrm();
   const cal = m.cal;
   const t = sc;
@@ -1578,7 +2008,7 @@ function HeatCard({ m, sc, rows, groups }: { m: MonthModel; sc: Scope; rows: Day
   const NAME_W = 120;
   const shade = (v: number) => {
     const k = Math.min(1, v / max);
-    return { background: `color-mix(in srgb, var(--c-green-fg) ${Math.round(18 + 62 * k)}%, var(--bg-panel))`, color: k > 0.55 ? "var(--bg-panel)" : "var(--text)" };
+    return { background: `color-mix(in srgb, var(--text) ${Math.round(8 + 62 * k)}%, var(--bg-panel))`, color: k > 0.5 ? "var(--bg-panel)" : "var(--text)" };
   };
   const dailyPlan = t.p.dailyPlan;
   const norm = data.settings.convNormPct / 100;
@@ -1681,7 +2111,7 @@ function HeatCard({ m, sc, rows, groups }: { m: MonthModel; sc: Scope; rows: Day
   const cols = `${NAME_W}px repeat(${days.length}, minmax(20px, 1fr))`;
   // весь отдел — по группам, каждую можно свернуть
   const sections = useMemo(() => groupSections(ops, groups), [ops, groups]);
-  const [shut, setShut] = useState<Set<string>>(() => new Set());
+  const [shut, setShut] = useState<Set<string>>(() => new Set([TRAINEES, GONE]));
   const toggleSec = (key: string) =>
     setShut((p) => {
       const n = new Set(p);
@@ -1698,8 +2128,8 @@ function HeatCard({ m, sc, rows, groups }: { m: MonthModel; sc: Scope; rows: Day
         <h3 className="d2-h" style={{ marginTop: 3 }}><Icon name="calendar" size={15} className="title-ic" />Тепловая карта: оператор × день</h3>
         <div className="d2-leg" style={{ marginTop: 6 }}>
           <span>
-            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "color-mix(in srgb, var(--c-green-fg) 30%, var(--bg-panel))" }} />
-            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--c-green-fg)", marginLeft: -3 }} />
+            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "color-mix(in srgb, var(--text) 20%, var(--bg-panel))" }} />
+            <i style={{ width: 9, height: 9, borderRadius: "50%", background: "color-mix(in srgb, var(--text) 70%, var(--bg-panel))", marginLeft: -3 }} />
             Больше лидов
           </span>
           <span><i style={{ width: 9, height: 9, borderRadius: "50%", background: "var(--c-red-fg)" }} />0 лидов (был на смене)</span>
@@ -1820,6 +2250,7 @@ function HeatCard({ m, sc, rows, groups }: { m: MonthModel; sc: Scope; rows: Day
           </div>
           {stats && <div className="d2-csel" style={{ left: colLeft(stats.c0), width: colWidth(stats.count) }} />}
           {todayIdx >= 0 && <div className="d2-today" style={{ left: colLeft(todayIdx), width: colWidth(1) }} />}
+          {focus && focus !== cal.today && days.includes(focus) && <div className="d2-today d2-focus" style={{ left: colLeft(days.indexOf(focus)), width: colWidth(1) }} />}
         </div>
       </div>
       {stats && tipAt && <HeatTip at={tipAt} st={stats} norm={norm} />}

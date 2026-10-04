@@ -241,7 +241,7 @@ function RunCard({
       {rest.length > 0 && (
         <>
           <button className={`rsmore${open ? " open" : ""}`} onClick={onToggle}>
-            <Icon name="chevD" size={15} stroke={2.2} />
+            <Icon name="chevR" size={15} stroke={2.2} className={`grp-chev${open ? " open" : ""}`} />
             {open ? "Скрыть пояснения" : `Пояснения и таблицы — ${rest.length}`}
           </button>
           <Collapse open={open}>

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useCrm, type LearnPatch } from "@/lib/crm/store";
 import { ACAD_COURSE } from "@/lib/academy/course";
 import { mountAcademy } from "@/lib/academy/engine";
+import { StickyHead } from "@/components/app/StickyHead";
 
 /**
  * «Обучение» — курс «Авто», тренажёр Скорозвона, справочники и тренажёры.
@@ -34,5 +35,10 @@ export default function LearnPage() {
     return () => app.destroy();
   }, [me.id, access.isTrainee]);
 
-  return <div className="acad" ref={ref} />;
+  return (
+    <>
+      <StickyHead title="Обучение" offset={160} />
+      <div className="acad" ref={ref} />
+    </>
+  );
 }

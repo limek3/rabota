@@ -17,6 +17,7 @@ import { Icon } from "@/components/ui/icons";
 import { TelegramCard } from "@/components/app/TelegramCard";
 import { PayoutHistory } from "@/components/app/PayoutHistory";
 import { PayslipModal } from "@/components/app/Payslip";
+import { StickyHead, planItems } from "@/components/app/StickyHead";
 
 /**
  * Личный кабинет оператора (и супервайзера, который сам звонит).
@@ -125,6 +126,11 @@ export default function MePage() {
 
   return (
     <div className="stack">
+      <StickyHead
+        title={surnameAndName(me.name) || me.name}
+        ctx={fmtMonth(month)}
+        items={[...planItems(p, row.lph, data.settings.convNormPct / 100), ...(dayPlan > 0 ? [{ l: "Сегодня", v: `${fmtInt(doneToday)} из ${fmtInt(Math.ceil(dayPlan))}`, tone: doneToday >= dayPlan ? ("green" as const) : undefined }] : [])]}
+      />
       <PageHead
         title={`${greet}, ${surnameAndName(me.name) || me.name}`}
         sub={`${fmtDay(today)}, ${fmtWeekday(today)} · ${group ? group.name : NO_GROUP_LABEL} · ${fmtMonth(month)}`}
