@@ -240,7 +240,12 @@ async function start(row: Row, leadPhone: string): Promise<Row> {
     report = "missing";
     up = await upload(false);
   }
-  if (!up.ok) throw new Fail(await memoError(up));
+  if (!up.ok) {
+    // тот же файл уже грузится параллельным вызовом (409) или Memo просит подождать (429) —
+    // это не ошибка лида: шаг не засчитываем, следующий вызов получит ту же расшифровку
+    if (up.status === 409 || up.status === 429) throw new Error(await memoError(up));
+    throw new Fail(await memoError(up));
+  }
   const t = await up.json();
   return { ...next, status: "processing", error: "", memo_id: String(t.uuid ?? t.id), report_status: report, report: "" };
 }
@@ -344,7 +349,9 @@ Deno.serve(async (req) => {
       const other = row.segments.map((s) => s.who).find((w) => w !== row.operator_speaker) ?? row.operator_speaker;
       return json(await save({ ...row, operator_speaker: other }));
     }
-    if (action === "retry" && row.status !== "processing") row = blank(leadId, callId, row.attempts + 1);
+    // «заново»: если Memo файл так и не принял (memo_id нет) — тот же ключ, и Memo вернёт уже
+    // принятую расшифровку без второго списания; новый ключ — только для пересчёта готовой
+    if (action === "retry" && row.status !== "processing") row = blank(leadId, callId, row.memo_id ? row.attempts + 1 : row.attempts);
 
     try {
       if (row.status === "pending" || row.status === "waiting") row = await start(row, String(lead.phone ?? ""));
@@ -356,8 +363,8 @@ Deno.serve(async (req) => {
     } catch (e) {
       if (e instanceof Fail) row = { ...row, status: row.status === "done" ? "done" : "failed", error: e.message };
       else {
-        // сбой сети / 5xx — шаг не засчитываем, карточка повторит
-        if (!saved) await save(row);
+        // сбой сети / 5xx / параллельный вызов — шаг не засчитываем и в базу не пишем
+        // (иначе можно затереть то, что параллельный вызов уже сохранил), карточка повторит
         return json({ ...row, error: String((e as Error).message ?? e) }, 502);
       }
     }

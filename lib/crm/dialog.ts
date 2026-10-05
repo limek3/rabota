@@ -121,7 +121,19 @@ export async function readDialog(leadId: string): Promise<LeadDialog | null> {
  * Следующий шаг на сервере: sync — взять запись / спросить Memo, готово ли; retry — заново;
  * swap — поменять местами оператора и клиента; report — запросить разбор ещё раз.
  */
-export async function syncDialog(leadId: string, action: "sync" | "retry" | "swap" | "report" = "sync"): Promise<LeadDialog> {
+export function syncDialog(leadId: string, action: "sync" | "retry" | "swap" | "report" = "sync"): Promise<LeadDialog> {
+  // запись лида и открытая карточка зовут шаг одновременно — второй ждёт первый, а не шлёт файл в Memo ещё раз
+  if (action !== "sync") return callSync(leadId, action);
+  const running = inflight.get(leadId);
+  if (running) return running;
+  const p = callSync(leadId, action).finally(() => inflight.delete(leadId));
+  inflight.set(leadId, p);
+  return p;
+}
+
+const inflight = new Map<string, Promise<LeadDialog>>();
+
+async function callSync(leadId: string, action: string): Promise<LeadDialog> {
   const { data, error } = await supabase().functions.invoke("lead-dialog", { body: { leadId, action } });
   if (error) {
     let msg = error.message;
