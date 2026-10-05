@@ -199,8 +199,27 @@ function blank(leadId: string, callId: string, attempts = 0): Row {
   };
 }
 
-/** pending / waiting → берём запись в Скорозвоне и отдаём в Memo вместе с заказом разбора. */
-async function start(row: Row, leadPhone: string): Promise<Row> {
+/**
+ * Расшифровка этого звонка, которую Memo уже принял раньше (по X-External-Id): готовая или в работе.
+ * Нужна, когда прошлая попытка не дошла до базы — например, два вызова загрузили файл
+ * одновременно и второй получил 409: файл у Memo есть, а в CRM записалась ошибка.
+ */
+async function findExisting(callId: string): Promise<string | null> {
+  const ext = encodeURIComponent(`skorozvon-call-${callId}`);
+  for (const st of ["completed", "processing", "queued"]) {
+    const r = await memo(`/transcriptions?external_id=${ext}&status=${st}&limit=1&sort=-created_at`);
+    if (!r.ok) continue;
+    const it = (await r.json())?.items?.[0];
+    if (it?.id) return String(it.id);
+  }
+  return null;
+}
+
+/**
+ * pending / waiting → берём запись в Скорозвоне и отдаём в Memo вместе с заказом разбора.
+ * lookup — сначала поискать уже принятую Memo расшифровку (повтор после сбоя): без новой загрузки и списания.
+ */
+async function start(row: Row, leadPhone: string, lookup = false): Promise<Row> {
   const call = await skorozvonCall(row.call_id);
   const next: Row = {
     ...row,
@@ -217,6 +236,11 @@ async function start(row: Row, leadPhone: string): Promise<Row> {
     return { ...next, status: "waiting", error: "" };
   }
   next.record_url = call.recording_url;
+
+  if (lookup) {
+    const found = await findExisting(row.call_id);
+    if (found) return { ...next, status: "processing", error: "", memo_id: found, report_status: "none", report: "" };
+  }
 
   const audio = await fetch(call.recording_url); // 302 → хранилище Скорозвона
   if (!audio.ok) throw new Error(`Не скачалась запись из Скорозвона: HTTP ${audio.status}`);
@@ -351,10 +375,15 @@ Deno.serve(async (req) => {
     }
     // «заново»: если Memo файл так и не принял (memo_id нет) — тот же ключ, и Memo вернёт уже
     // принятую расшифровку без второго списания; новый ключ — только для пересчёта готовой
+    // прошлая попытка споткнулась о параллельную загрузку (409) — файл у Memo, скорее всего, уже есть:
+    // доводим сами, без кнопки (так лечатся и лиды, записанные до этого исправления)
+    const stuck = row.status === "failed" && /409|idempotency/i.test(row.error);
+    const lookup = stuck || action === "retry" || !!row.error;
+    if (stuck && action !== "retry") row = { ...blank(leadId, callId, row.attempts), call_at: row.call_at };
     if (action === "retry" && row.status !== "processing") row = blank(leadId, callId, row.memo_id ? row.attempts + 1 : row.attempts);
 
     try {
-      if (row.status === "pending" || row.status === "waiting") row = await start(row, String(lead.phone ?? ""));
+      if (row.status === "pending" || row.status === "waiting") row = await start(row, String(lead.phone ?? ""), lookup);
       else if (row.status === "processing" && row.memo_id) row = await poll(row);
       else if (row.status === "done" && row.memo_id && hasReport) {
         if (row.report_status === "processing") row = await poll(row);

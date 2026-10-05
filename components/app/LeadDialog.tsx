@@ -30,6 +30,9 @@ export const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floo
 const pending = (d: Dialog | null, callId: string) =>
   !d || d.callId !== callId || DIALOG_BUSY.includes(d.status) || (SHOW_REPORT && d.status === "done" && (d.reportStatus === "processing" || d.reportStatus === "none"));
 
+/** Споткнулся о параллельную загрузку (409): файл у Memo есть — функция доведёт сама, достаточно позвать. */
+const stuck = (d: Dialog | null) => !!d && d.status === "failed" && /409|idempotency/i.test(d.error);
+
 export function useLeadDialog(lead: Lead) {
   const callId = dialogCallId(lead.link);
   const available = dialogAvailable(lead.link);
@@ -51,7 +54,7 @@ export function useLeadDialog(lead: Lead) {
         if (!alive) return;
         setDlg(d);
         setLoading(false);
-        for (let i = 0; i < MAX_STEPS && alive && pending(d, callId); i++) {
+        for (let i = 0; i < MAX_STEPS && alive && (pending(d, callId) || (i === 0 && stuck(d))); i++) {
           if (d && i > 0) await sleep(d.status === "done" ? PAUSE.report : PAUSE[d.status] ?? 6000);
           if (!alive) return;
           d = await syncDialog(lead.id);

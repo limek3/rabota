@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
@@ -75,31 +75,6 @@ export default function SchedulePage() {
   const [bulk, setBulk] = useState<{ rect: { left: number; top: number; bottom: number; width: number }; cells: { opId: string; day: DayKey }[] } | null>(null);
   const dragging = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // цельные полосы (больничный, отпуск, «уволен», «до приёма») рисуются в первой клетке серии и
-  // накрывают остальные. Столбцы дней бывают разной ширины (таблица тянет их под итоги), поэтому
-  // ширину полосы меряем по настоящим клеткам: от первой до последней клетки серии.
-  useLayoutEffect(() => {
-    const root = scrollRef.current;
-    if (!root) return;
-    const fit = () => {
-      root.querySelectorAll<HTMLElement>(".lane-span").forEach((el) => {
-        const anchor = el.parentElement;
-        const td = el.closest("td");
-        const tr = td?.parentElement;
-        if (!anchor || !td || !tr) return;
-        const span = Number(el.style.getPropertyValue("--span")) || 1;
-        const end = tr.querySelector<HTMLElement>(`td.cell[data-c="${Number(td.dataset.c) + span - 1}"]`);
-        if (!end) return;
-        const gapRight = el.classList.contains("to-end") ? 5 : 2;
-        el.style.width = `${end.getBoundingClientRect().right - gapRight - anchor.getBoundingClientRect().left - 2}px`;
-      });
-    };
-    fit();
-    const table = root.querySelector("table");
-    const ro = new ResizeObserver(fit);
-    if (table) ro.observe(table);
-    return () => ro.disconnect();
-  });
   const lastRect = useRef<{ left: number; top: number; bottom: number; width: number }>({ left: 0, top: 0, bottom: 0, width: 0 });
   // выделение дат по заголовкам: протянули мышью — рядом с курсором итоги за эти дни
   const [dayRange, setDayRange] = useState<{ a: number; b: number } | null>(null);
@@ -646,10 +621,10 @@ function SchedRow({
         const isRange = inRange(range, rowIndex, colIndex);
         const lane = lanes[colIndex];
         const edge = lane ? `${lanes[colIndex - 1] !== lane ? " first" : ""}${lanes[colIndex + 1] !== lane ? " last" : ""}` : "";
-        // больничный, отпуск, «уволен» — одним цельным блоком на всю серию: рисуем в первой клетке, остальные пустые
+        // больничный, отпуск, «уволен», «до приёма» — полоса без часов: каждая клетка рисует свой кусок,
+        // соседние сливаются (first/last), подпись — в первой. Один блок на всю серию из первой клетки
+        // не годится: следующие клетки таблицы рисуются поверх него, и полоса видна только при наведении
         const solid = lane === "sick" || lane === "vac" || lane === "gone" || lane === "pre";
-        let span = 0;
-        if (solid && edge.includes("first")) while (lanes[colIndex + span] === lane) span++;
         const hours = sh && HOURS_DAY_TYPES.has(sh.type) ? sh.hours : 0;
         return (
           <td
@@ -666,13 +641,7 @@ function SchedRow({
             data-c={colIndex}
           >
             {solid ? (
-              span > 0 && (
-                <div className="lane-anchor">
-                  <div className={`lane ${lane} first last lane-span${colIndex + span === days.length ? " to-end" : ""}`} style={{ ["--span" as string]: span }}>
-                    <span className="lane-tag">{LANE_TAG[lane!]}</span>
-                  </div>
-                </div>
-              )
+              <div className={`lane ${lane}${edge}`}>{edge.includes("first") && <span className="lane-tag">{LANE_TAG[lane!]}</span>}</div>
             ) : lane ? (
               <div className={`lane ${lane}${edge}`}>
                 {lane === "work" || lane === "train" ? (
