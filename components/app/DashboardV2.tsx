@@ -457,11 +457,11 @@ export function DashboardV2() {
             )}
           </div>
           {/* весь отдел (или несколько своих групп) — таблица и карта разбиты по группам */}
-          <OpsCard m={m} line={sc.line} settings={s} ref_={ref} groups={picked ? null : sc.groups} span={span} />
+          <OpsCard m={m} line={sc.line} settings={s} ref_={ref} groups={sc.groups} span={span} />
           {span === "day" && wm && wsc && wRows ? (
-            <HeatCard m={wm} sc={wsc} rows={wRows} groups={picked ? null : wsc.groups} focus={anchor} />
+            <HeatCard m={wm} sc={wsc} rows={wRows} groups={wsc.groups} focus={anchor} />
           ) : (
-            <HeatCard m={m} sc={sc} rows={rows} groups={picked ? null : sc.groups} />
+            <HeatCard m={m} sc={sc} rows={rows} groups={sc.groups} />
           )}
         </div>
       )}
@@ -1673,8 +1673,8 @@ const ABSENT_LABEL: Partial<Record<DayType, string>> = { off: "Выходной"
 /**
  * Разбивка операторов по группам для сводки «весь отдел» (и «все мои группы»): порядок — как у
  * групп сводки, затем «без группы», отдельными блоками стажёры (у них ещё нет плана) и уволенные,
- * работавшие в периоде (их лиды и часы — в итогах команды).
- * Выбрана конкретная группа — без разбивки (null).
+ * работавшие в периоде (их лиды и часы — в итогах команды). Выбрана одна группа — разбивка та же:
+ * сама группа, затем стажёры и уволенные свёрнутыми блоками. null — без разбивки.
  */
 const TRAINEES = "__trainees__";
 const GONE = "__gone__";

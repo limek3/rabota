@@ -164,27 +164,15 @@ export function OperatorDrawer({ row, onClose }: { row: OpRow; onClose: () => vo
 }
 
 /**
- * «Мои показатели» оператора: те же блоки, что в карточке руководителя, но без разбора
- * и заметок СВ — раскладка на всю ширину страницы.
+ * «Мои показатели» оператора: то же, что СВ видит в карточке, в стиле «Сводки» и только про себя —
+ * план с переключателем неделя / месяц / период, показатели, графики, смены по дням, выработка,
+ * последние лиды и данные сотрудника. Деньги и выплаты — в «Моём кабинете».
  */
 export function OperatorStats({ row }: { row: OpRow; wide?: boolean }) {
-  const { access } = useCrm();
   return (
     <>
-      <div className="card card-pad op-hero">
-        <PlanFact row={row} />
-        <KpiGrid row={row} n={4} />
-      </div>
-      <div className="op-pair">
-        <CumulativeCard row={row} />
-        <ShiftsCard row={row} />
-      </div>
-      <div className="op-pair">
-        <OutputCard row={row} />
-        <RecentLeadsCard opId={row.op.id} />
-      </div>
+      <MainV2 row={row} canPay={false} />
       <InfoCard row={row} />
-      {canSeePay(access, row.op.id) && <PayoutsCard opId={row.op.id} />}
     </>
   );
 }

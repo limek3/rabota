@@ -218,7 +218,7 @@
 }
 
 /* ── полоса показателей (карточка оператора) ─────────────────────── */
-.d2-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 12px 0 10px; }
+.d2-strip { display: grid; grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); padding: 12px 0 10px; }
 
 /* раскладка по ширине самого блока: «Сводка» на всю страницу и карточка оператора в выезжающей панели */
 .d2 { container-type: inline-size; }
@@ -384,3 +384,52 @@
 .op-span-nav { width: 100%; height: 34px; }
 .op-span-l { flex: 1; min-width: 0; }
 .op-span-nav > div:has(input) { flex: 1; min-width: 0; }
+
+/* ── «Моя страница» оператора: заработок главным блоком, остальное — как в «Сводке» ── */
+.me-money { padding: 0; overflow: hidden; }
+.me-money-top { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 26px; padding: 16px 22px 14px; align-items: start; }
+.me-money-top > div + div { padding-left: 24px; border-left: 1px solid var(--ink-07); }
+.me-money-n { font-size: 54px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-top: 6px; white-space: nowrap; color: var(--text); }
+.me-money-t { font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; margin-top: 6px; white-space: nowrap; color: var(--text); }
+.me-money-s { margin-top: 6px; font-size: 12px; line-height: 1.5; color: var(--text-sub); }
+.me-money-s b { color: var(--text); font-weight: 600; }
+.me-money-s b.d2-green { color: var(--c-green-fg); }
+.me-money-s b.d2-red, .me-money-parts b.d2-red { color: var(--c-red-fg); }
+.me-money-fc { display: flex; flex-direction: column; align-items: flex-start; }
+.me-money-fc .btn { margin-top: 10px; }
+.me-money-bar { width: 100%; height: 6px; margin-top: 10px; border-radius: 3px; background: var(--ink-08); overflow: hidden; }
+.me-money-bar i { display: block; height: 100%; border-radius: 3px; background: var(--c-green-fg); transition: width 0.55s var(--ease); }
+.me-money-parts { display: flex; flex-wrap: wrap; border-top: 1px solid var(--ink-07); }
+.me-money-parts span { flex: 1 1 0; min-width: 150px; display: flex; flex-direction: column; gap: 3px; padding: 11px 16px; font-size: 11.5px; color: var(--text-sub); border-left: 1px solid var(--ink-07); text-align: center; }
+.me-money-parts span:first-child { border-left: 0; }
+.me-money-parts b { font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.me-money-parts .tot { background: var(--ink-03); }
+.me-tier { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 10px; }
+.me-strip { border: 1px solid var(--ink-07); border-radius: 10px; }
+.me-grp { display: flex; align-items: baseline; gap: 8px; margin: 10px 0 8px; }
+.me-grp span { font-size: 26px; font-weight: 700; color: var(--text); }
+.me-grp small { font-size: 13px; color: var(--text-sub); }
+.me-grp em { margin-left: auto; font-style: normal; font-size: 12px; color: var(--text-sub); }
+.me-prof { display: flex; gap: 12px; align-items: flex-start; font-size: 12.5px; color: var(--text-sub); line-height: 1.5; }
+@container (max-width: 1100px) {
+  .me-money-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .me-money-fc { grid-column: 1 / -1; padding-left: 0 !important; border-left: 0 !important; padding-top: 12px; border-top: 1px solid var(--ink-07); }
+  .me-tier { grid-template-columns: 1fr; }
+}
+@container (max-width: 640px) {
+  .me-money-top { grid-template-columns: 1fr; }
+  .me-money-top > div + div { padding-left: 0; border-left: 0; }
+  .me-money-n { font-size: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .me-money-bar i { transition: none; } }
+
+/* «Мой кабинет»: сегодня и короткая строка месяца со ссылкой на «Мои показатели» */
+.me-today { margin-top: 10px; }
+.me-today-n { display: flex; align-items: baseline; gap: 10px; }
+.me-today-n span { font-size: 44px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--text); }
+.me-today-n small { font-size: 13px; color: var(--text-sub); }
+.me-today + .me-tier { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ink-06); }
+.me-month { position: relative; display: block; padding: 0; color: inherit; text-decoration: none; transition: border-color 0.15s var(--ease); }
+.me-month:hover { border-color: var(--ink-15); }
+.me-month-go { position: absolute; right: 14px; top: 10px; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: var(--text-sub); }
+.me-month:hover .me-month-go { color: var(--text); }
