@@ -15,7 +15,7 @@ import { Icon, type IconName } from "@/components/ui/icons";
 import { SEGMENT_LABEL, regionSegment, type RegionSegment } from "@/lib/crm/regions";
 import { PhonesExport } from "@/components/app/LeadsClassic";
 import { Popover } from "@/components/app/OperatorsV2";
-import { LeadPanel } from "@/components/app/LeadModal";
+import { LeadPanel, LeadPanelEmpty } from "@/components/app/LeadModal";
 
 /**
  * «Лиды» v2: карточки статусов, лиды по дням, что требует внимания, журнал и карточка лида
@@ -709,7 +709,7 @@ export function LeadsV2() {
           </div>
         </div>
 
-        {sel ? <LeadPanel key={sel.id + (failFor === sel.id ? ":fail" : "")} lead={sel} failIntent={failFor === sel.id} onClose={() => select(null)} /> : <SideEmpty />}
+        {sel ? <LeadPanel key={sel.id + (failFor === sel.id ? ":fail" : "")} lead={sel} failIntent={failFor === sel.id} onClose={() => select(null)} /> : <LeadPanelEmpty />}
       </div>
 
       {phonesOpen && (
@@ -785,26 +785,5 @@ function LeadPill({ st }: { st: LeadStatus }) {
       <span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />
       {LEAD_STATUS_LABEL[st]}
     </span>
-  );
-}
-
-function SideEmpty() {
-  return (
-    <aside className="card o2-side o2-side-empty">
-      <div className="o2-empty">
-        <span className="ic">
-          <Icon name="leads" size={22} />
-        </span>
-        <b>Выберите лид</b>
-        <span>Нажмите на строку в журнале — здесь можно поставить статус, проверить лид в Скорозвоне и поправить данные.</span>
-      </div>
-      {["Статус и действия", "Клиент", "Оператор, проект и регион", "Комментарий"].map((t) => (
-        <div key={t} className="o2-box o2-ghost">
-          <b>{t}</b>
-          <i style={{ width: "72%" }} />
-          <i style={{ width: "48%" }} />
-        </div>
-      ))}
-    </aside>
   );
 }

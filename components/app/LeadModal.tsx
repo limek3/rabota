@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useCrm, type LeadPreset } from "@/lib/crm/store";
 import type { Lead, LeadStatus } from "@/lib/crm/types";
 import { LEAD_SOURCE, LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
@@ -13,7 +13,7 @@ import { SKOROZVON_LINK_EXAMPLE, fmtPhone, isSkorozvonLink, normLink, normPhone,
 import { fmtDate, fmtDay, fmtStamp, nowStamp } from "@/lib/crm/dates";
 import { hasLeadLinkColumn, hasLeadRegionColumn } from "@/lib/crm/remote";
 import { SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
-import { DialogView, mmss, useLeadDialog } from "./LeadDialog";
+import { CallReview, mmss, useLeadDialog } from "./LeadDialog";
 
 /**
  * Лид в новом виде. Одна логика (useLeadDraft) — два места:
@@ -614,28 +614,16 @@ function StatusActions({ lead, failIntent }: { lead: Lead; failIntent?: boolean 
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   Карточка существующего лида: шапка → статус → вкладки «Разговор / Лид / История».
-   Шапка и статус всегда на виду, листается только вкладка — больше не надо прокручивать
-   форму, чтобы добраться до разговора, и наоборот.
+   Карточка существующего лида — «проверка»: сначала решение.
+   Шапка → разбор разговора (сводка и чек-лист от Memo AI) → запись → расшифровка по клику →
+   комментарий, данные и история свёрнуты. Статус закреплён внизу: проверил — нажал.
    ════════════════════════════════════════════════════════════════════ */
-
-type LcTab = "talk" | "info" | "hist";
-const LAST_TAB = "leadup.leadTab";
 
 function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failIntent?: boolean; onClose: () => void; variant: "side" | "modal" }) {
   const { data, ix, toast } = useCrm();
   const d = useLeadDraft(lead);
   const dlg = useLeadDialog(lead);
   const [editing, setEditing] = useState(false);
-  const [tab, setTab] = useState<LcTab>(() => {
-    const last = remembered(LAST_TAB) as LcTab;
-    if (last === "talk" || !last) return dlg.callId && dlg.available ? "talk" : "info";
-    return last === "hist" ? "hist" : "info";
-  });
-  const pick = (t: LcTab) => {
-    setTab(t);
-    remember(LAST_TAB, t);
-  };
 
   const op = ix.opById.get(lead.operatorId);
   const g = lead.groupId ? ix.groupById.get(lead.groupId) : null;
@@ -657,9 +645,6 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
   const saveEdit = async () => {
     if (await d.save()) setEditing(false);
   };
-
-  const talkBadge =
-    dlg.state === "busy" ? <span className="lc-spin sm" aria-label="готовится" /> : dlg.state === "done" && dlg.dlg?.callSec != null ? <span className="lc-tab-n num">{mmss(dlg.dlg.callSec)}</span> : dlg.state === "failed" ? <span className="lc-tab-n err">!</span> : null;
 
   return (
     <div className={`lc lc-${variant}`} onKeyDown={onCtrlEnter(() => editing && d.dirty && void saveEdit())}>
@@ -697,46 +682,58 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
           {g && <span className="o2-muted"> · {g.name}</span>}
         </span>
         {p && <Chip hue={p.color}>{p.name}</Chip>}
+        {dlg.dlg?.callSec != null && (
+          <span className="num">
+            <Icon name="phone" size={12} /> {mmss(dlg.dlg.callSec)}
+          </span>
+        )}
       </div>
 
-      {/* статус — главное действие супервайзера */}
-      <div className="lc-status">
-        <StatusActions key={`${lead.id}:${lead.status}:${lead.statusAt ?? ""}`} lead={lead} failIntent={failIntent} />
-      </div>
+      {editing ? (
+        <div className="lc-pane">
+          <div className="lf-body lc-edit">
+            <LeadFields d={d} compact />
+            {d.canDelete && (
+              <button type="button" className="lc-link danger" onClick={async () => (await d.remove()) && onClose()}>
+                <Icon name="trash" size={12} /> Удалить ошибочную запись
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="lc-pane rv">
+          <CallReview lead={lead} d={dlg} />
 
-      <nav className="lc-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === "talk"} className={tab === "talk" ? "on" : ""} onClick={() => pick("talk")}>
-          <Icon name="chat" size={13} /> Разговор {talkBadge}
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "info"} className={tab === "info" ? "on" : ""} onClick={() => pick("info")}>
-          <Icon name="doc" size={13} /> Лид {d.dirty && <span className="lc-tab-n">•</span>}
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "hist"} className={tab === "hist" ? "on" : ""} onClick={() => pick("hist")}>
-          <Icon name="list" size={13} /> История <span className="lc-tab-n num">{history.length}</span>
-        </button>
-      </nav>
-
-      <div className="lc-pane" role="tabpanel">
-        {tab === "talk" && <DialogView lead={lead} d={dlg} note={lead.comment} />}
-
-        {tab === "info" &&
-          (editing ? (
-            <div className="lf-body lc-edit">
-              <LeadFields d={d} compact />
-              {d.canDelete && (
-                <button type="button" className="lc-link danger" onClick={async () => (await d.remove()) && onClose()}>
-                  <Icon name="trash" size={12} /> Удалить ошибочную запись
-                </button>
-              )}
+          {lead.comment && (
+            <div className="lc-pin">
+              <Icon name="doc" size={13} />
+              <span>
+                <b>Оператор:</b> {lead.comment}
+              </span>
             </div>
-          ) : (
+          )}
+
+          <details className="rv-fold" open>
+            <summary>
+              <Icon name="user" size={13} /> Данные лида
+              <span className="o2-muted">{[lead.region, p?.name].filter(Boolean).join(" · ")}</span>
+              <Icon name="chevD" size={13} className="rv-chev" />
+            </summary>
             <LeadInfo lead={lead} canEdit={!d.readOnly} onEdit={() => setEditing(true)} dupHintNode={dupHint(d, (id) => ix.opById.get(id)?.name ?? "")} exported={data.leadExports[lead.id]} />
-          ))}
+          </details>
 
-        {tab === "hist" && <LeadHistory items={history} />}
-      </div>
+          <details className="rv-fold">
+            <summary>
+              <Icon name="list" size={13} /> История
+              <span className="o2-muted num">{history.length}</span>
+              <Icon name="chevD" size={13} className="rv-chev" />
+            </summary>
+            <LeadHistory items={history} />
+          </details>
+        </div>
+      )}
 
-      {tab === "info" && editing && (
+      {editing ? (
         <div className="lc-foot">
           <button type="button" className="o2-btn" onClick={stopEdit} disabled={d.busy}>
             Отмена
@@ -746,12 +743,17 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
             <Icon name="check" size={13} /> Сохранить
           </button>
         </div>
+      ) : (
+        // решение — закреплено внизу: прочитал разбор, нажал
+        <div className="lc-decide">
+          <StatusActions key={`${lead.id}:${lead.status}:${lead.statusAt ?? ""}`} lead={lead} failIntent={failIntent} />
+        </div>
       )}
     </div>
   );
 }
 
-/** Вкладка «Лид»: всё о лиде строками, без полей ввода. Править — кнопкой. */
+/** «Данные лида»: всё о лиде строками, без полей ввода. Править — кнопкой. */
 function LeadInfo({ lead, canEdit, onEdit, dupHintNode, exported }: { lead: Lead; canEdit: boolean; onEdit: () => void; dupHintNode: ReactNode; exported?: string }) {
   const { ix, data } = useCrm();
   const op = ix.opById.get(lead.operatorId);
@@ -807,10 +809,6 @@ function LeadInfo({ lead, canEdit, onEdit, dupHintNode, exported }: { lead: Lead
         )}
       </dl>
 
-      <div className="lc-cm">
-        <span className="lc-cap">Комментарий оператора</span>
-        <div className={lead.comment ? "l2-note" : "l2-note o2-muted"}>{lead.comment || "Без комментария"}</div>
-      </div>
 
       {canEdit ? (
         <button type="button" className="o2-btn lc-wide" onClick={onEdit}>
@@ -901,11 +899,14 @@ function onCtrlEnter(fn: () => void) {
    Панель справа на странице «Лиды» и попап с других страниц — одна карточка
    ════════════════════════════════════════════════════════════════════ */
 
-export function LeadPanel({ lead, onClose, failIntent }: { lead: Lead; onClose: () => void; failIntent?: boolean }) {
+/** Панель липкая, но стоит под шапкой страницы: высота — ровно до низа окна, иначе низ
+ * карточки (плеер, статус, «Сохранить») уезжает за экран, пока страницу не прокрутят. */
+// до отрисовки, чтобы смена пустой панели на карточку не мигала высотой; при сборке — обычный эффект
+const useIsoLayout = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function usePanelFit() {
   const ref = useRef<HTMLElement>(null);
-  // панель липкая, но стоит под шапкой страницы: высота — ровно до низа окна, иначе низ
-  // карточки (плеер, «Сохранить») уезжает за экран, пока страницу не прокрутят
-  useEffect(() => {
+  useIsoLayout(() => {
     const el = ref.current;
     if (!el) return;
     const fit = () => {
@@ -925,9 +926,73 @@ export function LeadPanel({ lead, onClose, failIntent }: { lead: Lead; onClose: 
       document.removeEventListener("scroll", fit, { capture: true });
     };
   }, []);
+  return ref;
+}
+
+export function LeadPanel({ lead, onClose, failIntent }: { lead: Lead; onClose: () => void; failIntent?: boolean }) {
+  const ref = usePanelFit();
   return (
     <aside className="card o2-side lc-wrap" ref={ref}>
       <LeadCard lead={lead} failIntent={failIntent} onClose={onClose} variant="side" />
+    </aside>
+  );
+}
+
+/**
+ * Лид не выбран — та же панель той же ширины и высоты, а внутри контуры карточки:
+ * шапка, запись, расшифровка, данные лида, статус внизу. Выбрали лид — меняется только
+ * содержимое, страница не прыгает.
+ */
+export function LeadPanelEmpty() {
+  const ref = usePanelFit();
+  const bar = (w: string | number, h = 9) => <i style={{ width: w, height: h }} />;
+  return (
+    <aside className="card o2-side lc-wrap o2-side-empty" ref={ref} aria-label="Лид не выбран">
+      <div className="lc lc-side lc-ghost">
+        <header className="lc-head">
+          <div className="lc-id" style={{ display: "flex", flexDirection: "column", gap: 9, paddingTop: 3 }}>
+            {bar("46%", 15)}
+            {bar("62%")}
+          </div>
+        </header>
+        <div className="lc-line">
+          {bar(120)}
+          {bar(110)}
+          {bar(44)}
+        </div>
+        <div className="lc-pane rv">
+          <div className="lc-ghost-hint">
+            <span className="ic">
+              <Icon name="leads" size={20} />
+            </span>
+            <b>Выберите лид</b>
+            <span>Нажмите на строку в журнале — здесь будут запись разговора, расшифровка и данные лида, а внизу — статус.</span>
+          </div>
+          <div className="lc-ghost-player" />
+          <div className="rv-fold lc-ghost-row">
+            {bar(150)}
+          </div>
+          <div className="rv-fold lc-ghost-box">
+            {bar(110)}
+            {["Клиент", "Телефон", "Регион", "Проект", "Оператор", "Передан"].map((k, i) => (
+              <div key={k} className="lc-ghost-dl">
+                <span>{k}</span>
+                {bar(`${[44, 56, 38, 30, 48, 52][i]}%`)}
+              </div>
+            ))}
+          </div>
+          <div className="rv-fold lc-ghost-row">{bar(90)}</div>
+        </div>
+        <div className="lc-decide">
+          <div className="lf-st3" aria-hidden>
+            {["В работе", "Доведён", "Не доведён"].map((t) => (
+              <span key={t} className="lc-ghost-btn">
+                {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     </aside>
   );
 }
