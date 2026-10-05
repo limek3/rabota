@@ -12,6 +12,8 @@ import { Avatar, Conv, Empty, Field, LeadN, Modal, MonthSwitcher, NumInput, Page
 import { DateInput, Select, dot, uiZoom, type Opt } from "@/components/ui/select";
 import { canEditShift } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
+import { SkorozvonHours } from "@/components/app/SkorozvonHours";
+import { supabaseReady } from "@/lib/supabase";
 
 const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training: "indigo", platform: "purple", vacation: "amber", sick: "red" };
 
@@ -67,6 +69,7 @@ export default function SchedulePage() {
   const [group, setGroup] = useState("");
   const [sel, setSel] = useState<Sel | null>(null);
   const [fillOpen, setFillOpen] = useState(false);
+  const [skOpen, setSkOpen] = useState(false);
   // выделение мышью, как в таблицах: зажали и протянули по клеткам
   const [range, setRange] = useState<Range | null>(null);
   const [bulk, setBulk] = useState<{ rect: { left: number; top: number; bottom: number; width: number }; cells: { opId: string; day: DayKey }[] } | null>(null);
@@ -351,6 +354,11 @@ export default function SchedulePage() {
         actions={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
+            {access.isHead && supabaseReady && (
+              <button className="btn" onClick={() => setSkOpen(true)} title="Часы по статусам Скорозвона тем, у кого смена">
+                <Icon name="clock" size={14} /> Часы из Скорозвона
+              </button>
+            )}
             {access.can.editShifts && (
               <button className="btn btn-primary" onClick={() => setFillOpen(true)} disabled={!rows.length}>
                 <Icon name="fill" size={14} /> Заполнить
@@ -556,6 +564,7 @@ export default function SchedulePage() {
         />
       )}
       {fillOpen && <FillModal rows={rows} onClose={() => setFillOpen(false)} />}
+      {skOpen && <SkorozvonHours onClose={() => setSkOpen(false)} />}
     </div>
   );
 }
