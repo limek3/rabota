@@ -870,6 +870,7 @@ export function useWheelHScroll(ref: RefObject<HTMLElement>, opts: { auto?: bool
 }
 
 /* ── модальное окно ───────────────────────────────────────────────── */
+/** Без title — окно без своей шапки и отступов: шапку и «закрыть» рисует содержимое (карточка лида). */
 export function Modal({
   title,
   onClose,
@@ -877,7 +878,7 @@ export function Modal({
   footer,
   width = 520,
 }: {
-  title: ReactNode;
+  title?: ReactNode;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
@@ -900,13 +901,15 @@ export function Modal({
   return createPortal(
     <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal style={{ maxWidth: width }}>
-        <div className="modal-head">
-          <h2 className="modal-title">{title}</h2>
-          <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose} aria-label="Закрыть">
-            <Icon name="close" size={15} />
-          </button>
-        </div>
-        <div className="modal-body">{children}</div>
+        {title !== undefined && (
+          <div className="modal-head">
+            <h2 className="modal-title">{title}</h2>
+            <button className="btn btn-ghost btn-sm btn-icon" onClick={onClose} aria-label="Закрыть">
+              <Icon name="close" size={15} />
+            </button>
+          </div>
+        )}
+        <div className={title !== undefined ? "modal-body" : "modal-body bare"}>{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
     </div>,

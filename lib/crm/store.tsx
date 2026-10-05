@@ -56,6 +56,7 @@ import { diffRecords, diffSettings, type AuditCtx } from "./audit";
 import { LEADS, SKOROZVON_LINK_EXAMPLE, capName, fmtPhone, isSkorozvonLink, normLink, normPhone, plural, skorozvonLinkPhone } from "./format";
 import { cleanLeadExportLog, cleanLeadExports, counts, repair, sanitize, toSnapshot } from "./validate";
 import { stripDemo } from "./purge";
+import { dialogAvailable, syncDialog } from "./dialog";
 import { syncClock } from "@/lib/clock";
 
 /**
@@ -703,6 +704,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         () => db.putRecord("leads", lead),
         (d) => ({ ...d, leads: prev ? d.leads.map((l) => (l.id === lead.id ? lead : l)) : [...d.leads, lead] }),
       );
+      // расшифровка разговора — сразу, а не когда супервайзер откроет карточку; ошибку покажет карточка
+      if (ok && db.REMOTE && dialogAvailable(lead.link) && (!prev || lead.link !== prev.link)) void syncDialog(lead.id).catch(() => {});
       if (ok && prev) {
         const who = ixRef.current.opById.get(lead.operatorId)?.name ?? lead.operatorId;
         void log("lead", lead.id, `Правка лида ${fmtPhone(lead.phone) || lead.client || lead.id} · ${who}`, changesOf("lead", prev, lead));
