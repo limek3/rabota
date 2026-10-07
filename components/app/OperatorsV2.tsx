@@ -9,7 +9,7 @@ import { canManageOperator } from "@/lib/crm/access";
 import { addDays, addMonths, fmtMonth, isoWeekday, isWorkday, monthEnd, monthOf, monthStart, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName, OPS } from "@/lib/crm/format";
 import { EMPLOYMENT_LABEL, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, type DayKey, type DayType, type Operator, type Shift } from "@/lib/crm/types";
-import { Avatar, downloadText, toCsv } from "@/components/ui/kit";
+import { Avatar } from "@/components/ui/kit";
 import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { StickyHead } from "@/components/app/StickyHead";
@@ -320,6 +320,39 @@ export function OperatorsV2() {
     };
   }, [pool, rows, group, onlyTrainees, started, from, last, mode, ix, s]);
 
+  /* ── разбивка: отдел целиком и каждая группа за тот же период ─────── */
+  const byGroup = useMemo(() => {
+    // как в показателях: лиды и часы — всех, кто работал (и уволенных), план и «отстают» — работающих
+    const scope = rows.filter((x) => !onlyTrainees || x.op.role === "trainee");
+    const agg = (xs: PRow[]) => {
+      const live = xs.filter((x) => x.op.status !== "fired");
+      const plan = live.reduce((a, x) => a + x.plan, 0);
+      const planToDate = live.reduce((a, x) => a + x.planToDate, 0);
+      const fact = xs.reduce((a, x) => a + x.fact, 0);
+      const hours = xs.reduce((a, x) => a + x.hours, 0);
+      return {
+        head: live.filter((x) => employed(x.op, last)).length,
+        onShift: live.filter((x) => worked(x.todayShift)).length,
+        plan,
+        planToDate,
+        fact,
+        hours,
+        pct: planToDate > 0 ? fact / planToDate : null,
+        lph: hours > 0 ? fact / hours : null,
+        crit: live.filter((x) => x.st === "critical").length,
+      };
+    };
+    const keys = [...new Set(scope.map((x) => x.op.groupId || NO_GROUP))];
+    const groupsOut = keys
+      .map((k) => {
+        const g = k === NO_GROUP ? null : ix.groupById.get(k);
+        return { key: k, name: g ? g.name : NO_GROUP_LABEL, color: g?.color ?? "gray", ...agg(scope.filter((x) => (x.op.groupId || NO_GROUP) === k)) };
+      })
+      .filter((g) => g.head > 0 || g.fact > 0)
+      .sort((a, b) => (a.key === NO_GROUP ? 1 : b.key === NO_GROUP ? -1 : a.name.localeCompare(b.name, "ru")));
+    return { total: agg(scope), groups: groupsOut };
+  }, [rows, onlyTrainees, last, ix]);
+
   const kpiRef = useRef<HTMLDivElement>(null);
   const sel = selId ? rows.find((x) => x.op.id === selId) ?? null : null;
   const drawerRow = drawerId ? m.ops.find((r) => r.op.id === drawerId) ?? null : null;
@@ -329,25 +362,6 @@ export function OperatorsV2() {
   const toggleSort = (key: SortKey) => setSort((p) => (p.key === key ? { key, dir: p.dir === 1 ? -1 : 1 } : { key, dir: key === "name" ? 1 : -1 }));
   const allChecked = list.length > 0 && list.every((x) => checked.has(x.op.id));
 
-  const exportCsv = () => {
-    const src = checked.size ? list.filter((x) => checked.has(x.op.id)) : list;
-    const head = ["ФИО", "Группа", "Роль", "Оформление", "Статус", "План", "Должно быть к дате", "Факт", "Выполнение, %", "Осталось", "Часы", "Конверсия, %"];
-    const body = src.map((x) => [
-      x.op.name,
-      x.groupName,
-      ROLE_LABEL[x.op.role],
-      EMPLOYMENT_LABEL[x.op.employment ?? "none"],
-      ST[x.st].label,
-      Math.round(x.plan * 10) / 10,
-      Math.round(x.planToDate * 10) / 10,
-      x.fact,
-      x.planToDate > 0 ? Math.round(x.pct * 1000) / 10 : "",
-      x.left,
-      Math.round(x.hours * 10) / 10,
-      x.lph == null ? "" : Math.round(x.lph * 100),
-    ]);
-    downloadText(`operators_${from}_${to}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
-  };
 
   const headCell = (c: Col) => {
     const hp = colDrag.headProps(c);
@@ -469,10 +483,6 @@ export function OperatorsV2() {
               {mode === "day" ? "Сегодня" : mode === "week" ? "Эта неделя" : "Этот месяц"}
             </button>
           )}
-          <button className="o2-btn" onClick={exportCsv} title={checked.size ? `Выгрузить отмеченных: ${checked.size}` : "Выгрузить список"}>
-            <Icon name="download" size={14} />
-            CSV{checked.size ? ` · ${checked.size}` : ""}
-          </button>
           {access.can.manageOperators && (
             <button className="o2-btn pri" onClick={() => openOperator()}>
               <Icon name="plus" size={14} />
@@ -503,6 +513,66 @@ export function OperatorsV2() {
               </div>
             </div>
           </div>
+
+          {/* ── по группам: отдел целиком и каждая группа; клик — показать группу в таблице ── */}
+          {byGroup.groups.length > 0 && (
+            <div className="card o2-grp">
+              <div className="o2-grp-h">
+                <b>По группам</b>
+                <span className="o2-muted">{forLabel} · клик по строке — показать группу в таблице</span>
+              </div>
+              <table className="o2-tbl">
+                <thead>
+                  <tr>
+                    <th>Группа</th>
+                    <th className="c">Операторов</th>
+                    <th className="c">План</th>
+                    <th className="c">Факт</th>
+                    <th>Выполнение</th>
+                    <th className="c">Часы</th>
+                    <th className="c">Конв.</th>
+                    <th className="c">Отстают</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[{ key: "", name: "Отдел", color: "", ...byGroup.total }, ...byGroup.groups].map((g) => {
+                    const isTotal = g.key === "";
+                    const on = isTotal ? !group : group === g.key;
+                    const hue = g.pct == null ? "gray" : pctHue(g.pct);
+                    return (
+                      <tr key={g.key || "all"} className={`${on ? "sel" : ""}${isTotal ? " o2-grp-total" : ""}`} onClick={() => setGroup(isTotal ? "" : group === g.key ? "" : g.key)}>
+                        <td>
+                          <span className="o2-grp-n">
+                            {isTotal ? <Icon name="groups" size={14} /> : <i style={{ background: hueVar(g.color) }} />}
+                            {g.name}
+                          </span>
+                        </td>
+                        <td className="c">
+                          {fmtInt(g.head)}
+                          {g.onShift > 0 && mode === "day" && <span className="o2-muted"> · {fmtInt(g.onShift)} на смене</span>}
+                        </td>
+                        <td className="c">{g.plan > 0 ? fmtNum(g.plan, g.plan % 1 ? 1 : 0) : "—"}</td>
+                        <td className="c" style={{ fontWeight: 600 }}>{fmtInt(g.fact)}</td>
+                        <td>
+                          <div className="o2-pct">
+                            {g.pct == null ? <span className="o2-muted">—</span> : <span className={`o2-${hue[0]}`}>{fmtPct(g.pct)}</span>}
+                            <div className="t">{g.pct != null && <b style={{ width: `${Math.min(100, g.pct * 100)}%`, background: hueVar(hue) }} />}</div>
+                          </div>
+                        </td>
+                        <td className="c">{g.hours > 0 ? fmtNum(g.hours) : "0"}</td>
+                        <td className="c">
+                          {g.lph == null ? <span className="o2-muted">—</span> : <span className={convNorm > 0 ? (g.lph >= convNorm ? "o2-g" : "o2-r") : undefined} style={{ fontWeight: 600 }}>{fmtPct(g.lph)}</span>}
+                        </td>
+                        <td className={`c${g.crit > 0 ? " o2-r" : " o2-muted"}`} style={g.crit > 0 ? { fontWeight: 600 } : undefined}>
+                          {g.crit > 0 ? fmtInt(g.crit) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* ── баннер ───────────────────────────────────────────── */}
           {kpi.crit.length > 0 && !alertHidden && (

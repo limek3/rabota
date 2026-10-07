@@ -88,6 +88,9 @@ export function normLink(raw: string): string {
   try {
     const u = new URL(withScheme);
     if ((u.protocol !== "http:" && u.protocol !== "https:") || !u.hostname.includes(".")) return "";
+    // Скорозвон, открытый из письма, добавляет «?utm_source=emailru&…» перед «#/leads/…» — лиду
+    // это не нужно, а база такую ссылку не примет (ждёт app.skorozvon.ru/#/leads/…)
+    if (u.hostname === "app.skorozvon.ru") u.search = "";
     return u.href;
   } catch {
     return "";

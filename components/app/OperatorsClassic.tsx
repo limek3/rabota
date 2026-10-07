@@ -3,16 +3,16 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { useInsights, useMonthModel } from "@/lib/crm/hooks";
-import { LAG_LABEL, type OpInsight } from "@/lib/crm/insights";
+import { type OpInsight } from "@/lib/crm/insights";
 import { PACE_HUE, PACE_LABEL, goneLast, isGone, type OpRow, type Pace, type PaceStatus } from "@/lib/crm/calc";
-import { EMPLOYMENT_LABEL, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
+import { NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, STATUS_LABEL, type Operator } from "@/lib/crm/types";
 import { fmtMonth } from "@/lib/crm/dates";
 import { ColumnPicker, useColumnDrag, useColumnOrder, useColumnVisibility, type ColumnGroup } from "@/components/ui/ColumnOrder";
 
 /** Столбцы таблицы по умолчанию (после закреплённого «Оператор»). Порядок каждый может поменять у себя. */
 const OP_COLS = ["status", "plan", "fact", "pct", "dev", "why", "lph", "real", "rr", "left", "need", "today", "week", "prev", "avg", "hours"] as const;
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Conv, EmploymentTag, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, downloadText, foldRow, hueVars, toCsv, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
+import { Avatar, Conv, EmploymentTag, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, foldRow, hueVars, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
@@ -244,38 +244,6 @@ export function OperatorsClassic() {
 
   const openRow = openId ? rows.find((r) => r.op.id === openId) ?? null : null;
 
-  const exportCsv = () => {
-    const head = ["ФИО", "Группа", "Роль", "Статус", "Оформление", "Оценка темпа", "План", "Факт", "% плана", "К плану на дату", "Прогноз RR", "Прогноз %", "Осталось", "Нужно в день", "Сегодня", "Неделя", "Пр. неделя", "Ср. в раб. день", "Часы", "Конверсия, %", "Почему отстаёт", "Тренд 5 смен, %", "Нужно/делает, раз"];
-    const body = list.map((r) => {
-      const x = ins.byOp.get(r.op.id);
-      return [
-      r.op.name,
-      r.op.groupId ? ix.groupById.get(r.op.groupId)?.name ?? "" : NO_GROUP_LABEL,
-      ROLE_LABEL[r.op.role],
-      STATUS_LABEL[r.op.status],
-      EMPLOYMENT_LABEL[r.op.employment ?? "none"],
-      PACE_LABEL[r.status],
-      r.terms.plan,
-      r.pace.fact,
-      Math.round(r.pace.pct * 1000) / 10,
-      Math.round(r.pace.deviation * 10) / 10,
-      Math.round(r.pace.rr),
-      Math.round(r.pace.rrPct * 1000) / 10,
-      r.pace.remaining,
-      r.pace.needPerDay == null ? "" : Math.round(r.pace.needPerDay * 10) / 10,
-      r.pace.today,
-      r.pace.thisWeek,
-      r.pace.prevWeek,
-      Math.round(r.avgPerWorkday * 10) / 10,
-      r.hours,
-      r.lph == null ? "" : Math.round(r.lph * 100),
-      x?.reason ? LAG_LABEL[x.reason.kind] : "",
-      x?.tempo.change == null ? "" : Math.round(x.tempo.change * 100),
-      x?.realism == null || x.realism === Infinity ? "" : Math.round(x.realism * 10) / 10,
-    ];
-    });
-    downloadText(`operators_${month}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
-  };
 
   const groups = data.groups.filter((g) => !g.deletedAt);
 
@@ -507,9 +475,6 @@ export function OperatorsClassic() {
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
             <Seg<View> value={view} onChange={setView} options={[{ value: "table", label: "Таблица" }, { value: "days", label: "По дням" }]} />
-            <button className="btn" onClick={exportCsv} disabled={!list.length}>
-              <Icon name="download" size={14} /> CSV
-            </button>
             {access.can.manageOperators && (
               <button className="btn btn-primary" onClick={() => openOperator()}>
                 <Icon name="plus" size={14} stroke={2.2} /> Оператор

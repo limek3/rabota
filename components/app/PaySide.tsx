@@ -111,7 +111,7 @@ function Hero({ r, label, canPay, onPay }: { r: PayRow; label: string; canPay: b
       </div>
       {r.toPay > 0.005 && (
         <div className="tax">
-          <span>С налогом +{TAX_PCT}% — к переводу</span>
+          <span>С налогом {TAX_PCT}% (÷ 0,94) — к переводу</span>
           <TaxSum value={r.toPay} />
         </div>
       )}

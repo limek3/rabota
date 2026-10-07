@@ -3,7 +3,8 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useCrm } from "@/lib/crm/store";
 import type { DataState } from "@/lib/crm/types";
-import { SHEETS_SCRIPT, buildSheets, pushToSheets } from "@/lib/crm/sheets";
+import { LEADS_SCRIPT, SHEETS_SCRIPT, buildSheets, isScriptUrl, pushToSheets } from "@/lib/crm/sheets";
+import { leadSheetTab } from "@/lib/crm/leadsheet";
 import { fmtInt } from "@/lib/crm/format";
 import { fmtStamp } from "@/lib/crm/dates";
 import { Collapse, Field, Switch } from "@/components/ui/kit";
@@ -190,4 +191,135 @@ export function SheetsSection() {
       </div>
     </section>
   );
+}
+
+/**
+ * Секция «Таблица лидов для ОКК» в настройках → Данные: куда «Лиды» → «Таблица ОКК» → «В Google
+ * Таблицу» и автовыгрузка (13:00 и 19:00 МСК, Edge Function leads-sheet) дописывают лиды.
+ * Лист месяца — «Октябрь Борис»; в новом месяце скрипт создаёт его сам.
+ */
+export function LeadsSheetSection() {
+  const { full, saveSettings, toast, today, data } = useCrm();
+  const cfg = full.settings.sheets;
+  const ls = cfg.leads;
+  const [url, setUrl] = useState(ls.url);
+  const [token, setToken] = useState(ls.token);
+  const [owner, setOwner] = useState(ls.owner);
+  const [help, setHelp] = useState(!ls.url);
+  // пришли из «Лиды» → «Таблица ОКК» → «В Google Таблицу»: сразу к этой секции
+  useEffect(() => {
+    if (window.location.hash === "#leads-sheet") document.getElementById("leads-sheet")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+  useEffect(() => {
+    setUrl(ls.url);
+    setToken(ls.token);
+    setOwner(ls.owner);
+  }, [ls.url, ls.token, ls.owner]);
+
+  const dirty = url.trim() !== ls.url || token !== ls.token || owner.trim() !== ls.owner;
+  const urlBad = !!url.trim() && !isScriptUrl(url);
+  const lastAuto = data.leadExportLog.find((e) => e.kind === "sheet" && e.by.startsWith("Авто"));
+
+  const save = async () => {
+    await saveSettings({ sheets: { ...cfg, leads: { ...ls, url: url.trim(), token, owner: owner.trim() || "Борис" } } });
+    toast("Таблица лидов сохранена");
+  };
+  const copy = async (text: string, what: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(`${what} скопирован`);
+    } catch {
+      toast("Не удалось скопировать — выделите текст вручную", "err");
+    }
+  };
+
+  return (
+    <section id="leads-sheet" className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 14, scrollMarginTop: 80 }}>
+      <div>
+        <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 className="card-title" style={{ fontSize: 15 }}>
+              <Icon name="fill" size={15} className="title-ic" />
+              Таблица лидов для ОКК
+            </h2>
+            <p className="card-sub">
+              Все лиды — дата, ссылка, телефон, имя, оператор, доведен, почему, проверка ОКК — дописываются в лист месяца, сейчас «{leadSheetTab(today, owner || "Борис")}». В
+              новом месяце лист создаётся сам. Повторная выгрузка строки не дублирует, другие листы таблицы не трогаются.
+            </p>
+          </div>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setHelp((v) => !v)}>
+            {help ? "Скрыть инструкцию" : "Как настроить"}
+          </button>
+        </div>
+
+        <Collapse open={help} innerStyle={{ paddingTop: 14 }}>
+          <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.65, color: "var(--text-sub)" }}>
+            <li>Откройте таблицу («Авто недозвоны») → «Расширения → Apps Script». Нужен доступ на редактирование таблицы.</li>
+            <li>Удалите всё в редакторе и вставьте скрипт (кнопка «Скопировать скрипт» ниже).</li>
+            <li>
+              Нажмите «Сгенерировать» у поля «Секрет» и в скрипте замените <code>ЗАМЕНИТЕ_НА_СВОЙ_СЕКРЕТ</code> на него. Сохраните скрипт (Ctrl+S).
+            </li>
+            <li>«Развернуть → Новое развёртывание» → «Веб-приложение». Выполнять от имени: «Меня». Доступ: «Все». Разрешите доступ к таблице.</li>
+            <li>Ссылку веб-приложения (заканчивается на /exec) вставьте ниже и сохраните.</li>
+            <li>
+              Для автовыгрузки в 13:00 и 19:00 — функция <code>leads-sheet</code> и расписание в Supabase (supabase/migrations/20261008000002_leads_sheet_cron.sql), затем
+              включите переключатель ниже.
+            </li>
+          </ol>
+        </Collapse>
+      </div>
+
+      <div className="grid2">
+        <Field label="Ссылка веб-приложения" error={urlBad ? "Нужна ссылка вида https://script.google.com/macros/s/…/exec" : null}>
+          <input className="inp" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" spellCheck={false} />
+        </Field>
+        <Field label="Секрет" hint="Тот же, что в скрипте таблицы">
+          <div className="row" style={{ gap: 6 }}>
+            <input className="inp" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Длинная случайная строка" spellCheck={false} style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm" onClick={() => setToken(randomToken())}>
+              Сгенерировать
+            </button>
+            {token && (
+              <button type="button" className="btn btn-sm btn-icon" title="Скопировать секрет" onClick={() => void copy(token, "Секрет")}>
+                <Icon name="copy" size={13} />
+              </button>
+            )}
+          </div>
+        </Field>
+      </div>
+      <Field label="Чей лист" hint="Имя после месяца в названии листа: «Октябрь Борис», «Ноябрь Борис»…">
+        <input className="inp" value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Борис" style={{ maxWidth: 240 }} />
+      </Field>
+
+      <Switch
+        checked={ls.auto}
+        onChange={(v) => void saveSettings({ sheets: { ...cfg, leads: { ...ls, auto: v } } })}
+        disabled={!ls.url || !ls.token}
+        label="Выгружать автоматически в 13:00 и 19:00 по Москве"
+        hint={
+          !ls.url || !ls.token
+            ? "Сначала сохраните ссылку и секрет"
+            : `Каждый день, и в выходные: лиды за вчера и сегодня (повторы не дублируются)${lastAuto ? ` · последняя автовыгрузка ${fmtStamp(lastAuto.at)}, строк ${fmtInt(lastAuto.count)}` : ""}`
+        }
+      />
+
+      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+        <button type="button" className="btn" onClick={() => void copy(LEADS_SCRIPT, "Скрипт")}>
+          <Icon name="copy" size={14} /> Скопировать скрипт
+        </button>
+        {dirty && (
+          <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={urlBad}>
+            Сохранить
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function randomToken(): string {
+  const abc = "abcdefghijkmnpqrstuvwxyz23456789";
+  const buf = new Uint8Array(24);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => abc[b % abc.length]).join("");
 }

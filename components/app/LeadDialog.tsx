@@ -103,6 +103,59 @@ export function useLeadDialog(lead: Lead) {
 export type DialogState = ReturnType<typeof useLeadDialog>;
 
 const SPEEDS = [1, 1.25, 1.5, 2];
+
+type Seg = { s: number; e: number; who: string; t: string };
+
+/**
+ * «Волна» плеера по расшифровке: где говорит оператор, где клиент, где тишина.
+ * Настоящую громкость не взять — mp3 лежит в хранилище Скорозвона без CORS, браузер его не прочитает.
+ * Высота условная, но плавная: соседние столбики меняются постепенно и сходят на нет к краям реплики,
+ * как у звуковой волны. Паузы и ожидание на линии — короткие штрихи.
+ */
+function waveBars(segs: Seg[], total: number, op: string | null, n = 64) {
+  if (!total) return [];
+  return Array.from({ length: n }, (_, k) => {
+    const at = ((k + 0.5) / n) * total;
+    const i = segs.findIndex((s, j) => at >= s.s && at < Math.max(s.e, segs[j + 1]?.s ?? s.e));
+    const speech = i >= 0 && at <= segs[i].e + 1.5;
+    let h = 14;
+    if (speech) {
+      const seg = segs[i];
+      // огибающая реплики: тише в начале и в конце
+      const edge = Math.min(1, (at - seg.s) / 1.5, (seg.e + 1.5 - at) / 1.5);
+      // плавный «голос»: сумма двух синусов, у каждой реплики свой рисунок
+      const voice = 0.5 + 0.3 * Math.sin(k * 0.9 + i * 1.7) + 0.2 * Math.sin(k * 2.3 + i * 0.6);
+      h = 22 + 74 * Math.max(0.15, edge) * voice;
+    }
+    return { at, who: speech ? (segs[i].who === op ? "op" : "cl") : "gap", h };
+  });
+}
+
+/** Пары «вопрос → ответ»: реплики оператора подряд — вопрос, следующие за ними реплики клиента — ответ. */
+function qaGroups(segs: Seg[], op: string | null) {
+  const out: { q: number[]; a: number[] }[] = [];
+  let cur: { q: number[]; a: number[] } | null = null;
+  segs.forEach((s, i) => {
+    const mine = s.who === op;
+    if (!cur || (mine && cur.a.length)) {
+      cur = { q: [], a: [] };
+      out.push(cur);
+    }
+    (mine ? cur.q : cur.a).push(i);
+  });
+  return out;
+}
+
+/** Вопрос квалификации в реплике оператора — помечаем, чтобы супервайзер видел, что спросили. */
+const QA_TAGS: [RegExp, string][] = [
+  [/обращаться|как вас зовут|ваше имя/i, "имя"],
+  [/модел|марк|какой автомобиль|какую машину/i, "модель"],
+  [/бюджет|сумм|стоимост|сколько готовы/i, "бюджет"],
+  [/когда планир|срок|в течение какого/i, "срок"],
+  [/кредит|наличн|рассрочк|способ оплат|как.*оплачива/i, "оплата"],
+  [/удобно.*(звон|связ)|перезвон|менеджер свяж/i, "звонок"],
+];
+const qaTag = (text: string) => (text.includes("?") ? QA_TAGS.find(([re]) => re.test(text))?.[1] : undefined);
 const BUSY_TEXT: Record<string, string> = {
   pending: "Берём запись разговора из Скорозвона…",
   waiting: "Скорозвон ещё готовит запись — проверим снова через 20 секунд",
@@ -120,7 +173,7 @@ function ReviewSkeleton({ caption, player = true }: { caption?: ReactNode; playe
             <span className="lc-spin sm" aria-hidden /> {caption}
           </div>
         )}
-        {player && <div className="sk" style={{ height: 46, borderRadius: 999 }} aria-hidden />}
+        {player && <div className="sk" style={{ height: 92, borderRadius: 12 }} aria-hidden />}
         <div className="sk" style={{ height: 39, borderRadius: 10 }} aria-hidden />
       </>
     );
@@ -153,7 +206,7 @@ function ReviewSkeleton({ caption, player = true }: { caption?: ReactNode; playe
           </div>
         ))}
       </div>
-      {player && <div className="sk" style={{ height: 46, borderRadius: 999 }} aria-hidden />}
+      {player && <div className="sk" style={{ height: 92, borderRadius: 12 }} aria-hidden />}
     </>
   );
 }
@@ -185,6 +238,8 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
   const dlg = d.dlg;
   const total = dur || dlg?.callSec || 0;
   const report = useMemo(() => (dlg?.reportStatus === "done" ? parseReport(dlg.report, dlg.segments) : null), [dlg?.reportStatus, dlg?.report, dlg?.segments]);
+  const bars = useMemo(() => (dlg ? waveBars(dlg.segments, total, dlg.operatorSpeaker) : []), [dlg, total]);
+  const groups = useMemo(() => (dlg ? qaGroups(dlg.segments, dlg.operatorSpeaker) : []), [dlg]);
 
   // реплика, которая звучит сейчас
   const active = playing || t > 0 ? (dlg?.segments.findIndex((s, i, a) => t >= s.s && (i === a.length - 1 || t < a[i + 1].s)) ?? -1) : -1;
@@ -314,9 +369,9 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
         </>
       ) : null}
 
-      {/* запись */}
+      {/* запись: «волна» по расшифровке — цветом кто говорит, провалы — паузы; клик — перемотка */}
       {dlg.recordUrl && (
-        <div className="lc-player">
+        <div className="lw">
           <audio
             ref={audio}
             src={dlg.recordUrl}
@@ -330,55 +385,103 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
               e.currentTarget.playbackRate = speed;
             }}
           />
-          <button type="button" className="lc-play" onClick={toggle} aria-label={playing ? "Пауза" : "Слушать"}>
-            <Icon name={playing ? "pause" : "play"} size={14} stroke={2.4} />
-          </button>
-          <input
-            type="range"
-            className="lc-seek"
-            min={0}
-            max={total || 1}
-            step={0.1}
-            value={Math.min(t, total || 1)}
-            onChange={(e) => seek(Number(e.target.value))}
-            aria-label="Перемотка"
-            style={{ ["--p" as string]: `${total ? (t / total) * 100 : 0}%` }}
-          />
-          <span className="lc-time num">
-            {mmss(t)} / {mmss(total)}
-          </span>
-          <button type="button" className="lc-speed num" onClick={nextSpeed} title="Скорость">
-            {speed}×
-          </button>
+          <div className="lw-row">
+            <button type="button" className="lw-play" onClick={toggle} aria-label={playing ? "Пауза" : "Слушать"}>
+              {/* залитые фигуры 12×12 по центру круга. Треугольник стоит так, что середина между центром его
+                  рамки (x 6.6) и центром тяжести (x 5.3) приходится ровно на центр — x 6: так он на глаз ровный */}
+              {playing ? (
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+                  <rect x="2.25" y="1.5" width="2.75" height="9" rx="0.8" fill="currentColor" />
+                  <rect x="7" y="1.5" width="2.75" height="9" rx="0.8" fill="currentColor" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+                  <path d="M2.6 1.6 10.6 6 2.6 10.4Z" fill="currentColor" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+            <div
+              className="lw-bars"
+              role="slider"
+              tabIndex={0}
+              aria-label="Перемотка"
+              aria-valuemin={0}
+              aria-valuemax={Math.round(total)}
+              aria-valuenow={Math.round(t)}
+              aria-valuetext={`${mmss(t)} из ${mmss(total)}`}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                if (total) seek(Math.max(0, Math.min(total, ((e.clientX - r.left) / r.width) * total)));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  seek(Math.max(0, Math.min(total, t + (e.key === "ArrowRight" ? 5 : -5))));
+                } else if (e.key === " " || e.key === "Enter") {
+                  e.preventDefault();
+                  toggle();
+                }
+              }}
+            >
+              {bars.map((b, k) => (
+                <i key={k} className={`${b.who}${b.at <= t ? " done" : ""}`} style={{ height: `${b.h}%` }} />
+              ))}
+            </div>
+          </div>
+          <div className="lw-foot">
+            <span className="lc-time num">
+              {mmss(t)} / {mmss(total)}
+            </span>
+            <span className="lw-legend">
+              <span className="lc-dot op" /> {opName}
+              <span className="lc-dot cl" style={{ marginLeft: 10 }} /> {clName}
+            </span>
+            <button type="button" className="lc-speed num" onClick={nextSpeed} title="Скорость">
+              {speed}×
+            </button>
+          </div>
         </div>
       )}
 
-      {/* расшифровка целиком — по клику */}
+      {/* расшифровка целиком — по клику: пары «вопрос оператора → ответ клиента» */}
       <details className="rv-fold" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
         <summary>
           <Icon name="chat" size={13} /> Расшифровка целиком
           <span className="o2-muted num">{dlg.segments.length} реплик</span>
           <Icon name="chevD" size={13} className="rv-chev" />
         </summary>
-        <div className="lc-chat rv-chat" ref={chat}>
-          {dlg.segments.map((s, i) => {
-            const mine = s.who === dlg.operatorSpeaker;
-            const prevSame = i > 0 && dlg.segments[i - 1].who === s.who;
-            return (
-              <div key={i} data-i={i} className={`lc-msg ${mine ? "op" : "cl"}${prevSame ? " cont" : ""}${i === active ? " now" : ""}`}>
-                {!prevSame && <span className="lc-who">{mine ? opName : clName}</span>}
-                <button type="button" className="lc-bub" onClick={() => seek(s.s)} title={`Слушать с ${mmss(s.s)}`}>
-                  {s.t}
-                  <span className="lc-ts num">{mmss(s.s)}</span>
-                </button>
-              </div>
-            );
-          })}
+        <div className="qa-list" ref={chat}>
+          {groups.map((g, gi) => (
+            <div key={gi} className="qa-card">
+              {g.q.map((i) => {
+                const s = dlg.segments[i];
+                const tag = qaTag(s.t);
+                return (
+                  <button key={i} type="button" data-i={i} className={`qa-q${i === active ? " now" : ""}`} onClick={() => seek(s.s)} title={`${opName} · слушать с ${mmss(s.s)}`}>
+                    <span className="qa-ts num">{mmss(s.s)}</span>
+                    <span>
+                      {s.t}
+                      {tag && <span className="qa-tag">{tag}</span>}
+                    </span>
+                  </button>
+                );
+              })}
+              {g.a.map((i) => {
+                const s = dlg.segments[i];
+                return (
+                  <button key={i} type="button" data-i={i} className={`qa-a${i === active ? " now" : ""}`} onClick={() => seek(s.s)} title={`${clName} · слушать с ${mmss(s.s)}`}>
+                    <span className="qa-ts num">{mmss(s.s)}</span>
+                    <span>{s.t}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
         <div className="lc-talk-f">
           <span>
-            <span className="lc-dot op" /> {opName}
-            <span className="lc-dot cl" style={{ marginLeft: 10 }} /> {clName}
+            <span className="qa-key q" /> вопрос — {opName}
+            <span className="qa-key a" style={{ marginLeft: 10 }} /> ответ — {clName}
           </span>
           <button type="button" className="lc-link" onClick={() => void d.act("swap")} disabled={d.busy} title="Если реплики оператора и клиента перепутаны">
             <Icon name="move" size={12} /> Поменять стороны

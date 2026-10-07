@@ -6,7 +6,7 @@ import type { Lead, MonthKey } from "@/lib/crm/types";
 import { bestWindow, hh, hourGrid, perDay } from "@/lib/crm/hours";
 import { WEEKDAYS_SHORT, addMonths, fmtMonth, fmtMonthShort, monthEnd, monthStart } from "@/lib/crm/dates";
 import { LEADS, fmtInt, fmtNum, fmtPct, plural, safeDiv } from "@/lib/crm/format";
-import { Empty, Seg, downloadText, toCsv } from "@/components/ui/kit";
+import { Empty, Seg } from "@/components/ui/kit";
 import { CHART_RESIZE_DEBOUNCE, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
 
@@ -66,12 +66,6 @@ export function LeadsByHour({ leads, month, dayHours, scopeLabel }: { leads: Lea
 
   const period = span === "1" ? fmtMonth(month) : `${fmtMonthShort(addMonths(month, -back))} – ${fmtMonthShort(month)}`;
 
-  const exportCsv = () => {
-    const head = ["День недели", ...hours.map(hh), "Всего"];
-    const body = WEEKDAYS_SHORT.map((w, wd) => [w, ...hours.map((h) => g.leads[wd][h]), g.byWd[wd]]);
-    const bad = WEEKDAYS_SHORT.map((w, wd) => [`${w}, не доведено`, ...hours.map((h) => g.failed[wd][h]), g.failed[wd].reduce((a, b) => a + b, 0)]);
-    downloadText(`leads_by_hour_${from}_${to}.csv`, toCsv([head, ...body, ["Всего", ...hours.map((h) => g.byHour[h]), g.total], [], ...bad]), "text/csv;charset=utf-8");
-  };
 
   return (
     <div className="card card-pad">
@@ -92,9 +86,6 @@ export function LeadsByHour({ leads, month, dayHours, scopeLabel }: { leads: Lea
               { value: "6", label: "6 мес." },
             ]}
           />
-          <button className="btn btn-sm" onClick={exportCsv} disabled={!g.total && !g.failedTotal}>
-            <Icon name="download" size={13} /> CSV
-          </button>
         </div>
       </div>
 

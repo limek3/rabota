@@ -132,7 +132,7 @@ const COL_HINT: Partial<Record<Col, string>> = {
   withhold: "Процент удержания и удержания",
   net: "Начислено минус удержано",
   paid: "Аванс и выплаты",
-  tax: `Остаток + ${TAX_PCT}% налога самозанятого — сумма к переводу`,
+  tax: `Остаток ÷ 0,94 (налог самозанятого ${TAX_PCT}%) — сумма к переводу`,
 };
 
 function mergeVisible(full: string[], visibleNext: string[]): string[] {
@@ -329,11 +329,11 @@ export function PeriodPayroll({ pp, onAdj }: { pp: PeriodState; onAdj?: (opId: s
           />
           <Tile
             icon="doc"
-            label={`В реестр · +${TAX_PCT}%`}
+            label={`В реестр · с налогом ${TAX_PCT}%`}
             value={fmtMoney(rowsVisible.reduce((a, r) => a + withTax(r.toPay), 0))}
             line={`подать ${dm(period.registry)} (${wd(period.registry)})`}
             sub="остаток + налог"
-            title={`Сумма к переводу: остаток каждого сотрудника + ${TAX_PCT}% налога самозанятого, до рубля`}
+            title={`Сумма к переводу: остаток каждого сотрудника ÷ 0,94 (налог самозанятого ${TAX_PCT}%), до рубля`}
           />
           <Tile
             icon="leads"
@@ -364,7 +364,7 @@ export function PeriodPayroll({ pp, onAdj }: { pp: PeriodState; onAdj?: (opId: s
                   {period.first && prAll.start < period.from && <span className="o2-muted"> — первый, поэтому длиннее обычного: с первого рабочего дня, дальше по {s.payPeriodDays} дн.</span>}
                 </Line>
                 <Line k="Реестр">
-                  {fmtDate(period.registry)} ({wd(period.registry)}) — суммы к переводу: остаток + {TAX_PCT}% налога самозанятого
+                  {fmtDate(period.registry)} ({wd(period.registry)}) — суммы к переводу: остаток ÷ 0,94 (налог самозанятого {TAX_PCT}%)
                 </Line>
                 <Line k="Выплата">
                   {fmtDate(period.pay)} ({wd(period.pay)}) — через {Math.round((Date.parse(period.pay) - Date.parse(period.to)) / 86_400_000)} дн. после конца периода

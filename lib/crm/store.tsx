@@ -171,6 +171,8 @@ interface Store {
   setLeadStatus: (ids: ID[], status: LeadStatus, reason?: string) => Promise<number>;
   /** Номера этих лидов выгружены в Excel: отметка с датой и строка в истории выгрузок (РОП и супервайзер). */
   markLeadsExported: (ids: ID[], period: { from: DayKey; to: DayKey; count: number }) => Promise<boolean>;
+  /** Выгрузка лидов в таблицу ОКК (Excel или Google) — строка в истории выгрузок. Номера при этом не отмечаются. */
+  logSheetExport: (period: { from: DayKey; to: DayKey; count: number }, where: string) => Promise<boolean>;
   saveOperator: (input: OperatorInput) => Promise<Operator | null>;
   /** Перевести всех операторов на сетку «ставка и бонус по числу лидов в смене». */
   applyGridPay: () => Promise<number>;
@@ -767,6 +769,30 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         "Не удалось отметить выгрузку",
       );
       if (ok) void log("lead", ids.slice(0, 50).join(","), `Выгружены номера: ${period.count} · ${fmtDate(period.from)}–${fmtDate(period.to)}`);
+      return ok;
+    },
+    [commit, deny, log],
+  );
+
+  const logSheetExport = useCallback<Store["logSheetExport"]>(
+    async (period, where) => {
+      const a = accessRef.current;
+      if (!a.isHead && !a.isSup) {
+        deny();
+        return false;
+      }
+      const entry: LeadExportLogEntry = { at: isoNow(), by: a.account.name, ...period, kind: "sheet" };
+      let nextLog: LeadExportLogEntry[] = [];
+      const ok = await commit(
+        async () => {
+          nextLog = [entry, ...cleanLeadExportLog(await db.getKV("leadExportLog"))].slice(0, 200);
+          await db.setKV("leadExportLog", nextLog);
+        },
+        (d) => ({ ...d, leadExportLog: nextLog }),
+        "Не удалось записать выгрузку",
+      );
+      const span = period.from === period.to ? fmtDate(period.from) : `${fmtDate(period.from)}–${fmtDate(period.to)}`;
+      if (ok) void log("lead", "sheet", `Лиды в таблицу (${where}) за ${span}: ${period.count}`);
       return ok;
     },
     [commit, deny, log],
@@ -2056,6 +2082,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     saveLead,
     setLeadStatus,
     markLeadsExported,
+    logSheetExport,
     deleteLead,
     saveOperator,
     applyGridPay,

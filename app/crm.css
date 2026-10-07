@@ -1019,7 +1019,8 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .btn-sm { border-radius: 6px; }
 .btn-ghost { background: transparent; border-color: transparent; box-shadow: none; }
 .btn-ghost:hover:not(:disabled) { background: var(--ink-05); border-color: transparent; }
-.btn-primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); box-shadow: 0 2px 6px var(--brand-glow); }
+/* все «тёмные» акцентные элементы — один цвет (--brand), без свечения: кнопки, выбранный пункт, ▶ плеера */
+.btn-primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); box-shadow: none; }
 .btn-primary:hover:not(:disabled) { background: var(--brand-strong); border-color: var(--brand-strong); color: var(--on-brand); }
 .btn-danger { box-shadow: none; }
 .inp { border-color: var(--ctrl-border); background: var(--bg-panel); border-radius: 8px; }
@@ -1067,6 +1068,8 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .lane.first { margin-left: 2px; border-top-left-radius: 7px; border-bottom-left-radius: 7px; }
 .lane.last { margin-right: 2px; border-top-right-radius: 7px; border-bottom-right-radius: 7px; }
 .lane.work { background: var(--sch-work); color: var(--sch-work-fg); }
+/* сегодняшняя смена — сплошная (в светлой теме прошедшие — мягкие); без своих цветов — как обычная смена */
+.sched td.cell.today .lane.work { background: var(--sch-work-today, var(--sch-work)); color: var(--sch-work-today-fg, var(--sch-work-fg)); }
 /* план наперёд — пунктирный контур без заливки. Несколько дней подряд — одна рамка:
    боковые стороны только у первого и последнего дня полосы */
 .lane.plan { box-sizing: border-box; background: var(--sch-plan); color: var(--sch-plan-fg); box-shadow: none; border: 1.5px dashed var(--sch-plan-bd); border-left-width: 0; border-right-width: 0; }
@@ -1074,7 +1077,7 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .lane.plan.last { border-right-width: 1.5px; }
 .lane.train { background: var(--sch-train); color: var(--sch-train-fg); }
 .lane.plat { background: var(--sch-plat); color: var(--sch-plat-fg); }
-.lane.sick { background: var(--sch-sick); }
+.lane.sick { background: var(--sch-sick); color: var(--sch-sick-fg, var(--sch-block-fg)); }
 .lane.vac { background: var(--sch-vac); }
 .lane.gone { background-color: var(--sch-gone-bg); background-image: repeating-linear-gradient(-45deg, transparent, transparent 5px, var(--sch-gone-line) 5px, var(--sch-gone-line) 9px); color: var(--sch-gone-fg); box-shadow: none; }
 .lane-h { font-weight: 600; }
@@ -1258,7 +1261,7 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 
 /* переключатели-сегменты (день / неделя / месяц, фильтры, размер страницы): выбранный пункт —
    в цвет основных кнопок, как «Лид передан», чтобы не терялся на сером */
-.seg > button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); box-shadow: 0 1px 3px var(--brand-glow); }
+.seg > button[aria-pressed="true"] { background: var(--brand); color: var(--on-brand); box-shadow: none; }
 .seg > button[aria-pressed="true"]:hover { color: var(--on-brand); }
 
 /* «Операторы»: мини-график лидов за 14 дней (столбик на день, общий масштаб) и тренд */

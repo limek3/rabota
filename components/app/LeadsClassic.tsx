@@ -1,17 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { filterLeads } from "@/lib/crm/calc";
 import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type DayKey, type Lead, type LeadStatus } from "@/lib/crm/types";
 import { fmtDate, fmtStamp, rangeDays } from "@/lib/crm/dates";
 import { LEADS, fmtInt, fmtNum, fmtPhone, plural, shortName } from "@/lib/crm/format";
-import { Chip, ClipText, Empty, Field, Modal, RegionTag, LeadLinkButton, LeadStatusChip, PageHead, Pager, PeriodPicker, Switch, downloadText, hueVars, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { Chip, ClipText, Empty, Field, Modal, RegionTag, LeadLinkButton, LeadStatusChip, PageHead, Pager, PeriodPicker, Switch, hueVars, periodFor, periodLabel, type Period } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { canReviewLead } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 import { SEGMENT_HUE, SEGMENT_LABEL, regionSegment, type RegionSegment } from "@/lib/crm/regions";
 import { buildXlsx, downloadBlob } from "@/lib/xlsx";
+import { LEAD_SHEET_DONE, LEAD_SHEET_HEAD, LEAD_SHEET_LINK, leadSheetRows, leadSheetTab, linkLabel } from "@/lib/crm/leadsheet";
+import { loadSheetMarks, pushLeadsToSheet } from "@/lib/crm/leadSheetSync";
 import { ColumnOrderHint, useColumnDrag, useColumnOrder } from "@/components/ui/ColumnOrder";
 
 /** Столбцы журнала по умолчанию. Порядок каждый может поменять у себя (перетащить заголовок). */
@@ -186,29 +189,6 @@ export function LeadsClassic() {
   const projects = useMemo(() => [...data.projects].sort((a, b) => a.sort - b.sort), [data.projects]);
   const filtered = !!(operatorId || groupId || projectId || q || status || region || notExported);
 
-  const exportCsv = () => {
-    const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", "Комментарий", "Источник", "Регион", "Основа / регионы"]];
-    for (const l of list) {
-      rows.push([
-        l.id,
-        fmtDate(l.at.slice(0, 10)),
-        l.at.slice(11, 16),
-        LEAD_STATUS_LABEL[l.status],
-        l.status === "failed" ? l.statusReason : "",
-        l.client,
-        fmtPhone(l.phone),
-        l.link,
-        l.projectId ? ix.projectById.get(l.projectId)?.name ?? "" : "",
-        ix.opById.get(l.operatorId)?.name ?? "",
-        l.groupId ? ix.groupById.get(l.groupId)?.name ?? "" : NO_GROUP_LABEL,
-        l.comment,
-        l.source,
-        l.region ?? "",
-        SEGMENT_LABEL[regionSegment(l.region, s) ?? "main"],
-      ]);
-    }
-    downloadText(`leads_${period.from}_${period.to}.csv`, toCsv(rows), "text/csv;charset=utf-8");
-  };
 
   return (
     <div className="stack">
@@ -217,9 +197,6 @@ export function LeadsClassic() {
         sub="Журнал лидов, переданных менеджеру. Новый лид — «в работе», супервайзер отмечает «доведён» или «не доведён». Источник — Скорозвон."
         actions={
           <>
-            <button className="btn" onClick={exportCsv} disabled={!list.length}>
-              <Icon name="download" size={14} /> CSV
-            </button>
             {canExport && (
               <button className="btn" onClick={() => setPhonesOpen(true)} disabled={!data.leads.length} title="Имя и телефон в Excel, с отметкой, что уже выгружали">
                 <Icon name="download" size={14} /> Номера
@@ -506,7 +483,7 @@ const filePhone = (p: string) => {
 };
 
 /**
- * Выгрузка номеров в Excel: две колонки — имя и телефон, за выбранные даты.
+ * Выгрузка номеров в Excel: имя, телефон и дата лида (без времени), за выбранные даты.
  * Выгруженные лиды получают отметку (галочка у номера в журнале), поэтому
  * по умолчанию в файл идут только те, что ещё не выгружали.
  */
@@ -540,15 +517,17 @@ export function PhonesExport({
       const ph = filePhone(l.phone);
       if (seen.has(ph)) continue;
       seen.add(ph);
-      rows.push([l.client.trim(), ph]);
+      rows.push([l.client.trim(), ph, fmtDate(l.at.slice(0, 10))]);
     }
     return { leads: src, rows };
   }, [withPhone, onlyNew, data.leadExports]);
 
+  const phoneLog = useMemo(() => data.leadExportLog.filter((e) => !e.kind), [data.leadExportLog]);
+
   const download = async () => {
     setBusy(true);
     const span = from === to ? fmtDate(from) : `${fmtDate(from)}–${fmtDate(to)}`;
-    downloadBlob(`Номера ${span}.xlsx`, buildXlsx([["Имя", "Телефон"], ...out.rows], { sheet: "Номера", widths: [34, 18] }));
+    downloadBlob(`Номера ${span}.xlsx`, buildXlsx([["Имя", "Телефон", "Дата"], ...out.rows], { sheet: "Номера", widths: [34, 18, 12] }));
     const ok = await markLeadsExported(
       out.leads.map((l) => l.id),
       { from, to, count: out.rows.length },
@@ -576,7 +555,7 @@ export function PhonesExport({
       }
     >
       <div style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>
-        Файл Excel: две колонки — имя и телефон. Выгруженные номера отмечаются галочкой в журнале лидов.
+        Файл Excel: имя, телефон и дата лида. Выгруженные номера отмечаются галочкой в журнале лидов.
         {filtered && " Учитываются фильтры страницы."}
       </div>
       <div className="grid2">
@@ -610,11 +589,11 @@ export function PhonesExport({
           Одинаковые номера записаны один раз: {fmtInt(out.leads.length - out.rows.length)} {plural(out.leads.length - out.rows.length, NUMBERS)} — повторы.
         </div>
       )}
-      {data.leadExportLog.length > 0 && (
+      {phoneLog.length > 0 && (
         <div className="stack" style={{ gap: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-sub)" }}>Последние выгрузки</span>
           <div className="exp-log">
-            {data.leadExportLog.slice(0, 8).map((e) => (
+            {phoneLog.slice(0, 8).map((e) => (
               <div key={e.at + e.by} className="exp-log-row">
                 <span className="num">{fmtStamp(e.at)}</span>
                 <span className="exp-log-by">{e.by}</span>
@@ -622,6 +601,177 @@ export function PhonesExport({
                   {fmtInt(e.count)} {plural(e.count, NUMBERS)}
                 </b>
                 <span className="muted num">{e.from === e.to ? fmtDate(e.from) : `${fmtDate(e.from).slice(0, 5)}–${fmtDate(e.to).slice(0, 5)}`}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * Лиды в таблицу ОКК за день или период — в Excel и (у РОПа, если настроено) в Google Таблицу,
+ * лист месяца «Октябрь Борис» (через функцию leads-sheet на сервере). Столбцы — LEAD_SHEET_HEAD:
+ * дата, ссылка, телефон, имя, оператор, доведен (Да / Нет списком), если не доведен — почему,
+ * проверка ОКК; последние три пустые — их заполняет человек. «Только ещё не выгруженные» — без
+ * лидов, которые уже ушли в Google Таблицу (вручную или автовыгрузкой в 13:00 и 19:00).
+ */
+export function LeadSheetExport({
+  from: from0,
+  to: to0,
+  pick,
+  filtered,
+  onClose,
+}: {
+  from: DayKey;
+  to: DayKey;
+  pick: (from: DayKey, to: DayKey) => Lead[];
+  filtered: boolean;
+  onClose: () => void;
+}) {
+  const { data, full, ix, access, today, logSheetExport, toast } = useCrm();
+  const [from, setFrom] = useState<DayKey>(from0 > today ? today : from0);
+  const [to, setTo] = useState<DayKey>(to0 > today ? today : to0 < from0 ? from0 : to0);
+  const [onlyNew, setOnlyNew] = useState(true);
+  const [busy, setBusy] = useState<"" | "xlsx" | "sheet">("");
+  const [marks, setMarks] = useState<Record<string, string>>({});
+  const gs = full.settings.sheets.leads;
+  const toSheet = access.isHead && !!gs.url && !!gs.token;
+  // РОП, таблица ещё не подключена — кнопка ведёт в настройки
+  const setupSheet = access.isHead && !toSheet;
+
+  useEffect(() => {
+    let live = true;
+    loadSheetMarks()
+      .then((m) => live && setMarks(m))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const all = useMemo(() => (from <= to ? pick(from, to) : []), [pick, from, to]);
+  const done = useMemo(() => all.filter((l) => marks[l.id]).length, [all, marks]);
+  const leads = useMemo(() => (onlyNew ? all.filter((l) => !marks[l.id]) : all), [all, marks, onlyNew]);
+  const rows = useMemo(() => leadSheetRows(leads, (id) => ix.opById.get(id)?.name ?? ""), [leads, ix]);
+  const log = useMemo(() => data.leadExportLog.filter((e) => e.kind === "sheet"), [data.leadExportLog]);
+  // листы, куда пойдут строки: период может захватить два месяца
+  const tabs = useMemo(() => [...new Set(leads.map((l) => leadSheetTab(l.at.slice(0, 10), gs.owner)))], [leads, gs.owner]);
+  const span = from === to ? fmtDate(from) : `${fmtDate(from)}–${fmtDate(to)}`;
+
+  const xlsx = async () => {
+    setBusy("xlsx");
+    downloadBlob(
+      `Лиды ${span}.xlsx`,
+      buildXlsx([LEAD_SHEET_HEAD, ...rows], {
+        sheet: "Лиды",
+        widths: [12, 18, 14, 20, 26, 10, 28, 18],
+        lists: [{ col: LEAD_SHEET_HEAD.indexOf("Доведен"), values: LEAD_SHEET_DONE, lastRow: rows.length + 200 }],
+        links: [{ col: LEAD_SHEET_LINK, label: linkLabel }],
+      }),
+    );
+    const ok = await logSheetExport({ from, to, count: rows.length }, "Excel");
+    setBusy("");
+    if (!ok) return;
+    toast(`Выгружено лидов: ${fmtInt(rows.length)}`);
+    onClose();
+  };
+
+  const sheet = async () => {
+    setBusy("sheet");
+    try {
+      const r = await pushLeadsToSheet(
+        leads.map((l) => l.id),
+        from,
+        to,
+      );
+      setMarks(await loadSheetMarks().catch(() => marks));
+      const made = r.created.length ? ` · новый лист «${r.created.join("», «")}»` : "";
+      toast(
+        r.unconfirmed
+          ? `Отправлено в таблицу: ${fmtInt(r.unconfirmed + r.added)} — Google не прислал подтверждение, проверьте лист${made}`
+          : `В таблицу добавлено ${fmtInt(r.added)}${r.skipped ? `, уже были ${fmtInt(r.skipped)}` : ""}${made}`,
+        r.unconfirmed ? "info" : "ok",
+      );
+      onClose();
+    } catch (e) {
+      toast(`Не записалось в таблицу: ${e instanceof Error ? e.message : String(e)}`, "err");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <Modal
+      title="Лиды в таблицу ОКК"
+      onClose={onClose}
+      width={500}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            Отмена
+          </button>
+          <button className={`btn${toSheet ? "" : " btn-primary"}`} onClick={() => void xlsx()} disabled={!!busy || !rows.length}>
+            <Icon name="download" size={14} /> Excel{rows.length ? ` (${fmtInt(rows.length)})` : ""}
+          </button>
+          {toSheet && (
+            <button className="btn btn-primary" onClick={() => void sheet()} disabled={!!busy || !rows.length} title={`Дописать в ${tabs.map((t) => `«${t}»`).join(", ")}`}>
+              <Icon name="upload" size={14} /> {busy === "sheet" ? "Записываю…" : "В Google Таблицу"}
+            </button>
+          )}
+          {setupSheet && (
+            <Link className="btn" href="/settings?tab=data#leads-sheet" onClick={onClose} title="Подключить Google Таблицу — один раз">
+              <Icon name="upload" size={14} /> В Google Таблицу
+            </Link>
+          )}
+        </>
+      }
+    >
+      <div style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>
+        Все лиды за выбранные дни: дата, ссылка на лид, телефон, имя, оператор, доведен (Да / Нет), если не доведен — почему, проверка ОКК. Последние три CRM оставляет пустыми
+        — их заполняет человек. Новые строки только дописываются снизу.
+        {toSheet && ` В Google — в ${tabs.length ? tabs.map((t) => `«${t}»`).join(", ") : "лист месяца"}.`}
+        {setupSheet && " Google Таблица ещё не подключена — «В Google Таблицу» откроет настройку (один раз)."}
+        {gs.auto && " Автовыгрузка включена: 13:00 и 19:00 по Москве."}
+        {filtered && " Учитываются фильтры страницы."}
+      </div>
+      <div className="grid2">
+        <Field label="С">
+          <DateInput value={from} onChange={(d) => d && setFrom(d)} max={today} ariaLabel="С" />
+        </Field>
+        <Field label="По">
+          <DateInput value={to} onChange={(d) => d && setTo(d)} min={from} max={today} ariaLabel="По" />
+        </Field>
+      </div>
+      <Switch checked={onlyNew} onChange={setOnlyNew} label="Только ещё не выгруженные" hint="Без лидов, которые уже ушли в Google Таблицу — вручную или автовыгрузкой" />
+      <div className="exp-stats">
+        <div className="exp-stat">
+          <span className="exp-stat-l">Лидов за дни</span>
+          <span className="exp-stat-v num">{fmtInt(all.length)}</span>
+        </div>
+        <div className="exp-stat">
+          <span className="exp-stat-l">Уже в таблице</span>
+          <span className="exp-stat-v num">
+            {fmtInt(done)}
+            {done > 0 && <Icon name="check" size={15} stroke={2.4} style={{ color: "var(--c-green-fg)" }} />}
+          </span>
+        </div>
+        <div className="exp-stat main">
+          <span className="exp-stat-l">Пойдёт в файл</span>
+          <span className="exp-stat-v num">{fmtInt(rows.length)}</span>
+        </div>
+      </div>
+      {log.length > 0 && (
+        <div className="stack" style={{ gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-sub)" }}>Последние выгрузки в таблицу</span>
+          <div className="exp-log">
+            {log.slice(0, 8).map((e) => (
+              <div key={e.at + e.by} className="exp-log-row">
+                <span className="num">{fmtStamp(e.at)}</span>
+                <span className="exp-log-by">{e.by}</span>
+                <b className="num">{fmtInt(e.count)}</b>
+                <span className="muted num">{e.from === e.to ? fmtDate(e.from).slice(0, 5) : `${fmtDate(e.from).slice(0, 5)}–${fmtDate(e.to).slice(0, 5)}`}</span>
               </div>
             ))}
           </div>

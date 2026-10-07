@@ -7,7 +7,7 @@ import { filterLeads, pivot } from "@/lib/crm/calc";
 import { HUES } from "@/lib/crm/defaults";
 import { NO_GROUP, NO_GROUP_LABEL, type Project } from "@/lib/crm/types";
 import { fmtInt, fmtPct, safeDiv, shortName } from "@/lib/crm/format";
-import { Chip, Collapse, Empty, HuePicker, PageHead, PeriodPicker, Progress, Seg, Swatch, downloadText, hueFg, periodFor, periodLabel, toCsv, type Period } from "@/components/ui/kit";
+import { Chip, Collapse, Empty, HuePicker, PageHead, PeriodPicker, Progress, Seg, Swatch, hueFg, periodFor, periodLabel, type Period } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 import { StickyHead } from "@/components/app/StickyHead";
 
@@ -42,11 +42,6 @@ export default function ProjectsPage() {
       .sort((a, b) => b.total - a.total);
   }, [leads, by, ix]);
 
-  const exportCsv = () => {
-    const head = [by === "operator" ? "Оператор" : "Группа", ...cols.map((c) => ix.projectById.get(c)?.name ?? "Без проекта"), "Всего"];
-    const body = table.map((r) => [r.name, ...cols.map((c) => r.m.get(c) ?? 0), r.total]);
-    downloadText(`projects_${by}_${period.from}_${period.to}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
-  };
 
   return (
     <div className="stack">
@@ -86,9 +81,6 @@ export default function ProjectsPage() {
           <div className="card card-tbl" style={{ overflow: "hidden" }}>
             <div className="card-head" style={{ padding: "14px 18px 0" }}>
               <Seg value={by} onChange={setBy} options={[{ value: "operator", label: "По операторам" }, { value: "group", label: "По группам" }]} />
-              <button className="btn btn-sm" onClick={exportCsv} disabled={!table.length}>
-                <Icon name="download" size={13} /> CSV
-              </button>
             </div>
             {table.length === 0 ? (
               <Empty icon="folder" title="Нет данных за период" />

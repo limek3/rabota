@@ -438,6 +438,9 @@ export function costPerLead(p: Payroll): number {
   return safeDiv(p.total.gross, p.total.leads);
 }
 
-/** Налог самозанятого сверху: сумма к переводу = остаток + TAX_PCT%, до рубля. */
+/**
+ * Налог самозанятого: сумма к переводу = остаток ÷ 0,94, до рубля (как =ОКРУГЛ(P2/0,94;0) в таблице) —
+ * после налога 6% с перевода у сотрудника остаётся ровно остаток. Не «+6%»: 10 000 → 10 638, а не 10 600.
+ */
 export const TAX_PCT = 6;
-export const withTax = (n: number) => (n > 0.005 ? Math.round(n * (1 + TAX_PCT / 100)) : 0);
+export const withTax = (n: number) => (n > 0.005 ? Math.round(n / (1 - TAX_PCT / 100)) : 0);

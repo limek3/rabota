@@ -186,6 +186,9 @@ const MONTHS_GEN = [
 const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
 export const WEEKDAYS_SHORT = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 
+/** «Октябрь» — месяц без года (по ключу "YYYY-MM" или дню "YYYY-MM-DD"). */
+export const monthName = (k: string): string => MONTHS_NOM[Number(k.slice(5, 7)) - 1] ?? "";
+
 export function fmtMonth(m: MonthKey): string {
   const [y, mm] = m.split("-").map(Number);
   return `${MONTHS_NOM[mm - 1] ?? "?"} ${y}`;

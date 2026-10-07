@@ -94,8 +94,25 @@ const colName = (i: number) => {
   return s;
 };
 
-/** Книга Excel из строк: rows[0] — заголовок. widths — ширины столбцов в символах. */
-export function buildXlsx(rows: string[][], opts: { sheet?: string; widths?: number[] } = {}): Blob {
+/**
+ * Выпадающий список в столбце col (с 0) — со 2-й строки до lastRow. strict: false — можно вписать
+ * и своё значение (список — только подсказка). Значения без запятых, в сумме до 255 символов.
+ */
+export interface XlsxList {
+  col: number;
+  values: string[];
+  strict?: boolean;
+  lastRow?: number;
+}
+
+/** Столбец col (с 0) со ссылками: ячейка https://… становится кликабельной с подписью label(url). */
+export interface XlsxLinks {
+  col: number;
+  label?: (url: string) => string;
+}
+
+/** Книга Excel из строк: rows[0] — заголовок. widths — ширины столбцов в символах, lists — выпадающие списки, links — ссылки. */
+export function buildXlsx(rows: string[][], opts: { sheet?: string; widths?: number[]; lists?: XlsxList[]; links?: XlsxLinks[] } = {}): Blob {
   const sheetName = esc((opts.sheet || "Лист1").replace(/[\\/?*[\]:]/g, " ").slice(0, 31));
   const cols = opts.widths?.length
     ? `<cols>${opts.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>`
@@ -104,15 +121,36 @@ export function buildXlsx(rows: string[][], opts: { sheet?: string; widths?: num
     .map(
       (r, ri) =>
         `<row r="${ri + 1}">${r
-          .map((v, ci) => `<c r="${colName(ci)}${ri + 1}" t="inlineStr"${ri === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${esc(v ?? "")}</t></is></c>`)
+          .map((v, ci) => {
+            const ref = `${colName(ci)}${ri + 1}`;
+            const link = ri > 0 && /^https?:\/\//.test(v ?? "") ? opts.links?.find((x) => x.col === ci) : undefined;
+            if (link) {
+              // формула HYPERLINK: в кавычках формулы кавычки удваиваются
+              const label = (link.label?.(v) ?? v).replace(/"/g, '""');
+              return `<c r="${ref}" t="str" s="2"><f>${esc(`HYPERLINK("${v.replace(/"/g, '""')}","${label}")`)}</f><v>${esc(label)}</v></c>`;
+            }
+            return `<c r="${ref}" t="inlineStr"${ri === 0 ? ' s="1"' : ""}><is><t xml:space="preserve">${esc(v ?? "")}</t></is></c>`;
+          })
           .join("")}</row>`,
     )
     .join("");
+  const lists = opts.lists?.length
+    ? `<dataValidations count="${opts.lists.length}">${opts.lists
+        .map((v) => {
+          const last = Math.max(v.lastRow ?? 0, rows.length, 2);
+          const strict = v.strict !== false;
+          return (
+            `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="${strict ? 1 : 0}"${strict ? "" : ' errorStyle="information"'} sqref="${colName(v.col)}2:${colName(v.col)}${last}">` +
+            `<formula1>${esc(`"${v.values.map((x) => x.replace(/[",]/g, " ")).join(",")}"`)}</formula1></dataValidation>`
+          );
+        })
+        .join("")}</dataValidations>`
+    : "";
   const sheet =
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
     `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
     `<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` +
-    `${cols}<sheetData>${body}</sheetData></worksheet>`;
+    `${cols}<sheetData>${body}</sheetData>${lists}</worksheet>`;
   const files = [
     {
       name: "[Content_Types].xml",
@@ -155,11 +193,11 @@ export function buildXlsx(rows: string[][], opts: { sheet?: string; widths?: num
       xml:
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
         `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
-        `<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>` +
+        `<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><u/><sz val="11"/><color rgb="FF1155CC"/><name val="Calibri"/></font></fonts>` +
         `<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>` +
         `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
         `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-        `<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>` +
+        `<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>` +
         `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
         `</styleSheet>`,
     },

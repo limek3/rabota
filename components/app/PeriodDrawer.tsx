@@ -112,7 +112,7 @@ export function PeriodDrawer({ row: r, period, start, onClose, onPay }: { row: P
           {r.toPay > 0.005 && (
             <div className="row" style={{ paddingTop: 6, fontSize: 13.5, gap: 10 }}>
               <span style={{ flex: 1 }}>
-                С налогом +{TAX_PCT}%
+                С налогом {TAX_PCT}% (÷ 0,94)
                 <span style={{ display: "block", fontSize: 11.5, color: "var(--dim)" }}>сумма к переводу самозанятому</span>
               </span>
               <span className="num" style={{ fontWeight: 600 }}><TaxSum value={r.toPay} /></span>

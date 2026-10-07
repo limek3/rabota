@@ -44,7 +44,7 @@ export function TaxSum({ value, copy = true }: { value: number; copy?: boolean }
           type="button"
           className="btn btn-ghost btn-sm btn-icon"
           style={{ width: 22, height: 22, minHeight: 0, padding: 0 }}
-          title={`Скопировать ${sum} — остаток + ${TAX_PCT}% налога`}
+          title={`Скопировать ${sum} — остаток ÷ 0,94 (налог ${TAX_PCT}%)`}
           aria-label="Скопировать сумму с налогом"
           onClick={async (e) => {
             e.stopPropagation();

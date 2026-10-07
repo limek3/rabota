@@ -1255,12 +1255,12 @@ button {
   font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
-  background: linear-gradient(180deg, var(--brand-soft), var(--brand));
-  box-shadow: 0 10px 24px var(--brand-glow);
-  transition: filter 0.15s ease, opacity 0.15s ease;
+  background: var(--brand);
+  box-shadow: none;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 .auth-btn:hover:not(:disabled) {
-  filter: brightness(1.06);
+  background: var(--brand-strong);
 }
 .auth-btn:disabled {
   cursor: default;
@@ -1334,32 +1334,32 @@ button {
    ════════════════════════════════════════════════════════════════════ */
 :root,
 :root[data-theme="dark"] {
-  /* поверхности: меню самое тёмное, фон страниц светлее, карточки тёмно-серые */
-  --bg: #171717;
-  --bg-sidebar: #111111;
-  --bg-panel: #161616;
-  --bg-panel-hover: #1c1c1c;
-  --bg-strip: #191919;
-  --bg-modal: #181818;
-  --line: #2a2a2a;
-  --ctrl-border: #333333;
-  --ctrl-border-hover: #474747;
+  /* поверхности: меню самое тёмное, фон страниц глубже, карточки заметно светлее фона — экран читается блоками */
+  --bg: #121212;
+  --bg-sidebar: #0e0e0e;
+  --bg-panel: #1b1b1b;
+  --bg-panel-hover: #212121;
+  --bg-strip: #181818;
+  --bg-modal: #1d1d1d;
+  --line: #2b2b2a;
+  --ctrl-border: #323231;
+  --ctrl-border-hover: #464644;
 
   /* текст */
-  --text: #ececec;
-  --text-soft: #d8d8d8;
-  --text-quote: #cccccc;
-  --text-sub: #a1a1a1;
-  --text-sub2: #ababab;
-  --text-sub3: #848484;
-  --dim: #6e6e6e;
-  --dimmer: #545454;
+  --text: #e8e8e6;
+  --text-soft: #d6d6d4;
+  --text-quote: #cacac8;
+  --text-sub: #a3a3a0;
+  --text-sub2: #adadaa;
+  --text-sub3: #8a8a87;
+  --dim: #6e6e6c;
+  --dimmer: #535351;
 
   /* акцент — светло-серый с тёмным текстом: кнопка «Лид передан», прогресс, графики */
-  --brand: #e3e3e3;
-  --brand-soft: #bdbdbd;
-  --brand-strong: #f4f4f4;
-  --on-brand: #141414;
+  --brand: #e6e6e4;
+  --brand-soft: #bcbcba;
+  --brand-strong: #f3f3f1;
+  --on-brand: #151515;
   --brand-glow: rgba(255, 255, 255, 0.06);
   --brand-tint: rgba(255, 255, 255, 0.08);
   --brand-border: rgba(255, 255, 255, 0.3);
@@ -1367,12 +1367,12 @@ button {
   --action-dark-hover: var(--brand-strong);
 
   --blue: var(--brand);
-  --green: #8fc0a3;
-  --green-soft: #9fcab1;
-  --green-hover: #7fb396;
+  --green: #95c9aa;
+  --green-soft: #a3d1b6;
+  --green-hover: #86bc9c;
   --on-green: #ffffff;
-  --red: #d9989a;
-  --amber: #d6b88c;
+  --red: #e0a1a3;
+  --amber: #ddc093;
   --amber-soft: #cdaa7e;
 
   --ink-015: rgba(255, 255, 255, 0.015);
@@ -1395,25 +1395,25 @@ button {
   --shadow-md: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 3px 12px rgba(0, 0, 0, 0.28);
   --shadow-lg: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.32);
   --shadow-xl: 0 0 0 1px rgba(0, 0, 0, 0.2), 0 16px 38px rgba(0, 0, 0, 0.38);
-  --glass-core: #161616;
-  --glass-edge: rgba(22, 22, 22, 0);
-  --glass-bar-bg: rgba(22, 22, 22, 0.92);
+  --glass-core: #1b1b1b;
+  --glass-edge: rgba(27, 27, 27, 0);
+  --glass-bar-bg: rgba(27, 27, 27, 0.92);
   --glass-bar-border: rgba(255, 255, 255, 0.08);
 
   /* напоминания */
-  --pill-amber-bg: #342c21;
-  --pill-amber-fg: #d6b88c;
+  --pill-amber-bg: #352d21;
+  --pill-amber-fg: #ddc093;
   --pill-amber-border: #4f4331;
-  --pill-red-bg: #372628;
-  --pill-red-fg: #d9989a;
+  --pill-red-bg: #3a2729;
+  --pill-red-fg: #e0a1a3;
   --pill-red-border: #553a3d;
 
   /* статусные тона (чипы, «хорошо / плохо» в показателях) */
-  --c-gray-fg: #ababab; --c-gray-bg: #232323; --c-gray-bd: #353535;
+  --c-gray-fg: #ababab; --c-gray-bg: #252524; --c-gray-bd: #353535;
   --c-blue-fg: #9aaad4; --c-blue-bg: #262d40; --c-blue-bd: #37415c;
-  --c-green-fg: #8fc0a3; --c-green-bg: #20302a; --c-green-bd: #2f4a3d;
-  --c-amber-fg: #d6b88c; --c-amber-bg: #342c21; --c-amber-bd: #4f4331;
-  --c-red-fg: #d9989a; --c-red-bg: #372628; --c-red-bd: #553a3d;
+  --c-green-fg: #95c9aa; --c-green-bg: #1f3128; --c-green-bd: #2f4a3d;
+  --c-amber-fg: #ddc093; --c-amber-bg: #352d21; --c-amber-bd: #4f4331;
+  --c-red-fg: #e0a1a3; --c-red-bg: #3a2729; --c-red-bd: #553a3d;
   --c-purple-fg: #b1a6d9; --c-purple-bg: #2c2840; --c-purple-bd: #423c60;
   --c-pink-fg: #d98eaf; --c-pink-bg: #3b2933; --c-pink-bd: #583847;
   --c-teal-fg: #72bfae; --c-teal-bg: #213934; --c-teal-bd: #31554c;
@@ -1424,22 +1424,24 @@ button {
   --c-peach-fg: #e0a888; --c-peach-bg: #3a2a22; --c-peach-bd: #58402f;
 
   /* «График» */
-  --sch-head: #1b1b1b;
-  --sch-group: #202020;
-  --sch-grid: #2a2a2a;
-  --sch-grid-strong: #343434;
-  --sch-weekend: #1b1b1b;
+  --sch-head: #1e1e1e;
+  --sch-group: #212121;
+  --sch-grid: #2b2b2a;
+  --sch-grid-strong: #353534;
+  --sch-weekend: #181818;
   --sch-we-label: #a3a3a3;
-  --sch-hover: #1f1f1f;
-  --sch-we-hover: #232323;
+  --sch-hover: #222222;
+  --sch-we-hover: #1e1e1e;
   --sch-today-col: rgba(255, 255, 255, 0.05);
   --sch-sel: #cfcfcf;
-  --sch-foot: #1a1a1a;
-  --sch-foot-we: #1e1e1e;
+  --sch-foot: #1e1e1e;
+  --sch-foot-we: #1a1a1a;
   --sch-foot-border: #363636;
-  /* смена — зелёная, план наперёд — только зелёный пунктир, обучение — синее */
-  --sch-work: #3f6b53;
-  --sch-work-fg: #eaf5ee;
+  /* смена — мягкая зелёная плашка со светло-зелёными цифрами, сегодняшняя — сплошная; план — зелёный пунктир; обучение — синее */
+  --sch-work: #22372b;
+  --sch-work-fg: #a6d6b9;
+  --sch-work-today: #3f6b53;
+  --sch-work-today-fg: #eef7f1;
   --sch-plan: transparent;
   --sch-plan-bd: #4f7a62;
   --sch-plan-fg: #8fc0a3;
@@ -1447,7 +1449,8 @@ button {
   --sch-train-fg: #e6eeff;
   --sch-plat: #6a5596;
   --sch-plat-fg: #f1eaff;
-  --sch-sick: #9e5f61;
+  --sch-sick: #3a2729;
+  --sch-sick-fg: #e0a1a3;
   --sch-vac: #9c8158;
   --sch-block-fg: #ffffff;
   --sch-gone-bg: #221e1e;
@@ -1463,31 +1466,31 @@ button {
 }
 
 :root[data-theme="light"] {
-  /* поверхности: нейтральный серый без синего оттенка, белые панели */
-  --bg: #efefef;
-  --bg-sidebar: #e9e9e9;
-  --bg-panel: #ffffff;
-  --bg-panel-hover: #f6f6f6;
-  --bg-strip: #f6f6f6;
-  --bg-modal: #ffffff;
-  --line: #e0e0e0;
-  --ctrl-border: #d6d6d6;
-  --ctrl-border-hover: #c4c4c4;
+  /* поверхности: нейтральный серый с чуть тёплым оттенком; панели не чисто белые — не «светятся» */
+  --bg: #f1f0ee;
+  --bg-sidebar: #ebeae7;
+  --bg-panel: #fdfdfc;
+  --bg-panel-hover: #f5f4f1;
+  --bg-strip: #f7f6f4;
+  --bg-modal: #fdfdfc;
+  --line: #e2e1dd;
+  --ctrl-border: #dddcd8;
+  --ctrl-border-hover: #c8c7c2;
 
-  --text: #1a1a1a;
-  --text-soft: #262626;
-  --text-quote: #3a3a3a;
-  --text-sub: #636363;
-  --text-sub2: #737373;
-  --text-sub3: #8f8f8f;
-  --dim: #999999;
-  --dimmer: #bdbdbd;
+  --text: #2b2b29;
+  --text-soft: #333331;
+  --text-quote: #3f3f3c;
+  --text-sub: #5f5e5a;
+  --text-sub2: #6a6965;
+  --text-sub3: #767571;
+  --dim: #8d8c88;
+  --dimmer: #bdbcb7;
 
-  /* акцент — почти чёрный с белым текстом: кнопка «Лид передан», прогресс, графики */
-  --brand: #1f1f1f;
-  --brand-soft: #4a4a4a;
-  --brand-strong: #383838;
-  --on-brand: #ffffff;
+  /* акцент — тёмно-серый (не чёрный: на светлом фоне чёрный режет глаз): кнопка «Лид передан», прогресс, графики */
+  --brand: #333331;
+  --brand-soft: #504f4c;
+  --brand-strong: #262624;
+  --on-brand: #fafaf8;
   --brand-glow: rgba(0, 0, 0, 0.14);
   --brand-tint: rgba(0, 0, 0, 0.055);
   --brand-border: rgba(0, 0, 0, 0.25);
@@ -1495,12 +1498,12 @@ button {
   --action-dark-hover: var(--brand-strong);
 
   --blue: var(--brand);
-  --green: #4f8166;
+  --green: #3f7357;
   --green-soft: #7fa88e;
-  --green-hover: #426f57;
+  --green-hover: #36654c;
   --on-green: #ffffff;
-  --red: #b25f62;
-  --amber: #9c7646;
+  --red: #9f4f52;
+  --amber: #85602f;
   --amber-soft: #cdaa7e;
 
   --ink-015: rgba(0, 0, 0, 0.018);
@@ -1529,18 +1532,18 @@ button {
   --glass-bar-border: rgba(0, 0, 0, 0.08);
 
   --pill-amber-bg: #f8f1e7;
-  --pill-amber-fg: #9c7646;
+  --pill-amber-fg: #85602f;
   --pill-amber-border: #eadcc6;
   --pill-red-bg: #f8ecec;
-  --pill-red-fg: #b25f62;
+  --pill-red-fg: #9f4f52;
   --pill-red-border: #edd3d4;
 
   /* мягкие статусы: красный — как «больничный», жёлтый — как «отпуск», зелёный — шалфей */
   --c-gray-fg: #636363; --c-gray-bg: #f0f0f0; --c-gray-bd: #dddddd;
   --c-blue-fg: #4f6593; --c-blue-bg: #edf0f6; --c-blue-bd: #dce2ee;
-  --c-green-fg: #4f8166; --c-green-bg: #eaf3ee; --c-green-bd: #cfe3d7;
-  --c-amber-fg: #9c7646; --c-amber-bg: #f8f1e7; --c-amber-bd: #eadcc6;
-  --c-red-fg: #b25f62; --c-red-bg: #f8ecec; --c-red-bd: #edd3d4;
+  --c-green-fg: #3f7357; --c-green-bg: #eaf3ee; --c-green-bd: #cfe3d7;
+  --c-amber-fg: #85602f; --c-amber-bg: #f8f1e7; --c-amber-bd: #eadcc6;
+  --c-red-fg: #9f4f52; --c-red-bg: #f8ecec; --c-red-bd: #edd3d4;
   --c-purple-fg: #6e5baa; --c-purple-bg: #efedf7; --c-purple-bd: #ddd8ee;
   --c-pink-fg: #a8517c; --c-pink-bg: #f8eaf1; --c-pink-bd: #efcfe0;
   --c-teal-fg: #2f7f6c; --c-teal-bg: #e5f4f0; --c-teal-bd: #c9e9e0;
@@ -1563,9 +1566,11 @@ button {
   --sch-foot: #fafafa;
   --sch-foot-we: #f1f1f1;
   --sch-foot-border: #e0e0e0;
-  /* смена — зелёная, план наперёд — только зелёный пунктир, обучение — синее */
-  --sch-work: #4f8866;
-  --sch-work-fg: #ffffff;
+  /* смена — светло-зелёная плашка с зелёными цифрами, сегодняшняя — сплошная; план — зелёный пунктир; обучение — синее */
+  --sch-work: #e3efe7;
+  --sch-work-fg: #36694c;
+  --sch-work-today: #4a7f60;
+  --sch-work-today-fg: #ffffff;
   --sch-plan: transparent;
   --sch-plan-bd: #8dbba0;
   --sch-plan-fg: #3f7a5a;
@@ -1573,7 +1578,8 @@ button {
   --sch-train-fg: #ffffff;
   --sch-plat: #8d72c4;
   --sch-plat-fg: #ffffff;
-  --sch-sick: #c27f80;
+  --sch-sick: #f3e1e1;
+  --sch-sick-fg: #a65558;
   --sch-vac: #cdaa7e;
   --sch-block-fg: #ffffff;
   --sch-gone-bg: #fdf8f8;

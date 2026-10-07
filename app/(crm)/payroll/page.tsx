@@ -9,7 +9,7 @@ import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { ADJ_LABEL, GRADE_LABEL, NO_GROUP_LABEL, PAY_LABEL, TRACK_LABEL, type Adjustment, type AdjustmentType, type Grade, type PayType, type Track } from "@/lib/crm/types";
 import { fmtDate, fmtDayShort, fmtMonth, monthEnd, monthStart, todayKey } from "@/lib/crm/dates";
 import { PAYOUTS, fmtInt, fmtMoney, fmtNum, fmtPct, plural, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Drawer, Empty, Field, GoneTag, Modal, NumInput, Pager, Swatch, downloadText, foldRow, toCsv, useFoldGroups } from "@/components/ui/kit";
+import { Avatar, Chip, Drawer, Empty, Field, GoneTag, Modal, NumInput, Pager, Swatch, foldRow, useFoldGroups } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { canEditPay, canTouchOp } from "@/lib/crm/access";
@@ -88,7 +88,7 @@ const MCOL_HINT: Partial<Record<MCol, string>> = {
   withhold: "Процент удержания + удержания",
   net: "Начислено минус удержано",
   paid: "Аванс + выплаты",
-  tax: `Остаток + ${TAX_PCT}% налога самозанятого — сумма к переводу`,
+  tax: `Остаток ÷ 0,94 (налог самозанятого ${TAX_PCT}%) — сумма к переводу`,
 };
 
 function mergeVisible(full: string[], visibleNext: string[]): string[] {
@@ -228,20 +228,11 @@ export default function PayrollPage() {
   // план в ведомости не показывается, но при фиксации сохраняется тем же, что считает модель месяца
   const termsPlan = (r: PayRow) => opTerms(r.op, cal, data, ix).plan;
 
-  const exportCsv = () => {
-    const head = ["ФИО", "Схема", "Часы", "Норма", "Лиды", "Оклад/часы", "Бонус за лиды", "Доп. начисления", "Премии", "Компенсации", "Корректировки", "Начислено", `Удержание ${data.settings.withholdPct}%`, "Удержания", "К выплате", "Аванс", "Выплачено", "Остаток"];
-    const body = pr.rows.map((r) => [
-      r.op.name, PAY_LABEL[r.payType], r.hours, r.normHours, r.leads, r.base, r.leadPay, r.adj.accrual, r.adj.bonus, r.adj.compensation, r.adj.correction,
-      r.gross, r.withhold, r.deductions, r.net, r.adj.advance, r.adj.payout, r.toPay,
-    ]);
-    body.push(["ИТОГО", "", t.hours, "", t.leads, t.base, t.leadPay, t.adj.accrual, t.adj.bonus, t.adj.compensation, t.adj.correction, t.gross, t.withhold, t.deductions, t.net, t.adj.advance, t.adj.payout, t.toPay]);
-    downloadText(`payroll_${month}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
-  };
 
   const sub =
     view === "periods"
       ? data.settings.paySchedule.length
-        ? `Кому и сколько выплатить · реестр за ${REGISTRY_DAYS} дня до выплаты, остаток + ${TAX_PCT}%`
+        ? `Кому и сколько выплатить · реестр за ${REGISTRY_DAYS} дня до выплаты, остаток ÷ 0,94`
         : `Выплаты раз в ${data.settings.payPeriodDays} дней, через ${data.settings.payDelayDays} дн. после конца периода`
       : view === "payouts"
         ? "Все авансы и выплаты — по дате выплаты"
@@ -453,9 +444,6 @@ export default function PayrollPage() {
                       <Icon name="check" size={14} /> Зафиксировать условия
                     </button>
                   )}
-                  <button className="o2-btn" onClick={exportCsv} title="Выгрузить ведомость месяца">
-                    <Icon name="download" size={14} /> CSV
-                  </button>
                   <span className="o2-found" title={`Оклад ${data.settings.prorateSalary ? "пропорционален часам, если норма не выполнена" : "платится полностью"} · удержание ${data.settings.withholdPct}% (кроме компенсаций)`}>
                     Найдено: {fmtInt(rows.length)}
                   </span>
@@ -973,7 +961,7 @@ function PayDrawer({ row: r, planValue, onClose, onAdj, onPay }: { row: PayRow; 
           {r.toPay > 0.005 && (
             <div className="row" style={{ paddingTop: 6, fontSize: 13.5, gap: 10 }}>
               <span style={{ flex: 1 }}>
-                С налогом +{TAX_PCT}%
+                С налогом {TAX_PCT}% (÷ 0,94)
                 <span style={{ display: "block", fontSize: 11.5, color: "var(--dim)" }}>сумма к переводу самозанятому</span>
               </span>
               <span className="num" style={{ fontWeight: 600 }}><TaxSum value={r.toPay} /></span>

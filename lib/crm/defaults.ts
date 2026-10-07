@@ -129,7 +129,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "light",
   backupsKeep: 15,
   access: DEFAULT_ACCESS,
-  sheets: { url: "", token: "", auto: false },
+  sheets: { url: "", token: "", auto: false, leads: { url: "", token: "", owner: "Борис", auto: false } },
   regions: DEFAULT_REGIONS,
   rop: DEFAULT_ROP,
 };
@@ -335,7 +335,19 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
   s.regions = normalizeRegions(raw?.regions);
   s.rop = normalizeRop(raw?.rop);
   const sh = (raw?.sheets ?? {}) as Partial<Settings["sheets"]>;
-  s.sheets = { url: typeof sh.url === "string" ? sh.url.trim() : "", token: typeof sh.token === "string" ? sh.token : "", auto: sh.auto === true };
+  // до переименования секция называлась drops
+  const dr = (sh.leads ?? (sh as { drops?: unknown }).drops ?? {}) as Partial<Settings["sheets"]["leads"]>;
+  s.sheets = {
+    url: typeof sh.url === "string" ? sh.url.trim() : "",
+    token: typeof sh.token === "string" ? sh.token : "",
+    auto: sh.auto === true,
+    leads: {
+      url: typeof dr.url === "string" ? dr.url.trim() : "",
+      token: typeof dr.token === "string" ? dr.token : "",
+      owner: typeof dr.owner === "string" && dr.owner.trim() ? dr.owner.trim() : "Борис",
+      auto: dr.auto === true,
+    },
+  };
   s.rateGrids = normalizeGrids(raw?.rateGrids);
   if (!s.rateGrids.length) s.rateGrids = [{ ...DEFAULT_GRID, tiers: [...DEFAULT_GRID.tiers] }];
   // черновая сетка первых версий (200/200, 250/300, 300/400 ₽) — заменяем реальной из «Академии обзвона»

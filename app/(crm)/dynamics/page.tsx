@@ -6,7 +6,7 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import { dailyRows, weeklyRows } from "@/lib/crm/calc";
 import { fmtDay, fmtDayShort, fmtMonth, fmtRange, fmtWeekday } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, fmtSignedPct, shortName } from "@/lib/crm/format";
-import { Conv, LeadN, MonthSwitcher, PageHead, Seg, downloadText, toCsv } from "@/components/ui/kit";
+import { Conv, LeadN, MonthSwitcher, PageHead, Seg } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { CumulativeChart, DailyBars, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
@@ -50,17 +50,6 @@ export default function DynamicsPage() {
   const p = sel.pace;
   const cur = m.cal.phase === "current";
 
-  const exportCsv = () => {
-    if (tab === "days") {
-      const head = ["Дата", "День недели", "Рабочий", "Лиды", "Накоп. факт", "Накоп. план", "Отклонение", "Средний темп", "Нужный темп", "Часы", "Конверсия, %"];
-      const body = days.filter((d) => !d.future).map((d) => [d.day, fmtWeekday(d.day), d.isWork ? "да" : "нет", d.count, d.cum, Math.round(d.cumPlan * 10) / 10, Math.round(d.deviation * 10) / 10, d.avgPace == null ? "" : Math.round(d.avgPace * 10) / 10, d.needPace == null ? "" : Math.round(d.needPace * 10) / 10, d.hours, d.hours > 0 ? Math.round((d.count / d.hours) * 100) : ""]);
-      downloadText(`dynamics_days_${month}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
-    } else {
-      const head = ["С", "По", "План недели", "Факт", "% выполнения", "Среднее в день", "Изменение к прошлой неделе, %"];
-      const body = weeks.map((w) => [w.from, w.to, Math.round(w.plan * 10) / 10, w.fact, Math.round(w.pct * 1000) / 10, w.avgPerDay == null ? "" : Math.round(w.avgPerDay * 10) / 10, w.change == null ? "" : Math.round(w.change * 1000) / 10]);
-      downloadText(`dynamics_weeks_${month}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
-    }
-  };
 
   return (
     <div className="stack">
@@ -78,11 +67,6 @@ export default function DynamicsPage() {
         actions={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
-            {tab !== "hours" && (
-              <button className="btn" onClick={exportCsv}>
-                <Icon name="download" size={14} /> CSV
-              </button>
-            )}
           </>
         }
       />

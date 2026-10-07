@@ -666,6 +666,11 @@ console.log("ALL OK");
   const { normLink } = R("format");
   const { setClockSkew, nowMs, appStamp } = R("dates");
   assert.equal(normLink("crm.site.ru/lead/15"), "https://crm.site.ru/lead/15");
+  // Скорозвон из письма Mail.ru: метки перед «#» отрезаем — база ждёт app.skorozvon.ru/#/leads/…
+  assert.equal(
+    normLink("https://app.skorozvon.ru/?utm_source=emailru&utm_medium=referral#/leads/60500387382/answer/60648884754/+79689881828"),
+    "https://app.skorozvon.ru/#/leads/60500387382/answer/60648884754/+79689881828",
+  );
   assert.equal(normLink("  https://amo.ru/leads/detail/77  "), "https://amo.ru/leads/detail/77");
   assert.equal(normLink("http://x.ru"), "http://x.ru/");
   assert.equal(normLink("просто текст"), "");
@@ -865,4 +870,43 @@ console.log("ALL OK");
   assert.ok(Math.abs(mOpen.lph - mOpen.factClosed / mOpen.hours) < 1e-9);
   assert.strictEqual(mOpen.pace.fact, monthModel(st, closed, "2026-09", today).ops.find((r) => r.op.id === sh.operatorId).pace.fact, "темп к плану — по живым лидам");
   console.log(`27 ok: закрытие дня — до 21:00 ${sh.hours} ч сегодняшней смены вне ведомости (${Math.round(pOpen.gross)} → ${Math.round(pClosed.gross)} ₽ после закрытия), в графике видна`);
+}
+
+/* ── 27b. налог самозанятого: к переводу = остаток ÷ 0,94, до рубля (=ОКРУГЛ(P2/0,94;0)) ── */
+{
+  const assert = require("assert");
+  const { withTax } = R("payroll");
+  assert.strictEqual(withTax(10000), 10638, "10 000 ÷ 0,94 = 10 638,30 → 10 638");
+  assert.strictEqual(withTax(25130), 26734, "25 130 ÷ 0,94 = 26 734,04 → 26 734");
+  assert.strictEqual(Math.round(withTax(10000) * 0.94), 10000, "после 6% налога остаётся остаток");
+  assert.strictEqual(withTax(0), 0);
+  assert.strictEqual(withTax(-500), 0, "переплата — переводить нечего");
+  console.log("27b ok: налог самозанятого — остаток ÷ 0,94 (10 000 → 10 638)");
+}
+
+/* ── 28. таблица лидов для ОКК (lib/crm/leadsheet.ts) ── */
+{
+  const assert = require("assert");
+  const T = R("leadsheet");
+  const base = {
+    id: "ld_t1", at: "2026-10-07T14:32", client: " Иван ", phone: "89301559269", projectId: null, operatorId: "op1", groupId: null,
+    direction: "", link: "https://app.skorozvon.ru/#/leads/60500425092", region: "", comment: "", source: "Скорозвон", status: "work", statusReason: "", createdAt: "", updatedAt: "",
+  };
+  const rows = T.leadSheetRows(
+    [
+      { ...base, id: "b", at: "2026-10-07T15:00", status: "failed", statusReason: "Клиент сбросил", link: "" },
+      base,
+      { ...base, id: "c", at: "2026-10-07T09:00", status: "done" },
+    ],
+    (id) => (id === "op1" ? "Рахимов Артур" : id),
+  );
+  assert.deepStrictEqual(T.LEAD_SHEET_HEAD, ["Дата", "Ссылка", "Телефон", "Имя", "Оператор", "Доведен", "Если не доведен, почему", "Проверка ОКК"]);
+  assert.deepStrictEqual(rows[1], ["07.10.2026", "https://app.skorozvon.ru/#/leads/60500425092", "79301559269", "Иван", "Рахимов Артур", "", "", ""]);
+  assert.strictEqual(rows[0][0] + rows[2][0], "07.10.202607.10.2026");
+  assert.ok(rows.every((r) => r.slice(5).every((v) => v === "")), "«Доведен», «почему», «Проверка ОКК» — пустые, даже у доведённых и недоведённых в CRM");
+  assert.strictEqual(T.linkLabel(base.link), "лид 60500425092");
+  assert.strictEqual(T.leadSheetTab("2026-10-07", "Борис"), "Октябрь Борис");
+  assert.strictEqual(T.leadSheetTab("2026-11-01", "Борис"), "Ноябрь Борис", "новый месяц — новый лист");
+  assert.strictEqual(T.sheetPhone("+7 (930) 155-92-69"), "79301559269");
+  console.log("28 ok: таблица ОКК — 8 столбцов, ссылка, «Доведен» и дальше пустые, по времени, лист «Октябрь Борис» / «Ноябрь Борис»");
 }

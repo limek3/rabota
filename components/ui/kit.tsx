@@ -1189,15 +1189,6 @@ export function downloadText(filename: string, text: string, mime = "text/plain;
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-/** CSV для Excel: разделитель «;», BOM для кириллицы. */
-export function toCsv(rows: (string | number | null | undefined)[][]): string {
-  const esc = (v: string | number | null | undefined) => {
-    const s = v == null ? "" : typeof v === "number" ? String(v).replace(".", ",") : v;
-    return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  return "﻿" + rows.map((r) => r.map(esc).join(";")).join("\r\n");
-}
-
 /* ── горячие клавиши ──────────────────────────────────────────────── */
 export function isTyping(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;

@@ -8,7 +8,7 @@ import { EARLY_DAYS, daysBetween, fmtTenure, hiresIn, hiringFunnel, isOpenCandid
 import { hasCandidatesTable } from "@/lib/crm/remote";
 import { addMonths, fmtDate, fmtMonth, fmtMonthShort, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { Chip, Empty, Kpi, MonthSwitcher, PageHead, Progress, Seg, downloadText, toCsv } from "@/components/ui/kit";
+import { Chip, Empty, Kpi, MonthSwitcher, PageHead, Progress, Seg } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { CandidateModal } from "@/components/app/CandidateModal";
@@ -124,11 +124,6 @@ export default function HiringPage() {
       .sort((a, b) => lastMove(b).localeCompare(lastMove(a)) || a.name.localeCompare(b.name, "ru"));
   }, [live, filter, q, from, to]);
 
-  const exportCsv = () => {
-    const head = ["ФИО", "Контакт", "Источник", "Группа · супервайзер", "Этап", "Отклик", "Собеседование", "Обучение", "Итог", "Причина", "Комментарий"];
-    const body = list.map((c) => [c.name, c.contact, c.source, c.groupId ? groupWithSv(c.groupId) : "", CANDIDATE_STAGE_LABEL[c.stage], c.appliedAt, c.interviewAt, c.trainingAt, c.closedAt, c.reason, c.comment]);
-    downloadText(`kandidaty_${from}_${to}.csv`, toCsv([head, ...body]), "text/csv;charset=utf-8");
-  };
 
   return (
     <div className="stack">
@@ -425,9 +420,6 @@ export default function HiringPage() {
               <input className="inp" style={{ paddingLeft: 30 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="ФИО, контакт, источник" />
             </div>
             <span className="spacer" />
-            <button className="btn btn-sm" onClick={exportCsv} disabled={!list.length}>
-              <Icon name="download" size={13} /> CSV
-            </button>
           </div>
           {list.length === 0 ? (
             <Empty

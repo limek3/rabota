@@ -202,6 +202,8 @@ export interface LeadExportLogEntry {
   count: number;
   from: DayKey;
   to: DayKey;
+  /** Что выгружали: нет — номера (Excel «Номера»), "sheet" — лиды в таблицу ОКК (lib/crm/leadsheet.ts). */
+  kind?: "sheet";
 }
 
 /** Смена: одна запись на оператора в день (id = `${date}|${operatorId}`). */
@@ -383,6 +385,18 @@ export interface SheetsSync {
   /** Секрет — тот же, что в скрипте таблицы. */
   token: string;
   /** Выгружать сама через минуту после изменений. */
+  auto: boolean;
+  /** Таблица лидов для ОКК («Авто недозвоны»): строки дописываются в лист месяца «Октябрь Борис». */
+  leads: LeadsSheet;
+}
+
+export interface LeadsSheet {
+  /** Ссылка веб-приложения …/exec скрипта в таблице лидов. */
+  url: string;
+  token: string;
+  /** Чей лист: имя после месяца — «Октябрь Борис». */
+  owner: string;
+  /** Сама выгружать лиды каждый день в 13:00 и 19:00 по Москве (Edge Function leads-sheet). */
   auto: boolean;
 }
 

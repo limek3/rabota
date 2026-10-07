@@ -17,7 +17,7 @@ import { RateGridsSection, SvBonusSection } from "@/components/app/RateGrids";
 import { PayScheduleSection } from "@/components/app/PaySchedule";
 import { ApproveMonthEditor, ApproveRules } from "@/components/app/ApproveSettings";
 import { AuditLog } from "@/components/app/AuditLog";
-import { SheetsSection } from "@/components/app/SheetsSync";
+import { LeadsSheetSection, SheetsSection } from "@/components/app/SheetsSync";
 import { StickyHead } from "@/components/app/StickyHead";
 
 type Tab = "profile" | "system" | "accounts" | "roles" | "data" | "audit";
@@ -168,6 +168,7 @@ export default function SettingsPage() {
         <>
           <DataSection />
           <SheetsSection />
+          <LeadsSheetSection />
           <AboutSection />
         </>
       )}
@@ -574,9 +575,6 @@ function DataSection() {
             if (file) void doImport(file);
           }}
         />
-        <Link className="btn" href="/leads">
-          <Icon name="leads" size={14} /> Лиды в CSV
-        </Link>
         <button className="btn" onClick={() => void reload()} title="Перечитать базу и пересчитать все показатели">
           <Icon name="refresh" size={14} /> Обновить расчёты
         </button>

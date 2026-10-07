@@ -7,13 +7,13 @@ import { canReviewLead } from "@/lib/crm/access";
 import { addDays, addMonths, fmtDate, fmtMonth, fmtStamp, isoWeekday, monthOf, monthStart, rangeDays } from "@/lib/crm/dates";
 import { LEADS, fmtInt, fmtNum, fmtPct, fmtPhone, plural, shortName } from "@/lib/crm/format";
 import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type DayKey, type Lead, type LeadStatus } from "@/lib/crm/types";
-import { ClipText, Pager, RegionTag, downloadText, periodFor, toCsv, type Period, type PeriodMode } from "@/components/ui/kit";
+import { ClipText, Pager, RegionTag, periodFor, type Period, type PeriodMode } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { StickyHead } from "@/components/app/StickyHead";
 import { Icon, type IconName } from "@/components/ui/icons";
-import { SEGMENT_LABEL, regionSegment, type RegionSegment } from "@/lib/crm/regions";
-import { PhonesExport } from "@/components/app/LeadsClassic";
+import { regionSegment, type RegionSegment } from "@/lib/crm/regions";
+import { LeadSheetExport, PhonesExport } from "@/components/app/LeadsClassic";
 import { Popover } from "@/components/app/OperatorsV2";
 import { LeadPanel, LeadPanelEmpty } from "@/components/app/LeadModal";
 
@@ -60,6 +60,7 @@ export function LeadsV2() {
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(25);
   const [phonesOpen, setPhonesOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [selId, setSelId] = useState<string | null>(null);
   // «Не доведён…» из меню строки — панель открывается сразу с причиной
@@ -205,31 +206,6 @@ export function LeadsV2() {
         ? `${period.from === today ? "Сегодня, " : `${DOW[isoWeekday(period.from) - 1]}, `}${fmtDate(period.from).slice(0, 5)}`
         : `${fmtDate(period.from).slice(0, 5)} – ${fmtDate(period.to).slice(0, 5)}`;
 
-  /* ── действия ───────────────────────────────────────────────────── */
-  const exportCsv = () => {
-    const src = checked.size ? list.filter((l) => checked.has(l.id)) : list;
-    const rows: (string | number)[][] = [["ID", "Дата", "Время", "Статус", "Причина", "Клиент", "Телефон", "Ссылка", "Проект", "Оператор", "Группа", "Комментарий", "Источник", "Регион", "Основа / регионы"]];
-    for (const l of src) {
-      rows.push([
-        l.id,
-        fmtDate(l.at.slice(0, 10)),
-        l.at.slice(11, 16),
-        LEAD_STATUS_LABEL[l.status],
-        l.status === "failed" ? l.statusReason : "",
-        l.client,
-        fmtPhone(l.phone),
-        l.link,
-        l.projectId ? ix.projectById.get(l.projectId)?.name ?? "" : "",
-        ix.opById.get(l.operatorId)?.name ?? "",
-        l.groupId ? ix.groupById.get(l.groupId)?.name ?? "" : NO_GROUP_LABEL,
-        l.comment,
-        l.source,
-        l.region ?? "",
-        SEGMENT_LABEL[regionSegment(l.region, s) ?? "main"],
-      ]);
-    }
-    downloadText(`leads_${period.from}_${period.to}.csv`, toCsv(rows), "text/csv;charset=utf-8");
-  };
   const checkedRows = list.filter((l) => checked.has(l.id));
   const reviewChecked = checkedRows.filter((l) => l.status !== "done" && canReviewLead(access, l));
   const markDone = async (ids: string[]) => {
@@ -388,14 +364,16 @@ export function LeadsV2() {
               </button>
             ))}
           </div>
-          <button className="o2-btn" onClick={exportCsv} disabled={!list.length} title={checked.size ? `Выгрузить отмеченные: ${checked.size}` : "Выгрузить список"}>
-            <Icon name="download" size={14} />
-            CSV{checked.size ? ` · ${checked.size}` : ""}
-          </button>
           {canExport && (
             <button className="o2-btn" onClick={() => setPhonesOpen(true)} disabled={!data.leads.length} title="Имя и телефон в Excel, с отметкой, что уже выгружали">
               <Icon name="download" size={14} />
               Номера
+            </button>
+          )}
+          {canExport && (
+            <button className="o2-btn" onClick={() => setSheetOpen(true)} disabled={!data.leads.length} title="Лиды за день или период — в таблицу ОКК (Excel или Google Таблица)">
+              <Icon name="download" size={14} />
+              Таблица ОКК
             </button>
           )}
           {access.can.createLeads && (
@@ -719,6 +697,15 @@ export function LeadsV2() {
           pick={(from, to) => (status ? pick(from, to).filter((l) => l.status === status) : pick(from, to))}
           filtered={filtered}
           onClose={() => setPhonesOpen(false)}
+        />
+      )}
+      {sheetOpen && (
+        <LeadSheetExport
+          from={today}
+          to={today}
+          pick={(from, to) => (status ? pick(from, to).filter((l) => l.status === status) : pick(from, to))}
+          filtered={filtered}
+          onClose={() => setSheetOpen(false)}
         />
       )}
     </div>

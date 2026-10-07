@@ -25,16 +25,16 @@ const P = 36;
 const SCALE = 2;
 
 const C = {
-  bg: "#ffffff",
-  text: "#1a1a1a",
-  sub: "#6b6b6b",
-  dim: "#a0a0a0",
-  line: "#e6e6e6",
-  strip: "#f4f4f4",
-  brand: "#1f1f1f",
-  brandSoft: "#efefef",
-  green: "#4f8166",
-  red: "#b25f62",
+  bg: "#fdfdfc",
+  text: "#2b2b29",
+  sub: "#5f5e5a",
+  dim: "#8d8c88",
+  line: "#e6e5e1",
+  strip: "#f5f4f1",
+  brand: "#333331",
+  brandSoft: "#efeeeb",
+  green: "#3f7357",
+  red: "#9f4f52",
 };
 
 interface Handle {

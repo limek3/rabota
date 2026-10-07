@@ -1,0 +1,444 @@
+<title>План 1000 лидов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: одна колонка ~1080px. Итог → факты из CRM → группа 1 → группа 2 → общий план по неделям → люди → СВ → регионы → риски → параметры */
+:root{
+  --bg:#f5f6f7; --surface:#ffffff; --soft:#eef0f2; --line:#e1e4e8;
+  --fg:#15181b; --muted:#5c636c; --accent:#3156c9;
+  --g1:#4a525c; --g2:#3156c9;
+  --good:#1d8a4b; --good-bg:#e5f4ec; --bad:#c3392f; --bad-bg:#fbe9e7; --warn:#a86b12; --warn-bg:#fbf1df;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111315; --surface:#181b1f; --soft:#1f2327; --line:#2b3036;
+  --fg:#e8eaed; --muted:#9ba2ab; --accent:#8aa5f5; --g1:#aab1ba; --g2:#7f9cf5;
+  --good:#4fc283; --good-bg:#16291f; --bad:#f06e64; --bad-bg:#2e1a18; --warn:#e2a54a; --warn-bg:#2c2416; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111315; --surface:#181b1f; --soft:#1f2327; --line:#2b3036;
+  --fg:#e8eaed; --muted:#9ba2ab; --accent:#8aa5f5; --g1:#aab1ba; --g2:#7f9cf5;
+  --good:#4fc283; --good-bg:#16291f; --bad:#f06e64; --bad-bg:#2e1a18; --warn:#e2a54a; --warn-bg:#2c2416; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:36px 64px;display:flex;flex-direction:column;gap:48px}
+h1,h2,h3{margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:clamp(26px,4vw,36px);font-weight:700;line-height:1.15}
+h2{font-size:21px;font-weight:650}
+h3{font-size:15px;font-weight:600}
+p{margin:0;max-width:72ch}
+b{font-weight:600}
+.eyebrow{font:500 11.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+.small{font-size:13.5px}
+.num{font-variant-numeric:tabular-nums}
+section{display:flex;flex-direction:column;gap:16px}
+.sec-head{display:flex;flex-direction:column;gap:6px}
+header{display:flex;flex-direction:column;gap:12px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted)}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tile .v{font-size:30px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.tile .s{font-size:13px;color:var(--muted)}
+.v.good{color:var(--good)} .v.bad{color:var(--bad)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.verdict{border-left:3px solid var(--good)}
+.verdict.behind{border-left-color:var(--bad)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+
+.kv{display:flex;flex-direction:column;gap:2px}
+.kv .k{font-size:12.5px;color:var(--muted)}
+.kv .v{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}
+
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+thead th{font:500 11px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--soft)}
+tbody tr:last-child td{border-bottom:0}
+tfoot td{font-weight:650;background:var(--soft);border-bottom:0}
+td.l{text-align:left}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.pill.good{background:var(--good-bg);color:var(--good)} .pill.bad{background:var(--bad-bg);color:var(--bad)} .pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.n{background:var(--soft);color:var(--muted)}
+.now td{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:0}
+.minibar{display:inline-block;height:8px;border-radius:2px;background:var(--g1);vertical-align:1px}
+
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 14px 6px;overflow-x:auto}
+.chart svg{display:block;width:100%;min-width:540px;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted);padding:4px 4px 8px}
+
+.road{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.step{display:grid;grid-template-columns:150px 1fr;gap:16px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.step:last-child{border-bottom:0}
+.step .when{font:500 12.5px var(--mono);color:var(--muted);padding-top:2px}
+.step .what{display:flex;flex-direction:column;gap:4px;min-width:0}
+.step .what p{font-size:14px;color:var(--muted)}
+.step.cur .when{color:var(--accent)}
+@media (max-width:560px){.step{grid-template-columns:1fr;gap:4px}}
+
+.bar{display:flex;height:26px;border-radius:6px;overflow:hidden;font:500 12px var(--sans);font-variant-numeric:tabular-nums}
+.bar span{display:flex;align-items:center;padding-inline:8px;white-space:nowrap;overflow:hidden}
+.bar .cap{background:var(--soft);color:var(--fg)}
+.bar .reg{background:color-mix(in srgb,var(--accent) 24%,var(--surface));color:var(--fg)}
+.barrow{display:flex;flex-direction:column;gap:5px}
+.barrow .lbl{font-size:12.5px;color:var(--muted)}
+
+ul.list{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;max-width:76ch}
+ul.list li::marker{color:var(--muted)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:16px}
+.seg{display:inline-flex;background:var(--soft);border-radius:8px;padding:3px;gap:3px;flex-wrap:wrap}
+.seg button{font:500 13.5px var(--sans);border:0;background:transparent;color:var(--muted);padding:7px 12px;border-radius:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.seg button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.params{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px 16px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-size:12.5px;color:var(--muted)}
+.field input[type=number]{font:500 14px var(--sans);font-variant-numeric:tabular-nums;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:7px 9px;width:100%}
+.field.check{flex-direction:row;align-items:center;gap:8px}
+.field.check label{font-size:13.5px;color:var(--fg)}
+.tag{font:500 10.5px var(--mono);letter-spacing:.04em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--warn-bg);color:var(--warn);align-self:flex-start}
+.tag.fact{background:var(--good-bg);color:var(--good)}
+details summary{cursor:pointer;font-weight:600;font-size:14px}
+.foot{font-size:12.5px;color:var(--muted)}
+</style>
+
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">План отдела · октябрь 2026</span>
+  <h1>Выходим на 1000+ лидов: две группы</h1>
+  <p class="muted">Расчёт на фактических данных LEADUP CRM. Группа 1 уже работает под своим СВ. Группу 2 собираем так же, как собирали группу 1 в сентябре, и по тем же срокам.</p>
+  <div class="meta"><span>Данные CRM на 6 октября 2026, день 6 октября ещё идёт</span><span>Сценарий и допущения меняются в блоке «Параметры» внизу</span></div>
+</header>
+
+<section>
+  <div class="tiles">
+    <div class="tile"><span class="eyebrow">Факт 1–5 окт</span><span class="v num">108</span><span class="s">21,6 лида в день · план CRM 700</span></div>
+    <div class="tile"><span class="eyebrow">Прогноз октября</span><span class="v num" id="t-fc">—</span><span class="s" id="t-fc-s">—</span></div>
+    <div class="tile"><span class="eyebrow">Группа 1 / Группа 2</span><span class="v num" id="t-split">—</span><span class="s">прогноз лидов в октябре</span></div>
+    <div class="tile"><span class="eyebrow">Ноябрь, потенциал</span><span class="v num" id="t-nov">—</span><span class="s" id="t-nov-s">—</span></div>
+  </div>
+  <div class="card verdict" id="verdict"><h3 id="verdict-h">—</h3><p id="verdict-p" class="muted"></p></div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Факт из CRM</span><h2>Как росла группа 1</h2>
+    <p class="muted">Группу 1 собрали с нуля с 16 сентября. Первые три недели — это готовый шаблон для группы 2. «Конверсия» здесь, как и в CRM, — лиды на час работы в линии.</p></div>
+  <div class="tbl"><table style="min-width:680px">
+    <thead><tr><th>Неделя</th><th>Лидов</th><th></th><th>Часов в линии</th><th>Конверсия</th><th>Принято за неделю</th><th>Ушли</th></tr></thead>
+    <tbody>
+      <tr><td>14–20 сен · 1-я неделя</td><td><b>6</b></td><td class="l"><span class="minibar" style="width:3px"></span></td><td>21</td><td>29%</td><td>4</td><td>0</td></tr>
+      <tr><td>21–27 сен · 2-я</td><td><b>86</b></td><td class="l"><span class="minibar" style="width:43px"></span></td><td>105</td><td>82%</td><td>4</td><td>2</td></tr>
+      <tr><td>28 сен – 4 окт · 3-я</td><td><b>184</b></td><td class="l"><span class="minibar" style="width:92px"></span></td><td>204</td><td>90%</td><td>10</td><td>2</td></tr>
+      <tr class="now"><td>5–6 окт · 4-я, идёт</td><td><b>20</b></td><td class="l"><span class="minibar" style="width:10px"></span></td><td>22,6 за пн</td><td>75% за пн</td><td>6</td><td>0</td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid3">
+    <div class="card"><h3>Конверсия растёт вместе с командой</h3><p class="muted small">Часов в линии за две недели стало вдвое больше (105 → 204), а конверсия выросла с 82% до 90%. Обычно новые люди тянут её вниз, у нас этого не произошло. Значит, обучение и контроль работают, и людей можно добавлять быстро.</p></div>
+    <div class="card"><h3>Найм уже налажен</h3><p class="muted small">С 16 сентября принято 24 человека, ушли 4 (17%). От отклика до приёма в среднем 3 дня. Стажировку закрывают за 1–7 дней. По рекомендациям приняли 2 из 2, с hh — 3 из 13.</p></div>
+    <div class="card"><h3>Качество лидов</h3><p class="muted small">В октябре передали 118 лидов, доведено 111 (94%). Сентябрь: 185 лидов. Всего с запуска — 311.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Группа 1 · СВ Чудаева Ю.</span><h2>Группа 1: что есть сейчас</h2>
+    <p class="muted">Чудаева пришла 21 сентября оператором, стажировку закрыла за 7 дней, теперь ведёт группу. В линии 7 постоянных операторов, ещё 6 человек приняты 1–4 октября и выходят в линию.</p></div>
+  <div class="tbl"><table style="min-width:700px">
+    <thead><tr><th>Оператор</th><th>Лидов 1–6 окт</th><th>Часов</th><th>Конверсия</th><th>Личный план, мес</th><th>К плану на дату</th></tr></thead>
+    <tbody>
+      <tr><td>Диникаев А.</td><td><b>29</b></td><td>23,5</td><td>123%</td><td>150</td><td><span class="pill good">100%</span></td></tr>
+      <tr><td>Комиссарова В.</td><td><b>21</b></td><td>21,4</td><td>98%</td><td>100</td><td><span class="pill good">109%</span></td></tr>
+      <tr><td>Сапаров Ш.</td><td><b>21</b></td><td>18,4</td><td>98%</td><td>100</td><td><span class="pill good">109%</span></td></tr>
+      <tr><td>Шумаков И.</td><td><b>16</b></td><td>21</td><td>76%</td><td>150</td><td><span class="pill bad">55%</span></td></tr>
+      <tr><td>Рахимов А.</td><td><b>9</b></td><td>20,6</td><td>44%</td><td>50</td><td><span class="pill warn">93%</span></td></tr>
+      <tr><td>Хадаев Б.</td><td><b>8</b></td><td>11,5</td><td>70%</td><td>100</td><td><span class="pill bad">41%</span></td></tr>
+      <tr><td>Ализаде Р.</td><td><b>0</b></td><td>0</td><td>—</td><td>50</td><td><span class="pill bad">0%</span></td></tr>
+      <tr><td>Якурова Д. <span class="muted">· принята 4 окт</span></td><td><b>1</b></td><td>2</td><td>50%</td><td>—</td><td><span class="pill n">стажёр</span></td></tr>
+    </tbody>
+    <tfoot><tr><td>Группа 1 + уволенный Аракелян (6 лидов)</td><td>111</td><td>125</td><td>87%</td><td>750</td><td><span class="pill bad">82%</span></td></tr></tfoot>
+  </table></div>
+  <div class="grid2">
+    <div class="card"><h3>Сильные стороны</h3><ul class="list muted small">
+      <li>Трое лучших (Диникаев, Комиссарова, Сапаров) дают 68% лидов группы, и у всех троих выполнение 100% и выше.</li>
+      <li>Конверсия группы 87% при росте численности.</li>
+    </ul></div>
+    <div class="card"><h3>Что разбираем в группе 1</h3><ul class="list muted small">
+      <li><b>Ализаде</b>: 0 часов в октябре. Решаем до конца недели: выходит в линию или уходит.</li>
+      <li><b>Хадаев</b>: мало часов (11,5). Добираем смены.</li>
+      <li><b>Шумаков</b>: план 150 выше его темпа. Либо поднимаем конверсию, либо план 100–110.</li>
+      <li><b>Рахимов</b>: часы есть, конверсия 44%. Разбор звонков с СВ.</li>
+    </ul></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Группа 2 · новый СВ</span><h2>Группа 2: собираем так же, как группу 1</h2>
+    <p class="muted">В CRM группа 2 уже заведена, в ней 1 человек — Караваева А. Предлагаю отдать в группу 2 стажёров, принятых 5–6 октября (Гимранова, Ермолкевич, Музычко, Гришко, Клочко). Тогда группа 2 стартует с 6 человек, а группа 1 не раздувается больше 10–11 человек на одного СВ. Весь новый набор с 7 октября идёт в группу 2.</p></div>
+
+  <div class="grid2">
+    <div class="tbl"><table id="g2cmp" style="min-width:420px">
+      <thead><tr><th>Неделя от старта</th><th>Группа 1, факт</th><th>Группа 2, план</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="card"><h3>Шаблон группы 1</h3><p class="muted small">Группа 1 за три недели прошла путь от 6 до 184 лидов в неделю. Группа 2 повторяет этот путь, но стартует быстрее: скрипт, обучение, тренажёр и СВ уже есть, и в группе 2 изначально больше людей.</p><p class="muted small" id="g2-note"></p></div>
+  </div>
+
+  <div class="tbl"><table id="g2plan" style="min-width:760px">
+    <thead><tr><th>Неделя</th><th>Принять в набор</th><th>Дойдут до линии</th><th>Людей в линии (эфф.)</th><th>СВ2 в линии</th><th>Прогноз лидов</th></tr></thead>
+    <tbody></tbody><tfoot></tfoot>
+  </table></div>
+</section>
+
+<section id="calc">
+  <div class="sec-head"><span class="eyebrow">Расчёт</span><h2>Общий план по неделям</h2>
+    <p class="muted">Факт недели 1–4 октября и понедельника 5 октября взят из CRM, остальное — прогноз. План недели — доля 1000 пропорционально дням. Выработка — <b id="pd-label">3,1</b> лида на оператора в день (факт 1–5 октября: 108 лидов / 5 дней / 7 операторов).</p></div>
+  <div class="panel" style="padding:12px 18px;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px 16px">
+    <span class="eyebrow">Сценарий</span>
+    <div class="seg" role="group" aria-label="Сценарий">
+      <button type="button" data-sc="cons" aria-pressed="false">Консервативный</button>
+      <button type="button" data-sc="base" aria-pressed="true">Базовый</button>
+      <button type="button" data-sc="opt" aria-pressed="false">Оптимистичный</button>
+    </div>
+  </div>
+  <div class="chart">
+    <div class="legend"><span><span class="dot" style="background:var(--g1)"></span>Группа 1</span><span><span class="dot" style="background:var(--g2)"></span>Группа 2</span><span><span class="dot" style="background:var(--fg);height:2px;vertical-align:3px"></span>План недели при цели 1000</span></div>
+    <svg id="chart" viewBox="0 0 680 260" role="img" aria-label="Лиды по неделям по группам и план"></svg>
+  </div>
+  <div class="tbl"><table id="wk" style="min-width:820px">
+    <thead><tr><th>Неделя</th><th>Гр.1 в линии</th><th>Гр.1 лидов</th><th>Гр.2 в линии</th><th>Гр.2 лидов</th><th>Всего</th><th>План недели</th><th>Накопит.</th><th>План накопит.</th><th>Статус</th></tr></thead>
+    <tbody></tbody><tfoot></tfoot>
+  </table></div>
+  <p class="foot">«В линии» — эффективные операторы: стажёр в 1-ю неделю в линии даёт 35% выработки, во 2-ю — 90%, дальше 100%. Это реальная кривая группы 1: конверсия 29% → 82% → 90%.</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Люди</span><h2>Сколько нужно операторов</h2>
+    <p class="muted">При факте ~<b id="ppm">94</b> лидов на оператора в месяц и запасе 15% на отток (за последние 30 дней ушли 17% принятых). Один СВ держит до 10 человек.</p></div>
+  <div class="tbl"><table id="ppl" style="min-width:600px">
+    <thead><tr><th>Цель в месяц</th><th>Лидов в день</th><th>Операторов в линии</th><th>С запасом 15%</th><th>Групп / СВ</th><th>Ещё принять сверх плана</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="muted small" id="ppl-note"></p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Супервайзеры</span><h2>Когда выводим СВ</h2></div>
+  <div class="road">
+    <div class="step"><span class="when">16 сен – 4 окт</span><div class="what"><h3>Группа 1 собрана, СВ1 — Чудаева Ю.</h3><p>Пришла оператором 21 сентября, закрыла стажировку за 7 дней, сейчас ведёт группу. 7 постоянных в линии, конверсия 87%.</p></div></div>
+    <div class="step cur"><span class="when">5–11 окт · сейчас</span><div class="what"><h3>Старт группы 2</h3><p>СВ2 заканчивает обучение и выходит в линию сам делать лиды — тот же путь, что прошла Чудаева. Стажёров 5–6 октября переводим в группу 2, открываем набор.</p></div></div>
+    <div class="step"><span class="when">12–18 окт</span><div class="what"><h3>Обе группы в линии</h3><p>Стажёры обеих групп выходят в линию. СВ2 работает в линии и параллельно ведёт свою группу. Второй набор в группу 2.</p></div></div>
+    <div class="step"><span class="when">19–25 окт</span><div class="what"><h3>СВ2 полностью на группе</h3><p>Группа 2 на второй неделе в линии, как группа 1 в конце сентября (86 лидов в неделю). СВ2 — половину времени в линии, половину с людьми.</p></div></div>
+    <div class="step"><span class="when">с 26 окт</span><div class="what"><h3>Оба СВ выходят к тебе</h3><p>Каждый СВ отчитывается за свою группу: план, лиды, конверсия, люди. Я — на найме, обучении, регионах и общем результате. Планы в CRM разбиваем по группам.</p></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Регионы</span><h2>Регионы: у нас 0%, у других команд 55%</h2>
+    <p class="muted">По журналу лидов в CRM: в октябре <b>0 из 118</b> лидов из регионов (Челябинск, Волгоград, Краснодарский край, Ставрополь). В сентябре региональных лидов было 2, и оба «не доведены». Региональные кандидаты отказываются, когда узнают, что нужно ехать в Москву, Питер или Екатеринбург. Мы теряем их уже после того, как оператор потратил на них время.</p></div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="barrow"><span class="lbl">Другие команды</span><div class="bar"><span class="cap" style="width:45%">Столицы 45%</span><span class="reg" style="width:55%">Регионы 55%</span></div></div>
+      <div class="barrow"><span class="lbl">Мы, октябрь (CRM)</span><div class="bar"><span class="cap" style="width:100%">Москва, СПб, Екатеринбург — 100%</span></div></div>
+    </div>
+    <div class="card">
+      <h3>Что это даёт</h3>
+      <p class="muted small">При том же потоке по столицам и структуре, как у других команд, лидов было бы в 2,2 раза больше (100 / 45). Это потолок. Даже если вернуть пятую часть, это <b>+<span id="reg-x">—</span> лидов в месяц</b> даже от нынешних 700. Растёт и конверсия: оператор перестаёт терять дожатых кандидатов на переезде.</p>
+      <p class="muted small">В план регионы не заложены, это чистый запас сверху.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="eyebrow">Что нужно</span><h2>Риски и решения</h2></div>
+  <div class="grid2">
+    <div class="card"><h3>Риски</h3><ul class="list muted small">
+      <li>До линии доходит меньше 65% стажёров (в сентябре дошли 6–7 из 10). Закрываю: набор каждую неделю, а не волнами.</li>
+      <li>Отток постоянных: за 30 дней ушли 4 из 24 принятых. В базовом сценарии закладываю минус 1 человека в группе 1 с 19 октября.</li>
+      <li>Неделя 5–11 октября ниже плана: стажёры ещё не в линии. Догоняем с 12 октября, когда выходят обе группы.</li>
+      <li>Группа 1 держится на трёх людях (68% лидов). Подтягиваю Шумакова, Хадаева и Рахимова, решаю вопрос с Ализаде.</li>
+    </ul></div>
+    <div class="card"><h3>Что нужно от тебя</h3><ul class="list muted small">
+      <li><b>Решение по регионам:</b> можно ли не требовать переезд или дать региональные точки.</li>
+      <li><b>Подтвердить набор в группу 2:</b> <span id="ask-hire">—</span> человек до 18 октября.</li>
+      <li><b>Поднять план в CRM:</b> <span id="ask-plan">—</span>.</li>
+      <li><b>Формат отчёта СВ напрямую тебе</b> с 26 октября.</li>
+    </ul></div>
+  </div>
+  <p class="foot">Контроль каждый понедельник: сверяем факт недели по каждой группе с колонками «Прогноз» и «Накопит.». Если две недели подряд ниже — переходим на консервативный сценарий и усиливаем набор.</p>
+</section>
+
+<section>
+  <details class="panel">
+    <summary>Параметры расчёта</summary>
+    <div class="params">
+      <div class="field"><label for="p-d">Лидов на оператора в день</label><input id="p-d" type="number" step="0.1" value="3.1"><span class="tag fact">факт 1–5 окт</span></div>
+      <div class="field"><label for="p-core">Постоянных в группе 1</label><input id="p-core" type="number" value="7"><span class="tag fact">факт</span></div>
+      <div class="field"><label for="p-a">Стажёры группы 1 (приняты 1–4 окт)</label><input id="p-a" type="number" value="6"><span class="tag fact">факт</span></div>
+      <div class="field"><label for="p-b">Стажёры в группу 2 (приняты 5–6 окт)</label><input id="p-b" type="number" value="6"><span class="tag fact">факт</span></div>
+      <div class="field"><label for="p-h1">Набор в группу 2, 7–11 окт</label><input id="p-h1" type="number" value="6"><span class="tag">план</span></div>
+      <div class="field"><label for="p-h2">Набор в группу 2, 12–18 окт</label><input id="p-h2" type="number" value="5"><span class="tag">план</span></div>
+      <div class="field"><label for="p-pass">Доходят до линии, %</label><input id="p-pass" type="number" value="65"><span class="tag">допущение</span></div>
+      <div class="field"><label for="p-g">Рост выработки, % в неделю</label><input id="p-g" type="number" step="0.5" value="2"><span class="tag">допущение</span></div>
+      <div class="field"><label for="p-churn">Уход постоянных гр.1 с 19 окт</label><input id="p-churn" type="number" value="1"><span class="tag">допущение</span></div>
+      <div class="field"><label for="p-novchurn">Отток в ноябре, %</label><input id="p-novchurn" type="number" value="15"><span class="tag">допущение</span></div>
+      <div class="field"><label for="p-target">Цель на октябрь</label><input id="p-target" type="number" value="1000"></div>
+      <div class="field check"><input id="p-sv2" type="checkbox" checked><label for="p-sv2">СВ2 делает лиды в линии</label></div>
+    </div>
+  </details>
+</section>
+
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString('ru-RU');
+const fmt1=n=>(Math.round(n*10)/10).toLocaleString('ru-RU',{minimumFractionDigits:1,maximumFractionDigits:1});
+const plural=(n,a,b,c)=>{n=Math.abs(Math.round(n))%100;const m=n%10;if(n>10&&n<20)return c;if(m>1&&m<5)return b;if(m===1)return a;return c};
+
+// Октябрь: 0..4, ноябрь: 5..10 (1 нояб — вс, 30 нояб — пн)
+const W=[{l:'1–4 окт',d:4},{l:'5–11 окт',d:7},{l:'12–18 окт',d:7},{l:'19–25 окт',d:7},{l:'26–31 окт',d:6},
+         {l:'1 нояб',d:1},{l:'2–8 нояб',d:7},{l:'9–15 нояб',d:7},{l:'16–22 нояб',d:7},{l:'23–29 нояб',d:7},{l:'30 нояб',d:1}];
+const OCT=5, CUR=1;
+const FACT_W0=91, FACT_MON=17;            // CRM: 1–4 окт = 91, пн 5 окт = 17
+const RAMP=[.35,.9,1];                      // кривая группы 1: 29% → 82% → 90%
+const SV=i=>i<2?0:i===2?.35:i===3?.6:.5;
+const G1_HIST=[6,86,184];
+
+const SC={
+  cons:{pass:50,g:0,churn:2,h1:4,h2:4,sv2:false,nov:20},
+  base:{pass:65,g:2,churn:1,h1:6,h2:5,sv2:true,nov:15},
+  opt:{pass:75,g:3,churn:0,h1:7,h2:6,sv2:true,nov:10}
+};
+
+function read(){
+  const n=id=>{const v=parseFloat($(id).value);return isNaN(v)?0:v};
+  return {d:n('p-d'),core:n('p-core'),a:n('p-a'),b:n('p-b'),h1:n('p-h1'),h2:n('p-h2'),pass:n('p-pass'),
+    g:n('p-g'),churn:n('p-churn'),nov:n('p-novchurn'),target:n('p-target')||1000,sv2:$('p-sv2').checked};
+}
+const ramp=k=>k<0?0:RAMP[Math.min(k,2)];
+
+function calc(p){
+  const pass=p.pass/100;
+  const A=Math.round(p.a*pass), B=Math.round(p.b*pass), C=Math.round(p.h1*pass), D=Math.round(p.h2*pass);
+  const rows=W.map((w,i)=>{
+    const g=i===0?1:Math.pow(1+p.g/100,i);
+    const nov=i>=OCT+1?(1-p.nov/100):1;
+    const core=Math.max(0,p.core-(i>=3?p.churn:0));
+    const e1=(core+A*ramp(i-2))*nov;
+    const e2=(B*ramp(i-2)+C*ramp(i-3)+D*ramp(i-4)+(p.sv2?SV(i):0))*nov;
+    let l1=e1*p.d*w.d*g, l2=e2*p.d*w.d*g;
+    if(i===0){l1=FACT_W0;l2=0}
+    if(i===1){l1=FACT_MON+core*p.d*6*g}
+    return {w,i,e1,e2,l1,l2,t:l1+l2,hire:i===1?p.h1:i===2?p.h2:0,surv:i===1?C:i===2?D:0};
+  });
+  const oct=rows.slice(0,OCT), nov=rows.slice(OCT);
+  const sum=(a,k)=>a.reduce((s,r)=>s+r[k],0);
+  return {A,B,C,D,rows,oct,nov,o1:sum(oct,'l1'),o2:sum(oct,'l2'),ot:sum(oct,'t'),n1:sum(nov,'l1'),n2:sum(nov,'l2'),nt:sum(nov,'t')};
+}
+
+function render(){
+  const p=read(), c=calc(p), T=p.target;
+  $('pd-label').textContent=fmt1(p.d);
+  const fc=$('t-fc'); fc.textContent=fmt(c.ot); fc.className='v num '+(c.ot>=T?'good':'bad');
+  $('t-fc-s').textContent=(c.ot>=T?'+':'−')+fmt(Math.abs(c.ot-T))+' к цели '+fmt(T);
+  $('t-split').textContent=fmt(c.o1)+' / '+fmt(c.o2);
+  $('t-nov').textContent=fmt(c.nt);
+  $('t-nov-s').textContent='гр.1 '+fmt(c.n1)+' · гр.2 '+fmt(c.n2)+' · с оттоком '+fmt(p.nov)+'%';
+
+  // verdict
+  let cum=0,cumP=0,catchup=null;
+  c.oct.forEach(r=>{cum+=r.t;cumP+=T*r.w.d/31;if(!catchup&&cum>=cumP-0.5)catchup=r});
+  const ok=c.ot>=T;
+  $('verdict').classList.toggle('behind',!ok);
+  $('verdict-h').textContent=ok?('Октябрь: ~'+fmt(c.ot)+' лидов — цель '+fmt(T)+' закрываем'):('Октябрь: ~'+fmt(c.ot)+' — не хватает '+fmt(T-c.ot)+' до '+fmt(T));
+  $('verdict-p').textContent=ok
+    ? 'Группа 1 даёт ~'+fmt(c.o1)+', группа 2 добавляет ~'+fmt(c.o2)+' уже в октябре. Неделю 5–11 октября идём ниже плана, '+(catchup?'накопительно догоняем на неделе '+catchup.w.l+'.':'догоняем к концу месяца.')+' Потенциал ноября при этом составе — до ~'+fmt(c.nt)+' лидов.'
+    : 'В этом сценарии не дотягиваем: меньше стажёров доходит до линии и меньше набор. Разрыв закрываем набором в группу 2 и регионами.';
+
+  // g2 compare
+  const g2w=[2,3,4].map(i=>c.rows[i].l2);
+  $('g2cmp').querySelector('tbody').innerHTML=[0,1,2].map(k=>'<tr><td>'+(k+1)+'-я неделя</td><td>'+G1_HIST[k]+'</td><td><b>'+fmt(g2w[k])+'</b> <span class="muted">· '+W[k+2].l+'</span></td></tr>').join('')
+    +'<tr><td>Ноябрь, месяц</td><td>—</td><td><b>'+fmt(c.n2)+'</b></td></tr>';
+  const g2people=c.B+c.C+c.D;
+  $('g2-note').textContent='Состав группы 2 к ноябрю: ~'+g2people+' операторов в линии ('+c.B+' из стажёров 5–6 окт, '+c.C+' + '+c.D+' из двух наборов) плюс СВ2.';
+
+  // g2 plan table
+  const g2rows=c.rows.slice(1,OCT);
+  $('g2plan').querySelector('tbody').innerHTML=g2rows.map(r=>{
+    const hire=r.i===1?p.h1+' <span class="muted">(+ '+p.b+' стажёров 5–6 окт)</span>':r.i===2?String(p.h2):'—';
+    const surv=r.i===1?(c.C+' <span class="muted">+ '+c.B+'</span>'):r.i===2?String(c.D):'—';
+    const sv=p.sv2?SV(r.i):0;
+    return '<tr'+(r.i===CUR?' class="now"':'')+'><td>'+r.w.l+'</td><td>'+hire+'</td><td>'+surv+'</td><td>'+fmt1(r.e2-sv)+'</td><td>'+(sv?fmt1(sv):'—')+'</td><td><b>'+fmt(r.l2)+'</b></td></tr>';
+  }).join('');
+  $('g2plan').querySelector('tfoot').innerHTML='<tr><td>Октябрь</td><td>'+(p.h1+p.h2)+' + '+p.b+'</td><td>'+(c.B+c.C+c.D)+'</td><td></td><td></td><td>'+fmt(c.o2)+'</td></tr>';
+
+  // weekly table
+  cum=0;cumP=0;
+  $('wk').querySelector('tbody').innerHTML=c.oct.map(r=>{
+    const plan=T*r.w.d/31; cum+=r.t; cumP+=plan;
+    const ok=cum>=cumP-0.5;
+    const fact=r.i===0?' <span class="muted">· факт</span>':r.i===1?' <span class="muted">· сейчас</span>':'';
+    return '<tr'+(r.i===CUR?' class="now"':'')+'><td>'+r.w.l+fact+'</td><td>'+fmt1(r.e1)+'</td><td>'+fmt(r.l1)+'</td><td>'+(r.e2?fmt1(r.e2):'—')+'</td><td>'+(r.l2?fmt(r.l2):'—')+'</td><td><b>'+fmt(r.t)+'</b></td><td>'+fmt(plan)+'</td><td>'+fmt(cum)+'</td><td>'+fmt(cumP)+'</td><td><span class="pill '+(ok?'good':'bad')+'">'+(ok?'в плане':'−'+fmt(cumP-cum))+'</span></td></tr>';
+  }).join('');
+  $('wk').querySelector('tfoot').innerHTML='<tr><td>Октябрь</td><td></td><td>'+fmt(c.o1)+'</td><td></td><td>'+fmt(c.o2)+'</td><td>'+fmt(c.ot)+'</td><td>'+fmt(T)+'</td><td colspan="2"></td><td><span class="pill '+(c.ot>=T?'good':'bad')+'">'+(c.ot>=T?'+':'−')+fmt(Math.abs(c.ot-T))+'</span></td></tr>';
+
+  drawChart(c.oct,T);
+
+  // people
+  const ppm=p.d*30.4; $('ppm').textContent=fmt(ppm);
+  const pass=Math.max(p.pass,1)/100;
+  const nowOps=Math.max(0,p.core-p.churn)+c.A+c.B+c.C+c.D;
+  $('ppl').querySelector('tbody').innerHTML=[1000,1200,1500,2000].map(t=>{
+    const ops=Math.ceil(t/ppm), buf=Math.ceil(ops/.85), groups=Math.max(1,Math.ceil(buf/10));
+    const more=Math.max(0,Math.ceil((buf-nowOps)/pass));
+    return '<tr><td><b>'+fmt(t)+'</b></td><td>'+fmt1(t/30.4)+'</td><td>'+ops+'</td><td>'+buf+'</td><td>'+groups+'</td><td>'+(more?more+' чел.':'<span class="pill good">хватает</span>')+'</td></tr>';
+  }).join('');
+  $('ppl-note').textContent='По этому плану к ноябрю в линии будет ~'+nowOps+' '+plural(nowOps,'оператор','оператора','операторов')+': '+(Math.max(0,p.core-p.churn)+c.A)+' в группе 1 и '+(c.B+c.C+c.D)+' в группе 2. Двух групп по 10 человек хватает на 1500+ в месяц с запасом.';
+
+  $('reg-x').textContent=fmt(700*(100/45-1)*.2);
+  $('ask-hire').textContent=fmt(p.h1+p.h2);
+  $('ask-plan').textContent='группа 1 — '+fmt(Math.floor(c.o1/50)*50)+', группа 2 — '+fmt(Math.floor(c.o2/50)*50)+' (сейчас в CRM 700 на весь отдел)';
+}
+
+function drawChart(rows,T){
+  const svg=$('chart'), Wd=680,H=260,L=44,R=12,Tp=26,B=36;
+  const max=Math.max(...rows.map(r=>Math.max(r.t,T*r.w.d/31)));
+  const step=max>400?100:50, top=Math.ceil(max*1.12/step)*step||100;
+  const y=v=>Tp+(H-Tp-B)*(1-v/top);
+  const bw=(Wd-L-R)/rows.length;
+  let s='';
+  for(let v=0;v<=top;v+=step){
+    s+='<line x1="'+L+'" x2="'+(Wd-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="var(--line)" stroke-width="1"/>';
+    s+='<text x="'+(L-8)+'" y="'+(y(v)+4)+'" text-anchor="end" font-size="11" fill="var(--muted)" font-family="JetBrains Mono,monospace">'+v+'</text>';
+  }
+  rows.forEach((r,i)=>{
+    const cx=L+bw*i+bw/2, w=Math.min(64,bw*.5), plan=T*r.w.d/31;
+    s+='<rect x="'+(cx-w/2)+'" y="'+y(r.l1)+'" width="'+w+'" height="'+Math.max(0,y(0)-y(r.l1))+'" fill="var(--g1)"/>';
+    if(r.l2>0) s+='<rect x="'+(cx-w/2)+'" y="'+y(r.t)+'" width="'+w+'" height="'+Math.max(0,y(r.l1)-y(r.t))+'" fill="var(--g2)"/>';
+    s+='<line x1="'+(cx-w/2-8)+'" x2="'+(cx+w/2+8)+'" y1="'+y(plan)+'" y2="'+y(plan)+'" stroke="var(--fg)" stroke-width="2"/>';
+    const ly=Math.min(y(r.t),y(plan))-7;
+    s+='<text x="'+cx+'" y="'+ly+'" text-anchor="middle" font-size="12.5" font-weight="600" fill="'+(r.t>=plan-0.5?'var(--good)':'var(--bad)')+'" font-family="Inter,sans-serif">'+fmt(r.t)+'</text>';
+    s+='<text x="'+cx+'" y="'+(H-B+18)+'" text-anchor="middle" font-size="11.5" fill="'+(i===CUR?'var(--accent)':'var(--muted)')+'" font-family="Inter,sans-serif">'+r.w.l+'</text>';
+  });
+  svg.innerHTML=s;
+}
+
+function applySc(k){
+  const s=SC[k];
+  $('p-pass').value=s.pass;$('p-g').value=s.g;$('p-churn').value=s.churn;$('p-h1').value=s.h1;$('p-h2').value=s.h2;$('p-sv2').checked=s.sv2;$('p-novchurn').value=s.nov;
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.sc===k)));
+  render();
+}
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>applySc(b.dataset.sc)));
+document.querySelectorAll('.params input').forEach(el=>el.addEventListener('input',()=>{
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed','false'));render();
+}));
+render();
+})();
+</script>
