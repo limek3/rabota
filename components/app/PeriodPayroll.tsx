@@ -5,12 +5,13 @@ import { useCrm } from "@/lib/crm/store";
 import { goneLast, isGone, sumRange } from "@/lib/crm/calc";
 import { dataStart, defaultPeriod, periodAt, periodIndexOf, periodPayroll, periodsUpTo, type PayPeriod, type PeriodRow } from "@/lib/crm/payperiod";
 import { TAX_PCT, rowsTotal, withTax } from "@/lib/crm/payroll";
-import { NO_GROUP_LABEL, PAY_LABEL, type Adjustment, type Settings } from "@/lib/crm/types";
+import { NO_GROUP_LABEL, PAY_LABEL, type Adjustment, type Operator, type Settings } from "@/lib/crm/types";
 import { WEEKDAYS_SHORT, addDays, addMonths, fmtDate, fmtMonth, isoWeekday, monthOf, monthStart } from "@/lib/crm/dates";
 import { fmtInt, fmtMoney, fmtNum, shortName } from "@/lib/crm/format";
 import { Avatar, Collapse, Empty, GoneTag, Modal, Swatch, foldRow, useFoldGroups } from "@/components/ui/kit";
 import { PayScheduleSection } from "@/components/app/PaySchedule";
 import { PeriodDrawer } from "@/components/app/PeriodDrawer";
+import { RegistryModal } from "@/components/app/RegistryModal";
 import { TaxSum } from "@/components/app/TaxSum";
 import { PeriodSide } from "@/components/app/PaySide";
 import { SideEmpty, Tile } from "@/components/app/V2Kit";
@@ -162,6 +163,7 @@ export function PeriodPayroll({ pp, onAdj }: { pp: PeriodState; onAdj?: (opId: s
       return !v;
     });
   const [editSched, setEditSched] = useState(false);
+  const [showRegistry, setShowRegistry] = useState(false);
   const [q, setQ] = useState("");
   const [grp, setGrp] = useState("");
   const [selId, setSelId] = useState<string | null>(null);
@@ -183,6 +185,7 @@ export function PeriodPayroll({ pp, onAdj }: { pp: PeriodState; onAdj?: (opId: s
   }, [data.groups]);
   const groupOf = useCallback((r: PeriodRow) => led.get(r.op.id) ?? r.op.groupId ?? NO_GROUP, [led]);
   const isSv = useCallback((r: PeriodRow) => r.op.role === "supervisor" || led.has(r.op.id), [led]);
+  const isSvOp = useCallback((op: Operator) => op.role === "supervisor" || op.payType === "sv_volume" || led.has(op.id), [led]);
 
   const rows = useMemo(
     () => rowsVisible.filter((r) => (!q.trim() || r.op.name.toLowerCase().includes(q.trim().toLowerCase())) && (!grp || groupOf(r) === grp)),
@@ -400,6 +403,7 @@ export function PeriodPayroll({ pp, onAdj }: { pp: PeriodState; onAdj?: (opId: s
           </div>
         </Collapse>
         {editSched && <ScheduleModal onClose={() => setEditSched(false)} />}
+        {showRegistry && <RegistryModal pp={pp} isSv={isSvOp} onClose={() => setShowRegistry(false)} />}
 
         {/* ── фильтры ─────────────────────────────────────────────────── */}
         <div className="card o2-filters">
@@ -414,6 +418,11 @@ export function PeriodPayroll({ pp, onAdj }: { pp: PeriodState; onAdj?: (opId: s
           {access.can.systemSettings && (
             <button type="button" className="o2-btn" onClick={() => setEditSched(true)} title="Периоды и дни выплат — поправить на любой месяц">
               <Icon name="calendar" size={14} /> График выплат
+            </button>
+          )}
+          {access.isHead && (
+            <button type="button" className="o2-btn" onClick={() => setShowRegistry(true)} title="Суммы периода — листами «План / Факт» в реестры бухгалтера для YouDo">
+              <Icon name="doc" size={14} /> Реестр YouDo
             </button>
           )}
           <span className="o2-found">Найдено: {fmtInt(rows.length)}</span>

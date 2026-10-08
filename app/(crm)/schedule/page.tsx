@@ -320,8 +320,9 @@ export default function SchedulePage() {
 
   return (
     // таблица по высоте содержимого: «Итого по дням» идёт сразу под строками;
-    // когда строк много, таблица упирается в высоту окна и прокручивается, а итог остаётся на виду
-    <div className="stack" style={{ height: "calc(100vh / var(--ui-scale, 1) - 132px)" }}>
+    // когда строк много, таблица упирается в высоту окна и прокручивается, а итог остаётся на виду.
+    // Высота = окно минус рамка main (8+8 отступ, 1+1 граница = 18px) и отступы .app-content
+    <div className="stack sched-page" style={{ height: "calc(100vh / var(--ui-scale, 1) - var(--titlebar-h, 0px) - 18px - var(--pad-t) - var(--pad-b))" }}>
       <style>{crossCss}</style>
       <PageHead
         title="График"

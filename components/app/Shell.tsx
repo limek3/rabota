@@ -479,7 +479,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <div id="app-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative", scrollbarGutter: "stable" }}>
               {/* слот липкой шапки страницы (StickyHead): высота 0, место в раскладке не занимает */}
               <div id="sticky-host" className="sh-host" />
-              <div className="app-content" style={{ padding: "24px 30px 48px", maxWidth: 1680, margin: "0 auto" }}>
+              <div className="app-content" style={{ padding: "var(--pad-t) var(--pad-x) var(--pad-b)", maxWidth: 1680, margin: "0 auto" }}>
                 <Body>{children}</Body>
               </div>
             </div>

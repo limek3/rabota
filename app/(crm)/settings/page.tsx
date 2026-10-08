@@ -17,7 +17,7 @@ import { RateGridsSection, SvBonusSection } from "@/components/app/RateGrids";
 import { PayScheduleSection } from "@/components/app/PaySchedule";
 import { ApproveMonthEditor, ApproveRules } from "@/components/app/ApproveSettings";
 import { AuditLog } from "@/components/app/AuditLog";
-import { LeadsSheetSection, SheetsSection } from "@/components/app/SheetsSync";
+import { LeadsSheetSection, RegistrySheetSection, SheetsSection } from "@/components/app/SheetsSync";
 import { StickyHead } from "@/components/app/StickyHead";
 
 type Tab = "profile" | "system" | "accounts" | "roles" | "data" | "audit";
@@ -169,6 +169,7 @@ export default function SettingsPage() {
           <DataSection />
           <SheetsSection />
           <LeadsSheetSection />
+          <RegistrySheetSection />
           <AboutSection />
         </>
       )}

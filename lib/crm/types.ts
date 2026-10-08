@@ -388,6 +388,21 @@ export interface SheetsSync {
   auto: boolean;
   /** Таблица лидов для ОКК («Авто недозвоны»): строки дописываются в лист месяца «Октябрь Борис». */
   leads: LeadsSheet;
+  /** Реестры выплат YouDo (бухгалтер): скрипт пишет листы «План/Факт ОКЦ (дд.мм-дд.мм)» — lib/crm/registry.ts. */
+  registry: RegistrySheet;
+}
+
+export interface RegistrySheet {
+  /** Ссылка веб-приложения …/exec скрипта реестров (отдельный проект Apps Script). */
+  url: string;
+  token: string;
+  /** Сам по графику выплат: план за PLAN_DAYS_BEFORE дня до периода, факт в день реестра (функция registry-sheet, cron). */
+  auto: boolean;
+  /** С какого дня работает автомат (день включения): более ранние шаги — уже сделаны руками, не трогаем. */
+  autoFrom: DayKey | "";
+  /** Условный план, ₽ — одна сумма всем операторам (ОКЦ) / супервайзерам (СВ), в реестр как есть. 0 — план не создаётся. */
+  planOkc: number;
+  planSv: number;
 }
 
 export interface LeadsSheet {

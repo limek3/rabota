@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useCrm } from "@/lib/crm/store";
 import type { DataState } from "@/lib/crm/types";
 import { LEADS_SCRIPT, SHEETS_SCRIPT, buildSheets, isScriptUrl, pushToSheets } from "@/lib/crm/sheets";
 import { leadSheetTab } from "@/lib/crm/leadsheet";
-import { fmtInt } from "@/lib/crm/format";
-import { fmtStamp } from "@/lib/crm/dates";
-import { Collapse, Field, Switch } from "@/components/ui/kit";
+import { REGISTRY_SCRIPT } from "@/lib/crm/registryScript";
+import { PLAN_DAYS_BEFORE, upcomingSteps } from "@/lib/crm/registryAuto";
+import { runRegistryAuto } from "@/lib/crm/registrySync";
+import { fmtInt, fmtMoney } from "@/lib/crm/format";
+import { fmtDate, fmtStamp } from "@/lib/crm/dates";
+import { Collapse, Field, NumInput, Switch } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 
 /* ── состояние последней выгрузки: общее для секции настроек и автовыгрузки ── */
@@ -313,6 +316,200 @@ export function LeadsSheetSection() {
           </button>
         )}
       </div>
+    </section>
+  );
+}
+
+/**
+ * Секция «Реестры выплат YouDo» в настройках → Данные. Автомат (lib/crm/registryAuto.ts, функция
+ * registry-sheet по расписанию) сам создаёт в таблицах бухгалтера «План» за 2 дня до периода и
+ * «Факт» в день реестра; «Выплаты» → «Реестр YouDo» — то же вручную. Скрипт — отдельный проект
+ * Apps Script, в таблицы бухгалтера его ставить не нужно (lib/crm/registryScript.ts).
+ */
+export function RegistrySheetSection() {
+  const { full, saveSettings, toast, today, confirm } = useCrm();
+  const cfg = full.settings.sheets;
+  const rg = cfg.registry;
+  const [url, setUrl] = useState(rg.url);
+  const [token, setToken] = useState(rg.token);
+  const [planOkc, setPlanOkc] = useState(rg.planOkc);
+  const [planSv, setPlanSv] = useState(rg.planSv);
+  const [help, setHelp] = useState(!rg.url);
+  const [check, setCheck] = useState<{ busy: boolean; text: string; bad?: boolean }>({ busy: false, text: "" });
+  useEffect(() => {
+    if (window.location.hash === "#registry-sheet") document.getElementById("registry-sheet")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+  useEffect(() => {
+    setUrl(rg.url);
+    setToken(rg.token);
+    setPlanOkc(rg.planOkc);
+    setPlanSv(rg.planSv);
+  }, [rg.url, rg.token, rg.planOkc, rg.planSv]);
+
+  const dirty = url.trim() !== rg.url || token !== rg.token || planOkc !== rg.planOkc || planSv !== rg.planSv;
+  const urlBad = !!url.trim() && !isScriptUrl(url);
+  const steps = useMemo(() => upcomingSteps(full.settings, today), [full.settings, today]);
+  const save = async () => {
+    await saveSettings({ sheets: { ...cfg, registry: { ...rg, url: url.trim(), token, planOkc, planSv } } });
+    toast("Реестры сохранены");
+  };
+  const copy = async (text: string, what: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(`${what} скопирован`);
+    } catch {
+      toast("Не удалось скопировать — выделите текст вручную", "err");
+    }
+  };
+  const runCheck = async () => {
+    setCheck({ busy: true, text: "" });
+    try {
+      const r = await runRegistryAuto(true);
+      const jobs = r.jobs.map((j) => (j.skip ? `«${j.tab ?? j.kind}» — ${j.skip}` : `«${j.tab}»: ${fmtInt(j.rows)} чел., ${fmtMoney(j.sum)} в YouDo`));
+      const extra = r.notSmz.length ? ` Не СМЗ, в реестр не попадут: ${r.notSmz.map((x) => `${x.name} ${fmtMoney(x.net)}`).join(", ")}.` : "";
+      setCheck({
+        busy: false,
+        text: (jobs.length ? `Сегодня (${fmtDate(r.today)}) автомат отправит: ${jobs.join("; ")}.` : `Сегодня (${fmtDate(r.today)}) по графику реестров нет — функция на месте.`) + extra,
+      });
+    } catch (e) {
+      setCheck({ busy: false, text: e instanceof Error ? e.message : String(e), bad: true });
+    }
+  };
+
+  const runTest = async () => {
+    const ok = await confirm({
+      title: "Тестовый прогон реестров?",
+      text: "Прямо сейчас в таблицах бухгалтера появятся листы «ТЕСТ План ОКЦ/СВ» на следующий период и «ТЕСТ Факт ОКЦ/СВ» на текущий (по начислениям на сегодня), итог придёт в Telegram. Настоящие листы не трогаются, автомат их потом не спутает — тестовые можно удалить.",
+      ok: "Прогнать",
+    });
+    if (!ok) return;
+    setCheck({ busy: true, text: "" });
+    try {
+      const r = await runRegistryAuto(false, true);
+      const lines = (r.results ?? []).map((x) =>
+        x.skip ? `«${x.tab ?? x.kind}» — ${x.skip}` : x.error ? `«${x.tab}» — ошибка: ${x.error}` : `«${x.reply?.tab ?? x.tab}» ${x.reply?.unconfirmed ? "отправлен (Google не подтвердил)" : `готов: ${fmtInt(x.reply?.rows ?? 0)} строк, ${fmtMoney(x.reply?.total ?? 0)}`}${x.reply?.missing?.length ? `, нет ИНН: ${x.reply.missing.map((m) => m.name).join(", ")}` : ""}`,
+      );
+      const tg = r.telegram ? ` Telegram: ${r.telegram}.` : " Сообщение отправлено в Telegram.";
+      setCheck({ busy: false, text: (lines.length ? lines.join("; ") + "." : r.note ?? "Нечего отправлять: нет самозанятых и начислений.") + (lines.length ? tg : ""), bad: (r.results ?? []).some((x) => x.error) });
+    } catch (e) {
+      setCheck({ busy: false, text: e instanceof Error ? e.message : String(e), bad: true });
+    }
+  };
+
+  return (
+    <section id="registry-sheet" className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 14, scrollMarginTop: 80 }}>
+      <div>
+        <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2 className="card-title" style={{ fontSize: 15 }}>
+              <Icon name="doc" size={15} className="title-ic" />
+              Реестры выплат YouDo
+            </h2>
+            <p className="card-sub">
+              Сам по графику выплат: за {PLAN_DAYS_BEFORE} дня до периода — «План» всем самозанятым на условную сумму из настроек, в день реестра — «Факт»: сумма за период по закрытым дням. Листы — в таблицах
+              бухгалтера в её формате: ФИО и ИНН из реестра исполнителей, порядок как в плане, в YouDo — на руки ÷ 0,94. Итог — вам в Telegram. ИНН в CRM не хранятся.
+            </p>
+          </div>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => setHelp((v) => !v)}>
+            {help ? "Скрыть инструкцию" : "Как настроить"}
+          </button>
+        </div>
+
+        <Collapse open={help} innerStyle={{ paddingTop: 14 }}>
+          <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.65, color: "var(--text-sub)" }}>
+            <li>
+              Откройте <b>script.google.com</b> → «Создать проект» (в таблицы бухгалтера ничего ставить не нужно). Аккаунт Google — тот, у которого есть доступ на
+              редактирование к обоим «Реестрам выплат по СЗ».
+            </li>
+            <li>Удалите всё в редакторе и вставьте скрипт (кнопка «Скопировать скрипт» ниже).</li>
+            <li>
+              Нажмите «Сгенерировать» у поля «Секрет» и в скрипте замените <code>ЗАМЕНИТЕ_НА_СВОЙ_СЕКРЕТ</code> на него. Сохраните скрипт (Ctrl+S).
+            </li>
+            <li>
+              Проверка: выберите функцию <code>test</code> → «Выполнить», разрешите доступ к таблицам — в журнале появится список людей из реестра исполнителей.
+            </li>
+            <li>«Развернуть → Новое развёртывание» → «Веб-приложение». Выполнять от имени: «Меня». Доступ: «Все». Ссылку /exec вставьте ниже, сохраните.</li>
+            <li>
+              Supabase → Edge Functions → <code>registry-sheet</code> → вставить <code>supabase/functions/registry-sheet/index.ts</code> → Deploy. Secrets:{" "}
+              <code>TELEGRAM_BOT_TOKEN</code> (токен бота Vexi) и <code>TELEGRAM_CHAT_ID</code> (ваш Telegram ID).
+            </li>
+            <li>
+              Supabase → SQL Editor → <code>supabase/migrations/20261008000003_registry_cron.sql</code> → Run (каждый день в 10:00 МСК). Нажмите «Проверить» ниже и включите
+              переключатель.
+            </li>
+          </ol>
+        </Collapse>
+      </div>
+
+      <div className="grid2">
+        <Field label="Ссылка веб-приложения" error={urlBad ? "Нужна ссылка вида https://script.google.com/macros/s/…/exec" : null}>
+          <input className="inp" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://script.google.com/macros/s/…/exec" spellCheck={false} />
+        </Field>
+        <Field label="Секрет" hint="Тот же, что в скрипте реестров">
+          <div className="row" style={{ gap: 6 }}>
+            <input className="inp" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Длинная случайная строка" spellCheck={false} style={{ flex: 1 }} />
+            <button type="button" className="btn btn-sm" onClick={() => setToken(randomToken())}>
+              Сгенерировать
+            </button>
+            {token && (
+              <button type="button" className="btn btn-sm btn-icon" title="Скопировать секрет" onClick={() => void copy(token, "Секрет")}>
+                <Icon name="copy" size={13} />
+              </button>
+            )}
+          </div>
+        </Field>
+      </div>
+      <div className="grid2">
+        <Field label="План ОКЦ — сумма каждому, ₽" hint={planOkc > 0 ? "Пишется в реестр как есть. Факт — по начислениям: на руки ÷ 0,94" : "0 — план операторам не создаётся"}>
+          <NumInput value={planOkc} onChange={(v) => setPlanOkc(v ?? 0)} placeholder="0" style={{ maxWidth: 200 }} />
+        </Field>
+        <Field label="План СВ — сумма каждому, ₽" hint={planSv > 0 ? "Пишется в реестр как есть. Факт — по начислениям: на руки ÷ 0,94" : "0 — план супервайзерам не создаётся"}>
+          <NumInput value={planSv} onChange={(v) => setPlanSv(v ?? 0)} placeholder="0" style={{ maxWidth: 200 }} />
+        </Field>
+      </div>
+
+      <Switch
+        checked={rg.auto}
+        onChange={(v) => void saveSettings({ sheets: { ...cfg, registry: { ...rg, auto: v, autoFrom: v ? today : rg.autoFrom } } })}
+        disabled={!rg.url || !rg.token}
+        label="Создавать реестры автоматически"
+        hint={!rg.url || !rg.token ? "Сначала сохраните ссылку и секрет" : `Каждый день в 10:00 МСК по графику выплат. Что было до ${rg.auto && rg.autoFrom ? fmtDate(rg.autoFrom) : "дня включения"} — не трогает: это сделано руками`}
+      />
+
+      {steps.length > 0 && (
+        <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text-sub)" }}>
+          <b style={{ color: "var(--text)" }}>Ближайшее:</b>
+          {steps.map((x) => (
+            <div key={`${x.kind}${x.period.idx}`} className="num">
+              {fmtDate(x.date)} — {x.kind === "plan" ? "план" : "факт"} за {fmtDate(x.period.from).slice(0, 5)}–{fmtDate(x.period.to).slice(0, 5)}
+              <span className="o2-muted"> · выплата {fmtDate(x.period.pay).slice(0, 5)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <button type="button" className="btn" onClick={() => void copy(REGISTRY_SCRIPT, "Скрипт")}>
+          <Icon name="copy" size={14} /> Скопировать скрипт
+        </button>
+        <button type="button" className="btn" disabled={check.busy || dirty || !rg.url} onClick={() => void runCheck()} title="Что автомат отправил бы сегодня — без отправки">
+          <Icon name="check" size={14} /> {check.busy ? "Проверяю…" : "Проверить"}
+        </button>
+        <button type="button" className="btn" disabled={check.busy || dirty || !rg.url} onClick={() => void runTest()} title="Создать «ТЕСТ …» листы прямо сейчас и прислать итог в Telegram">
+          <Icon name="upload" size={14} /> Тестовый прогон
+        </button>
+        {dirty && (
+          <button type="button" className="btn btn-primary" onClick={() => void save()} disabled={urlBad}>
+            Сохранить
+          </button>
+        )}
+      </div>
+      {check.text && (
+        <div className={`note-line${check.bad ? " warn" : ""}`}>
+          <Icon name="info" size={14} />
+          <span>{check.text}</span>
+        </div>
+      )}
     </section>
   );
 }

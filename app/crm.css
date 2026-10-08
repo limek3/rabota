@@ -461,10 +461,6 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 @media (prefers-reduced-motion: reduce) { .rail-glider[data-anim] { transition: none; } }
 .rail-group { font-family: var(--font-sans); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: var(--dimmer); padding: 12px 12px 5px; user-select: none; }
 
-@media (max-width: 900px) {
-  .app-content { padding: 16px 14px 32px !important; }
-}
-
 /* recharts: без рамки фокуса на поверхности графика */
 .recharts-surface:focus { outline: none; }
 .recharts-wrapper:focus-visible { outline: none; }
@@ -988,6 +984,10 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 
 /* ── одна шкала размеров на все страницы; «компактно» ужимает всё вместе, график тоже ── */
 :root {
+  /* отступы области страницы (.app-content в Shell); на маленьких экранах — меньше, см. конец файла */
+  --pad-t: 24px;
+  --pad-x: 30px;
+  --pad-b: 48px;
   --ctl-h: 38px;
   --th-py: 10px;
   --td-py: 10px;
@@ -1034,6 +1034,11 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .stack:has(.sched) .page-head .toolbar { gap: 8px; }
 .stack:has(.sched) .page-head .btn-primary { font-weight: 600; }
 .stack:has(.sched) > .toolbar { min-height: 42px; gap: 10px; margin-bottom: 0; }
+/* у страницы фиксированная высота окна: сжимается только таблица — шапка и панель фильтров
+   не сплющиваются (иначе выпадающий список вылезал за низ панели) */
+.sched-page > :not(.tbl-wrap) { flex-shrink: 0; }
+/* снизу у «Графика» — небольшой отступ вместо 48px: таблица тянется почти до края окна */
+.app-content:has(> div > .sched-page) { --pad-b: 14px; }
 .stack:has(.sched) > .toolbar .sel-trigger { border-radius: 8px; }
 
 /* ── таблица: одна сетка, ровные 1px линии ── */
@@ -1667,3 +1672,4 @@ body.is-col-dragging .clip-tip { display: none; }
 .sh-c:has(.sh-ctl) { overflow: visible; }
 .sh-ctl { display: inline-flex; align-items: center; gap: 8px; }
 .sh-per { font-size: 12px; color: var(--text-sub); white-space: nowrap; }
+

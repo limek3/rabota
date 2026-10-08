@@ -112,6 +112,8 @@ function ChartTip({ x, W, half = 6, children }: { x: number; W: number; half?: n
   );
 }
 const useIsoLayout = typeof window === "undefined" ? useEffect : useLayoutEffect;
+/** пауза перед перерисовкой графика при смене ширины — как CHART_RESIZE_DEBOUNCE в ui/charts (тот файл тянет recharts) */
+const CHART_RESIZE_DEBOUNCE = 180;
 
 /**
  * Ширина контейнера графика в px: SVG рисуется 1:1 с экраном, без растягивания viewBox —
@@ -128,9 +130,18 @@ function useChartWidth(fallback = 600) {
       if (v > 0) setW((o) => (o === v ? o : v));
     };
     set();
-    const ro = new ResizeObserver(set);
+    // при сворачивании меню ширина меняется каждый кадр: перерисовываем график один раз,
+    // когда она устоялась (как ResponsiveContainer с CHART_RESIZE_DEBOUNCE), — меню едет плавно
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(t);
+      t = setTimeout(set, CHART_RESIZE_DEBOUNCE);
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      clearTimeout(t);
+      ro.disconnect();
+    };
   }, []);
   return [ref, w] as const;
 }

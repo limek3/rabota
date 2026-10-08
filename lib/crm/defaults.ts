@@ -129,7 +129,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "light",
   backupsKeep: 15,
   access: DEFAULT_ACCESS,
-  sheets: { url: "", token: "", auto: false, leads: { url: "", token: "", owner: "Борис", auto: false } },
+  sheets: { url: "", token: "", auto: false, leads: { url: "", token: "", owner: "Борис", auto: false }, registry: { url: "", token: "", auto: false, autoFrom: "", planOkc: 0, planSv: 0 } },
   regions: DEFAULT_REGIONS,
   rop: DEFAULT_ROP,
 };
@@ -346,6 +346,14 @@ export function normalizeSettings(raw: Partial<Settings> | null | undefined): Se
       token: typeof dr.token === "string" ? dr.token : "",
       owner: typeof dr.owner === "string" && dr.owner.trim() ? dr.owner.trim() : "Борис",
       auto: dr.auto === true,
+    },
+    registry: {
+      url: typeof sh.registry?.url === "string" ? sh.registry.url.trim() : "",
+      token: typeof sh.registry?.token === "string" ? sh.registry.token : "",
+      auto: sh.registry?.auto === true,
+      autoFrom: typeof sh.registry?.autoFrom === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sh.registry.autoFrom) ? sh.registry.autoFrom : "",
+      planOkc: Math.round(num(sh.registry?.planOkc, 0, 0, 10_000_000)),
+      planSv: Math.round(num(sh.registry?.planSv, 0, 0, 10_000_000)),
     },
   };
   s.rateGrids = normalizeGrids(raw?.rateGrids);

@@ -29,11 +29,11 @@ select cron.schedule(
   '0 10,16 * * *',
   $$
   select net.http_post(
-    url := 'https://biexnhtaeyytmoarwswh.supabase.co/functions/v1/leads-sheet',
+    url := 'https://lfwheilgsoyuxidwldhv.supabase.co/functions/v1/leads-sheet',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJpZXhuaHRhZXl5dG1vYXJ3c3doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTIwNTQsImV4cCI6MjA5OTYyODA1NH0.bVptA2iT2jWhNjgUbKea6moXwLqa85mWjo93OkL1LcM',
-      'x-cron-secret', '1f990b2ea0fe6a97e077c754df34fb41c388cbfc4f332f0bb296522d8ccf64de'
+      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxmd2hlaWxnc295dXhpZHdsZGh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5OTcyOTcsImV4cCI6MjEwNTU3MzI5N30.gNp8zIIgyCWic_6ZjLGxP-zP-KBwsy7M_5EYAg9d0AA',
+      'x-cron-secret', 'ВСТАВЬТЕ_CRON_SECRET'
     ),
     body := '{}'::jsonb,
     timeout_milliseconds := 120000

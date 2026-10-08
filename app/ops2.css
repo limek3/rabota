@@ -893,3 +893,41 @@
 .o2-grp-total td { font-weight: 600; background: var(--ink-03); }
 .o2-grp-total .o2-grp-n { font-weight: 700; }
 
+/* ════════════════════════════════════════════════════════════════════
+   Маленькие экраны (ноутбук 1280–1366, окно браузера на пол-экрана).
+   Меню ≤1280 сворачивается в иконки (Shell.tsx). Тут — отступы, заголовки и плотность:
+   по высоте место нужнее всего таблицам, поэтому на низком окне всё ужимается, как
+   в «компактном» виде, даже если он не включён в настройках.
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1280px) {
+  :root { --pad-t: 18px; --pad-x: 20px; --pad-b: 32px; }
+}
+@media (max-height: 820px) {
+  :root {
+    --pad-t: 14px;
+    --pad-b: 24px;
+    --ctl-h: 34px;
+    --th-py: 7px;
+    --td-py: 6px;
+    --sch-row: 40px;
+    --sch-lane: 30px;
+    --sch-col: 38px;
+    --sch-head-h: 46px;
+    --sch-grp-h: 34px;
+    --sch-foot-h: 54px;
+    --sch-week-h: 32px;
+  }
+  .page-title, .o2-title { font-size: 25px; }
+  .page-sub, .o2-sub { margin-top: 2px; font-size: 12.5px; }
+  .page-head { margin-bottom: 4px; }
+  .stack:has(.sched) { gap: 8px; }
+  .stack:has(.sched) .page-head { margin-bottom: 4px; }
+  .app-content > div > .stack > .toolbar { padding: 8px; }
+  .app-content .tbl:not(.sched) > tbody > tr > td { height: 38px; }
+}
+@media (max-width: 900px) {
+  :root { --pad-t: 16px; --pad-x: 14px; --pad-b: 32px; }
+}
+@media (max-width: 900px) and (max-height: 820px) {
+  :root { --pad-t: 12px; --pad-b: 24px; }
+}
