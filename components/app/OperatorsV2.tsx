@@ -9,7 +9,7 @@ import { canManageOperator } from "@/lib/crm/access";
 import { addDays, addMonths, fmtMonth, isoWeekday, isWorkday, monthEnd, monthOf, monthStart, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName, OPS } from "@/lib/crm/format";
 import { EMPLOYMENT_LABEL, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, type DayKey, type DayType, type Operator, type Shift } from "@/lib/crm/types";
-import { Avatar } from "@/components/ui/kit";
+import { Avatar, EmploymentTag } from "@/components/ui/kit";
 import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { StickyHead } from "@/components/app/StickyHead";
@@ -766,6 +766,7 @@ export function OperatorsV2() {
                             <span className="row" style={{ gap: 10 }}>
                               <Avatar name={x.op.name} id={x.op.id} size={26} />
                               <span>{shortName(x.op.name)}</span>
+                              <EmploymentTag op={x.op} />
                             </span>
                           </td>
                           {shown.map((c) => cell(c, x))}
