@@ -33,7 +33,7 @@ import type {
 import { ADJ_LABEL, CANDIDATE_STAGE_LABEL, DAY_LABEL, EMPLOYMENT_LABEL, HOURS_DAY_TYPES, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
 import { buildIndex, closedThrough, employmentShare, freezePastMonths, monthCal, type Index } from "./calc";
 import { currentMonth, fmtDate, fmtDay, isoNow, monthOf, nowHour, nowStamp, todayKey } from "./dates";
-import { emptyState, newAccount, normalizePrefs, normalizeSettings } from "./defaults";
+import { emptyState, newAccount, normalizePrefs, normalizeSettings, operatorDraft } from "./defaults";
 import {
   canCreateLeadFor,
   canEditLead,
@@ -199,8 +199,23 @@ interface Store {
   /** Найм: кандидат (новый или правка). */
   saveCandidate: (input: CandidateInput) => Promise<Candidate | null>;
   deleteCandidate: (id: ID) => Promise<void>;
-  /** Принять кандидата: заводится карточка оператора с датой приёма, кандидат — «Принят». */
-  hireCandidate: (id: ID, hireDate: DayKey, groupId: ID | null, fresh?: Candidate) => Promise<Operator | null>;
+  /**
+   * Принять кандидата. Есть карточка (стажёр с обучения или linkTo — найденный дубль) — она
+   * становится оператором; нет — заводится новая. Кандидат — «Принят».
+   */
+  hireCandidate: (id: ID, hireDate: DayKey, groupId: ID | null, fresh?: Candidate, linkTo?: ID | null) => Promise<Operator | null>;
+  /**
+   * Кандидат идёт на обучение: карточка «стажёр» (или существующая linkTo) привязывается к кандидату.
+   * К ней потом цепляется аккаунт, а «Принять» переводит эту же карточку в операторы — без дубля.
+   */
+  startTraining: (id: ID, opts: { groupId: ID | null; date: DayKey; linkTo?: ID | null }, fresh?: Candidate) => Promise<Operator | null>;
+  /** Стажёр → оператор в той же карточке; стартовая страница аккаунта — личный кабинет. */
+  promoteTrainee: (opId: ID, patch?: Partial<OperatorInput>) => Promise<Operator | null>;
+  /**
+   * Слить дубль в основную карточку: лиды, смены, планы, начисления, заметки, кандидат и аккаунт
+   * переходят к основной, дубль удаляется. hireDate — дата приёма основной (если меняем).
+   */
+  mergeOperators: (keepId: ID, dropId: ID, hireDate?: DayKey | "") => Promise<boolean>;
   /** Заметка супервайзера об операторе (новая или правка текста). */
   saveNote: (input: { id?: ID; operatorId: ID; date: DayKey; text: string; metric: NoteMetric }) => Promise<boolean>;
   deleteNote: (id: ID) => Promise<void>;
@@ -257,6 +272,24 @@ function readMe(): string {
   } catch {
     return "";
   }
+}
+
+/** Карточка из кандидата: условия — как у нового оператора по умолчанию, ставку и план поправят в карточке. */
+function candidateCard(st: DataState, c: Candidate, o: { groupId: ID | null; role: "operator" | "trainee"; hireDate: DayKey; now: string }): Operator {
+  return {
+    ...operatorDraft(st.settings, {
+      name: c.name,
+      groupId: o.groupId,
+      role: o.role,
+      hireDate: o.hireDate,
+      contact: c.contact,
+      comment: c.source ? `Источник найма: ${c.source}` : "",
+    }),
+    id: uniqueId("op", new Set(st.operators.map((x) => x.id))),
+    createdAt: o.now,
+    updatedAt: o.now,
+    deletedAt: null,
+  };
 }
 
 function errText(e: unknown) {
@@ -1465,7 +1498,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         deny();
         return null;
       }
-      if (input.stage === "hired" && !prev?.operatorId) {
+      // карточка у кандидата бывает уже на обучении (стажёр) — «принят» только кнопкой
+      if (input.stage === "hired" && prev?.stage !== "hired") {
         toast("В штат — кнопкой «Принять»: так заведётся карточка оператора", "err");
         return null;
       }
@@ -1529,13 +1563,42 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     [commit, deny, log, toast],
   );
 
+  /** Стажёр → оператор в той же карточке. Стартовая страница аккаунта: обучение → личный кабинет. */
+  const promoteTrainee = useCallback<Store["promoteTrainee"]>(
+    async (opId, patch = {}) => {
+      const card = dataRef.current.operators.find((o) => o.id === opId);
+      if (!card) return null;
+      const saved = await saveOperator({ ...card, role: card.role === "trainee" ? "operator" : card.role, ...patch });
+      if (!saved) return null;
+      const acc = dataRef.current.accounts.find((a) => a.operatorId === opId && !a.deletedAt);
+      if (acc && acc.prefs?.homePage === "/learn") {
+        // РОП меняет аккаунт сам; супервайзер — через функцию базы, только стартовую своего человека
+        if (accessRef.current.can.manageAccounts) {
+          const upd: Account = { ...acc, prefs: { ...acc.prefs, homePage: "/me" }, updatedAt: isoNow() };
+          await commit(
+            () => db.putRecord("accounts", upd),
+            (d) => ({ ...d, accounts: d.accounts.map((a) => (a.id === upd.id ? upd : a)) }),
+          );
+        } else if (db.REMOTE) {
+          try {
+            await remote.traineeHome(opId);
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+      return saved;
+    },
+    [saveOperator, commit],
+  );
+
   const hireCandidate = useCallback<Store["hireCandidate"]>(
-    async (id, hireDate, groupId, fresh) => {
+    async (id, hireDate, groupId, fresh, linkTo) => {
       const st = dataRef.current;
       // fresh — только что сохранённая версия: в памяти она появится лишь после перерисовки
       const prev = fresh?.id === id ? fresh : st.candidates.find((c) => c.id === id);
       if (!prev) return null;
-      if (prev.operatorId) {
+      if (prev.stage === "hired") {
         toast("Кандидат уже принят", "info");
         return null;
       }
@@ -1544,32 +1607,24 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         deny();
         return null;
       }
-      const s = st.settings;
       const now = isoNow();
+      // карточка уже есть (стажёр с обучения или найденный дубль) — переводим её, новую не заводим
+      const cardId = prev.operatorId ?? linkTo ?? null;
+      const card = cardId ? st.operators.find((o) => o.id === cardId && !o.deletedAt) : undefined;
+      if (card) {
+        const op = await promoteTrainee(card.id, { groupId, hireDate, status: "active", fireDate: "" });
+        if (!op) return null;
+        const c: Candidate = { ...prev, groupId, stage: "hired", closedAt: hireDate, operatorId: op.id, reason: "", updatedAt: now };
+        const ok = await commit(
+          () => db.putRecord("candidates", c),
+          (d) => ({ ...d, candidates: d.candidates.map((x) => (x.id === id ? c : x)) }),
+        );
+        if (!ok) return null;
+        void log("operator", op.id, `Принят из кандидатов: «${op.name}» с ${fmtDay(hireDate)}${card.role === "trainee" ? " (был стажёром)" : ""}`);
+        return op;
+      }
       // условия — как у нового оператора по умолчанию; ставку и план руководитель поправит в карточке
-      const op: Operator = {
-        id: uniqueId("op", new Set(st.operators.map((o) => o.id))),
-        name: prev.name,
-        groupId,
-        role: "operator",
-        status: "active",
-        hireDate,
-        fireDate: "",
-        monthlyPlan: null,
-        normHours: null,
-        payType: s.defaultPayType,
-        salary: s.defaultSalary,
-        hourlyRate: s.defaultHourlyRate,
-        leadBonus: null,
-        rateGridId: null,
-        grade: "mid",
-        track: "re",
-        contact: prev.contact,
-        comment: prev.source ? `Источник найма: ${prev.source}` : "",
-        createdAt: now,
-        updatedAt: now,
-        deletedAt: null,
-      };
+      const op = candidateCard(st, prev, { groupId, role: "operator", hireDate, now });
       const c: Candidate = { ...prev, groupId, stage: "hired", closedAt: hireDate, operatorId: op.id, reason: "", updatedAt: now };
       // оператор раньше кандидата: кандидат ссылается на его карточку
       const ok = await commit(
@@ -1580,7 +1635,152 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       void log("operator", op.id, `Принят из кандидатов: «${op.name}» с ${fmtDay(hireDate)}`);
       return op;
     },
-    [commit, toast, deny, log],
+    [commit, toast, deny, log, promoteTrainee],
+  );
+
+  const startTraining = useCallback<Store["startTraining"]>(
+    async (id, { groupId, date, linkTo }, fresh) => {
+      const st = dataRef.current;
+      const prev = fresh?.id === id ? fresh : st.candidates.find((c) => c.id === id);
+      if (!prev) return null;
+      const a = accessRef.current;
+      if (!canTouchCandidate(a, prev) || !canTouchCandidate(a, { groupId }) || !canManageOperator(a, null, groupId)) {
+        deny();
+        return null;
+      }
+      const has = prev.operatorId ? st.operators.find((o) => o.id === prev.operatorId && !o.deletedAt) : undefined;
+      if (has) return has;
+      const now = isoNow();
+      const linked = linkTo ? st.operators.find((o) => o.id === linkTo && !o.deletedAt) : undefined;
+      // стажёр в графике с первого дня обучения: дата приёма карточки — начало обучения
+      const op = linked ?? candidateCard(st, prev, { groupId, role: "trainee", hireDate: date, now });
+      const c: Candidate = {
+        ...prev,
+        groupId: prev.groupId ?? groupId,
+        stage: prev.stage === "hired" ? prev.stage : "training",
+        trainingAt: prev.trainingAt || date,
+        operatorId: op.id,
+        updatedAt: now,
+      };
+      const ok = await commit(
+        () => db.applyBatch([{ store: "operators", put: linked ? [] : [op] }, { store: "candidates", put: [c] }]),
+        (d) => ({ ...d, operators: linked ? d.operators : [...d.operators, op], candidates: d.candidates.map((x) => (x.id === id ? c : x)) }),
+      );
+      if (!ok) return null;
+      void log("operator", op.id, linked ? `Кандидат «${prev.name}» привязан к карточке` : `Стажёр из кандидатов: «${op.name}», обучение с ${fmtDay(date)}`);
+      return op;
+    },
+    [commit, deny, log],
+  );
+
+  /**
+   * Объединение дублей. Всё, что ссылается на дубль, переезжает к основной карточке.
+   * Смена на один день у обеих — остаётся та, где больше часов. Аккаунт: если у основной
+   * своего нет — переходит аккаунт дубля (вместе с обучением), иначе аккаунт дубля удаляется.
+   */
+  const mergeOperators = useCallback<Store["mergeOperators"]>(
+    async (keepId, dropId, hireDate) => {
+      if (!accessRef.current.can.manageAccounts) {
+        deny();
+        return false;
+      }
+      const st = dataRef.current;
+      const keep = st.operators.find((o) => o.id === keepId && !o.deletedAt);
+      const drop = st.operators.find((o) => o.id === dropId && !o.deletedAt);
+      if (!keep || !drop || keepId === dropId) return false;
+      if (!(await guardedBackup(`Перед объединением «${drop.name}» → «${keep.name}»`))) return false;
+      const now = isoNow();
+
+      const leads = st.leads.filter((l) => l.operatorId === dropId).map((l) => ({ ...l, operatorId: keepId, updatedAt: now }));
+      const keepShift = new Map(st.shifts.filter((s) => s.operatorId === keepId).map((s) => [s.date, s]));
+      const shiftsDel: ID[] = [];
+      const shiftsPut: Shift[] = [];
+      for (const s of st.shifts) {
+        if (s.operatorId !== dropId) continue;
+        shiftsDel.push(s.id);
+        const k = keepShift.get(s.date);
+        if (!k || s.hours > k.hours) shiftsPut.push({ ...s, id: shiftId(s.date, keepId), operatorId: keepId, updatedAt: now });
+      }
+      const plansDel: ID[] = [];
+      const plansPut: MonthPlan[] = [];
+      for (const p of st.plans) {
+        if (p.scope !== "operator" || p.targetId !== dropId) continue;
+        plansDel.push(p.id);
+        const nid = planId(p.month, "operator", keepId);
+        if (!st.plans.some((x) => x.id === nid)) plansPut.push({ ...p, id: nid, targetId: keepId, updatedAt: now });
+      }
+      const adjs = st.adjustments.filter((x) => x.operatorId === dropId).map((x) => ({ ...x, operatorId: keepId, updatedAt: now }));
+      const notes = st.notes.filter((x) => x.operatorId === dropId).map((x) => ({ ...x, operatorId: keepId, updatedAt: now }));
+      const cands = st.candidates.filter((x) => x.operatorId === dropId).map((x) => ({ ...x, operatorId: keepId, updatedAt: now }));
+      const groups = st.groups.filter((g) => g.supervisorId === dropId).map((g) => ({ ...g, supervisorId: keepId, updatedAt: now }));
+      const keepHasAcc = st.accounts.some((x) => x.operatorId === keepId && !x.deletedAt);
+      let moved = false;
+      const accs = st.accounts
+        .filter((x) => x.operatorId === dropId && !x.deletedAt)
+        .map((x): Account => {
+          if (!keepHasAcc && !moved) {
+            moved = true;
+            const home = keep.role !== "trainee" && x.prefs?.homePage === "/learn" ? "/me" : x.prefs?.homePage;
+            return { ...x, operatorId: keepId, prefs: { ...x.prefs, homePage: home }, updatedAt: now };
+          }
+          return { ...x, deletedAt: now, active: false, updatedAt: now };
+        });
+      const keepUpd: Operator = {
+        ...keep,
+        hireDate: hireDate !== undefined ? hireDate : keep.hireDate || drop.hireDate,
+        contact: keep.contact || drop.contact,
+        updatedAt: now,
+      };
+      const dropUpd: Operator = { ...drop, deletedAt: now, updatedAt: now, comment: [drop.comment, `Объединён с «${keep.name}» (${keepId})`].filter(Boolean).join(" · ") };
+
+      const ok = await commit(
+        () =>
+          db.applyBatch([
+            { store: "operators", put: [keepUpd] },
+            { store: "leads", put: leads },
+            { store: "shifts", put: shiftsPut },
+            { store: "shifts", del: shiftsDel },
+            { store: "plans", put: plansPut },
+            { store: "plans", del: plansDel },
+            { store: "adjustments", put: adjs },
+            { store: "notes", put: notes },
+            { store: "candidates", put: cands },
+            { store: "groups", put: groups },
+            { store: "accounts", put: accs },
+            { store: "operators", put: [dropUpd] },
+          ]),
+        (d) => {
+          const swap = <T extends { id: ID }>(list: T[], upd: T[]) => {
+            if (!upd.length) return list;
+            const m = new Map(upd.map((x) => [x.id, x]));
+            return list.map((x) => m.get(x.id) ?? x);
+          };
+          const sDel = new Set(shiftsDel);
+          const pDel = new Set(plansDel);
+          return {
+            ...d,
+            operators: swap(d.operators, [keepUpd, dropUpd]),
+            leads: swap(d.leads, leads),
+            shifts: [...d.shifts.filter((s) => !sDel.has(s.id)), ...shiftsPut],
+            plans: [...d.plans.filter((p) => !pDel.has(p.id)), ...plansPut],
+            adjustments: swap(d.adjustments, adjs),
+            notes: swap(d.notes, notes),
+            candidates: swap(d.candidates, cands),
+            groups: swap(d.groups, groups),
+            accounts: swap(d.accounts, accs),
+          };
+        },
+      );
+      if (!ok) return false;
+      void log(
+        "operator",
+        keepId,
+        `Объединены карточки «${drop.name}» → «${keep.name}»: лидов ${leads.length}, смен ${shiftsPut.length}${accs.length ? `, аккаунт ${moved ? "перенесён" : "дубля удалён"}` : ""}`,
+      );
+      toast(`Карточки объединены: «${keep.name}»`);
+      return true;
+    },
+    [commit, deny, guardedBackup, log, toast],
   );
 
   /* ── заметки супервайзера ──────────────────────────────────────── */
@@ -2107,6 +2307,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     saveCandidate,
     deleteCandidate,
     hireCandidate,
+    startTraining,
+    promoteTrainee,
+    mergeOperators,
     saveNote,
     deleteNote,
     saveSettings,

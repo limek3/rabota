@@ -6,15 +6,24 @@ import type { Candidate, CandidateStage } from "@/lib/crm/types";
 import { CANDIDATE_STAGE_HUE, CANDIDATE_STAGE_LABEL } from "@/lib/crm/types";
 import { canTouchCandidate } from "@/lib/crm/access";
 import { fmtDate } from "@/lib/crm/dates";
+import { sameNameOps } from "@/lib/crm/dupes";
+import { setLogin } from "@/lib/crm/remote";
+import { AUTH_ENABLED } from "@/lib/appMode";
+import { LoginFields } from "./LoginFields";
 import { Chip, Field, Modal, Seg, Swatch } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 
-/** Этапы, которые выбираются вручную. «Принят» — только кнопкой «Принять»: она заводит карточку. */
+/**
+ * Этапы, которые выбираются вручную. «Принят» — только кнопкой «Принять».
+ *
+ * Путь стажёра — одна карточка от начала до конца: «Выдать доступ» на обучении заводит карточку
+ * «стажёр» и аккаунт (график, курс), «Принять в штат» переводит эту же карточку в операторы.
+ */
 const MANUAL: CandidateStage[] = ["new", "interview", "training", "rejected", "declined"];
 
 export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onClose: () => void }) {
-  const { data, today, access, saveCandidate, deleteCandidate, hireCandidate, openOperator, toast, confirm } = useCrm();
+  const { data, full, today, access, saveCandidate, deleteCandidate, hireCandidate, startTraining, saveAccount, setOperatorStatus, openOperator, toast, confirm } = useCrm();
   // супервайзер ведёт только кандидатов своих групп; «без группы» — только у РОПа
   const groups = data.groups.filter((g) => !g.deletedAt && (access.isHead || access.ownGroups.has(g.id)));
   const own: Opt[] = groups.map((g) => ({ value: g.id, label: g.name, icon: dot(g.color) }));
@@ -40,10 +49,15 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
   const set = <K extends keyof CandidateInput>(k: K, v: CandidateInput[K]) => setF((x) => ({ ...x, [k]: v }));
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [hire, setHire] = useState<{ date: string; groupId: string } | null>(null);
+  const [hire, setHire] = useState<{ date: string; groupId: string; linkTo: string } | null>(null);
+  const [grant, setGrant] = useState<{ login: string; password: string; groupId: string; date: string } | null>(null);
 
   const hired = cand?.stage === "hired";
-  const op = cand?.operatorId ? data.operators.find((o) => o.id === cand.operatorId) ?? null : null;
+  const op = cand?.operatorId ? data.operators.find((o) => o.id === cand.operatorId && !o.deletedAt) ?? null : null;
+  const opAcc = op ? full.accounts.find((a) => a.operatorId === op.id && !a.deletedAt) ?? null : null;
+  // тёзки среди карточек — чтобы при приёме не завести второго такого же человека
+  const namesakes = !op && cand ? sameNameOps(data.operators, f.name) : [];
+  const canGrant = access.can.manageAccounts;
   const closing = f.stage === "rejected" || f.stage === "declined";
   const canEdit = !cand || canTouchCandidate(access, cand);
 
@@ -61,8 +75,18 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
   const submit = async () => {
     setTried(true);
     if (errName || errDates || errGroup || busy) return;
+    // отказ после обучения: карточку стажёра — в уволенные, аккаунт выключится сам
+    const closeTrainee =
+      closing && op && op.role === "trainee" && op.status !== "fired"
+        ? await confirm({
+            title: `Закрыть доступ ${op.name}?`,
+            text: "Карточка стажёра уйдёт в уволенные с даты отказа, аккаунт выключится. История обучения и смены останутся.",
+            ok: "Закрыть доступ",
+          })
+        : false;
     setBusy(true);
     const saved = await saveCandidate({ ...f, id: cand?.id });
+    if (saved && closeTrainee && op) await setOperatorStatus(op.id, "fired", f.closedAt || today);
     setBusy(false);
     if (saved) {
       toast(cand ? "Кандидат сохранён" : "Кандидат добавлен");
@@ -77,11 +101,70 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
     setBusy(true);
     // несохранённые правки карточки кандидата — сначала сохраняем
     const saved = await saveCandidate({ ...f, id: cand.id, stage: f.stage === "rejected" || f.stage === "declined" ? "training" : f.stage });
-    const made = saved ? await hireCandidate(cand.id, hire.date, hire.groupId || null, saved) : null;
+    const made = saved ? await hireCandidate(cand.id, hire.date, hire.groupId || null, saved, hire.linkTo || null) : null;
     setBusy(false);
     if (!made) return;
     onClose();
     toast(`${made.name} принят(а) с ${fmtDate(hire.date)}. Проверьте план и оплату в карточке`, "ok", { label: "Карточка", run: () => openOperator(made) });
+  };
+
+  /** Выдать доступ: карточка «стажёр» (или найденная существующая) + аккаунт + вход. */
+  const doGrant = async () => {
+    if (!cand || !grant || busy) return;
+    const login = grant.login.trim().toLowerCase();
+    const needAcc = canGrant && !opAcc;
+    if (needAcc) {
+      if (AUTH_ENABLED && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(login)) return toast("Укажите почту — с ней человек войдёт в CRM", "err");
+      if (AUTH_ENABLED && grant.password.length < 8) return toast("Пароль — минимум 8 символов", "err");
+      if (login && full.accounts.some((a) => !a.deletedAt && a.login.trim().toLowerCase() === login)) return toast("Такая почта уже занята другим аккаунтом", "err");
+    }
+    if (!op && !access.isHead && !grant.groupId) return toast("Выберите группу", "err");
+    // тёзка уже есть — привязываем его карточку, а не заводим вторую
+    let linkTo: string | null = null;
+    if (!op && namesakes.length) {
+      const t = namesakes[0];
+      const g = t.groupId ? data.groups.find((x) => x.id === t.groupId)?.name : "без группы";
+      const yes = await confirm({
+        title: `«${t.name}» уже есть в сотрудниках`,
+        text: `Карточка: ${t.role === "trainee" ? "стажёр" : "оператор"}, ${g}. Это тот же человек? Привяжем к ней, чтобы не было дубля в графике. Если это другой человек — отмените и уточните ФИО.`,
+        ok: "Да, привязать",
+      });
+      if (!yes) return;
+      linkTo = t.id;
+    }
+    setBusy(true);
+    const stage = f.stage === "new" || f.stage === "interview" ? "training" : f.stage;
+    const saved = await saveCandidate({ ...f, id: cand.id, stage });
+    const card = saved ? op ?? (await startTraining(cand.id, { groupId: grant.groupId || null, date: grant.date || today, linkTo }, saved)) : null;
+    if (!card) return setBusy(false);
+    const hasAcc = full.accounts.some((a) => a.operatorId === card.id && !a.deletedAt);
+    if (needAcc && !hasAcc) {
+      const acc = await saveAccount({
+        name: card.name,
+        login,
+        role: "operator",
+        operatorId: card.id,
+        groupIds: [],
+        active: true,
+        prefs: { theme: full.settings.theme, homePage: card.role === "trainee" ? "/learn" : "/me", defaultProjectId: null, compact: false },
+      });
+      if (!acc) return setBusy(false);
+      if (AUTH_ENABLED && grant.password) {
+        try {
+          await setLogin(acc.login, grant.password, acc.name);
+          const text = [`Вход в CRM: ${window.location.origin}`, `Почта: ${acc.login}`, `Пароль: ${grant.password}`].join("\n");
+          const copied = await navigator.clipboard.writeText(text).then(
+            () => true,
+            () => false,
+          );
+          toast(`Доступ выдан: ${acc.login}${copied ? " — почта и пароль скопированы" : ""}`);
+        } catch (e) {
+          toast(`Аккаунт создан, но вход не создан: ${e instanceof Error ? e.message : String(e)}`, "err");
+        }
+      } else toast(`Доступ выдан: ${card.name}`);
+    } else toast(canGrant ? `Карточка привязана: ${card.name}` : "Карточка стажёра заведена — аккаунт для входа выдаёт РОП");
+    setBusy(false);
+    onClose();
   };
 
   const remove = async () => {
@@ -212,13 +295,106 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
           <textarea className="inp" value={f.comment} onChange={(e) => set("comment", e.target.value)} rows={2} placeholder="Впечатление, договорённости, когда перезвонить" />
         </Field>
 
+        {cand && !hired && !closing && canEdit && (
+          <div className="hire-box">
+            {op && (opAcc || !canGrant) ? (
+              <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+                <span style={{ flex: 1, fontSize: 12.5 }}>
+                  <span style={{ color: "var(--c-green-fg)", fontWeight: 600 }}>✓ </span>
+                  {opAcc ? (
+                    <>
+                      Доступ выдан: <b style={{ fontWeight: 600 }}>{opAcc.login || opAcc.name}</b>
+                    </>
+                  ) : (
+                    "Карточка стажёра заведена — аккаунт для входа выдаёт РОП"
+                  )}
+                  <span style={{ color: "var(--text-sub)" }}>
+                    {" "}
+                    · {op.role === "trainee" ? "стажёр" : "оператор"}
+                    {op.hireDate ? ` в графике с ${fmtDate(op.hireDate)}` : ""}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => {
+                    onClose();
+                    openOperator(op);
+                  }}
+                >
+                  Карточка <Icon name="chevR" size={13} />
+                </button>
+              </div>
+            ) : grant ? (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>Выдать доступ на обучение</div>
+                <div style={{ fontSize: 12.5, color: "var(--text-sub)" }}>
+                  {op
+                    ? "Карточка уже есть — создадим аккаунт и вход."
+                    : `Заведётся карточка «стажёр» (в графике и операторах)${canGrant ? " и аккаунт: человек видит только обучение" : " — аккаунт для входа потом выдаст РОП"}. «Принять в штат» переведёт эту же карточку в операторы.`}
+                </div>
+                {canGrant && (
+                  <LoginFields login={grant.login} onLogin={(v) => setGrant({ ...grant, login: v })} password={grant.password} onPassword={(v) => setGrant({ ...grant, password: v })} autoFocus />
+                )}
+                {!op && (
+                  <div className="grid2">
+                    <Field label="Группа">
+                      <Select
+                        value={grant.groupId}
+                        options={access.isHead ? [{ value: "", label: "Без группы", icon: dot("gray") }, ...own] : own}
+                        onChange={(v) => setGrant({ ...grant, groupId: v })}
+                        ariaLabel="Группа"
+                      />
+                    </Field>
+                    <Field label="Начало обучения" hint="С этого дня — в графике">
+                      <DateInput value={grant.date} onChange={(v) => setGrant({ ...grant, date: v || today })} ariaLabel="Начало обучения" />
+                    </Field>
+                  </div>
+                )}
+                <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+                  <button type="button" className="btn btn-sm" onClick={() => setGrant(null)}>
+                    Отмена
+                  </button>
+                  <button type="button" className="btn btn-sm btn-primary" onClick={() => void doGrant()} disabled={busy}>
+                    <Icon name="check" size={13} /> {canGrant ? "Выдать доступ" : "Завести карточку стажёра"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="row" style={{ gap: 10 }}>
+                <span style={{ flex: 1, fontSize: 12.5, color: "var(--text-sub)" }}>
+                  {op ? "Карточка стажёра есть, аккаунта нет." : "Идёт на обучение? Выдайте доступ — карточка стажёра и вход заведутся одним шагом."}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() =>
+                    setGrant({
+                      login: f.contact.includes("@") ? f.contact.trim() : "",
+                      password: "",
+                      groupId: f.groupId ?? (access.isHead ? "" : groups[0]?.id ?? ""),
+                      date: f.trainingAt || today,
+                    })
+                  }
+                >
+                  <Icon name="userPlus" size={13} /> Выдать доступ
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {cand && !hired && canEdit && (
           <div className="hire-box">
             {hire ? (
               <>
                 <div style={{ fontWeight: 600, fontSize: 13 }}>Принять в штат</div>
                 <div style={{ fontSize: 12.5, color: "var(--text-sub)" }}>
-                  Заведётся карточка оператора с датой приёма — с неё считаются стажировка, план и стаж. Схема оплаты — по умолчанию из настроек.
+                  {op
+                    ? `Карточка «${op.name}» станет оператором — новая не заводится, смены и обучение остаются. С даты приёма считаются стажировка, план и стаж; смены раньше неё в часы и зарплату не попадут.`
+                    : hire.linkTo
+                      ? "Кандидат привяжется к существующей карточке — она станет оператором."
+                      : "Заведётся карточка оператора с датой приёма — с неё считаются стажировка, план и стаж. Схема оплаты — по умолчанию из настроек."}
                 </div>
                 <div className="grid2" style={{ marginTop: 4 }}>
                   <Field label="Дата приёма">
@@ -233,6 +409,23 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
                     />
                   </Field>
                 </div>
+                {!op && namesakes.length > 0 && (
+                  <Field label="Карточка" hint="Такое ФИО уже есть в сотрудниках — если это он(а), привяжите, чтобы не было дубля">
+                    <Select
+                      value={hire.linkTo}
+                      options={[
+                        ...namesakes.map((o) => ({
+                          value: o.id,
+                          label: `${o.name} — существующая`,
+                          hint: `${o.role === "trainee" ? "стажёр" : "оператор"}, ${o.groupId ? data.groups.find((g) => g.id === o.groupId)?.name ?? "" : "без группы"}`,
+                        })),
+                        { value: "", label: "Новая карточка", hint: "это другой человек" },
+                      ]}
+                      onChange={(v) => setHire({ ...hire, linkTo: v })}
+                      ariaLabel="Карточка"
+                    />
+                  </Field>
+                )}
                 <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
                   <button type="button" className="btn btn-sm" onClick={() => setHire(null)}>
                     Отмена
@@ -244,8 +437,20 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
               </>
             ) : (
               <div className="row" style={{ gap: 10 }}>
-                <span style={{ flex: 1, fontSize: 12.5, color: "var(--text-sub)" }}>Прошёл отбор и обучение? Примите в штат — появится карточка оператора.</span>
-                <button type="button" className="btn btn-sm btn-primary" onClick={() => setHire({ date: today, groupId: f.groupId ?? (access.isHead ? "" : groups[0]?.id ?? "") })}>
+                <span style={{ flex: 1, fontSize: 12.5, color: "var(--text-sub)" }}>
+                  {op ? "Прошёл обучение? Примите в штат — карточка стажёра станет оператором." : "Прошёл отбор и обучение? Примите в штат — появится карточка оператора."}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={() =>
+                    setHire({
+                      date: op?.hireDate || today,
+                      groupId: op?.groupId ?? f.groupId ?? (access.isHead ? "" : groups[0]?.id ?? ""),
+                      linkTo: namesakes[0]?.id ?? "",
+                    })
+                  }
+                >
                   <Icon name="userPlus" size={13} /> Принять в штат
                 </button>
               </div>

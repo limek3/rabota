@@ -2,7 +2,8 @@
 // Edge Function: lead-dialog — расшифровка разговора и разбор для карточки лида.
 // ----------------------------------------------------------------------------
 // Ссылка лида из Скорозвона: https://app.skorozvon.ru/#/leads/<лид>/answer/<звонок>/+7…
-// Число после /answer/ — id звонка. По нему:
+// Число после /answer/ — id звонка. Ссылка «…/leads/<лид>/call/+7…» звонка не содержит — тогда он
+// ищется по лиду Скорозвона в отчёте «Звонки» (findCall). По звонку:
 //   1. Скорозвон API → звонок (оператор, длительность, recording_url);
 //   2. mp3 записи → Memo AI (POST /transcriptions) вместе с отчётом-разбором (?reports=…);
 //   3. следующие вызовы опрашивают Memo: реплики и разбор пишутся в public.lead_dialogs.
@@ -122,6 +123,111 @@ function skTime(v: SkCall["started_at"]): string | null {
 
 const last10 = (p: string | null | undefined) => String(p ?? "").replace(/\D+/g, "").slice(-10);
 
+/**
+ * Что за звонок в ссылке лида. «…/answer/<звонок>/…» — id звонка прямо в ссылке, ключ = id.
+ * «…/leads/<лид>/call/+7…» (и просто «…/leads/<лид>») — звонка в ссылке нет, его ищем по лиду
+ * Скорозвона; ключ «@<лид>», найденный звонок пишется в call_id как «<звонок>@<лид>».
+ */
+function linkRef(link: string): { key: string; skLead: string } {
+  const answer = link.match(/\/answer\/(\d+)/)?.[1];
+  if (answer) return { key: answer, skLead: "" };
+  const skLead = link.match(/#\/leads\/(\d+)/)?.[1] ?? "";
+  return { key: skLead ? `@${skLead}` : "", skLead };
+}
+/** Строка расшифровки относится к этой ссылке. */
+const sameCall = (callId: string, key: string) => callId === key || (key.startsWith("@") && callId.endsWith(key));
+/** id звонка в Скорозвоне из call_id строки ("" — ещё не нашли). */
+const skCallId = (callId: string) => callId.split("@")[0];
+
+/** Время последнего звонка по лиду Скорозвона (null — не звонили или нет даты). */
+async function skorozvonLastCall(skLead: string): Promise<{ at: number | null; phones: string[] }> {
+  const r = await fetch(`${SK}/api/v2/leads/${skLead}`, { headers: { Authorization: `Bearer ${await skorozvonToken()}` } });
+  if (r.status === 404) throw new Fail(`Лид ${skLead} не найден в Скорозвоне — проверьте ссылку`);
+  if (!r.ok) throw new Error(`Скорозвон: HTTP ${r.status}`);
+  const j = await r.json();
+  const l = j.data ?? j;
+  const at = Date.parse(skTime(l.last_call_date) ?? "");
+  const phones = [...(l.lead_phones ?? []), ...String(l.phones ?? "").split(/[,;]/)].map(last10).filter(Boolean);
+  return { at: Number.isNaN(at) ? null : at, phones };
+}
+
+type TotalRow = {
+  id: number;
+  phone?: string | null;
+  duration?: number | null;
+  started_at?: string | { utc?: string } | null;
+  lead_id?: number | null;
+  lead?: { id?: number } | null;
+  main_lead?: { id?: number } | null;
+  organization?: { id?: number } | null;
+};
+
+/** Одна страница отчёта «Звонки» за [from, to] (секунды unix); 5xx и 429 — повторяем. */
+async function callsPage(from: number, to: number, page: number): Promise<{ data: TotalRow[]; total: number }> {
+  for (let k = 0; k < 3; k++) {
+    const r = await fetch(`${SK}/api/reports/calls_total.json`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${await skorozvonToken()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ start_time: from, end_time: to, length: 500, page }),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      return { data: j.data ?? [], total: Number(j.total) || 0 };
+    }
+    if (r.status < 500 && r.status !== 429) throw new Error(`Скорозвон: отчёт «Звонки» — HTTP ${r.status}`);
+    await new Promise((res) => setTimeout(res, 1500));
+  }
+  throw new Error("Скорозвон не отдал отчёт «Звонки» — попробуйте позже");
+}
+
+/** Больше страниц за один вызов не листаем — звонков в Скорозвоне сотни в минуту. */
+const MAX_PAGES = 60;
+
+/**
+ * Звонок лида по ссылке «…/leads/<лид>/call/+7…»: фильтра по лиду или номеру у API нет, поэтому
+ * листаем отчёт «Звонки» вокруг времени последнего звонка по лиду (нет его — вокруг записи лида
+ * в CRM), сначала узкое окно, потом шире. Берём звонок на этот номер или по этому лиду:
+ * состоявшийся, самый поздний.
+ */
+async function findCall(skLead: string, leadPhone: string, createdAt: string | null): Promise<string> {
+  const last = await skorozvonLastCall(skLead);
+  const want = new Set([last10(leadPhone), ...last.phones].filter(Boolean));
+  const lead = Number(skLead);
+  const center = last.at ?? (Date.parse(createdAt ?? "") || Date.now());
+  const s = Math.floor(center / 1000);
+  // окна от узкого к широкому, без повторов: [начало, конец] в секундах
+  const windows: [number, number][] = [
+    [s - 3 * 60, s + 60],
+    [s - 12 * 60, s - 3 * 60],
+    [s - 40 * 60, s - 12 * 60],
+  ];
+  let budget = MAX_PAGES;
+  for (const [from, end] of windows) {
+    const to = Math.min(end, Math.floor(Date.now() / 1000));
+    if (to <= from) continue;
+    const first = await callsPage(from, to, 1);
+    const per = first.data.length || 1;
+    const pages = Math.ceil(first.total / per);
+    const rows = [...first.data];
+    budget--;
+    for (let p = 2; p <= pages && budget > 0; p += 6) {
+      const batch = Array.from({ length: Math.min(6, pages - p + 1, budget) }, (_, i) => callsPage(from, to, p + i));
+      budget -= batch.length;
+      for (const pg of await Promise.all(batch)) rows.push(...pg.data);
+    }
+    const hits = rows.filter(
+      (x) => want.has(last10(x.phone)) || [x.lead_id, x.lead?.id, x.main_lead?.id, x.organization?.id].some((id) => Number(id) === lead),
+    );
+    if (hits.length) {
+      const t = (x: TotalRow) => Date.parse(skTime(x.started_at ?? null) ?? "") || 0;
+      hits.sort((a, b) => Number((b.duration ?? 0) > 0) - Number((a.duration ?? 0) > 0) || t(b) - t(a));
+      return String(hits[0].id);
+    }
+    if (budget <= 0) break;
+  }
+  throw new Fail("Не нашли в Скорозвоне звонок по этому лиду — вставьте ссылку из самого звонка (…/answer/<звонок>/…)");
+}
+
 /* ── Memo AI ───────────────────────────────────────────────────────────── */
 
 async function memo(path: string, init: RequestInit = {}): Promise<Response> {
@@ -220,7 +326,8 @@ async function findExisting(callId: string): Promise<string | null> {
  * lookup — сначала поискать уже принятую Memo расшифровку (повтор после сбоя): без новой загрузки и списания.
  */
 async function start(row: Row, leadPhone: string, lookup = false): Promise<Row> {
-  const call = await skorozvonCall(row.call_id);
+  const callId = skCallId(row.call_id);
+  const call = await skorozvonCall(callId);
   const next: Row = {
     ...row,
     call_at: skTime(call.started_at),
@@ -238,7 +345,7 @@ async function start(row: Row, leadPhone: string, lookup = false): Promise<Row> 
   next.record_url = call.recording_url;
 
   if (lookup) {
-    const found = await findExisting(row.call_id);
+    const found = await findExisting(callId);
     if (found) return { ...next, status: "processing", error: "", memo_id: found, report_status: "none", report: "" };
   }
 
@@ -250,10 +357,10 @@ async function start(row: Row, leadPhone: string, lookup = false): Promise<Row> 
     memo(`/transcriptions?language=ru&speakers_count=2${withReport && reportSlug() ? `&reports=${encodeURIComponent(reportSlug())}` : ""}`, {
       method: "POST",
       headers: {
-        "Content-Disposition": `attachment; filename="call-${row.call_id}.mp3"`,
+        "Content-Disposition": `attachment; filename="call-${callId}.mp3"`,
         // повтор того же шага (сеть, двойной клик) не создаст вторую расшифровку и не спишет минуты дважды
-        "Idempotency-Key": `lead-${row.lead_id}-${row.call_id}-${row.attempts}`,
-        "X-External-Id": `skorozvon-call-${row.call_id}`,
+        "Idempotency-Key": `lead-${row.lead_id}-${callId}-${row.attempts}`,
+        "X-External-Id": `skorozvon-call-${callId}`,
       },
       body: bytes,
     });
@@ -330,7 +437,7 @@ Deno.serve(async (req) => {
 
     // видит ли вызывающий этот лид — решает RLS лидов, как и везде в CRM
     const asCaller = createClient(url, anon, { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } });
-    const { data: lead, error: lErr } = await asCaller.from("leads").select("id, link, phone").eq("id", leadId).maybeSingle();
+    const { data: lead, error: lErr } = await asCaller.from("leads").select("id, link, phone, created_at").eq("id", leadId).maybeSingle();
     if (lErr) return json({ error: lErr.message }, 401);
     if (!lead) return json({ error: "Лид не найден или нет доступа" }, 404);
 
@@ -340,12 +447,12 @@ Deno.serve(async (req) => {
     // колонок разбора нет, пока не выполнена 20261006000001_lead_dialog_report.sql — тогда без разбора
     const hasReport = !saved || "report_status" in (saved as object);
 
-    const callId = String(lead.link ?? "").match(/\/answer\/(\d+)/)?.[1] ?? "";
-    let row: Row = (saved as Row | null) ?? blank(leadId, callId);
+    const { key, skLead } = linkRef(String(lead.link ?? ""));
+    let row: Row = (saved as Row | null) ?? blank(leadId, key);
     row.report_status ??= "none";
     row.report ??= "";
     // ссылку в лиде поменяли — это уже другой звонок
-    if (row.call_id !== callId) row = blank(leadId, callId, row.attempts + 1);
+    if (!sameCall(row.call_id, key)) row = blank(leadId, key, row.attempts + 1);
 
     const save = async (r: Row) => {
       const rec: Record<string, unknown> = { ...r, updated_at: new Date().toISOString() };
@@ -364,8 +471,8 @@ Deno.serve(async (req) => {
       return { ...r, ...(hasReport ? {} : { report_status: "missing" as const, report: "" }) };
     };
 
-    if (!callId) {
-      return json(await save({ ...row, status: "failed", error: "В ссылке лида нет номера звонка (…/answer/<звонок>/…) — вставьте ссылку из звонка в Скорозвоне" }));
+    if (!key) {
+      return json(await save({ ...row, status: "failed", error: "Ссылка лида не из Скорозвона — вставьте ссылку на лид или звонок (app.skorozvon.ru/#/leads/…)" }));
     }
 
     if (action === "swap") {
@@ -379,10 +486,14 @@ Deno.serve(async (req) => {
     // доводим сами, без кнопки (так лечатся и лиды, записанные до этого исправления)
     const stuck = row.status === "failed" && /409|idempotency/i.test(row.error);
     const lookup = stuck || action === "retry" || !!row.error;
-    if (stuck && action !== "retry") row = { ...blank(leadId, callId, row.attempts), call_at: row.call_at };
-    if (action === "retry" && row.status !== "processing") row = blank(leadId, callId, row.memo_id ? row.attempts + 1 : row.attempts);
+    if (stuck && action !== "retry") row = { ...blank(leadId, row.call_id, row.attempts), call_at: row.call_at };
+    // по ссылке «…/call/…» звонок «заново» ищется тоже заново — вдруг в прошлый раз нашёлся не тот
+    if (action === "retry" && row.status !== "processing") row = blank(leadId, key, row.memo_id ? row.attempts + 1 : row.attempts);
 
     try {
+      // звонка в ссылке нет — находим его по лиду Скорозвона один раз и запоминаем в call_id
+      if (row.status === "pending" && !skCallId(row.call_id))
+        row = { ...row, call_id: `${await findCall(skLead, String(lead.phone ?? ""), lead.created_at ?? null)}@${skLead}` };
       if (row.status === "pending" || row.status === "waiting") row = await start(row, String(lead.phone ?? ""), lookup);
       else if (row.status === "processing" && row.memo_id) row = await poll(row);
       else if (row.status === "done" && row.memo_id && hasReport) {

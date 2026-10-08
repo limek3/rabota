@@ -1,4 +1,4 @@
-import type { AccessSettings, Account, AccountPrefs, AccountRole, DataState, ID, PaySlot, PayType, RateGrid, RateTier, RegionSettings, RopSettings, Settings, SvBonusGrid, Track } from "./types";
+import type { AccessSettings, Account, AccountPrefs, AccountRole, DataState, ID, Operator, PaySlot, PayType, RateGrid, RateTier, RegionSettings, RopSettings, Settings, SvBonusGrid, Track } from "./types";
 import { addDays } from "./dates";
 
 export const DEFAULT_ACCESS: AccessSettings = {
@@ -206,6 +206,29 @@ function cleanCols(v: unknown): Record<string, string[]> | undefined {
 /** Аватарка — только картинка в data URL и не больше ~150 КБ (мы сами сжимаем до 160×160). */
 export function isAvatar(v: unknown): v is string {
   return typeof v === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(v) && v.length < 150_000;
+}
+
+/** Новая карточка сотрудника: условия по умолчанию из настроек; ставку и план поправят в карточке. */
+export function operatorDraft(
+  s: Settings,
+  extra: Pick<Operator, "name" | "groupId" | "role" | "hireDate"> & Partial<Operator>,
+): Omit<Operator, "id" | "createdAt" | "updatedAt" | "deletedAt"> {
+  return {
+    status: "active",
+    fireDate: "",
+    monthlyPlan: null,
+    normHours: null,
+    payType: s.defaultPayType,
+    salary: s.defaultSalary,
+    hourlyRate: s.defaultHourlyRate,
+    leadBonus: null,
+    rateGridId: null,
+    grade: "mid",
+    track: "re",
+    contact: "",
+    comment: "",
+    ...extra,
+  };
 }
 
 export function newAccount(id: ID, role: AccountRole, name: string, extra: Partial<Account> = {}, theme: Settings["theme"] = "light"): Account {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lead } from "@/lib/crm/types";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { shortName } from "@/lib/crm/format";
-import { DIALOG_BUSY, cachedDialog, dialogAvailable, dialogCallId, parseReport, readDialog, syncDialog, type LeadDialog as Dialog } from "@/lib/crm/dialog";
+import { DIALOG_BUSY, cachedDialog, dialogAvailable, dialogCallId, parseReport, readDialog, sameDialogCall, syncDialog, type LeadDialog as Dialog } from "@/lib/crm/dialog";
 
 /**
  * Разговор лида для проверки: разбор от Memo AI (сводка, чек-лист), запись и расшифровка.
@@ -28,7 +28,7 @@ export const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floo
 
 /** Нужно ли ещё что-то просить у функции: расшифровка не готова или разбор в пути. */
 const pending = (d: Dialog | null, callId: string) =>
-  !d || d.callId !== callId || DIALOG_BUSY.includes(d.status) || (SHOW_REPORT && d.status === "done" && (d.reportStatus === "processing" || d.reportStatus === "none"));
+  !d || !sameDialogCall(d.callId, callId) || DIALOG_BUSY.includes(d.status) || (SHOW_REPORT && d.status === "done" && (d.reportStatus === "processing" || d.reportStatus === "none"));
 
 /** Споткнулся о параллельную загрузку (409): файл у Memo есть — функция доведёт сама, достаточно позвать. */
 const stuck = (d: Dialog | null) => !!d && d.status === "failed" && /409|idempotency/i.test(d.error);
@@ -87,7 +87,7 @@ export function useLeadDialog(lead: Lead) {
     }
   };
 
-  const fresh = dlg && dlg.callId === callId ? dlg : null;
+  const fresh = dlg && sameDialogCall(dlg.callId, callId) ? dlg : null;
   const state: "none" | "loading" | "busy" | "failed" | "done" =
     !callId || !available
       ? "none"
@@ -251,8 +251,8 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
   if (d.state === "none") {
     if (!d.callId)
       return (
-        <Notice icon="link" title="Разбора нет: в ссылке нет звонка">
-          Разбор и запись появляются, когда ссылка скопирована из звонка в Скорозвоне — с …/answer/&lt;номер звонка&gt;/…
+        <Notice icon="link" title="Разбора нет: ссылка не из Скорозвона">
+          Разбор и запись появляются, когда в лиде ссылка на лид или звонок в Скорозвоне — app.skorozvon.ru/#/leads/…
         </Notice>
       );
     return <Notice icon="database" title="Разбор работает только с базой">CRM сейчас без Supabase — запись и расшифровку взять неоткуда.</Notice>;

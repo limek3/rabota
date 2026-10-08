@@ -3,8 +3,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
-import * as db from "@/lib/crm/db";
-import * as remote from "@/lib/crm/remote";
 import { ACAD_COURSE, FLAT, MODULES, PRACTICE_TITLE, SIM_CHAPTERS, SIM_CHAPTER_TITLES, TESTS, acadProgress } from "@/lib/academy/course";
 import type { Account, LearnProgress, Operator } from "@/lib/crm/types";
 import { canTouchOp } from "@/lib/crm/access";
@@ -52,7 +50,7 @@ interface Row {
 }
 
 export default function TeamLearningPage() {
-  const { data, full, access, saveOperator, saveAccount, confirm, toast } = useCrm();
+  const { data, full, access, promoteTrainee, confirm, toast } = useCrm();
   const router = useRouter();
   const allowed = !access.isOp || access.isMentor;
   useEffect(() => {
@@ -117,14 +115,8 @@ export default function TeamLearningPage() {
       ok: "Перевести",
     });
     if (!ok) return;
-    const saved = await saveOperator({ ...r.op, role: "operator" });
-    if (!saved) return;
-    // стартовая страница стажёра — обучение; оператору — личный кабинет
-    // РОП меняет аккаунт сам; супервайзер — через функцию базы, только стартовую своего человека
-    if (r.acc && r.acc.prefs?.homePage === "/learn") {
-      if (access.can.manageAccounts) await saveAccount({ ...r.acc, prefs: { ...r.acc.prefs, homePage: "/me" } });
-      else if (db.REMOTE) await remote.traineeHome(r.op.id);
-    }
+    // та же карточка: роль «оператор», стартовая страница аккаунта — личный кабинет
+    if (!(await promoteTrainee(r.op.id))) return;
     toast(`${r.op.name} — теперь оператор`);
   };
 
@@ -197,7 +189,7 @@ export default function TeamLearningPage() {
                     </td>
                     <td className="wrap">
                       {!r.accountId ? (
-                        <span className="muted">нет аккаунта — заведите в Настройках</span>
+                        <span className="muted">нет аккаунта — «Выдать доступ» в Найме или в Настройках</span>
                       ) : !p?.next ? (
                         <span className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                           <span style={{ color: "var(--c-green-fg)", fontWeight: 600 }}>✓ {r.trainee ? "Готов к линии" : "Курс пройден"}</span>
@@ -280,7 +272,7 @@ export default function TeamLearningPage() {
                     <div className="empty-title">{scope === "trainee" ? "Стажёров нет" : "Никого не нашлось"}</div>
                     <div className="empty-text">
                       {scope === "trainee"
-                        ? "Стажёр — это аккаунт с ролью «Стажёр» (Настройки → Аккаунты) или оператор с ролью «стажёр» в карточке. Ему открыто только обучение."
+                        ? "Стажёр — карточка с ролью «стажёр»: Найм → кандидат → «Выдать доступ» (или Настройки → Аккаунты, роль «Стажёр»). Ему открыто только обучение."
                         : "Попробуйте изменить поиск."}
                     </div>
                   </div>

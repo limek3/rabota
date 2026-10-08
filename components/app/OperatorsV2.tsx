@@ -739,7 +739,7 @@ export function OperatorsV2() {
                         <span className="ar">{sort.key === "name" ? (sort.dir === 1 ? "▲" : "▼") : "↕"}</span>
                       </th>
                       {shown.map(headCell)}
-                      <th style={{ width: 40 }} />
+                      <th style={{ width: 70 }} />
                     </tr>
                   </thead>
                   <tbody>
@@ -770,33 +770,35 @@ export function OperatorsV2() {
                           </td>
                           {shown.map((c) => cell(c, x))}
                           <td onClick={(e) => e.stopPropagation()}>
-                            <Popover
-                              align="right"
-                              button={(open, toggle, ref) => (
-                                <button ref={ref} className="o2-kebab" onClick={toggle} aria-expanded={open} aria-label="Действия">
-                                  <Icon name="list" size={15} />
-                                </button>
-                              )}
-                            >
-                              {(close) => (
-                                <>
-                                  <button className="it" onClick={() => { close(); setDrawerId(x.op.id); }}>
-                                    <Icon name="user" size={14} /> Открыть карточку
+                            <span className="row" style={{ gap: 2, justifyContent: "flex-end" }}>
+                              <button className="o2-kebab" onClick={() => setDrawerId(x.op.id)} title="Открыть карточку" aria-label={`Открыть карточку: ${x.op.name}`}>
+                                <Icon name="user" size={15} />
+                              </button>
+                              <Popover
+                                align="right"
+                                button={(open, toggle, ref) => (
+                                  <button ref={ref} className="o2-kebab" onClick={toggle} aria-expanded={open} aria-label="Действия">
+                                    <Icon name="list" size={15} />
                                   </button>
-                                  {canManageOperator(access, x.op) && (
-                                    <button className="it" onClick={() => { close(); openOperator(ix.opById.get(x.op.id) ?? x.op); }}>
-                                      <Icon name="edit" size={14} /> Изменить данные
+                                )}
+                              >
+                                {(close) => (
+                                  <>
+                                    {canManageOperator(access, x.op) && (
+                                      <button className="it" onClick={() => { close(); openOperator(ix.opById.get(x.op.id) ?? x.op); }}>
+                                        <Icon name="edit" size={14} /> Изменить данные
+                                      </button>
+                                    )}
+                                    <button className="it" onClick={() => { close(); router.push("/schedule"); }}>
+                                      <Icon name="calendar" size={14} /> График смен
                                     </button>
-                                  )}
-                                  <button className="it" onClick={() => { close(); router.push("/schedule"); }}>
-                                    <Icon name="calendar" size={14} /> График смен
-                                  </button>
-                                  <button className="it" onClick={() => { close(); router.push("/leads"); }}>
-                                    <Icon name="leads" size={14} /> Лиды
-                                  </button>
-                                </>
-                              )}
-                            </Popover>
+                                    <button className="it" onClick={() => { close(); router.push("/leads"); }}>
+                                      <Icon name="leads" size={14} /> Лиды
+                                    </button>
+                                  </>
+                                )}
+                              </Popover>
+                            </span>
                           </td>
                         </tr>
                       );

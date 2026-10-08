@@ -4,7 +4,8 @@ import { supabase, supabaseReady } from "@/lib/supabase";
 
 /**
  * Расшифровка разговора по лиду и её разбор (таблица lead_dialogs, функция lead-dialog).
- * Звонок берётся из ссылки Скорозвона: число после /answer/ — id звонка.
+ * Звонок берётся из ссылки Скорозвона: число после /answer/ — id звонка; в ссылке «…/leads/<лид>/call/+7…»
+ * звонка нет — функция находит его по лиду Скорозвона.
  * Работает только с Supabase: ключи Скорозвона и Memo AI живут в секретах функции.
  */
 
@@ -38,10 +39,19 @@ export interface LeadDialog {
   updatedAt: string;
 }
 
-/** Ссылка лида ведёт на конкретный звонок — тогда расшифровку можно получить. */
+/**
+ * Ключ звонка по ссылке лида: id звонка из «…/answer/<звонок>/…» или «@<лид>» для «…/leads/<лид>/call/…» —
+ * тогда звонок ищет функция и пишет в callId «<звонок>@<лид>». "" — ссылка не из Скорозвона.
+ */
 export function dialogCallId(link: string): string {
-  return link.match(/\/answer\/(\d+)/)?.[1] ?? "";
+  const answer = link.match(/\/answer\/(\d+)/)?.[1];
+  if (answer) return answer;
+  const lead = link.match(/#\/leads\/(\d+)/)?.[1];
+  return lead ? `@${lead}` : "";
 }
+
+/** Расшифровка в базе — по звонку из этой ссылки. */
+export const sameDialogCall = (callId: string, key: string) => callId === key || (key.startsWith("@") && callId.endsWith(key));
 
 export const dialogAvailable = (link: string) => supabaseReady && !!dialogCallId(link);
 

@@ -7,19 +7,26 @@ import { computeAccess, supervisorGroups } from "@/lib/crm/access";
 import {
   ACCOUNT_ROLE_HINT,
   ACCOUNT_ROLE_LABEL,
+  ROLE_LABEL,
   type Account,
   type AccountRole,
+  type DataState,
+  type ID,
+  type Operator,
   type OperatorAccess,
   type SupervisorAccess,
 } from "@/lib/crm/types";
 import { appStamp, fmtDate } from "@/lib/crm/dates";
 import { Avatar, Chip, Empty, Field, Modal, NumInput, Switch, useDraft } from "@/components/ui/kit";
-import { Select, dot, type Opt } from "@/components/ui/select";
+import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { RoleChip } from "./AccountMenu";
 import { AUTH_ENABLED } from "@/lib/appMode";
 import { TelegramCard } from "./TelegramCard";
 import { setLogin } from "@/lib/crm/remote";
+import { operatorDraft } from "@/lib/crm/defaults";
+import { duplicateGroups, sameNameOps } from "@/lib/crm/dupes";
+import { LoginFields } from "./LoginFields";
 import { fileToAvatar } from "@/lib/avatar";
 
 function Section({ title, icon, sub, children, action }: { title: string; icon?: IconName; sub?: string; children: React.ReactNode; action?: React.ReactNode }) {
@@ -335,6 +342,8 @@ export function AccountsTab() {
         {data.operators.length === 0 && <Empty icon="users" title="Сначала заведите операторов" text="Аккаунт оператора привязывается к карточке сотрудника." />}
       </Section>
 
+      <DuplicatesSection />
+
       {edit && <AccountModal account={edit === "new" ? null : edit} onClose={() => setEdit(null)} />}
     </div>
   );
@@ -343,11 +352,12 @@ export function AccountsTab() {
 /** Роль в форме аккаунта: роли аккаунта плюс «Стажёр» — это оператор с ролью «стажёр» в карточке сотрудника. */
 type FormRole = AccountRole | "trainee";
 const TRAINEE_HINT = "Видит только обучение: курс «Авто», тренажёр Скорозвона и тесты. Роль «стажёр» ставится в карточке сотрудника";
+/** В выборе карточки: завести новую вместе с аккаунтом. */
+const NEW_CARD = "__new";
 
 function AccountModal({ account, onClose }: { account: Account | null; onClose: () => void }) {
-  const { full, saveAccount, saveOperator, toast } = useCrm();
+  const { full, today, saveAccount, saveOperator, toast, confirm } = useCrm();
   const [password, setPassword] = useState("");
-  const [copied, setCopied] = useState(false);
   const groups = full.groups.filter((g) => !g.deletedAt);
   const taken = new Set(full.accounts.filter((a) => !a.deletedAt && a.id !== account?.id && a.operatorId).map((a) => a.operatorId));
   const [f, setF] = useState<AccountInput>(() =>
@@ -365,23 +375,96 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
   );
   const cardOf = (id: string | null) => (id ? full.operators.find((o) => o.id === id) ?? null : null);
   const [trainee, setTrainee] = useState(() => !!account && account.role === "operator" && cardOf(account.operatorId)?.role === "trainee");
+  // новый оператор или стажёр — карточка заводится тут же, отдельно в «Операторах» её создавать не нужно
+  const [newCard, setNewCard] = useState(!account);
+  const [card, setCard] = useState<{ groupId: string; date: string }>({ groupId: "", date: today });
   const formRole: FormRole = f.role === "operator" && trainee ? "trainee" : f.role;
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof AccountInput>(k: K, v: AccountInput[K]) => setF((x) => ({ ...x, [k]: v }));
 
   const opOpts: Opt[] = [
-    { value: "", label: "— без карточки сотрудника —" },
+    { value: NEW_CARD, label: "+ Новая карточка", hint: "заведётся вместе с аккаунтом" },
+    ...(f.role !== "operator" ? [{ value: "", label: "— без карточки сотрудника —" }] : []),
     ...full.operators
       .filter((o) => !o.deletedAt && (!taken.has(o.id) || o.id === f.operatorId))
       .sort((a, b) => a.name.localeCompare(b.name, "ru"))
       .map((o) => ({
         value: o.id,
         label: o.name,
-        hint: o.groupId ? full.groups.find((g) => g.id === o.groupId)?.name ?? "" : "без группы",
+        hint: [o.role === "trainee" ? "стажёр" : "", o.groupId ? full.groups.find((g) => g.id === o.groupId)?.name ?? "" : "без группы"].filter(Boolean).join(" · "),
         icon: <Avatar name={o.name} id={o.id} size={20} />,
       })),
   ];
+  const groupOpts: Opt[] = [{ value: "", label: "Без группы", icon: dot("gray") }, ...groups.map((g) => ({ value: g.id, label: g.name, icon: dot(g.color) }))];
   const autoGroups = account ? supervisorGroups({ ...account, ...f } as Account, full) : new Set<string>();
+
+  /** Карточка для нового аккаунта: тёзка уже есть — предлагаем привязать его, а не плодить дубль. */
+  const makeCard = async (): Promise<string | null> => {
+    const name = f.name.trim();
+    const same = sameNameOps(full.operators, name);
+    if (same.length) {
+      const free = same.find((o) => !taken.has(o.id));
+      if (!free) {
+        toast(`«${same[0].name}» уже есть, и у карточки есть аккаунт. Если это другой человек — уточните ФИО`, "err");
+        return null;
+      }
+      const g = free.groupId ? full.groups.find((x) => x.id === free.groupId)?.name : "без группы";
+      const link = await confirm({
+        title: `«${free.name}» уже есть в сотрудниках`,
+        text: `Карточка: ${free.role === "trainee" ? "стажёр" : "оператор"}, ${g}. Привязать аккаунт к ней, чтобы человек не задвоился в графике? Если это другой человек — отмените и уточните ФИО (например, добавьте отчество).`,
+        ok: "Привязать",
+      });
+      if (!link) return null;
+      return free.id;
+    }
+    const role = trainee ? "trainee" : f.role === "supervisor" ? "supervisor" : "operator";
+    const op = await saveOperator(operatorDraft(full.settings, { name, groupId: card.groupId || null, role, hireDate: card.date || today }));
+    return op?.id ?? null;
+  };
+
+  const submit = async () => {
+    if (AUTH_ENABLED && password && password.length < 8) {
+      toast("Пароль — минимум 8 символов", "err");
+      return;
+    }
+    const usesCard = newCard && f.role !== "head";
+    if (usesCard) {
+      // проверки аккаунта — до карточки, чтобы не осталась карточка без аккаунта
+      const login = f.login.trim().toLowerCase();
+      if (!f.name.trim()) return toast("Укажите имя", "err");
+      if (AUTH_ENABLED && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(login)) return toast("Укажите почту — с ней человек войдёт в CRM", "err");
+      if (login && full.accounts.some((a) => !a.deletedAt && a.id !== account?.id && a.login.trim().toLowerCase() === login)) return toast("Такой логин уже занят", "err");
+    } else if (trainee && !f.operatorId) {
+      toast("Стажёру нужна карточка сотрудника — в ней ставится роль «стажёр»", "err");
+      return;
+    }
+    setBusy(true);
+    let operatorId = usesCard ? null : f.operatorId;
+    if (usesCard) {
+      operatorId = await makeCard();
+      if (!operatorId) return setBusy(false);
+      // аккаунт не сохранится — повторное «Создать» возьмёт уже заведённую карточку
+      setNewCard(false);
+      set("operatorId", operatorId);
+    }
+    const ok = await saveAccount({ ...f, id: account?.id, operatorId });
+    // «стажёр» живёт в карточке сотрудника: ставим или снимаем его там
+    const c = ok ? full.operators.find((o) => o.id === operatorId) ?? null : null;
+    if (c && f.role === "operator") {
+      const want = trainee ? "trainee" : c.role === "trainee" ? "operator" : c.role;
+      if (want !== c.role) await saveOperator({ ...c, role: want });
+    }
+    if (ok && AUTH_ENABLED && password) {
+      try {
+        const r = await setLogin(ok.login, password, ok.name);
+        toast(r === "created" ? `Вход создан: ${ok.login}` : `Пароль для ${ok.login} изменён`);
+      } catch (e) {
+        toast(`Аккаунт сохранён, но вход не создан: ${e instanceof Error ? e.message : String(e)}`, "err");
+      }
+    }
+    setBusy(false);
+    if (ok) onClose();
+  };
 
   return (
     <Modal
@@ -393,38 +476,7 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
           <button className="btn" onClick={onClose}>
             Отмена
           </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy}
-            onClick={async () => {
-              if (AUTH_ENABLED && password && password.length < 8) {
-                toast("Пароль — минимум 8 символов", "err");
-                return;
-              }
-              if (trainee && !f.operatorId) {
-                toast("Стажёру нужна карточка сотрудника — в ней ставится роль «стажёр»", "err");
-                return;
-              }
-              setBusy(true);
-              const ok = await saveAccount({ ...f, id: account?.id });
-              // «стажёр» живёт в карточке сотрудника: ставим или снимаем его там
-              const card = ok ? cardOf(f.operatorId) : null;
-              if (card && f.role === "operator") {
-                const want = trainee ? "trainee" : card.role === "trainee" ? "operator" : card.role;
-                if (want !== card.role) await saveOperator({ ...card, role: want });
-              }
-              if (ok && AUTH_ENABLED && password) {
-                try {
-                  const r = await setLogin(ok.login, password, ok.name);
-                  toast(r === "created" ? `Вход создан: ${ok.login}` : `Пароль для ${ok.login} изменён`);
-                } catch (e) {
-                  toast(`Аккаунт сохранён, но вход не создан: ${e instanceof Error ? e.message : String(e)}`, "err");
-                }
-              }
-              setBusy(false);
-              if (ok) onClose();
-            }}
-          >
+          <button className="btn btn-primary" disabled={busy} onClick={() => void submit()}>
             {account ? "Сохранить" : "Создать"}
           </button>
         </>
@@ -434,81 +486,65 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
         <Field label="Имя">
           <input className="inp" value={f.name} onChange={(e) => set("name", e.target.value)} autoFocus placeholder="Фамилия Имя" />
         </Field>
-        <Field
-          label={AUTH_ENABLED ? "Почта для входа" : "Логин"}
-          hint={AUTH_ENABLED ? "С ней человек входит в CRM" : "Почта или телефон — для будущего входа"}
-        >
-          <input className="inp" type={AUTH_ENABLED ? "email" : "text"} value={f.login} onChange={(e) => set("login", e.target.value)} placeholder="ivanova@mail.ru" />
+        <Field label="Роль" hint={formRole === "trainee" ? TRAINEE_HINT : ACCOUNT_ROLE_HINT[f.role]}>
+          <Select<FormRole>
+            value={formRole}
+            options={[
+              ...(Object.keys(ACCOUNT_ROLE_LABEL) as AccountRole[]).map((r) => ({ value: r as FormRole, label: ACCOUNT_ROLE_LABEL[r], hint: ACCOUNT_ROLE_HINT[r] })),
+              { value: "trainee" as FormRole, label: "Стажёр", hint: "Только обучение: курс «Авто», Скорозвон, тесты" },
+            ]}
+            onChange={(v) => {
+              const r: AccountRole = v === "trainee" ? "operator" : v;
+              setTrainee(v === "trainee");
+              if (r === "head") setNewCard(false);
+              setF((x) => ({ ...x, role: r, prefs: { ...x.prefs, homePage: v === "trainee" ? "/learn" : r === "operator" ? "/me" : "/dashboard" } }));
+            }}
+            ariaLabel="Роль"
+            minPopWidth={420}
+          />
         </Field>
       </div>
-      {AUTH_ENABLED && (
-        <Field
-          label={account ? "Новый пароль" : "Пароль для входа"}
-          hint={account ? "Оставьте пустым, чтобы не менять. Минимум 8 символов" : "Минимум 8 символов. Передайте человеку вместе с почтой — регистрации нет"}
-        >
-          <div className="row" style={{ gap: 6 }}>
-            <input className="inp" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={account ? "не менять" : "придумайте пароль"} autoComplete="new-password" spellCheck={false} style={{ flex: 1 }} />
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                const abc = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-                const buf = new Uint8Array(10);
-                crypto.getRandomValues(buf);
-                setPassword(Array.from(buf, (b) => abc[b % abc.length]).join(""));
-              }}
-            >
-              Сгенерировать
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm"
-              disabled={!password}
-              title={f.login.trim() ? "Скопировать почту и пароль — чтобы отправить человеку" : "Скопировать пароль"}
-              onClick={() => {
-                const text = f.login.trim() ? [`Вход в CRM: ${window.location.origin}`, `Почта: ${f.login.trim()}`, `Пароль: ${password}`].join("\n") : password;
-                void navigator.clipboard.writeText(text).then(() => {
-                  setCopied(true);
-                  window.setTimeout(() => setCopied(false), 1500);
-                });
-              }}
-            >
-              <Icon name={copied ? "check" : "copy"} size={13} /> {copied ? "Скопировано" : "Копировать"}
-            </button>
-          </div>
-        </Field>
-      )}
-      <Field label="Роль" hint={formRole === "trainee" ? TRAINEE_HINT : ACCOUNT_ROLE_HINT[f.role]}>
-        <Select<FormRole>
-          value={formRole}
-          options={[
-            ...(Object.keys(ACCOUNT_ROLE_LABEL) as AccountRole[]).map((r) => ({ value: r as FormRole, label: ACCOUNT_ROLE_LABEL[r], hint: ACCOUNT_ROLE_HINT[r] })),
-            { value: "trainee" as FormRole, label: "Стажёр", hint: "Только обучение: курс «Авто», Скорозвон, тесты" },
-          ]}
-          onChange={(v) => {
-            const r: AccountRole = v === "trainee" ? "operator" : v;
-            setTrainee(v === "trainee");
-            setF((x) => ({ ...x, role: r, prefs: { ...x.prefs, homePage: v === "trainee" ? "/learn" : r === "operator" ? "/me" : "/dashboard" } }));
-          }}
-          ariaLabel="Роль"
-          minPopWidth={420}
-        />
-      </Field>
+      <LoginFields login={f.login} onLogin={(v) => set("login", v)} password={password} onPassword={setPassword} existing={!!account} />
       <Field
         label="Карточка сотрудника"
-        hint={formRole === "trainee" ? "Обязательно: в карточке ставится роль «стажёр»" : f.role === "operator" ? "Обязательно: из неё берутся план, часы и заработок" : "Нужна, если этот человек тоже передаёт лиды"}
+        hint={
+          newCard
+            ? `Заведётся карточка «${trainee ? "стажёр" : f.role === "supervisor" ? "супервайзер" : "оператор"}» — та же, что в графике и списке операторов`
+            : formRole === "trainee"
+              ? "Обязательно: в карточке ставится роль «стажёр»; «Перевести в операторы» сменит её в этой же карточке"
+              : f.role === "operator"
+                ? "Обязательно: из неё берутся план, часы и заработок"
+                : "Нужна, если этот человек тоже передаёт лиды"
+        }
       >
         <Select
-          value={f.operatorId ?? ""}
+          value={newCard ? NEW_CARD : f.operatorId ?? ""}
           options={opOpts}
           onChange={(v) => {
+            if (v === NEW_CARD) {
+              setNewCard(true);
+              set("operatorId", null);
+              return;
+            }
+            setNewCard(false);
             const op = full.operators.find((o) => o.id === v);
+            if (op?.role === "trainee" && f.role === "operator") setTrainee(true);
             setF((x) => ({ ...x, operatorId: v || null, name: x.name.trim() ? x.name : op?.name ?? "" }));
           }}
           ariaLabel="Карточка сотрудника"
           minPopWidth={340}
         />
       </Field>
+      {newCard && (
+        <div className="grid2">
+          <Field label="Группа">
+            <Select value={card.groupId} options={groupOpts} onChange={(v) => setCard((c) => ({ ...c, groupId: v }))} ariaLabel="Группа" />
+          </Field>
+          <Field label={trainee ? "Начало обучения" : "Дата приёма"} hint="С неё человек в графике">
+            <DateInput value={card.date} onChange={(v) => setCard((c) => ({ ...c, date: v || today }))} ariaLabel="Дата начала" />
+          </Field>
+        </div>
+      )}
       {f.role === "supervisor" && (
         <Field label="Группы под управлением" hint="Плюс те, где он указан руководителем в карточке группы — они отмечены">
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
@@ -549,6 +585,168 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
           ariaLabel="Доступ"
         />
       </Field>
+    </Modal>
+  );
+}
+
+/* ── дубли карточек ──────────────────────────────────────────────── */
+
+/** Какую из двух карточек оставить по умолчанию: рабочую (не стажёра), потом с лидами, потом с аккаунтом. */
+function pickKeep(list: Operator[], st: DataState): Operator {
+  const score = (o: Operator) =>
+    (o.role !== "trainee" ? 1e6 : 0) + st.leads.filter((l) => l.operatorId === o.id).length * 10 + (st.accounts.some((a) => a.operatorId === o.id && !a.deletedAt) ? 1 : 0);
+  return [...list].sort((a, b) => score(b) - score(a))[0];
+}
+
+function DuplicatesSection() {
+  const { full } = useCrm();
+  const dups = useMemo(() => duplicateGroups(full.operators), [full.operators]);
+  const [merge, setMerge] = useState<{ keep: ID; drop: ID } | "manual" | null>(null);
+  return (
+    <Section
+      icon="users"
+      title="Дубли сотрудников"
+      sub="Один человек — одна карточка: из неё график, список операторов и зарплата, к ней привязан аккаунт. Объединение переносит лиды, смены, начисления и аккаунт в основную карточку."
+      action={
+        <button className="btn btn-sm" onClick={() => setMerge("manual")}>
+          Объединить вручную
+        </button>
+      }
+    >
+      {dups.length === 0 ? (
+        <span style={{ fontSize: 12.5, color: "var(--dim)" }}>Карточек с одинаковым ФИО нет.</span>
+      ) : (
+        <div className="stack" style={{ gap: 8 }}>
+          {dups.map((list) => {
+            const keep = pickKeep(list, full);
+            const others = list.filter((o) => o.id !== keep.id);
+            return (
+              <div key={keep.id} className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+                <Avatar name={keep.name} id={keep.id} size={26} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <b style={{ fontWeight: 600 }}>{keep.name}</b>
+                  <span style={{ fontSize: 12, color: "var(--dim)" }}> · {list.length} карточки: {list.map((o) => cardLabel(o, full)).join("; ")}</span>
+                </span>
+                {others.map((o) => (
+                  <button key={o.id} className="btn btn-sm btn-primary" onClick={() => setMerge({ keep: keep.id, drop: o.id })}>
+                    Объединить{others.length > 1 ? ` (${cardLabel(o, full)})` : ""}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {merge && <MergeModal init={merge === "manual" ? null : merge} onClose={() => setMerge(null)} />}
+    </Section>
+  );
+}
+
+function cardLabel(o: Operator, st: DataState): string {
+  const g = o.groupId ? st.groups.find((x) => x.id === o.groupId)?.name ?? "—" : "без группы";
+  return `${ROLE_LABEL[o.role].toLowerCase()}, ${g}${o.status === "fired" ? ", уволен" : ""}`;
+}
+
+function MergeModal({ init, onClose }: { init: { keep: ID; drop: ID } | null; onClose: () => void }) {
+  const { full, mergeOperators, confirm } = useCrm();
+  const [keep, setKeep] = useState<ID>(init?.keep ?? "");
+  const [drop, setDrop] = useState<ID>(init?.drop ?? "");
+  const [hire, setHire] = useState<"keep" | "drop" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const live = full.operators.filter((o) => !o.deletedAt).sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  const opts = (except: ID): Opt[] => [
+    { value: "", label: "— выберите —" },
+    ...live.filter((o) => o.id !== except).map((o) => ({ value: o.id, label: o.name, hint: cardLabel(o, full), icon: <Avatar name={o.name} id={o.id} size={20} /> })),
+  ];
+  const k = live.find((o) => o.id === keep) ?? null;
+  const d = live.find((o) => o.id === drop) ?? null;
+
+  const stat = (o: Operator) => {
+    const acc = full.accounts.find((a) => a.operatorId === o.id && !a.deletedAt);
+    return {
+      leads: full.leads.filter((l) => l.operatorId === o.id).length,
+      shifts: full.shifts.filter((s) => s.operatorId === o.id).length,
+      acc: acc ? acc.login || acc.name : null,
+    };
+  };
+  // дубль работал раньше даты приёма основной — по умолчанию берём раннюю дату, иначе эти дни выпадут из часов и зарплаты
+  const early = k && d && k.hireDate && full.shifts.some((s) => s.operatorId === d.id && s.hours > 0 && s.date < k.hireDate);
+  const hireChoice = hire ?? (early ? "drop" : "keep");
+  const datesDiffer = !!k && !!d && !!d.hireDate && k.hireDate !== d.hireDate;
+
+  const run = async () => {
+    if (!k || !d) return;
+    const sk = stat(k);
+    const sd = stat(d);
+    const accNote = sd.acc ? (sk.acc ? ` Аккаунт дубля (${sd.acc}) удалится — у основной есть свой.` : ` Аккаунт ${sd.acc} перейдёт к основной вместе с обучением.`) : "";
+    const ok = await confirm({
+      title: `Объединить «${d.name}» → «${k.name}»?`,
+      text: `К основной карточке перейдут лиды (${sd.leads}), смены (${sd.shifts}), начисления, заметки и планы дубля.${accNote} Дубль удалится. Если у дубля был привязан Telegram — привяжите его заново. Перед объединением делается резервная копия.`,
+      ok: "Объединить",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    const done = await mergeOperators(k.id, d.id, datesDiffer && hireChoice === "drop" ? d.hireDate : undefined);
+    setBusy(false);
+    if (done) onClose();
+  };
+
+  return (
+    <Modal
+      title="Объединить карточки"
+      onClose={onClose}
+      width={600}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            Отмена
+          </button>
+          <button className="btn btn-primary" disabled={busy || !k || !d} onClick={() => void run()}>
+            Объединить
+          </button>
+        </>
+      }
+    >
+      <div className="grid2">
+        <Field label="Основная — остаётся" hint="Её ФИО, группа, роль и условия оплаты">
+          <Select value={keep} options={opts(drop)} onChange={(v) => setKeep(v)} ariaLabel="Основная карточка" minPopWidth={360} />
+        </Field>
+        <Field label="Дубль — удалится" hint="Всё его переедет в основную">
+          <Select value={drop} options={opts(keep)} onChange={(v) => setDrop(v)} ariaLabel="Дубль" minPopWidth={360} />
+        </Field>
+      </div>
+      {k && d && (
+        <div className="grid2">
+          {[k, d].map((o) => {
+            const s = stat(o);
+            return (
+              <div key={o.id} className="card card-pad" style={{ fontSize: 12.5, display: "flex", flexDirection: "column", gap: 3 }}>
+                <b style={{ fontWeight: 600 }}>{o.id === k.id ? "Основная" : "Дубль"}</b>
+                <span>{cardLabel(o, full)}</span>
+                <span className="muted">Принят: {o.hireDate ? fmtDate(o.hireDate) : "—"}</span>
+                <span className="muted">
+                  Лидов {s.leads} · смен {s.shifts}
+                </span>
+                <span className="muted">Аккаунт: {s.acc ?? "нет"}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {k && d && datesDiffer && (
+        <Field label="Дата приёма основной" hint="С неё считаются часы, зарплата и стаж. Смены раньше этой даты в расчёт не попадут">
+          <Select<"keep" | "drop">
+            value={hireChoice}
+            options={[
+              { value: "keep", label: k.hireDate ? fmtDate(k.hireDate) : "не указана", hint: "как в основной" },
+              { value: "drop", label: fmtDate(d.hireDate), hint: "как в дубле" + (early ? " — у дубля есть смены раньше" : "") },
+            ]}
+            onChange={setHire}
+            ariaLabel="Дата приёма"
+          />
+        </Field>
+      )}
     </Modal>
   );
 }

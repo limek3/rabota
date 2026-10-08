@@ -10,9 +10,10 @@ import { hasBonus, isSalary, isSvVolume, isTiered } from "@/lib/crm/payroll";
 import { GridField } from "./RateGrids";
 import { todayKey } from "@/lib/crm/dates";
 import { hasEmploymentColumn } from "@/lib/crm/remote";
+import { sameNameOps } from "@/lib/crm/dupes";
 
 export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Partial<OperatorInput> }) {
-  const { data, closeModal, saveOperator, toast, access, remote } = useCrm();
+  const { data, closeModal, saveOperator, toast, confirm, access, remote } = useCrm();
   const s = data.settings;
   // супервайзер ставит людей только в свои группы
   const groups = data.groups.filter((g) => !g.deletedAt && (access.isHead || access.ownGroups.has(g.id)));
@@ -57,6 +58,18 @@ export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Pa
   const submit = async () => {
     setTried(true);
     if (errName || errDates || busy) return;
+    // один человек — одна карточка: тёзка уже есть — переспрашиваем, иначе он задвоится в графике
+    const same = op ? [] : sameNameOps(data.operators, f.name);
+    if (same.length) {
+      const t = same[0];
+      const g = t.groupId ? data.groups.find((x) => x.id === t.groupId)?.name : "без группы";
+      const again = await confirm({
+        title: `«${t.name}» уже есть`,
+        text: `Карточка: ${ROLE_LABEL[t.role].toLowerCase()}, ${g}${t.status === "fired" ? ", уволен(а)" : ""}. Если это тот же человек — отмените и откройте его карточку (стажёра в операторы переводит «Принять в штат» или «Обучение команды»). Вторая карточка задвоит его в графике.`,
+        ok: "Всё равно создать",
+      });
+      if (!again) return;
+    }
     setBusy(true);
     const saved = await saveOperator({ ...f, id: op?.id });
     setBusy(false);
