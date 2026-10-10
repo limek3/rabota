@@ -167,11 +167,15 @@ const cal4 = monthCal("2026-09", s4.settings, today);
 const pr = payroll(s4, ix4, cal4);
 // оклад супервайзера — за отработанные по графику дни: оклад ÷ рабочие дни месяца × дни, не больше оклада
 const svBase = (r) => {
-  const days = cal4.days.filter((d) => d <= cal4.ref);
-  const has = cal4.days.some((d) => ix4.shift.has(`${d}|${r.op.id}`));
-  const n = has
-    ? days.filter((d) => { const sh = ix4.shift.get(`${d}|${r.op.id}`); return sh && (sh.type === "work" || sh.type === "training") && sh.hours > 0; }).length
-    : days.filter((d) => cal4.isWork(d)).length;
+  const days = cal4.days.filter((d) => d <= cal4.ref && d <= ix4.workedTo);
+  // день СВ: смена «работа»/«обучение»; без записи в графике — рабочий день недели в пределах приёма/увольнения
+  const n = days.filter((d) => {
+    const sh = ix4.shift.get(`${d}|${r.op.id}`);
+    if (sh) return sh.type === "work" || sh.type === "training";
+    if (r.op.hireDate && d < r.op.hireDate) return false;
+    if (r.op.status === "fired" && (!r.op.fireDate || d > r.op.fireDate)) return false;
+    return cal4.isWork(d);
+  }).length;
   return r.salary * Math.min(1, n / cal4.W);
 };
 for (const r of pr.rows) {

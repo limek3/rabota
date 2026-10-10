@@ -162,6 +162,9 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
     if (!last || d > last) ix.lastLead.set(l.operatorId, d);
   }
   for (const s of st.shifts) {
+    // после даты увольнения смен нет: в графике там «уволен», в часы и зарплату остатки не идут
+    const op = ix.opById.get(s.operatorId);
+    if (op?.status === "fired" && op.fireDate && s.date > op.fireDate) continue;
     ix.shift.set(`${s.date}|${s.operatorId}`, s);
     const m = s.date.slice(0, 7);
     addTo(ix.opMonths, s.operatorId, m);
@@ -180,6 +183,19 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
     ix.months.add(a.month);
   }
   return ix;
+}
+
+/**
+ * Рабочий день супервайзера: смена «работа»/«обучение» в графике, а без записи — рабочий день
+ * недели (пн–пт по настройкам) с даты приёма по дату увольнения. График СВ по умолчанию не заполняют:
+ * в графике такие дни видны отметкой без часов, оклад начисляется за них.
+ */
+export function svWorkday(ix: Index, op: Operator, d: DayKey, isWork: (d: DayKey) => boolean): boolean {
+  const sh = ix.shift.get(`${d}|${op.id}`);
+  if (sh) return WORKED_TYPES.has(sh.type);
+  if (op.hireDate && d < op.hireDate) return false;
+  if (op.status === "fired" && (!op.fireDate || d > op.fireDate)) return false;
+  return isWork(d);
 }
 
 /** Сумма по картам дней за диапазон. */

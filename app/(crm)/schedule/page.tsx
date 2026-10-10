@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { createPortal } from "react-dom";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
-import { goneLast, isGone, sumRange, type OpRow } from "@/lib/crm/calc";
+import { goneLast, isGone, sumRange, svWorkday, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, HOURS_DAY_TYPES, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
@@ -25,8 +25,10 @@ const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training:
  *   train — обучение
  *   plat  — обучение на платформе (часы не оплачиваются и не идут в конверсию)
  *   sick / vac — больничный / отпуск
- *   gone  — после увольнения
- * Выходной и дни до приёма — без полосы.
+ *   gone  — после увольнения (смены после даты увольнения не учитываются)
+ * Выходной — буква «В»; прошедший день без смены и без лидов тоже считается выходным.
+ * Супервайзер: график не заполняют — рабочие дни недели отмечены полосой без цифр
+ * (часы СВ в показатели не идут, оклад — за эти дни).
  */
 type Lane = "work" | "plan" | "train" | "plat" | "sick" | "vac" | "gone" | "pre";
 const LANE_TAG: Partial<Record<Lane, string>> = { sick: "Б", vac: "О", gone: "У" };
@@ -92,7 +94,7 @@ export default function SchedulePage() {
   const rows = useMemo(
     () =>
       m.ops
-        .filter((r) => !r.op.deletedAt || r.hours > 0)
+        .filter((r) => !r.op.deletedAt || r.hours > 0 || r.pace.fact > 0)
         // фильтр группы: её операторы и супервайзер, который её ведёт
         .filter((r) => !group || r.groupKey === group || led.get(r.op.id) === group)
         .sort((a, b) => {
@@ -101,6 +103,12 @@ export default function SchedulePage() {
           return Number(isSvRow(b)) - Number(isSvRow(a)) || ga.localeCompare(gb, "ru") || goneLast(a.op, b.op) || a.op.name.localeCompare(b.op.name, "ru");
         }),
     [m.ops, group, ix, led, isSvRow],
+  );
+
+  // у супервайзера вместо часов — отработанные дни по графику (закрытые дни месяца), как в окладе
+  const svDays = useCallback(
+    (r: OpRow) => days.filter((d) => d <= ix.workedTo && d <= today && svWorkday(ix, r.op, d, m.cal.isWork)).length,
+    [days, ix, today, m.cal],
   );
 
   const dayTotals = useMemo(
@@ -168,8 +176,9 @@ export default function SchedulePage() {
   const tot = useMemo(() => {
     const hours = rows.reduce((a, r) => a + (ix.svIds.has(r.op.id) ? 0 : r.hours), 0);
     const leads = rows.reduce((a, r) => a + r.pace.fact, 0);
-    const planToDate = rows.reduce((a, r) => a + r.pace.planToDate, 0);
-    const plan = rows.reduce((a, r) => a + r.pace.plan, 0);
+    // план СВ в план отдела не входит (как в сводке и отчёте), его лиды — входят
+    const planToDate = rows.reduce((a, r) => a + (ix.svIds.has(r.op.id) ? 0 : r.pace.planToDate), 0);
+    const plan = rows.reduce((a, r) => a + (ix.svIds.has(r.op.id) ? 0 : r.pace.plan), 0);
     return { hours, leads, planToDate, plan };
   }, [rows, ix]);
 
@@ -214,10 +223,12 @@ export default function SchedulePage() {
       if (!d) continue;
       if (isWorkday(d, s)) workdays++;
       for (const r of rows) {
+        // как в «Итого по дням»: смены супервайзера в часы и конверсию не идут, его лиды — идут
+        leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
+        if (ix.svIds.has(r.op.id)) continue;
         const hh = ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
         hours += hh;
         if (hh > 0) shifts++;
-        leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
       }
     }
     return { from: days[c0], to: days[c1], c0, c1, count: c1 - c0 + 1, workdays, hours, leads, shifts };
@@ -285,7 +296,9 @@ export default function SchedulePage() {
         if (rangeSize(rng) === 1) {
           const row = rows[rng.a.r];
           const day = days[rng.a.c];
-          if (row && day) setSel({ opId: row.op.id, day, rect: lastRect.current });
+          // после даты увольнения смен нет — редактор не открываем
+          const gone = row?.op.status === "fired" && !!row.op.fireDate && !!day && day > row.op.fireDate;
+          if (row && day && !gone) setSel({ opId: row.op.id, day, rect: lastRect.current });
           return null;
         }
         const cells: { opId: string; day: DayKey }[] = [];
@@ -429,7 +442,7 @@ export default function SchedulePage() {
                 const shut = collapsed.has(sec.key);
                 return (
                   <Fragment key={sec.key}>
-                    <SectionRow sec={sec} rows={rows} dayCount={days.length} shut={shut} onToggle={() => toggleSection(sec.key)} />
+                    <SectionRow sec={sec} rows={rows} dayCount={days.length} shut={shut} onToggle={() => toggleSection(sec.key)} svDays={svDays} />
                     {!shut &&
                       sec.idx.map((i) => (
                         <SchedRow
@@ -442,6 +455,7 @@ export default function SchedulePage() {
                           colSel={colSel}
                           onDown={startCell}
                           leads={sec.sv ? ix.groupById.get(led.get(rows[i].op.id) ?? "")?.name ?? null : null}
+                          svDays={ix.svIds.has(rows[i].op.id) ? svDays(rows[i]) : null}
                         />
                       ))}
                   </Fragment>
@@ -554,6 +568,7 @@ function SchedRow({
   colSel,
   onDown,
   leads,
+  svDays,
 }: {
   r: OpRow;
   rowIndex: number;
@@ -564,15 +579,21 @@ function SchedRow({
   onDown: (r: number, c: number, rect: { left: number; top: number; bottom: number; width: number }) => void;
   /** Строка в блоке «Супервайзеры»: группа, которую он ведёт (подпись под именем). */
   leads?: string | null;
+  /** Супервайзер: отработанные дни месяца (вместо часов); null — оператор линии. */
+  svDays: number | null;
 }) {
   const { ix, data, today, access } = useCrm();
   const s = data.settings;
   const canEdit = canEditShift(access, r.op.id);
   const counts = ix.opDay.get(r.op.id);
   const hire = r.op.hireDate;
-  const fire = r.op.fireDate;
+  const fire = r.op.status === "fired" ? r.op.fireDate : "";
+  const sv = svDays != null;
+  const isWork = (d: DayKey) => isWorkday(d, s);
   // вид дня для ленты; соседи одного вида сливаются в полосу
   const laneOf = (d: DayKey): Lane | null => {
+    // после даты увольнения — штриховка «уволен», что бы ни осталось в графике
+    if (fire && d > fire) return "gone";
     const sh = ix.shift.get(`${d}|${r.op.id}`);
     if (sh) {
       if (sh.type === "sick") return "sick";
@@ -582,16 +603,20 @@ function SchedRow({
       if (sh.type === "platform") return "plat";
       return d > today ? "plan" : "work";
     }
-    if (r.op.status === "fired" && fire && d >= fire) return "gone";
     // до даты приёма — серая штриховка
     if (hire && d < hire) return "pre";
     // лиды без смены — всё равно отработанный день
-    return (counts?.get(d) ?? 0) > 0 ? "work" : null;
+    if ((counts?.get(d) ?? 0) > 0) return "work";
+    // день увольнения без смены
+    if (fire && d >= fire) return "gone";
+    // супервайзер без записи в графике — рабочие дни недели
+    if (sv && svWorkday(ix, r.op, d, isWork)) return d > today ? "plan" : "work";
+    return null;
   };
   const lanes = days.map(laneOf);
   const ddmm = (d: DayKey) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
   const opSub =
-    r.op.status === "fired" && fire
+    fire
       ? `уволен(а) ${ddmm(fire)}`
       : leads
         ? `ведёт ${leads}`
@@ -614,13 +639,14 @@ function SchedRow({
       {days.map((d, colIndex) => {
         const sh = ix.shift.get(`${d}|${r.op.id}`);
         const off = !isWorkday(d, s);
-        // уволен: с даты увольнения — «У» (если смены в этот день нет); до приёма — штриховка
-        const gone = r.op.status === "fired" && !!fire && d >= fire && !sh;
+        const lane = lanes[colIndex];
+        const gone = lane === "gone";
         const outside = !!hire && d < hire;
+        // прошедший день без смены и без лидов — выходной
+        const restDay = !lane && !sh && d < today && !outside;
         const n = counts?.get(d) ?? 0;
         const isSel = sel?.opId === r.op.id && sel.day === d;
         const isRange = inRange(range, rowIndex, colIndex);
-        const lane = lanes[colIndex];
         const edge = lane ? `${lanes[colIndex - 1] !== lane ? " first" : ""}${lanes[colIndex + 1] !== lane ? " last" : ""}` : "";
         // больничный, отпуск, «уволен», «до приёма» — полоса без часов: каждая клетка рисует свой кусок,
         // соседние сливаются (first/last), подпись — в первой. Один блок на всю серию из первой клетки
@@ -631,8 +657,8 @@ function SchedRow({
           <td
             key={d}
             className={`cell ${off ? "off" : ""} ${d === today ? "today" : ""} ${isSel ? "sel" : ""} ${isRange ? "rng" : ""} ${colSel && colIndex >= colSel.c0 && colIndex <= colSel.c1 ? "csel" : ""}`}
-            style={{ cursor: canEdit ? undefined : "default" }}
-            title={`${fmtDay(d)}${sh ? ` · ${DAY_LABEL[sh.type]}${sh.hours ? `, ${fmtNum(sh.hours)} ч` : ""}${sh.comment ? ` · ${sh.comment}` : ""}` : ""}${n ? ` · лидов: ${n}` : ""}${outside ? " · до даты приёма" : ""}${gone ? " · уволен" : ""}`}
+            style={{ cursor: canEdit && !gone ? undefined : "default" }}
+            title={`${fmtDay(d)}${sh && !gone ? ` · ${DAY_LABEL[sh.type]}${sh.hours && !sv ? `, ${fmtNum(sh.hours)} ч` : ""}${sh.comment ? ` · ${sh.comment}` : ""}` : ""}${!sh && sv && (lane === "work" || lane === "plan") && !n ? " · рабочий день супервайзера" : ""}${restDay ? " · выходной (смена не записана)" : ""}${n ? ` · лидов: ${n}` : ""}${outside ? " · до даты приёма" : ""}${gone ? " · уволен" : ""}`}
             onMouseDown={(e) => {
               if (!canEdit || e.button !== 0) return;
               e.preventDefault(); // иначе браузер начинает выделять текст
@@ -645,25 +671,32 @@ function SchedRow({
               <div className={`lane ${lane}${edge}`}>{edge.includes("first") && <span className="lane-tag">{LANE_TAG[lane!]}</span>}</div>
             ) : lane ? (
               <div className={`lane ${lane}${edge}`}>
-                {lane === "work" || lane === "train" ? (
+                {lane === "plat" ? (
+                  // обучение на платформе — буквой, без часов
+                  <span className="lane-h">П</span>
+                ) : sv ? null : lane === "work" || lane === "train" ? (
+                  // у супервайзера (выше) — полоса без цифр: часы и лиды в его графике не считаем
                   <>
                     <span className="lane-h num">{fmtNum(hours)}</span>
                     {d <= today && <span className="lane-n num">{n || "–"}</span>}
                   </>
-                ) : lane === "plat" ? (
-                  // обучение на платформе — буквой, без часов
-                  <span className="lane-h">П</span>
                 ) : (
                   <span className="lane-h num">{fmtNum(hours)}</span>
                 )}
               </div>
-            ) : sh?.type === "off" ? (
+            ) : sh?.type === "off" || restDay ? (
               <span className="lane-off">В</span>
             ) : null}
           </td>
         );
       })}
-      <td className="r num sum sum-h">{fmtNum(r.hours)}</td>
+      {sv ? (
+        <td className="r num sum sum-h" title="Отработано дней по графику — за них начисляется оклад; часы супервайзера не считаем">
+          {svDays} дн.
+        </td>
+      ) : (
+        <td className="r num sum sum-h">{fmtNum(r.hours)}</td>
+      )}
       <td className="r num sum sum-l"><LeadN n={r.pace.fact} /></td>
       <LeadsDelta fact={r.pace.fact} plan={r.pace.plan} planToDate={r.pace.planToDate} />
       {/* у супервайзера конверсии нет: его часы — работа с группой */}
@@ -683,15 +716,36 @@ interface Section {
 }
 
 /** Заголовок секции: «Группа · N чел.» / «Уволены · N», свернуть-развернуть, итоги секции справа. */
-function SectionRow({ sec, rows, dayCount, shut, onToggle }: { sec: Section; rows: OpRow[]; dayCount: number; shut: boolean; onToggle: () => void }) {
+function SectionRow({
+  sec,
+  rows,
+  dayCount,
+  shut,
+  onToggle,
+  svDays,
+}: {
+  sec: Section;
+  rows: OpRow[];
+  dayCount: number;
+  shut: boolean;
+  onToggle: () => void;
+  svDays: (r: OpRow) => number;
+}) {
+  const { ix } = useCrm();
   let hours = 0;
   let leads = 0;
   let plan = 0;
   let planToDate = 0;
+  let days = 0;
   for (const i of sec.idx) {
     const r = rows[i];
-    hours += r.hours;
     leads += r.pace.fact;
+    // супервайзер (и уволенный тоже) — без часов и плана: в итоги секции идут только его лиды
+    if (ix.svIds.has(r.op.id)) {
+      if (sec.sv) days += svDays(r);
+      continue;
+    }
+    hours += r.hours;
     plan += r.pace.plan;
     planToDate += r.pace.planToDate;
   }
@@ -706,7 +760,7 @@ function SectionRow({ sec, rows, dayCount, shut, onToggle }: { sec: Section; row
         </button>
       </td>
       <td colSpan={dayCount} />
-      <td className="r num sum sum-h">{fmtNum(hours)}</td>
+      {sec.sv ? <td className="r num sum sum-h" title="Отработано дней по графику">{days} дн.</td> : <td className="r num sum sum-h">{fmtNum(hours)}</td>}
       <td className="r num sum sum-l"><LeadN n={leads} /></td>
       <LeadsDelta fact={leads} plan={plan} planToDate={planToDate} />
       {sec.sv ? <td className="r num muted sum sum-c">—</td> : <td className="r num sum sum-c"><Conv leads={leads} hours={hours} /></td>}
@@ -1024,7 +1078,8 @@ function FillModal({ rows, onClose }: { rows: OpRow[]; onClose: () => void }) {
   const pat = PATTERNS.find((p) => p.v === pattern) ?? PATTERNS[0];
 
   const plan = useMemo(() => {
-    const ops = rows.filter((r) => (who === "all" ? r.op.status === "active" && !r.op.deletedAt : r.op.id === who));
+    // «всем» — операторам линии: супервайзер по умолчанию работает пн–пт, его график ставят отдельно
+    const ops = rows.filter((r) => (who === "all" ? r.op.status === "active" && !r.op.deletedAt && !ix.svIds.has(r.op.id) : r.op.id === who));
     const items: { date: DayKey; operatorId: string; hours: number; type: DayType }[] = [];
     const days = rangeDays(from, to);
     for (const r of ops) {
@@ -1101,7 +1156,7 @@ function FillModal({ rows, onClose }: { rows: OpRow[]; onClose: () => void }) {
         <Select
           value={who}
           options={[
-            { value: "all", label: `Всем активным в списке (${rows.filter((r) => r.op.status === "active" && !r.op.deletedAt).length})` },
+            { value: "all", label: `Всем активным в списке (${rows.filter((r) => r.op.status === "active" && !r.op.deletedAt && !ix.svIds.has(r.op.id)).length})` },
             ...rows.map<Opt>((r) => ({ value: r.op.id, label: shortName(r.op.name) })),
           ]}
           onChange={setWho}

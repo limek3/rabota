@@ -893,16 +893,13 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
   /* ── операторы ─────────────────────────────────────────────────── */
   /**
-   * Смены уволенного/удалённого, запланированные наперёд: с даты ухода (но не раньше сегодня)
-   * и только дни без лидов — в графике на их месте встанет «У». История не трогается.
-   * Без права вести график у этого оператора — ничего не снимаем.
+   * Смены уволенного/удалённого после даты увольнения (она — последний рабочий день): все, в том числе
+   * задним числом — в графике на их месте встанет «уволен». Смены по дату увольнения включительно не трогаем.
+   * Без права вести график у этого оператора — ничего не снимаем (в расчётах они и так не учитываются).
    */
   const plannedAfterLeave = useCallback((opId: ID, from: DayKey): ID[] => {
     if (!canEditShift(accessRef.current, opId)) return [];
-    const t = todayKey();
-    const cut = from > t ? from : t;
-    const leads = ixRef.current.opDay.get(opId);
-    return dataRef.current.shifts.filter((s) => s.operatorId === opId && s.date >= cut && !leads?.get(s.date)).map((s) => s.id);
+    return dataRef.current.shifts.filter((s) => s.operatorId === opId && s.date > from).map((s) => s.id);
   }, []);
 
   const saveOperator = useCallback<Store["saveOperator"]>(
@@ -948,7 +945,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
           shifts: drop.length ? d.shifts.filter((s) => !drop.includes(s.id)) : d.shifts,
         }),
       );
-      if (ok) void log("operator", op.id, opDiff(prev, op) + (drop.length ? ` · снято плановых смен: ${drop.length}` : ""), changesOf("operator", prev, op));
+      if (ok) void log("operator", op.id, opDiff(prev, op) + (drop.length ? ` · снято смен после увольнения: ${drop.length}` : ""), changesOf("operator", prev, op));
       return ok ? op : null;
     },
     [commit, toast, deny, log, opDiff, plannedAfterLeave],
@@ -967,7 +964,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
             .filter((x) => x.operatorId === id && x.role === "operator" && x.active)
             .map((x) => ({ ...x, active: false, updatedAt: op.updatedAt }))
         : [];
-      // уволили — запланированные наперёд смены снимаем, в графике будет «У»
+      // уволили — смены после даты увольнения снимаем, в графике там «уволен»
       const leaving = op.status === "fired" && op.fireDate && (prev.status !== "fired" || prev.fireDate !== op.fireDate);
       const drop = leaving ? plannedAfterLeave(id, op.fireDate) : [];
       const ok = await commit(
@@ -980,7 +977,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         }),
       );
       if (ok) {
-        void log("operator", id, opDiff(prev, op) + (drop.length ? ` · снято плановых смен: ${drop.length}` : ""), changesOf("operator", prev, op));
+        void log("operator", id, opDiff(prev, op) + (drop.length ? ` · снято смен после увольнения: ${drop.length}` : ""), changesOf("operator", prev, op));
         if (okText) toast(okText);
       }
     },
@@ -1060,7 +1057,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         }),
       );
       if (ok) {
-        void log("operator", id, `${op.name}: удалён${upd.status !== op.status ? ", уволен с сегодняшнего дня" : ""}${drop.length ? ` · снято плановых смен: ${drop.length}` : ""}`, changesOf("operator", op, upd));
+        void log("operator", id, `${op.name}: удалён${upd.status !== op.status ? ", уволен с сегодняшнего дня" : ""}${drop.length ? ` · снято смен после увольнения: ${drop.length}` : ""}`, changesOf("operator", op, upd));
         toast(`Оператор удалён, история сохранена`, "info", {
           label: "Вернуть",
           // возвращаем и прежний статус (снятые плановые смены — нет, их проще поставить заново)

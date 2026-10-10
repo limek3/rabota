@@ -1,5 +1,5 @@
 import type { Adjustment, AdjustmentType, DataState, DayKey, Grade, ID, Operator, PayType, RateTier, SvBonusGrid, Track } from "./types";
-import { WORKED_TYPES, type Index, type MonthCal, monthOperators, opTerms, sumRange, supervisedGroups, supervisedLeads } from "./calc";
+import { type Index, type MonthCal, monthOperators, opTerms, sumRange, supervisedGroups, svWorkday, supervisedLeads } from "./calc";
 import { addMonths, monthDays } from "./dates";
 import { round2, safeDiv } from "./format";
 
@@ -202,14 +202,8 @@ export function accrual(op: Operator, cal: MonthCal, st: DataState, ix: Index, u
   if (isSvVolume(t.payType)) {
     // оклад + KPI (бонус за объём лидов его групп). Оклад — за отработанные по графику дни:
     // оклад ÷ рабочие дни месяца × отработанные дни, не больше оклада. Часы в смене не важны.
-    // Графика в месяце нет вовсе — считаем по прошедшим рабочим дням календаря, как раньше.
-    const hasSchedule = cal.days.some((d) => ix.shift.has(`${d}|${op.id}`));
-    const credited = hasSchedule
-      ? days.filter((d) => {
-          const sh = ix.shift.get(`${d}|${op.id}`);
-          return !!sh && WORKED_TYPES.has(sh.type) && sh.hours > 0;
-        }).length
-      : days.filter((d) => cal.isWork(d)).length;
+    // Дни без записи в графике — рабочие дни недели (svWorkday): больничный, отпуск, выходной — не в счёт.
+    const credited = days.filter((d) => svWorkday(ix, op, d, cal.isWork)).length;
     salaryShare = Math.min(1, credited / cal.W);
     base = t.salary * salaryShare;
     const gLeads = supervisedLeads(st, ix, op.id, cal.month);

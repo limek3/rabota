@@ -157,13 +157,15 @@ Deno.serve(async (req) => {
     const admin = createClient(url, service, { auth: { persistSession: false } });
     const [{ data: shifts, error: sErr }, { data: ops, error: oErr }] = await Promise.all([
       admin.from("shifts").select("id, date, operator_id, hours, type, comment").eq("date", date).in("type", ["work", "training"]),
-      admin.from("operators").select("id, name, deleted_at"),
+      admin.from("operators").select("id, name, deleted_at, status, fire_date"),
     ]);
     if (sErr || oErr) return json({ error: (sErr ?? oErr)!.message }, 500);
     if (!shifts?.length) return json({ date, updated: [], skipped: [], note: "В графике на этот день нет смен" });
 
     const rows = (await employment(date)).map((row) => ({ w: new Set(words(row.full_name)), row }));
-    const opById = new Map((ops ?? []).filter((o) => !o.deleted_at).map((o) => [o.id as string, o as Op]));
+    // уволенный после даты увольнения не работает: остаток смены в графике часами не заполняем
+    const gone = (o: { status?: string; fire_date?: string | null }) => o.status === "fired" && (!o.fire_date || date > o.fire_date);
+    const opById = new Map((ops ?? []).filter((o) => !o.deleted_at && !gone(o)).map((o) => [o.id as string, o as Op]));
 
     const updated: { name: string; from: number; to: number; parts: Record<string, number> }[] = [];
     const skipped: { name: string; why: string }[] = [];
