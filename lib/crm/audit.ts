@@ -67,6 +67,7 @@ const FIELDS: Partial<Record<AuditEntity, Record<string, Spec>>> = {
     contact: S("text", "Контакт"),
     comment: S("text", "Комментарий"),
     employment: S(EMPLOYMENT_LABEL, "Оформление"),
+    startTime: S("text", "Выход на смену"),
     deletedAt: S("bool", "Удалён"),
   },
   group: {

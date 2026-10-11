@@ -5,12 +5,14 @@ import { createPortal } from "react-dom";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
 import { goneLast, isGone, sumRange, svWorkday, type OpRow } from "@/lib/crm/calc";
-import { DAY_LABEL, DAY_SHORT, HOURS_DAY_TYPES, NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Shift } from "@/lib/crm/types";
+import { DAY_LABEL, DAY_SHORT, HOURS_DAY_TYPES, NO_GROUP, NO_GROUP_LABEL, startTimeLabel, type DayKey, type DayType, type Operator, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { Avatar, Conv, Empty, Field, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg } from "@/components/ui/kit";
-import { DateInput, Select, dot, uiZoom, type Opt } from "@/components/ui/select";
-import { canEditShift } from "@/lib/crm/access";
+import { DateInput, Layer, Select, dot, uiZoom, usePopover, type Opt } from "@/components/ui/select";
+import { canEditShift, canManageOperator } from "@/lib/crm/access";
+import { startTimeOpts } from "@/components/app/OperatorModal";
+import { hasStartTimeColumn } from "@/lib/crm/remote";
 import { Icon } from "@/components/ui/icons";
 import { SkorozvonHours } from "@/components/app/SkorozvonHours";
 import { supabaseReady } from "@/lib/supabase";
@@ -147,9 +149,12 @@ export default function SchedulePage() {
     });
     return out;
   }, [rows, ix, isSvRow]);
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  // свёрнутость секций: «Уволены» при открытии свёрнуты, остальные — развёрнуты; в наборе — секции,
+  // которые переключили вручную
+  const [flipped, setFlipped] = useState<Set<string>>(() => new Set());
+  const isShut = useCallback((sec: Section) => sec.gone !== flipped.has(sec.key), [flipped]);
   const toggleSection = (key: string) =>
-    setCollapsed((prev) => {
+    setFlipped((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -158,9 +163,9 @@ export default function SchedulePage() {
   // строки свёрнутых секций не попадают в выделение протягиванием
   const hiddenRows = useMemo(() => {
     const h = new Set<number>();
-    for (const sec of sections) if (collapsed.has(sec.key)) sec.idx.forEach((i) => h.add(i));
+    for (const sec of sections) if (isShut(sec)) sec.idx.forEach((i) => h.add(i));
     return h;
-  }, [sections, collapsed]);
+  }, [sections, isShut]);
   // «–» в итогах дня — начиная с первого дня, когда в графике кто-то работал
   const firstActive = dayTotals.findIndex((t) => t.h > 0 || t.n > 0);
 
@@ -439,7 +444,7 @@ export default function SchedulePage() {
             </thead>
             <tbody>
               {sections.map((sec) => {
-                const shut = collapsed.has(sec.key);
+                const shut = isShut(sec);
                 return (
                   <Fragment key={sec.key}>
                     <SectionRow sec={sec} rows={rows} dayCount={days.length} shut={shut} onToggle={() => toggleSection(sec.key)} svDays={svDays} />
@@ -634,6 +639,7 @@ function SchedRow({
             </span>
             {opSub && <span className="op-sub">{opSub}</span>}
           </span>
+          {!fire && <StartChip op={r.op} />}
         </span>
       </td>
       {days.map((d, colIndex) => {
@@ -702,6 +708,62 @@ function SchedRow({
       {/* у супервайзера конверсии нет: его часы — работа с группой */}
       {ix.svIds.has(r.op.id) ? <td className="r num muted sum sum-c">—</td> : <td className="r num sum sum-c"><Conv leads={r.pace.fact} hours={r.hours} /></td>}
     </tr>
+  );
+}
+
+/** Чип «во сколько выходит» справа от ФИО: 9:00, 10:00, 14:00 (с обеда). Клик — выбор из списка. */
+function StartChip({ op }: { op: Operator }) {
+  const { access, saveOperator, toast, remote } = useCrm();
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const { style } = usePopover(open, btnRef, popRef, () => setOpen(false));
+  const canEdit = canManageOperator(access, op);
+  const t = op.startTime ?? "";
+  const label = startTimeLabel(t);
+  if (!label && !canEdit) return null;
+  const pick = async (v: string) => {
+    setOpen(false);
+    if (v === t) return;
+    if (remote && !hasStartTimeColumn()) {
+      toast("В базе нет колонки времени выхода. Выполните supabase/migrations/20261011000001_operator_start_time.sql в SQL Editor", "err");
+      return;
+    }
+    await saveOperator({ ...op, startTime: v });
+  };
+  const tip = label ? `Выходит с ${label}` : "Время выхода не указано";
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className={`op-start${label ? "" : " unset"}${open ? " open" : ""}`}
+        title={canEdit ? `${tip} — нажмите, чтобы изменить` : tip}
+        disabled={!canEdit}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() => setOpen((x) => !x)}
+      >
+        <Icon name="clock" size={11} />
+        {label || "—"}
+      </button>
+      {open && (
+        <Layer>
+          <div ref={popRef} className="sel-pop" style={{ ...style, minWidth: 150 }} role="presentation">
+            <div className="sel-list" role="listbox" aria-label="Выход на смену">
+              {startTimeOpts(t).map((o) => {
+                const on = o.value === t;
+                return (
+                  <div key={o.value} role="option" aria-selected={on} className={`sel-opt ${on ? "is-on" : ""}`} onClick={() => void pick(o.value)}>
+                    <span className="sel-check">{on ? <Icon name="check" size={13} stroke={2.4} /> : null}</span>
+                    <span className="sel-label">{o.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Layer>
+      )}
+    </>
   );
 }
 

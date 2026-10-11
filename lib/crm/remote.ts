@@ -45,10 +45,17 @@ let leadRegionReady = true;
 export const hasLeadRegionColumn = () => leadRegionReady;
 const isMissingRegion = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /region/.test(e.message);
 const dropCol = (rows: Record<string, unknown>[], col: string) => rows.map(({ [col]: _drop, ...rest }) => rest);
-/** Колонка operators.employment (оформление: СМЗ) — без неё операторы пишутся без неё, а поле в карточке просит выполнить SQL. */
-let opEmploymentReady = true;
-export const hasEmploymentColumn = () => opEmploymentReady;
-const isMissingEmployment = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /employment/.test(e.message);
+/**
+ * Поздние колонки operators: employment (оформление: СМЗ) и start_time (выход на смену). Пока SQL
+ * не выполнен — операторы пишутся без них, а поле в карточке просит выполнить SQL.
+ */
+const OP_LATE_COLS = ["employment", "start_time"] as const;
+const opColReady: Record<(typeof OP_LATE_COLS)[number], boolean> = { employment: true, start_time: true };
+export const hasEmploymentColumn = () => opColReady.employment;
+export const hasStartTimeColumn = () => opColReady.start_time;
+const missingOpCol = (e: { message: string; code?: string } | null) =>
+  e && (e.code === "PGRST204" || e.code === "42703") ? OP_LATE_COLS.find((c) => opColReady[c] && e.message.includes(c)) : undefined;
+const dropOpCols = (rows: Record<string, unknown>[]) => OP_LATE_COLS.reduce((acc, c) => (opColReady[c] ? acc : dropCol(acc, c)), rows);
 /** Колонка audit.changes (было → стало) — без неё журнал пишется как раньше, одной строкой. */
 let auditChangesReady = true;
 const isMissingChanges = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /changes/.test(e.message);
@@ -102,7 +109,7 @@ export async function loadAll(): Promise<{ state: DataState; persistent: boolean
     leadRegionReady = "region" in leadRows[0];
   }
   const opRows = rows[TABLES.indexOf("operators")];
-  if (opRows.length) opEmploymentReady = "employment" in opRows[0];
+  if (opRows.length) for (const c of OP_LATE_COLS) opColReady[c] = c in opRows[0];
   const val = (key: string) => kv.find((r) => r.key === key)?.value as unknown;
   // секреты выгрузки лежат отдельно (читает только РОП) — собираем настройки обратно
   const settings = (val("settings") ?? {}) as Partial<Settings>;
@@ -137,17 +144,17 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
   for (const part of chunks(recs, 500)) {
     let rows = part.map((r) => toRow(table, r));
     if (table === "audit" && !auditChangesReady) rows = dropCol(rows, "changes");
-    if (table === "operators" && !opEmploymentReady) rows = dropCol(rows, "employment");
+    if (table === "operators") rows = dropOpCols(rows);
     // журнал — только добавление: читать его могут не все, а upsert требует права чтения
     let { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
     if (error && table === "audit" && isMissingChanges(error)) {
       auditChangesReady = false;
       ({ error } = await supabase().from(table).insert(dropCol(rows, "changes")));
     }
-    // колонки оформления ещё нет (не выполнен SQL) — сохраняем оператора без неё
-    if (error && table === "operators" && isMissingEmployment(error)) {
-      opEmploymentReady = false;
-      ({ error } = await supabase().from(table).upsert(dropCol(rows, "employment"), { onConflict: "id" }));
+    // поздней колонки ещё нет (не выполнен SQL) — сохраняем оператора без неё
+    for (let col = table === "operators" ? missingOpCol(error) : undefined; col; col = missingOpCol(error)) {
+      opColReady[col] = false;
+      ({ error } = await supabase().from(table).upsert(dropOpCols(rows), { onConflict: "id" }));
     }
     if (error) fail(error, table);
   }

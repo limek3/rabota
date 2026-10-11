@@ -438,6 +438,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     if ((prev.rateGridId ?? null) !== (next.rateGridId ?? null)) parts.push("тарифная сетка изменена");
     if (prev.grade !== next.grade) parts.push(`грейд: ${prev.grade ?? "—"} → ${next.grade ?? "—"}`);
     if ((prev.employment ?? "none") !== (next.employment ?? "none")) parts.push(`оформление: ${EMPLOYMENT_LABEL[prev.employment ?? "none"]} → ${EMPLOYMENT_LABEL[next.employment ?? "none"]}`);
+    if ((prev.startTime ?? "") !== (next.startTime ?? "")) parts.push(`выход: ${prev.startTime || "—"} → ${next.startTime || "—"}`);
     if (prev.track !== next.track) parts.push(`направление: ${prev.track ?? "—"} → ${next.track ?? "—"}`);
     if (prev.hireDate !== next.hireDate) parts.push(`приём: ${prev.hireDate || "—"} → ${next.hireDate || "—"}`);
     if (prev.fireDate !== next.fireDate) parts.push(`увольнение: ${prev.fireDate || "—"} → ${next.fireDate || "—"}`);

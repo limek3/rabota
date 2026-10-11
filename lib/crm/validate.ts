@@ -16,7 +16,7 @@ import type {
   LeadExportLogEntry,
   OpNote,
 } from "./types";
-import { CANDIDATE_STAGES, LEAD_SOURCE, LEAD_STATUSES, NOTE_METRICS } from "./types";
+import { CANDIDATE_STAGES, LEAD_SOURCE, LEAD_STATUSES, NOTE_METRICS, isStartTime } from "./types";
 import { normalizePrefs, normalizeSettings, normalizeTiers } from "./defaults";
 import { isDayKey, isMonthKey, isStamp } from "./dates";
 import { capName, normPhone } from "./format";
@@ -89,6 +89,7 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
         contact: str(o.contact),
         comment: str(o.comment),
         employment: (["none", "pending", "smz"].includes(str(o.employment)) ? o.employment : "none") as Operator["employment"],
+        startTime: isStartTime(o.startTime) ? o.startTime : "",
         createdAt: str(o.createdAt, now),
         updatedAt: str(o.updatedAt, now),
         deletedAt: o.deletedAt ? str(o.deletedAt) : null,

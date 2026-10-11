@@ -117,6 +117,8 @@ export interface Operator {
   comment: string;
   /** Оформление: самозанятый (СМЗ), оформляется или не оформлен. Нет поля (старые записи) — не оформлен. */
   employment?: Employment;
+  /** Во сколько выходит на смену, «ЧЧ:ММ» (видно в графике рядом с ФИО); пусто — не указано. */
+  startTime?: string;
   createdAt: string;
   updatedAt: string;
   /** Мягкое удаление: оператор скрыт из списков, история (лиды, смены, начисления) цела. */
@@ -126,6 +128,14 @@ export interface Operator {
 /** Как оператор оформлен у нас: не оформлен, оформляется, самозанятый (СМЗ). */
 export type Employment = "none" | "pending" | "smz";
 export const EMPLOYMENTS: Employment[] = ["none", "pending", "smz"];
+
+/** Время выхода на смену: варианты в графике и карточке (13:00 и 14:00 — «с обеда»). */
+export const START_TIMES = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00"] as const;
+export const isStartTime = (v: unknown): v is string => typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+/** Подпись времени выхода: «9:00», «14:00». */
+export function startTimeLabel(t: string | undefined): string {
+  return t && isStartTime(t) ? t.replace(/^0/, "") : "";
+}
 
 export interface Group {
   id: ID;

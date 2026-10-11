@@ -18,7 +18,7 @@ const SPEC: Record<Table, Record<string, Def>> = {
   operators: {
     id: "", name: "", groupId: null, role: "operator", status: "active", hireDate: "", fireDate: "", monthlyPlan: null, normHours: null,
     payType: "tiered", salary: 0, hourlyRate: 0, leadBonus: null, rateGridId: null, grade: "mid", track: "re", contact: "", comment: "",
-    employment: "none", createdAt: NOW, updatedAt: NOW, deletedAt: null,
+    employment: "none", startTime: "", createdAt: NOW, updatedAt: NOW, deletedAt: null,
   },
   groups: { id: "", name: "", supervisorId: null, supervisorName: "", monthlyPlan: 0, active: true, color: "gray", createdAt: NOW, updatedAt: NOW, deletedAt: null },
   projects: { id: "", name: "", active: true, color: "gray", sort: 0, createdAt: NOW, updatedAt: NOW, deletedAt: null },

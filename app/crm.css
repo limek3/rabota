@@ -1052,7 +1052,7 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 
 /* шапка дней */
 .sched thead th { height: var(--sch-head-h); padding-top: 6px; padding-bottom: 5px; background: var(--sch-head); color: var(--text-sub); font-weight: 600; border-bottom: 1px solid var(--line); }
-.sched thead th.sticky-col { min-width: 196px; width: 196px; padding-left: 16px; text-align: left; color: var(--text-quote); }
+.sched thead th.sticky-col { min-width: 224px; width: 224px; padding-left: 16px; text-align: left; color: var(--text-quote); }
 .sched th.day { min-width: var(--sch-col); width: var(--sch-col); padding: 6px 0 5px; font-size: 10px; font-weight: 500; line-height: 1.1; color: var(--text-sub); background: var(--sch-head); }
 .sched th.day .dh-d { font-size: 12.5px; line-height: 16px; font-weight: 600; color: var(--text); }
 .sched th.day.off, .sched td.cell.off { background: var(--sch-weekend); }
@@ -1093,7 +1093,16 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .sched td.cell.sel .lane, .sched td.cell.rng .lane { box-shadow: inset 0 0 0 2px var(--text); }
 
 /* ── столбец операторов ── */
-.sched tbody tr.sch-row > td.sticky-col { min-width: 196px; width: 196px; height: var(--sch-row); padding: 4px 14px; background: var(--bg-panel); }
+.sched tbody tr.sch-row > td.sticky-col { min-width: 224px; width: 224px; height: var(--sch-row); padding: 4px 10px 4px 14px; background: var(--bg-panel); }
+.sched tr.sch-row > td.sticky-col > .row { display: flex; width: 100%; }
+.sched tr.sch-row > td.sticky-col > .row > span:nth-child(2) { flex: 1; }
+/* время выхода на смену — справа от ФИО */
+.sched .op-start { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px; border: 1px solid var(--ink-12); border-radius: 6px; background: var(--ink-05); color: var(--text); font: inherit; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+.sched .op-start svg { color: var(--text-sub); }
+.sched .op-start:not(:disabled):hover, .sched .op-start.open { border-color: var(--ink-20, var(--ink-12)); background: var(--ink-08, var(--ink-05)); }
+.sched .op-start:disabled { cursor: default; }
+.sched .op-start.unset { border-style: dashed; background: none; color: var(--dim); font-weight: 500; opacity: 0.55; }
+.sched tr.sch-row:hover .op-start.unset, .sched .op-start.unset.open { opacity: 1; }
 .sched .op-n { display: block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; line-height: 17px; font-weight: 600; color: var(--text); }
 .sched .op-sub { display: block; margin-top: 1px; font-size: 11.5px; line-height: 14px; color: var(--text-sub); }
 /* строка: минимальный ховер — реагирует только имя */

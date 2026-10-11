@@ -8,7 +8,7 @@ import { WORKED_TYPES, sumRange, workedDays, type OpRow } from "@/lib/crm/calc";
 import { canManageOperator } from "@/lib/crm/access";
 import { addDays, addMonths, fmtMonth, isoWeekday, isWorkday, monthEnd, monthOf, monthStart, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName, OPS } from "@/lib/crm/format";
-import { EMPLOYMENT_LABEL, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, type DayKey, type DayType, type Operator, type Shift } from "@/lib/crm/types";
+import { EMPLOYMENT_LABEL, startTimeLabel, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, type DayKey, type DayType, type Operator, type Shift } from "@/lib/crm/types";
 import { Avatar, EmploymentTag } from "@/components/ui/kit";
 import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
@@ -1014,6 +1014,7 @@ function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mo
           <div className="gr">
             {g ? g.name : NO_GROUP_LABEL} · {ROLE_LABEL[op.role]}
             {op.employment && op.employment !== "none" ? ` · ${EMPLOYMENT_LABEL[op.employment]}` : ""}
+            {op.startTime ? ` · выход с ${startTimeLabel(op.startTime)}` : ""}
           </div>
           <span className="o2-st" data-hue={now.hue} style={{ marginTop: 8 }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />

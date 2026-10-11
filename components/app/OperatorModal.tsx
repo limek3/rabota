@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { useCrm, type OperatorInput } from "@/lib/crm/store";
 import type { Employment, Grade, Operator, OperatorRole, OperatorStatus, PayType, Track } from "@/lib/crm/types";
-import { EMPLOYMENTS, EMPLOYMENT_HUE, EMPLOYMENT_LABEL, GRADE_LABEL, PAY_HINT, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, TRACK_LABEL } from "@/lib/crm/types";
+import { EMPLOYMENTS, EMPLOYMENT_HUE, EMPLOYMENT_LABEL, GRADE_LABEL, START_TIMES, startTimeLabel, PAY_HINT, PAY_LABEL, ROLE_LABEL, STATUS_LABEL, TRACK_LABEL } from "@/lib/crm/types";
 import { Field, Modal, NumInput } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { hasBonus, isSalary, isSvVolume, isTiered } from "@/lib/crm/payroll";
 import { GridField } from "./RateGrids";
 import { todayKey } from "@/lib/crm/dates";
-import { hasEmploymentColumn } from "@/lib/crm/remote";
+import { hasEmploymentColumn, hasStartTimeColumn } from "@/lib/crm/remote";
 import { sameNameOps } from "@/lib/crm/dupes";
 
 export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Partial<OperatorInput> }) {
@@ -45,6 +45,7 @@ export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Pa
           contact: "",
           comment: "",
           employment: "none",
+          startTime: "",
           ...preset,
         },
   );
@@ -154,6 +155,23 @@ export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Pa
             <input className="inp" value={f.contact} onChange={(e) => set("contact", e.target.value)} placeholder="@username" />
           </Field>
         </div>
+        <div className="grid2">
+          <Field
+            label="Выход на смену"
+            hint={
+              remote && !hasStartTimeColumn()
+                ? "Не сохранится: в базе нет колонки. Выполните supabase/migrations/20261011000001_operator_start_time.sql в SQL Editor"
+                : "Во сколько начинает — видно в графике рядом с ФИО"
+            }
+          >
+            <Select<string>
+              value={f.startTime ?? ""}
+              options={startTimeOpts(f.startTime)}
+              onChange={(v) => set("startTime", v)}
+              ariaLabel="Выход на смену"
+            />
+          </Field>
+        </div>
 
         <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-sub)", marginTop: 4 }}>План и нормы на месяц</div>
         <div className="grid2">
@@ -237,4 +255,12 @@ export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Pa
       </form>
     </Modal>
   );
+}
+
+/** Варианты времени выхода: «не указано» + стандартные; нестандартное текущее — тоже в списке. */
+export function startTimeOpts(cur?: string): Opt[] {
+  const times: string[] = [...START_TIMES];
+  if (cur && !times.includes(cur)) times.push(cur);
+  times.sort();
+  return [{ value: "", label: "Не указано" }, ...times.map((t) => ({ value: t, label: startTimeLabel(t) }))];
 }
