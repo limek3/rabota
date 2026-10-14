@@ -51,7 +51,9 @@ export function CommandPalette() {
       ...(can.editPlans || can.editTeamPlan ? [{ id: "a-plan", label: "Изменить планы месяца", icon: "target" as const, run: go("/plans") }] : []),
       { id: "a-profile", label: "Мой профиль и настройки", icon: "user", run: go("/settings?tab=profile") },
       ...(can.systemSettings ? [{ id: "a-settings", label: "Изменить настройки системы", icon: "settings" as const, run: go("/settings?tab=system") }] : []),
-      ...(can.manageAccounts ? [{ id: "a-acc", label: "Аккаунты и доступ", icon: "users" as const, run: go("/settings?tab=accounts") }] : []),
+      ...(can.manageAccounts || can.opAccounts
+        ? [{ id: "a-acc", label: can.manageAccounts ? "Аккаунты и доступ" : "Аккаунты операторов", icon: "users" as const, run: go("/settings?tab=accounts") }]
+        : []),
       { id: "a-reload", label: "Обновить расчёты", hint: "перечитать базу", icon: "refresh", run: () => void crm.reload() },
       ...(can.manageData
         ? [

@@ -40,6 +40,7 @@ import {
   canEditPay,
   canEditPlan,
   canEditShift,
+  canManageAccount,
   canManageOperator,
   canNote,
   canReviewLead,
@@ -145,7 +146,10 @@ interface Store {
   saveMyProfile: (patch: Partial<AccountPrefs> & { name?: string; login?: string }) => Promise<void>;
   createOperatorAccounts: () => Promise<number>;
   today: DayKey;
-  /** Последний закрытый день: его смены уже в часах, конверсии и зарплате (до 21:00 — вчера). */
+  /**
+   * По какой день всё считается — сегодня, на всех страницах одинаково. Сегодняшняя смена — по часам
+   * из Скорозвона (обновляются каждый час), без них — после закрытия дня (ix.openDay).
+   */
   workedTo: DayKey;
   month: MonthKey;
   setMonth: (m: MonthKey) => void;
@@ -216,6 +220,17 @@ interface Store {
    * переходят к основной, дубль удаляется. hireDate — дата приёма основной (если меняем).
    */
   mergeOperators: (keepId: ID, dropId: ID, hireDate?: DayKey | "") => Promise<boolean>;
+  /**
+   * Что делает сотрудника супервайзером, помимо роли в карточке: руководство группой, схема оплаты СВ,
+   * аккаунт супервайзера. Пусто — он обычный сотрудник.
+   */
+  svTraces: (opId: ID) => { groups: string[]; svPay: boolean; account: boolean; cardRole: boolean };
+  /**
+   * Снять с супервайзера: роль в карточке → оператор, руководство группами снимается, схема «оклад +
+   * бонус за объём группы» → схема оператора по умолчанию, аккаунт супервайзера → аккаунт оператора.
+   * Иначе человек остаётся супервайзером в графике и пропадает из списка операторов.
+   */
+  demoteSupervisor: (opId: ID, role?: "operator" | "trainee") => Promise<boolean>;
   /** Заметка супервайзера об операторе (новая или правка текста). */
   saveNote: (input: { id?: ID; operatorId: ID; date: DayKey; text: string; metric: NoteMetric }) => Promise<boolean>;
   deleteNote: (id: ID) => Promise<void>;
@@ -316,12 +331,14 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   dataRef.current = data;
   const chanRef = useRef<BroadcastChannel | null>(null);
 
-  // закрытие дня: сегодняшние смены идут в часы и зарплату только после settings.dayCloseHour
+  // один срез «на сейчас» для всех экранов: лиды и часы по сегодня. Сегодняшняя смена до закрытия дня
+  // (settings.dayCloseHour) идёт в часы, только если её часы уже пришли из Скорозвона
   const [hour, setHour] = useState(() => nowHour());
-  const workedTo = useMemo(() => closedThrough(today, hour, data.settings), [today, hour, data.settings]);
+  const workedTo = today;
+  const openDay = closedThrough(today, hour, data.settings) < today ? today : null;
 
   // полный индекс — для действий; срез по правам — для экранов
-  const fullIx = useMemo(() => buildIndex(data, workedTo), [data, workedTo]);
+  const fullIx = useMemo(() => buildIndex(data, workedTo, openDay), [data, workedTo, openDay]);
   const ixRef = useRef(fullIx);
   ixRef.current = fullIx;
 
@@ -330,7 +347,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const accessRef = useRef(access);
   accessRef.current = access;
   const view = useMemo(() => scopeData(data, access), [data, access]);
-  const ix = useMemo(() => (view === data ? fullIx : buildIndex(view, workedTo)), [view, data, fullIx, workedTo]);
+  const ix = useMemo(() => (view === data ? fullIx : buildIndex(view, workedTo, openDay)), [view, data, fullIx, workedTo, openDay]);
 
   /* ── уведомления ───────────────────────────────────────────────── */
   const toastSeq = useRef(0);
@@ -372,6 +389,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         toast(`${errMsg}: ${errText(e)}`, "err");
         return false;
       }
+      // сразу и в ref: следующее действие в той же цепочке (карточка → аккаунт) видит только что записанное
+      dataRef.current = apply(dataRef.current);
       setData(apply);
       broadcast();
       return true;
@@ -450,7 +469,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   /* ── загрузка ──────────────────────────────────────────────────── */
+  const loadedAt = useRef(0);
   const load = useCallback(async () => {
+    loadedAt.current = Date.now();
     try {
       const loaded = await db.loadAll();
       let state = loaded.state;
@@ -597,7 +618,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   // смена суток (и месяца) без перезагрузки страницы
   useEffect(() => {
     const id = window.setInterval(() => {
-      // час — для закрытия дня: в 21:00 сегодняшние смены сами уходят в расчёты
+      // час — для закрытия дня: смены без часов из Скорозвона уходят в расчёты в час закрытия
       setHour(nowHour());
       const t = todayKey();
       setToday((prev) => {
@@ -1781,6 +1802,62 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     [commit, deny, guardedBackup, log, toast],
   );
 
+  const svTraces = useCallback<Store["svTraces"]>((opId) => {
+    const st = dataRef.current;
+    const card = st.operators.find((o) => o.id === opId);
+    return {
+      groups: st.groups.filter((g) => !g.deletedAt && g.supervisorId === opId).map((g) => g.name),
+      svPay: card?.payType === "sv_volume",
+      account: st.accounts.some((a) => !a.deletedAt && a.operatorId === opId && a.role === "supervisor"),
+      cardRole: card?.role === "supervisor",
+    };
+  }, []);
+
+  const demoteSupervisor = useCallback<Store["demoteSupervisor"]>(
+    async (opId, role = "operator") => {
+      // руководителя группы и аккаунты меняет только РОП
+      if (!accessRef.current.can.manageGroups || !accessRef.current.can.manageAccounts) {
+        deny();
+        return false;
+      }
+      const st = dataRef.current;
+      const card = st.operators.find((o) => o.id === opId);
+      if (!card) return false;
+      const now = isoNow();
+      const s = st.settings;
+      const pay = s.defaultPayType === "sv_volume" ? "tiered" : s.defaultPayType;
+      const op: Operator = {
+        ...card,
+        role: card.role === "supervisor" || role === "trainee" ? role : card.role,
+        ...(card.payType === "sv_volume" ? { payType: pay, salary: s.defaultSalary, hourlyRate: s.defaultHourlyRate, leadBonus: null, rateGridId: null } : {}),
+        updatedAt: now,
+      };
+      const groups = st.groups.filter((g) => g.supervisorId === opId).map((g) => ({ ...g, supervisorId: null, supervisorName: "", updatedAt: now }));
+      const accs = st.accounts
+        .filter((a) => !a.deletedAt && a.operatorId === opId && a.role === "supervisor")
+        .map((a): Account => ({ ...a, role: "operator", groupIds: [], prefs: { ...a.prefs, homePage: "/me" }, updatedAt: now }));
+      const ok = await commit(
+        () => db.applyBatch([{ store: "operators", put: [op] }, { store: "groups", put: groups }, { store: "accounts", put: accs }]),
+        (d) => ({
+          ...d,
+          operators: d.operators.map((o) => (o.id === opId ? op : o)),
+          groups: d.groups.map((g) => groups.find((x) => x.id === g.id) ?? g),
+          accounts: d.accounts.map((a) => accs.find((x) => x.id === a.id) ?? a),
+        }),
+      );
+      if (!ok) return false;
+      const what = [
+        card.role !== op.role ? `роль — ${op.role === "trainee" ? "стажёр" : "оператор"}` : "",
+        groups.length ? `снят(а) с руководства: ${groups.map((g) => g.name).join(", ")}` : "",
+        card.payType !== op.payType ? "схема оплаты — как у оператора" : "",
+        accs.length ? "аккаунт — оператор" : "",
+      ].filter(Boolean);
+      void log("operator", opId, `${card.name}: снят(а) с супервайзера${what.length ? ` (${what.join(", ")})` : ""}`, changesOf("operator", card, op));
+      return true;
+    },
+    [commit, deny, log],
+  );
+
   /* ── заметки супервайзера ──────────────────────────────────────── */
   const saveNote = useCallback<Store["saveNote"]>(
     async (input) => {
@@ -1891,11 +1968,15 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
   const saveAccount = useCallback<Store["saveAccount"]>(
     async (input) => {
-      if (!accessRef.current.can.manageAccounts) {
+      const st = dataRef.current;
+      // права — по свежим данным: карточку оператора могли завести только что, в этой же цепочке
+      const a = accessRef.current.can.manageAccounts ? accessRef.current : computeAccess(accessRef.current.account, st);
+      const before = input.id ? st.accounts.find((x) => x.id === input.id) : undefined;
+      // супервайзер — только аккаунты операторов своих групп, и роль у них остаётся «оператор»
+      if (!a.can.manageAccounts && !(canManageAccount(a, input) && (!before || canManageAccount(a, before)))) {
         deny();
         return null;
       }
-      const st = dataRef.current;
       const name = input.name.trim();
       if (!name) {
         toast("Укажите имя", "err");
@@ -1951,10 +2032,10 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
   const deleteAccount = useCallback<Store["deleteAccount"]>(
     async (id) => {
-      if (!accessRef.current.can.manageAccounts) return deny();
       const st = dataRef.current;
       const acc = st.accounts.find((a) => a.id === id);
       if (!acc) return;
+      if (!accessRef.current.can.manageAccounts && !canManageAccount(accessRef.current, acc)) return deny();
       if (id === accessRef.current.account.id) {
         toast("Нельзя удалить аккаунт, под которым вы сейчас работаете", "err");
         return;
@@ -1998,15 +2079,18 @@ export function CrmProvider({ children }: { children: ReactNode }) {
 
   /** Создать аккаунты всем работающим операторам, у которых их ещё нет. */
   const createOperatorAccounts = useCallback<Store["createOperatorAccounts"]>(async () => {
-    if (!accessRef.current.can.manageAccounts) {
+    const a = accessRef.current;
+    if (!a.can.manageAccounts && !a.can.opAccounts) {
       deny();
       return 0;
     }
     const st = dataRef.current;
     const has = new Set(st.accounts.filter((a) => !a.deletedAt && a.operatorId).map((a) => a.operatorId));
     const taken = new Set(st.accounts.map((a) => a.id));
+    // супервайзер — только операторам своих групп (не супервайзерам и не себе)
+    const mine = (o: Operator) => a.can.manageAccounts || (o.role !== "supervisor" && canManageAccount(a, { role: "operator", operatorId: o.id }));
     const recs = st.operators
-      .filter((o) => !o.deletedAt && o.status !== "fired" && !has.has(o.id))
+      .filter((o) => !o.deletedAt && o.status !== "fired" && !has.has(o.id) && mine(o))
       .map((o) => {
         const id = uniqueId("acc", taken);
         taken.add(id);
@@ -2241,6 +2325,22 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     };
   }, [ready, noAccess, load]);
 
+  // часы из Скорозвона приходят каждый час в :05. Realtime доносит их сразу, но вкладка могла спать или
+  // соединение отвалиться — тогда раз в час (и при возврате на вкладку) перечитываем всё сами
+  useEffect(() => {
+    if (!db.REMOTE || !ready || noAccess) return;
+    const HOUR = 60 * 60_000;
+    const tick = () => {
+      if (document.visibilityState === "visible" && Date.now() - loadedAt.current >= HOUR) void load();
+    };
+    const id = window.setInterval(tick, 5 * 60_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [ready, noAccess, load]);
+
   const setMonth = useCallback((m: MonthKey) => setMonthState(m), []);
 
   const value: Store = {
@@ -2308,6 +2408,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     startTraining,
     promoteTrainee,
     mergeOperators,
+    svTraces,
+    demoteSupervisor,
     saveNote,
     deleteNote,
     saveSettings,

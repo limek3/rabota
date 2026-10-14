@@ -29,10 +29,10 @@ export default function StatsPage() {
   const groupProgress = useMemo(() => {
     // в Supabase оператору приходят только его записи — прогресс группы из них не посчитать
     if (!row?.op.groupId || !(O.viewGroupProgress || O.viewTeamProgress) || access.isHead || (remote && access.isOp)) return null;
-    const fm = monthModel(full, buildIndex(full, workedTo), month, today);
+    const fm = monthModel(full, buildIndex(full, workedTo, ix.openDay), month, today);
     const g = fm.groups.find((x) => x.key === row.op.groupId) ?? null;
     return { group: g, team: O.viewTeamProgress ? fm.team : null, myShare: g ? safeDiv(row.pace.fact, g.pace.fact) : 0 };
-  }, [row, O.viewGroupProgress, O.viewTeamProgress, access.isHead, access.isOp, remote, full, month, today, workedTo]);
+  }, [row, O.viewGroupProgress, O.viewTeamProgress, access.isHead, access.isOp, remote, full, month, today, workedTo, ix.openDay]);
 
   if (!opId) {
     return (

@@ -38,6 +38,19 @@
         "for (const k of ['NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY','NEXT_PUBLIC_SUPABASE_ANON_KEY']) process.env[k]=''; process.env.NEXT_DIST_DIR='.next-preview'; require('child_process').spawn('npm', ['run','dev','--','-p','3079'], { stdio: 'inherit', shell: true, env: process.env }).on('exit', (c) => process.exit(c ?? 0))"
       ],
       "port": 3079
+    },
+    {
+      "name": "leadup-offline-electron-node",
+      "runtimeExecutable": "node_modules/electron/dist/electron.exe",
+      "runtimeArgs": ["node_modules/next/dist/bin/next", "dev", "-p", "3080"],
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1",
+        "NEXT_DIST_DIR": ".next-preview",
+        "NEXT_PUBLIC_SUPABASE_URL": "",
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": ""
+      },
+      "port": 3080
     }
   ]
 }

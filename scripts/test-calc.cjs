@@ -876,6 +876,44 @@ console.log("ALL OK");
   console.log(`27 ok: закрытие дня — до 21:00 ${sh.hours} ч сегодняшней смены вне ведомости (${Math.round(pOpen.gross)} → ${Math.round(pClosed.gross)} ₽ после закрытия), в графике видна`);
 }
 
+/* 27a. «На сейчас» (как в приложении): идущий день — часы только из Скорозвона, конверсия без лидов без часов */
+{
+  const assert = require("assert");
+  const { buildIndex, monthModel, fromSkorozvon } = R("calc");
+  const { buildDemo } = R("demo");
+  const today = "2026-09-17";
+  const st = buildDemo(today);
+  const work = st.shifts.filter((x) => x.date === today && x.hours > 0 && (x.type === "work" || x.type === "training"));
+  const ix0 = buildIndex(st, today, today);
+  const withLeads = work.filter((x) => (ix0.opDay.get(x.operatorId)?.get(today) ?? 0) > 0);
+  assert.ok(withLeads.length >= 2, "в демо двое на смене с лидами сегодня");
+  const [synced, plain] = withLeads;
+  // часы первому пришли из Скорозвона (3,5 ч к обеду), второму — нет (8 ч по графику)
+  const live = {
+    ...st,
+    shifts: st.shifts.map((x) => (x.id === synced.id ? { ...x, hours: 3.5, comment: "Скорозвон: разговор 1:00 · карточка 0:30 · гудки 1:00 · доступен 1:00" } : x)),
+  };
+  assert.ok(fromSkorozvon(live.shifts.find((x) => x.id === synced.id)) && !fromSkorozvon(plain), "метка Скорозвона");
+  const ix = buildIndex(live, today, today);
+  assert.strictEqual(ix.hoursOpDay.get(synced.operatorId)?.get(today), 3.5, "часы из Скорозвона — сразу");
+  assert.strictEqual(ix.hoursOpDay.get(plain.operatorId)?.get(today) ?? 0, 0, "часы по графику — после закрытия дня");
+  const lp = ix.opDay.get(plain.operatorId).get(today);
+  assert.strictEqual(ix.pendingOp.get(plain.operatorId), lp, "лиды без часов — в ожидании");
+  assert.ok(!ix.pendingOp.has(synced.operatorId), "у кого часы есть — лиды в конверсии");
+  const m = monthModel(live, ix, "2026-09", today);
+  const rS = m.ops.find((r) => r.op.id === synced.operatorId);
+  const rP = m.ops.find((r) => r.op.id === plain.operatorId);
+  assert.strictEqual(rS.factClosed, rS.pace.fact, "конверсия — с сегодняшними лидами");
+  assert.strictEqual(rP.factClosed, rP.pace.fact - lp, "конверсия — без лидов идущей смены без часов");
+  // тот же факт, что и после закрытия: страницы показывают одно и то же число лидов
+  assert.strictEqual(rP.pace.fact, monthModel(live, buildIndex(live, today, null), "2026-09", today).ops.find((r) => r.op.id === plain.operatorId).pace.fact);
+  // после закрытия дня (openDay = null) — все смены, ничего в ожидании
+  const closed = buildIndex(live, today, null);
+  assert.strictEqual(closed.hoursOpDay.get(plain.operatorId).get(today), plain.hours);
+  assert.strictEqual(closed.pendingTeam, 0);
+  console.log(`27a ok: на сейчас — ${rS.op.name}: 3.5 ч из Скорозвона сразу; ${rP.op.name}: ${lp} лид. ждут часов, в конверсию не идут`);
+}
+
 /* ── 27b. налог самозанятого: к переводу = остаток ÷ 0,94, до рубля (=ОКРУГЛ(P2/0,94;0)) ── */
 {
   const assert = require("assert");

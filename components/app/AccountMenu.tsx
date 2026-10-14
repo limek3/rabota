@@ -112,9 +112,11 @@ export function AccountMenu() {
             <div className="acc-sep" />
 
             <MenuItem icon="user" label="Мой профиль и настройки" hint="Имя, тема, стартовая страница" onClick={() => go("/settings?tab=profile")} />
-            {access.can.manageAccounts && (
+            {access.can.manageAccounts ? (
               <MenuItem icon="users" label="Аккаунты и доступ" hint="Сотрудники, роли и права" onClick={() => go("/settings?tab=accounts")} />
-            )}
+            ) : access.can.opAccounts ? (
+              <MenuItem icon="users" label="Аккаунты операторов" hint="Вход в CRM для своих групп" onClick={() => go("/settings?tab=accounts")} />
+            ) : null}
             <MenuItem
               icon={dark ? "sun" : "moon"}
               label={dark ? "Светлая тема" : "Тёмная тема"}

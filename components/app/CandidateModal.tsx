@@ -57,7 +57,8 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
   const opAcc = op ? full.accounts.find((a) => a.operatorId === op.id && !a.deletedAt) ?? null : null;
   // тёзки среди карточек — чтобы при приёме не завести второго такого же человека
   const namesakes = !op && cand ? sameNameOps(data.operators, f.name) : [];
-  const canGrant = access.can.manageAccounts;
+  // аккаунт выдаёт РОП и супервайзер с правом «аккаунты операторов» (кандидаты — и так только своих групп)
+  const canGrant = access.can.manageAccounts || access.can.opAccounts;
   const closing = f.stage === "rejected" || f.stage === "declined";
   const canEdit = !cand || canTouchCandidate(access, cand);
 

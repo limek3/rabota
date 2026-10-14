@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useCrm, type AccountInput } from "@/lib/crm/store";
 import { NAV } from "@/lib/crm/nav";
-import { computeAccess, supervisorGroups } from "@/lib/crm/access";
+import { canManageAccount, canManageOperator, canTouchOp, computeAccess, supervisorGroups } from "@/lib/crm/access";
 import {
   ACCOUNT_ROLE_HINT,
   ACCOUNT_ROLE_LABEL,
@@ -232,33 +232,43 @@ export function ProfileTab() {
 /* ── аккаунты ────────────────────────────────────────────────────── */
 
 export function AccountsTab() {
-  const { full, data, me, switchAccount, deleteAccount, createOperatorAccounts, confirm } = useCrm();
+  const { full, data, me, access, switchAccount, deleteAccount, createOperatorAccounts, confirm } = useCrm();
   const [edit, setEdit] = useState<Account | null | "new">(null);
   const [showDeleted, setShowDeleted] = useState(false);
+  // супервайзер — только аккаунты операторов и стажёров своих групп
+  const sup = !access.can.manageAccounts;
 
   const list = useMemo(() => {
     const order: Record<AccountRole, number> = { head: 0, supervisor: 1, operator: 2 };
     return full.accounts
-      .filter((a) => showDeleted || !a.deletedAt)
+      .filter((a) => (showDeleted || !a.deletedAt) && (!sup || canManageAccount(access, a)))
       .sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name, "ru"));
-  }, [full.accounts, showDeleted]);
+  }, [full.accounts, showDeleted, sup, access]);
 
-  const withoutAccount = full.operators.filter((o) => !o.deletedAt && o.status !== "fired" && !full.accounts.some((a) => !a.deletedAt && a.operatorId === o.id)).length;
+  const withoutAccount = full.operators.filter(
+    (o) =>
+      !o.deletedAt &&
+      o.status !== "fired" &&
+      !full.accounts.some((a) => !a.deletedAt && a.operatorId === o.id) &&
+      (!sup || (o.role !== "supervisor" && canManageAccount(access, { role: "operator", operatorId: o.id }))),
+  ).length;
 
   return (
     <div className="stack">
       <Section
-        icon="users" title="Аккаунты"
+        icon="users" title={sup ? "Аккаунты операторов" : "Аккаунты"}
         sub={
-          AUTH_ENABLED
-            ? "Кто заходит в систему и что видит. Вход — по почте и паролю: задайте пароль в карточке аккаунта и передайте его человеку."
-            : "Кто заходит в систему и что видит. Пока вход выключен, аккаунты переключаются из меню внизу слева — так удобно проверять, как систему видят РОП, супервайзер и оператор."
+          sup
+            ? `Вход в CRM для операторов и стажёров ваших групп (${access.scopeLabel}). Задайте почту и пароль и передайте их человеку.`
+            : AUTH_ENABLED
+              ? "Кто заходит в систему и что видит. Вход — по почте и паролю: задайте пароль в карточке аккаунта и передайте его человеку."
+              : "Кто заходит в систему и что видит. Пока вход выключен, аккаунты переключаются из меню внизу слева — так удобно проверять, как систему видят РОП, супервайзер и оператор."
         }
         action={
           <div className="row" style={{ gap: 8 }}>
             {withoutAccount > 0 && (
               <button className="btn btn-sm" onClick={() => void createOperatorAccounts()} title="Создать аккаунты всем операторам без аккаунта">
-                <Icon name="users" size={13} /> Создать операторам ({withoutAccount})
+                <Icon name="users" size={13} /> {`Создать операторам (${withoutAccount})`}
               </button>
             )}
             <button className="btn btn-sm btn-primary" onClick={() => setEdit("new")}>
@@ -310,7 +320,7 @@ export function AccountsTab() {
                     <td className="muted num c">{a.lastSeenAt ? fmtDate(appStamp(a.lastSeenAt).slice(0, 10)) : "—"}</td>
                     <td className="r">
                       <span className="row-actions">
-                        {a.active && !a.deletedAt && a.id !== me.id && (
+                        {!sup && a.active && !a.deletedAt && a.id !== me.id && (
                           <button className="btn btn-ghost btn-sm btn-icon" title="Войти как этот пользователь" onClick={() => switchAccount(a.id)}>
                             <Icon name="play" size={13} />
                           </button>
@@ -340,9 +350,12 @@ export function AccountsTab() {
         </div>
         <Switch size="sm" checked={showDeleted} onChange={setShowDeleted} label="показывать удалённые" />
         {data.operators.length === 0 && <Empty icon="users" title="Сначала заведите операторов" text="Аккаунт оператора привязывается к карточке сотрудника." />}
+        {sup && list.length === 0 && data.operators.length > 0 && (
+          <span style={{ fontSize: 12.5, color: "var(--dim)" }}>У операторов ваших групп аккаунтов пока нет — создайте кнопкой выше.</span>
+        )}
       </Section>
 
-      <DuplicatesSection />
+      {!sup && <DuplicatesSection />}
 
       {edit && <AccountModal account={edit === "new" ? null : edit} onClose={() => setEdit(null)} />}
     </div>
@@ -356,9 +369,12 @@ const TRAINEE_HINT = "Видит только обучение: курс «Ав�
 const NEW_CARD = "__new";
 
 function AccountModal({ account, onClose }: { account: Account | null; onClose: () => void }) {
-  const { full, today, saveAccount, saveOperator, toast, confirm } = useCrm();
+  const { full, today, access, saveAccount, saveOperator, svTraces, demoteSupervisor, toast, confirm } = useCrm();
   const [password, setPassword] = useState("");
-  const groups = full.groups.filter((g) => !g.deletedAt);
+  // супервайзер заводит только операторов и стажёров своих групп; карточку — если может вести операторов
+  const sup = !access.can.manageAccounts;
+  const supCards = sup && access.can.manageOperators;
+  const groups = full.groups.filter((g) => !g.deletedAt && (!sup || access.ownGroups.has(g.id)));
   const taken = new Set(full.accounts.filter((a) => !a.deletedAt && a.id !== account?.id && a.operatorId).map((a) => a.operatorId));
   const [f, setF] = useState<AccountInput>(() =>
     account
@@ -376,17 +392,18 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
   const cardOf = (id: string | null) => (id ? full.operators.find((o) => o.id === id) ?? null : null);
   const [trainee, setTrainee] = useState(() => !!account && account.role === "operator" && cardOf(account.operatorId)?.role === "trainee");
   // новый оператор или стажёр — карточка заводится тут же, отдельно в «Операторах» её создавать не нужно
-  const [newCard, setNewCard] = useState(!account);
-  const [card, setCard] = useState<{ groupId: string; date: string }>({ groupId: "", date: today });
+  const [newCard, setNewCard] = useState(!account && (!sup || supCards));
+  const [card, setCard] = useState<{ groupId: string; date: string }>({ groupId: sup ? groups[0]?.id ?? "" : "", date: today });
   const formRole: FormRole = f.role === "operator" && trainee ? "trainee" : f.role;
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof AccountInput>(k: K, v: AccountInput[K]) => setF((x) => ({ ...x, [k]: v }));
 
   const opOpts: Opt[] = [
-    { value: NEW_CARD, label: "+ Новая карточка", hint: "заведётся вместе с аккаунтом" },
+    ...(!sup || supCards ? [{ value: NEW_CARD, label: "+ Новая карточка", hint: "заведётся вместе с аккаунтом" }] : []),
     ...(f.role !== "operator" ? [{ value: "", label: "— без карточки сотрудника —" }] : []),
     ...full.operators
       .filter((o) => !o.deletedAt && (!taken.has(o.id) || o.id === f.operatorId))
+      .filter((o) => !sup || (o.role !== "supervisor" && o.id !== access.opId && canTouchOp(access, o.id)))
       .sort((a, b) => a.name.localeCompare(b.name, "ru"))
       .map((o) => ({
         value: o.id,
@@ -395,7 +412,10 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
         icon: <Avatar name={o.name} id={o.id} size={20} />,
       })),
   ];
-  const groupOpts: Opt[] = [{ value: "", label: "Без группы", icon: dot("gray") }, ...groups.map((g) => ({ value: g.id, label: g.name, icon: dot(g.color) }))];
+  const groupOpts: Opt[] = [
+    ...(sup ? [] : [{ value: "", label: "Без группы", icon: dot("gray") }]),
+    ...groups.filter((g) => !sup || canManageOperator(access, null, g.id)).map((g) => ({ value: g.id, label: g.name, icon: dot(g.color) })),
+  ];
   const autoGroups = account ? supervisorGroups({ ...account, ...f } as Account, full) : new Set<string>();
 
   /** Карточка для нового аккаунта: тёзка уже есть — предлагаем привязать его, а не плодить дубль. */
@@ -450,7 +470,24 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
     const ok = await saveAccount({ ...f, id: account?.id, operatorId });
     // «стажёр» живёт в карточке сотрудника: ставим или снимаем его там
     const c = ok ? full.operators.find((o) => o.id === operatorId) ?? null : null;
-    if (c && f.role === "operator") {
+    // аккаунт перевели в операторы, а карточка всё ещё супервайзерская (роль, руководство группой, оплата СВ) —
+    // тогда в графике человек остаётся супервайзером, а в «Операторах» его нет: снимаем всё разом
+    const t = c && f.role === "operator" && access.can.manageAccounts && access.can.manageGroups ? svTraces(c.id) : null;
+    let demoted = false;
+    if (c && t && (t.cardRole || t.groups.length || t.svPay)) {
+      const left = [
+        t.cardRole ? "роль «Супервайзер» в карточке" : "",
+        t.groups.length ? `руководитель группы ${t.groups.map((g) => `«${g}»`).join(", ")}` : "",
+        t.svPay ? "схема оплаты «оклад + бонус за объём группы»" : "",
+      ].filter(Boolean);
+      const yes = await confirm({
+        title: `Снять «${c.name}» с супервайзера?`,
+        text: `Аккаунт теперь оператора, но в карточке осталось: ${left.join("; ")}. Без этого в графике человек останется супервайзером, а в «Операторах» его не будет видно. Группа останется без руководителя, оплата — по схеме оператора из настроек.`,
+        ok: "Снять с супервайзера",
+      });
+      if (yes) demoted = await demoteSupervisor(c.id, trainee ? "trainee" : "operator");
+    }
+    if (c && f.role === "operator" && !demoted) {
       const want = trainee ? "trainee" : c.role === "trainee" ? "operator" : c.role;
       if (want !== c.role) await saveOperator({ ...c, role: want });
     }
@@ -490,8 +527,11 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
           <Select<FormRole>
             value={formRole}
             options={[
-              ...(Object.keys(ACCOUNT_ROLE_LABEL) as AccountRole[]).map((r) => ({ value: r as FormRole, label: ACCOUNT_ROLE_LABEL[r], hint: ACCOUNT_ROLE_HINT[r] })),
-              { value: "trainee" as FormRole, label: "Стажёр", hint: "Только обучение: курс «Авто», Скорозвон, тесты" },
+              ...(Object.keys(ACCOUNT_ROLE_LABEL) as AccountRole[])
+                .filter((r) => !sup || r === "operator")
+                .map((r) => ({ value: r as FormRole, label: ACCOUNT_ROLE_LABEL[r], hint: ACCOUNT_ROLE_HINT[r] })),
+              // стажёр — роль в карточке: супервайзеру — если он может вести операторов
+              ...(!sup || supCards ? [{ value: "trainee" as FormRole, label: "Стажёр", hint: "Только обучение: курс «Авто», Скорозвон, тесты" }] : []),
             ]}
             onChange={(v) => {
               const r: AccountRole = v === "trainee" ? "operator" : v;
@@ -545,7 +585,7 @@ function AccountModal({ account, onClose }: { account: Account | null; onClose: 
           </Field>
         </div>
       )}
-      {f.role === "supervisor" && (
+      {f.role === "supervisor" && !sup && (
         <Field label="Группы под управлением" hint="Плюс те, где он указан руководителем в карточке группы — они отмечены">
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
             {groups.map((g) => {
@@ -773,6 +813,12 @@ export function RolesTab() {
             <Toggle on={A.supervisor.createLeads} onChange={(v) => setSup({ createLeads: v })} label="Вносит лиды за своих операторов" />
             <Toggle on={A.supervisor.editLeads} onChange={(v) => setSup({ editLeads: v })} label="Правит и удаляет лиды своей группы" />
             <Toggle on={A.supervisor.manageOperators} onChange={(v) => setSup({ manageOperators: v })} label="Заводит и редактирует операторов" hint="Только в своих группах" />
+            <Toggle
+              on={A.supervisor.opAccounts}
+              onChange={(v) => setSup({ opAccounts: v })}
+              label="Создаёт аккаунты операторам"
+              hint="Вход в CRM (почта и пароль) для операторов и стажёров своих групп — в «Настройки → Аккаунты»"
+            />
           </div>
           <div>
             <Toggle on={A.supervisor.editShifts} onChange={(v) => setSup({ editShifts: v })} label="Ведёт график смен своей группы" />

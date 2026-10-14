@@ -1,6 +1,6 @@
 import type { DataState, DayKey, Lead, MonthKey, Operator, Track } from "./types";
 import { NO_GROUP, NO_GROUP_LABEL } from "./types";
-import { employmentWindow, incomeBySegment, monthCal, monthModel, monthOperators, sumRange, type Index } from "./calc";
+import { employmentWindow, incomeBySegment, monthCal, monthModel, monthOperators, pendingIn, sumRange, type Index } from "./calc";
 import { isSalary, isSvVolume, payrollRow } from "./payroll";
 import { addDays, monthEnd, monthOf, monthStart, rangeDays } from "./dates";
 import { reportRange, type ReportKind } from "./report";
@@ -232,7 +232,7 @@ export function buildRopReport(st: DataState, ix: Index, kind: ReportKind, ancho
     const group = key === NO_GROUP ? null : ix.groupById.get(key) ?? null;
     const cnt = byGroup.get(key) ?? { leads: 0, done: 0 };
     const hours = costTo ? sumRange(ix.hoursGroupDay.get(key), from, costTo) : 0;
-    const leadsClosed = costTo ? sumRange(ix.groupDay.get(key), from, costTo) : 0;
+    const leadsClosed = costTo ? sumRange(ix.groupDay.get(key), from, costTo) - pendingIn(ix, from, costTo, ix.pendingGroup.get(key) ?? 0) : 0;
     const cost = opCostBy.get(key) ?? 0;
     const track = trackOf.get(key) ?? "re";
     const rev = revenueWhere((l) => gk(l.groupId) === key);

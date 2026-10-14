@@ -72,7 +72,7 @@ export default function MePage() {
     const leads = row.pace.today;
     const cur = tierFor(tiers, leads);
     const next = tiers.find((t) => t.from > leads) ?? null;
-    // прикидка за текущую смену — по часам из графика: в часы и зарплату смена попадёт после закрытия дня
+    // прикидка за текущую смену — по часам смены: из Скорозвона (раз в час), пока их нет — по графику
     const hoursToday = ix.plannedOpDay.get(row.op.id)?.get(m.cal.ref) ?? 0;
     return {
       tiers,

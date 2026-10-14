@@ -116,7 +116,7 @@ export default function SettingsPage() {
   const tabs: { value: Tab; label: string; show: boolean }[] = [
     { value: "profile", label: "Мой профиль", show: true },
     { value: "system", label: "Система", show: access.can.systemSettings },
-    { value: "accounts", label: "Аккаунты", show: access.can.manageAccounts },
+    { value: "accounts", label: "Аккаунты", show: access.can.manageAccounts || access.can.opAccounts },
     { value: "roles", label: "Роли и доступ", show: access.can.manageAccounts },
     { value: "data", label: "Данные", show: access.can.manageData },
     { value: "audit", label: "Журнал", show: access.can.manageData || access.can.editPayroll },
@@ -227,7 +227,7 @@ export default function SettingsPage() {
           </Field>
           <Field
             label="Закрытие дня, час (МСК)"
-            hint={`С ${f.dayCloseHour}:00 сегодняшние смены идут в часы, конверсию и зарплату; до этого — считаются по вчера. 0 — сразу`}
+            hint={`Часы за сегодня приходят из Скорозвона каждый час и сразу идут в расчёты. Смены без часов из Скорозвона (не сопоставлен, внесены руками) — с ${f.dayCloseHour}:00. 0 — сразу`}
           >
             <NumInput value={f.dayCloseHour} onChange={(v) => set("dayCloseHour", v ?? 21)} min={0} max={24} />
           </Field>

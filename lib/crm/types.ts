@@ -338,8 +338,8 @@ export interface Settings {
   /** Сколько рабочих дней без лидов = «практически не работает». */
   idleDays: number;
   /**
-   * Час закрытия дня (0–24): с этого часа сегодняшние смены считаются отработанными —
-   * идут в часы, конверсию и зарплату. До него смена ещё идёт, в расчётах — по вчера.
+   * Час закрытия дня (0–24). Сегодняшние смены с часами из Скорозвона (раз в час) идут в расчёты
+   * сразу; остальные (часы по графику, руками) — с этого часа, до него смена ещё идёт.
    */
   dayCloseHour: number;
   directionEnabled: boolean;
@@ -472,6 +472,8 @@ export interface SupervisorAccess {
   createLeads: boolean;
   editLeads: boolean;
   manageOperators: boolean;
+  /** Заводит аккаунты (вход в CRM) операторам и стажёрам своих групп: почта, пароль, вкл/выкл. */
+  opAccounts: boolean;
   editShifts: boolean;
   viewPayroll: boolean;
   editPayroll: boolean;

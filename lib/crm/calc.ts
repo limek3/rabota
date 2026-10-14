@@ -67,8 +67,21 @@ export interface Index {
   svIds: Set<ID>;
   /** Часы по графику, включая сегодня и наперёд, — для графика смен (сколько поставлено). */
   plannedOpDay: Map<ID, DayMap>;
-  /** Последний закрытый день: его смены уже считаются отработанными. */
+  /** Последний день, смены которого считаются отработанными (в приложении — сегодня). */
   workedTo: DayKey;
+  /**
+   * Идущий день (сегодня до часа закрытия): его смена идёт в часы, только если часы уже пришли
+   * из Скорозвона (они обновляются каждый час) — часы по графику наперёд в факт не идут.
+   * null — все дни по workedTo закрыты.
+   */
+  openDay: DayKey | null;
+  /**
+   * Лиды идущего дня у тех, чьи часы за этот день ещё не пришли. Конверсия = лиды ÷ часы:
+   * эти лиды из неё вычитаем, иначе утром она завышена. По оператору, группе и команде.
+   */
+  pendingOp: Map<ID, number>;
+  pendingGroup: Map<string, number>;
+  pendingTeam: number;
   /** Смена по ключу `${дата}|${оператор}`. */
   shift: Map<string, Shift>;
   /** Месяцы, в которых у оператора есть лиды/смены/начисления. */
@@ -103,9 +116,19 @@ export const NO_CUTOFF = "9999-12-31";
 /**
  * Последний закрытый день: после часа закрытия (settings.dayCloseHour, по умолчанию 21:00) —
  * сегодня, раньше — вчера. 0 — сегодняшняя смена считается сразу, 24 — только на следующий день.
+ * В приложении до закрытия сегодня — идущий день (Index.openDay): часы из Скорозвона идут сразу.
  */
 export function closedThrough(today: DayKey, hour: number, s: Pick<Settings, "dayCloseHour">): DayKey {
   return hour >= s.dayCloseHour ? today : addDays(today, -1);
+}
+
+/** Строка, которую функция shift-hours пишет в комментарий смены: часы — фактические, из Скорозвона. */
+export const SKOROZVON_MARK = "Скорозвон:";
+export const fromSkorozvon = (s: Pick<Shift, "comment">) => (s.comment ?? "").split("\n").some((l) => l.trim().startsWith(SKOROZVON_MARK));
+
+/** Сколько лидов вычесть из конверсии за период from…to: лиды идущего дня без часов. */
+export function pendingIn(ix: Index, from: DayKey, to: DayKey, n: number): number {
+  return ix.openDay && ix.openDay >= from && ix.openDay <= to ? n : 0;
 }
 
 /**
@@ -120,7 +143,7 @@ export function supervisorIds(st: Pick<DataState, "operators" | "groups">): Set<
   return out;
 }
 
-export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
+export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF, openDay: DayKey | null = null): Index {
   const ix: Index = {
     opById: new Map(st.operators.map((o) => [o.id, o])),
     groupById: new Map(st.groups.map((g) => [g.id, g])),
@@ -136,6 +159,10 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
     svIds: supervisorIds(st),
     plannedOpDay: new Map(),
     workedTo,
+    openDay,
+    pendingOp: new Map(),
+    pendingGroup: new Map(),
+    pendingTeam: 0,
     shift: new Map(),
     opMonths: new Map(),
     groupMonthOps: new Map(),
@@ -170,7 +197,8 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
     addTo(ix.opMonths, s.operatorId, m);
     ix.months.add(m);
     if (WORKED_TYPES.has(s.type) && s.hours > 0) bump(ix.plannedOpDay, s.operatorId, s.date, s.hours);
-    if (WORKED_TYPES.has(s.type) && s.hours > 0 && s.date <= workedTo) {
+    // идущий день: только фактические часы из Скорозвона, часы по графику ещё не отработаны
+    if (WORKED_TYPES.has(s.type) && s.hours > 0 && s.date <= workedTo && (s.date !== openDay || fromSkorozvon(s))) {
       bump(ix.hoursOpDay, s.operatorId, s.date, s.hours);
       // часы супервайзера — только его: в часы и конверсию команды и группы не идут
       if (ix.svIds.has(s.operatorId)) continue;
@@ -181,6 +209,14 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF): Index {
   for (const a of st.adjustments) {
     addTo(ix.opMonths, a.operatorId, a.month);
     ix.months.add(a.month);
+  }
+  if (openDay) {
+    for (const l of st.leads) {
+      if (l.status === "failed" || l.at.slice(0, 10) !== openDay || ix.hoursOpDay.get(l.operatorId)?.has(openDay)) continue;
+      ix.pendingOp.set(l.operatorId, (ix.pendingOp.get(l.operatorId) ?? 0) + 1);
+      ix.pendingGroup.set(gk(l.groupId), (ix.pendingGroup.get(gk(l.groupId)) ?? 0) + 1);
+      ix.pendingTeam++;
+    }
   }
   return ix;
 }
@@ -920,7 +956,8 @@ function buildModel(st: DataState, ix: Index, src: ModelSrc): MonthModel {
   const first = cal.days[0];
   const last = cal.days[cal.days.length - 1];
   // часы — только отработанные: смены, запланированные наперёд, в факт не идут;
-  // сегодняшняя — после закрытия дня (ix.workedTo)
+  // сегодняшняя — по часам из Скорозвона (ix.openDay), без них — после закрытия дня.
+  // Конверсия — по тем же дням: лиды идущего дня без часов (ix.pending*) из неё вычитаются
   const factTo = cal.ref < last ? cal.ref : last;
   const closedTo = factTo < ix.workedTo ? factTo : ix.workedTo;
   const ref = cal.phase === "future" ? first : cal.ref;
@@ -939,11 +976,12 @@ function buildModel(st: DataState, ix: Index, src: ModelSrc): MonthModel {
     const workedToDate = win && cal.phase !== "future" ? workdaysBetween(cal, win.from, elapsedTo) : 0;
     const winW = win ? Math.max(1, workdaysBetween(cal, win.from, win.to)) : 1;
     const norm = terms.normHours;
-    // норма к дате — по закрытым дням, как и часы: иначе утром «не добирает» на целую смену
-    const normTo = elapsedTo < ix.workedTo ? elapsedTo : ix.workedTo;
+    // норма к дате — по закрытым дням: идущая смена ещё не доработана, иначе утром «не добирает» на целую смену
+    const normEnd = elapsedTo < ix.workedTo ? elapsedTo : ix.workedTo;
+    const normTo = normEnd === ix.openDay ? addDays(normEnd, -1) : normEnd;
     const normDays = win && cal.phase !== "future" ? workdaysBetween(cal, win.from, normTo) : 0;
     const normToDate = cal.phase === "past" ? norm : (norm * normDays) / winW;
-    const factClosed = sumRange(ix.opDay.get(op.id), first, closedTo);
+    const factClosed = sumRange(ix.opDay.get(op.id), first, closedTo) - pendingIn(ix, first, closedTo, ix.pendingOp.get(op.id) ?? 0);
 
     let daysWorked = 0;
     let absentDays = 0;
@@ -1026,7 +1064,7 @@ function buildModel(st: DataState, ix: Index, src: ModelSrc): MonthModel {
       pace: p,
       status: paceStatus(p, s, cal),
       hours,
-      lph: hours > 0 ? sumRange(ix.groupDay.get(key), first, closedTo) / hours : null,
+      lph: hours > 0 ? (sumRange(ix.groupDay.get(key), first, closedTo) - pendingIn(ix, first, closedTo, ix.pendingGroup.get(key) ?? 0)) / hours : null,
       headcount,
       contributors,
       avgPerOp: safeDiv(p.fact, contributors || headcount),
@@ -1072,9 +1110,9 @@ function buildModel(st: DataState, ix: Index, src: ModelSrc): MonthModel {
       hours,
       hoursToday,
       hoursWeek,
-      lph: hours > 0 ? sumRange(ix.day, first, closedTo) / hours : null,
-      lphToday: hoursToday > 0 ? tp.today / hoursToday : null,
-      lphWeek: hoursWeek > 0 ? sumRange(ix.day, ws, ref < ix.workedTo ? ref : ix.workedTo) / hoursWeek : null,
+      lph: hours > 0 ? (sumRange(ix.day, first, closedTo) - pendingIn(ix, first, closedTo, ix.pendingTeam)) / hours : null,
+      lphToday: hoursToday > 0 ? (tp.today - pendingIn(ix, ref, ref, ix.pendingTeam)) / hoursToday : null,
+      lphWeek: hoursWeek > 0 ? (sumRange(ix.day, ws, ref < ix.workedTo ? ref : ix.workedTo) - pendingIn(ix, ws, ref, ix.pendingTeam)) / hoursWeek : null,
       headcount: live.length,
       contributors,
       avgPerOp: safeDiv(tp.fact, contributors || live.length),

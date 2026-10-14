@@ -471,9 +471,8 @@ function ShiftsCard({ row, coach = false }: { row: OpRow; coach?: boolean }) {
 function OutputCard({ row }: { row: OpRow }) {
   const { ix, today } = useCrm();
   const p = row.pace;
-  // день ещё не закрыт: часы сегодняшней смены войдут в расчёт в час закрытия (Настройки)
-  const open = today > ix.workedTo;
-  // лиды в час — по закрытым дням: сегодняшние лиды без сегодняшних часов завысили бы результат
+  // смена идёт, а часов из Скорозвона за сегодня ещё нет — сегодняшние лиды без часов завысили бы конверсию
+  const open = today === ix.openDay && !ix.hoursOpDay.get(row.op.id)?.has(today);
   const closedWeek = open ? p.thisWeek - p.today : p.thisWeek;
   return (
     <div className="card" style={{ overflow: "hidden", alignSelf: "start" }}>
@@ -496,7 +495,7 @@ function OutputCard({ row }: { row: OpRow }) {
               <td>{x.l}</td>
               <td className="r num">{fmtInt(x.n)}</td>
               {open && x.l === "Сегодня" ? (
-                <td className="r" colSpan={2} style={{ color: "var(--dim)", fontSize: 12 }} title="Часы сегодняшней смены войдут в расчёт после закрытия дня">
+                <td className="r" colSpan={2} style={{ color: "var(--dim)", fontSize: 12 }} title="Часы подтянутся из Скорозвона в начале следующего часа">
                   смена идёт
                 </td>
               ) : (

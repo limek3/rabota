@@ -236,9 +236,9 @@ export default function PayrollPage() {
         : `Выплаты раз в ${data.settings.payPeriodDays} дней, через ${data.settings.payDelayDays} дн. после конца периода`
       : view === "payouts"
         ? "Все авансы и выплаты — по дате выплаты"
-        : // до закрытия дня сегодняшние смены ещё идут — в ведомости их нет, и это надо видеть
-          workedTo < today && month === today.slice(0, 7)
-          ? `${fmtMonth(month)} · по ${fmtDayShort(workedTo)} включительно — смены за сегодня войдут в ${data.settings.dayCloseHour}:00`
+        : // текущий месяц — на сейчас, как на всех страницах: часы за сегодня — из Скорозвона, раз в час
+          month === today.slice(0, 7) && ix.openDay
+          ? `${fmtMonth(month)} · по ${fmtDayShort(workedTo)} включительно — часы за сегодня из Скорозвона, обновляются каждый час`
           : `${fmtMonth(month)} · из смен, лидов и корректировок`;
   const stHue = pp.status.hue === "blue" ? "gray" : pp.status.hue;
 

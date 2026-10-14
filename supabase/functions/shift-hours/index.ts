@@ -1,8 +1,8 @@
 // ============================================================================
 // Edge Function: shift-hours — часы в график из Скорозвона.
 // ----------------------------------------------------------------------------
-// Каждый день в 21:01 по Москве (pg_cron, supabase/migrations/20261007000001_shift_hours_cron.sql)
-// берёт отчёт Скорозвона «Занятость сотрудников» за сегодня и каждому, у кого в графике
+// Каждый час в :05 по Москве (pg_cron, supabase/migrations/20261014000002_shift_hours_hourly.sql;
+// в 00:05 — последний раз за вчера) берёт отчёт Скорозвона «Занятость сотрудников» за день и каждому, у кого в графике
 // смена (работа или обучение), ставит часы = доступен + гудки + разговор + заполняет карточку.
 // Перерывы, «не беспокоить» и офлайн не считаются. Оператор CRM ↔ сотрудник Скорозвона —
 // по фамилии (и имени, если фамилия встречается дважды). Не нашёлся или нашлись двое —
@@ -185,15 +185,21 @@ Deno.serve(async (req) => {
       const hours = Math.round((sec / 3600) * 100) / 100;
       const line = `${MARK} ${(Object.keys(WORK) as WorkKey[]).map((k) => `${WORK[k]} ${hhmm(parts[k])}`).join(" · ")}`;
       updated.push({ name: op.name, from: Number(s.hours) || 0, to: hours, parts });
-      recs.push({ id: s.id, hours, comment: withMark(String(s.comment ?? ""), line), updated_at: now });
+      const comment = withMark(String(s.comment ?? ""), line);
+      // ничего не поменялось с прошлого часа — не пишем: лишние записи будят все открытые CRM
+      if (Math.abs((Number(s.hours) || 0) - hours) < 0.005 && comment === String(s.comment ?? "")) continue;
+      recs.push({ id: s.id, hours, comment, updated_at: now });
     }
 
-    if (!dry && recs.length) {
-      // только часы и комментарий: тип смены, группа и всё остальное не трогаем
+    // только часы и комментарий: тип смены, группа и всё остальное не трогаем
+    if (!dry) {
       for (const r of recs) {
         const { error } = await admin.from("shifts").update({ hours: r.hours, comment: r.comment, updated_at: r.updated_at }).eq("id", r.id);
         if (error) return json({ error: `Не сохранилась смена ${r.id}: ${error.message}`, updated, skipped }, 500);
       }
+    }
+    // расписание идёт каждый час: в журнал — только итог дня (прогон за вчера в 00:05) и запуски руками
+    if (!dry && updated.length && (!byCron || date < today)) {
       const ru = `${date.slice(8, 10)}.${date.slice(5, 7)}`;
       await admin.from("audit").insert({
         id: `au-sk-${date}-${Date.now().toString(36)}`,

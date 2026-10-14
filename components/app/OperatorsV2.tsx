@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { useInsights, useMonthModel } from "@/lib/crm/hooks";
-import { WORKED_TYPES, sumRange, workedDays, type OpRow } from "@/lib/crm/calc";
+import { WORKED_TYPES, fromSkorozvon, pendingIn, sumRange, workedDays, type OpRow } from "@/lib/crm/calc";
 import { canManageOperator } from "@/lib/crm/access";
 import { addDays, addMonths, fmtMonth, isoWeekday, isWorkday, monthEnd, monthOf, monthStart, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName, OPS } from "@/lib/crm/format";
@@ -85,6 +85,8 @@ interface PRow {
   fact: number;
   hours: number;
   shifts: number;
+  /** Лиды для конверсии: факт без лидов идущей смены, чьи часы ещё не пришли из Скорозвона. */
+  factLph: number;
   lph: number | null;
   pct: number;
   left: number;
@@ -110,7 +112,24 @@ function periodOf(mode: Mode, anchor: DayKey): { from: DayKey; to: DayKey } {
 }
 
 export function OperatorsV2() {
-  const { data, ix, month, setMonth, today, access, openOperator } = useCrm();
+  const { data, ix, month, setMonth, today, access, openOperator, demoteSupervisor, saveOperator, toast } = useCrm();
+  /*
+   * Супервайзер «наполовину»: роль в карточке уже не «Супервайзер», но человек всё ещё руководит группой или
+   * на схеме оплаты СВ. Для расчётов он супервайзер — в графике в «Супервайзерах», здесь его нет. Показываем
+   * РОПу и даём довести до конца в одну сторону.
+   */
+  const halfSv = useMemo(
+    () =>
+      access.can.manageGroups && access.can.manageAccounts
+        ? data.operators.filter((o) => {
+            if (o.deletedAt || o.status === "fired") return false;
+            // аккаунт уже оператора, а карточка — супервайзера
+            if (o.role === "supervisor") return data.accounts.some((a) => !a.deletedAt && a.operatorId === o.id && a.role === "operator");
+            return o.payType === "sv_volume" || data.groups.some((g) => !g.deletedAt && g.supervisorId === o.id);
+          })
+        : [],
+    [data.operators, data.groups, access],
+  );
   const router = useRouter();
   const m = useMonthModel();
   const ins = useInsights(m);
@@ -188,17 +207,14 @@ export function OperatorsV2() {
       const planToDate = daily * doneDays.filter(work).length;
       const opDay = ix.opDay.get(op.id);
       const fact = started ? sumRange(opDay, from, last) : 0;
-      // часы — по закрытым дням; сегодняшняя смена — по графику, пока день не закрыт
+      // часы — отработанные, сегодня — из Скорозвона (обновляются каждый час), как на всех страницах
       const hMap = ix.hoursOpDay.get(op.id);
-      let hours = started ? sumRange(hMap, from, closedTo) : 0;
-      let shifts = doneDays.filter((d) => d <= closedTo && (hMap?.get(d) ?? 0) > 0).length;
+      const hours = started ? sumRange(hMap, from, closedTo) : 0;
+      const shifts = doneDays.filter((d) => d <= closedTo && (hMap?.get(d) ?? 0) > 0).length;
       const todayShift = ix.shift.get(`${today}|${op.id}`);
-      if (today >= from && today <= to && today > ix.workedTo && worked(todayShift)) {
-        hours += todayShift!.hours;
-        shifts += 1;
-      }
-      // конверсия = факт ÷ часы — ровно те числа, что стоят в таблице рядом
-      const lph = hours > 0 ? fact / hours : null;
+      // конверсия = факт ÷ часы; лиды идущей смены, чьих часов ещё нет, в неё не идут
+      const factLph = fact - (started ? pendingIn(ix, from, last, ix.pendingOp.get(op.id) ?? 0) : 0);
+      const lph = hours > 0 ? factLph / hours : null;
       const pct = planToDate > 0 ? fact / planToDate : 0;
       let st: StKey;
       if (op.status === "fired") st = "fired";
@@ -220,13 +236,14 @@ export function OperatorsV2() {
         fact,
         hours,
         shifts,
+        factLph,
         lph,
         pct,
         left: Math.max(0, Math.round(plan) - fact),
         st,
         ...(() => {
           const wd = workedDays(ix, op.id, started ? last : to);
-          return { spark: wd.map((d) => opDay?.get(d) ?? 0), sparkDays: wd, sparkOpen: wd.length > 0 && wd[wd.length - 1] === today && today > ix.workedTo };
+          return { spark: wd.map((d) => opDay?.get(d) ?? 0), sparkDays: wd, sparkOpen: wd.length > 0 && wd[wd.length - 1] === today && today === ix.openDay };
         })(),
         todayShift,
       };
@@ -286,17 +303,15 @@ export function OperatorsV2() {
       for (const x of all) {
         const id = x.op.id;
         leads += sumRange(ix.opDay.get(id), f, t);
-        leadsClosed += sumRange(ix.opDay.get(id), f, closed);
+        leadsClosed += sumRange(ix.opDay.get(id), f, closed) - pendingIn(ix, f, closed, ix.pendingOp.get(id) ?? 0);
         const h = ix.hoursOpDay.get(id);
         if (kind === "hours" && h) for (const [d, v] of h) if (d >= f && d <= closed && v > 0) { hours += v; shifts++; }
       }
       return { leads, hours, shifts, lph: hours > 0 ? leadsClosed / hours : null };
     };
     const cur = started ? sumOps(from, last, "hours") : { leads: 0, hours: 0, shifts: 0, lph: null };
-    // конверсия команды — как в таблице: факт ÷ часы (с идущей сменой)
-    const fSum = all.reduce((a, x) => a + x.fact, 0);
-    const hSum = all.reduce((a, x) => a + x.hours, 0);
-    const lphNow = hSum > 0 ? fSum / hSum : null;
+    // конверсия команды — как в таблице и на сводке: лиды ÷ отработанные часы
+    const lphNow = cur.lph;
     const prev = started ? sumOps(pFrom, pLast, "hours") : null;
     const headNow = live.filter((x) => x.op.status !== "fired" && employed(x.op, last)).length;
     const headPrev = live.filter((x) => employed(x.op, started ? pLast : addDays(from, -1))).length;
@@ -330,6 +345,7 @@ export function OperatorsV2() {
       const planToDate = live.reduce((a, x) => a + x.planToDate, 0);
       const fact = xs.reduce((a, x) => a + x.fact, 0);
       const hours = xs.reduce((a, x) => a + x.hours, 0);
+      const factLph = xs.reduce((a, x) => a + x.factLph, 0);
       return {
         head: live.filter((x) => employed(x.op, last)).length,
         onShift: live.filter((x) => worked(x.todayShift)).length,
@@ -338,7 +354,7 @@ export function OperatorsV2() {
         fact,
         hours,
         pct: planToDate > 0 ? fact / planToDate : null,
-        lph: hours > 0 ? fact / hours : null,
+        lph: hours > 0 ? factLph / hours : null,
         crit: live.filter((x) => x.st === "critical").length,
       };
     };
@@ -571,6 +587,58 @@ export function OperatorsV2() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* ── снятые с супервайзера не до конца ─────────────────── */}
+          {halfSv.length > 0 && (
+            <div className="o2-alert">
+              <Icon name="alert" size={22} />
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="t">
+                  {halfSv.length === 1 ? "Сотрудника сняли с супервайзера не до конца" : `${halfSv.length} ${plural(halfSv.length, OPS)} сняты с супервайзера не до конца`}
+                </div>
+                <div className="x">
+                  Роль в карточке или аккаунте уже не «Супервайзер», но что-то осталось — поэтому в графике человек в «Супервайзерах», а в этом списке
+                  его нет. Снимите с супервайзера до конца — или, если это СВ, оставьте супервайзером.
+                </div>
+                <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+                  {halfSv.map((o) => {
+                    const led = data.groups.filter((g) => !g.deletedAt && g.supervisorId === o.id).map((g) => g.name);
+                    const why = [
+                      o.role === "supervisor" ? "аккаунт оператора, в карточке — супервайзер" : `в карточке — ${ROLE_LABEL[o.role].toLowerCase()}`,
+                      led.length ? `руководит: ${led.join(", ")}` : "",
+                      o.payType === "sv_volume" ? "оплата СВ" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <div key={o.id} className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                        <b style={{ fontWeight: 600 }}>{shortName(o.name)}</b>
+                        <span className="o2-muted" style={{ flex: 1, minWidth: 0 }}>{why}</span>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={async () => {
+                            if (await demoteSupervisor(o.id)) toast(`«${shortName(o.name)}» теперь оператор: в графике и в «Операторах»`);
+                          }}
+                        >
+                          Снять с супервайзера
+                        </button>
+                        {o.role !== "supervisor" && (
+                          <button
+                            className="btn btn-sm"
+                            onClick={async () => {
+                              if (await saveOperator({ ...o, role: "supervisor" })) toast(`«${shortName(o.name)}» — супервайзер`);
+                            }}
+                          >
+                            Это супервайзер
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
@@ -1247,7 +1315,7 @@ function ShiftList({ shifts, opId }: { shifts: { d: DayKey; s: Shift }[]; opId: 
         const conv = w && h > 0 ? leads / h : null;
         const hue = conv == null ? "gray" : norm > 0 ? (conv >= norm ? "green" : conv >= norm * 0.8 ? "amber" : "red") : "gray";
         const pill =
-          d === today && w && d > ix.workedTo
+          d === ix.openDay && w && !fromSkorozvon(s)
             ? { hue: "amber", t: "Сейчас", tip: `Смена идёт: ${leads} ${plural(leads, ["лид", "лида", "лидов"])}` }
             : conv != null
               ? { hue, t: fmtPct(conv), tip: `Конверсия: ${leads} ${plural(leads, ["лид", "лида", "лидов"])} за ${fmtNum(h)} ч${norm > 0 ? ` · норма ${fmtPct(norm)}` : ""}` }

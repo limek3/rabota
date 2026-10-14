@@ -12,7 +12,9 @@
 // Клиент: supabase.functions.invoke("crm-users", { body: { email, password, name } })
 //   — нет такого пользователя: создаёт (почта сразу подтверждена);
 //   — есть: меняет пароль.
-// Звать может только РОП (проверка через public.crm_is_head() от имени вызывающего).
+// Звать может РОП — для любой почты, и супервайзер с правом «Создаёт аккаунты операторам» — только
+// для почты аккаунта оператора своих групп (public.crm_can_set_login от имени вызывающего,
+// миграция 20261014000001_supervisor_accounts.sql). Сначала CRM сохраняет аккаунт, потом зовёт функцию.
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -38,9 +40,6 @@ Deno.serve(async (req) => {
 
     // от имени вызывающего: права решает база, как и везде в CRM
     const asCaller = createClient(url, anon, { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } });
-    const { data: isHead, error: hErr } = await asCaller.rpc("crm_is_head");
-    if (hErr) return json({ error: hErr.message }, 401);
-    if (isHead !== true) return json({ error: "Создавать вход может только руководитель отдела" }, 403);
 
     const body = await req.json().catch(() => ({}));
     const email = String(body.email ?? "").trim().toLowerCase();
@@ -48,6 +47,12 @@ Deno.serve(async (req) => {
     const name = String(body.name ?? "").trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Некорректная почта" }, 400);
     if (password.length < 8) return json({ error: "Пароль — минимум 8 символов" }, 400);
+
+    let { data: allowed, error: hErr } = await asCaller.rpc("crm_can_set_login", { p_email: email });
+    // миграция супервайзеров ещё не выполнена — как раньше, только РОП
+    if (hErr && /crm_can_set_login|function|schema cache/i.test(hErr.message)) ({ data: allowed, error: hErr } = await asCaller.rpc("crm_is_head"));
+    if (hErr) return json({ error: hErr.message }, 401);
+    if (allowed !== true) return json({ error: "Задать вход можно только аккаунту оператора своей группы (или руководителю отдела — любому)" }, 403);
 
     const admin = createClient(url, service, { auth: { persistSession: false } });
 

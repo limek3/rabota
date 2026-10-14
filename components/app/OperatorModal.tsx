@@ -13,7 +13,7 @@ import { hasEmploymentColumn, hasStartTimeColumn } from "@/lib/crm/remote";
 import { sameNameOps } from "@/lib/crm/dupes";
 
 export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Partial<OperatorInput> }) {
-  const { data, closeModal, saveOperator, toast, confirm, access, remote } = useCrm();
+  const { data, closeModal, saveOperator, svTraces, demoteSupervisor, toast, confirm, access, remote } = useCrm();
   const s = data.settings;
   // супервайзер ставит людей только в свои группы
   const groups = data.groups.filter((g) => !g.deletedAt && (access.isHead || access.ownGroups.has(g.id)));
@@ -73,11 +73,35 @@ export function OperatorModal({ op, preset }: { op: Operator | null; preset?: Pa
     }
     setBusy(true);
     const saved = await saveOperator({ ...f, id: op?.id });
+    if (saved && op && saved.role !== "supervisor") await offerDemote(saved);
     setBusy(false);
     if (saved) {
       toast(op ? "Оператор сохранён" : "Оператор добавлен");
       closeModal();
     }
+  };
+
+  /**
+   * Роль в карточке — не супервайзер, а человек всё ещё руководит группой, на схеме оплаты СВ или с аккаунтом
+   * супервайзера: в графике он останется в «Супервайзерах», а из списка операторов пропадёт. Предлагаем снять всё разом.
+   */
+  const offerDemote = async (saved: Operator) => {
+    if (!access.can.manageGroups || !access.can.manageAccounts) return;
+    const t = svTraces(saved.id);
+    // схему СВ, выбранную только что, не трогаем — значит, так и задумано
+    const svPay = t.svPay && op?.payType === "sv_volume";
+    if (!t.groups.length && !svPay && !t.account) return;
+    const left = [
+      t.groups.length ? `руководитель группы ${t.groups.map((g) => `«${g}»`).join(", ")}` : "",
+      svPay ? "схема оплаты «оклад + бонус за объём группы»" : "",
+      t.account ? "аккаунт с ролью «Супервайзер»" : "",
+    ].filter(Boolean);
+    const yes = await confirm({
+      title: `Снять «${saved.name}» с супервайзера?`,
+      text: `В карточке роль «${ROLE_LABEL[saved.role]}», но осталось: ${left.join("; ")}. Из-за этого в графике человек остаётся супервайзером, а в «Операторах» его не видно. Снять: группа останется без руководителя, оплата — по схеме оператора из настроек, аккаунт — оператор.`,
+      ok: "Снять с супервайзера",
+    });
+    if (yes && (await demoteSupervisor(saved.id))) toast(`«${saved.name}» теперь оператор: в графике и в «Операторах»`);
   };
 
   return (

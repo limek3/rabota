@@ -7,6 +7,7 @@ export const DEFAULT_ACCESS: AccessSettings = {
     createLeads: true,
     editLeads: true,
     manageOperators: true,
+    opAccounts: true,
     editShifts: true,
     viewPayroll: true,
     editPayroll: false,

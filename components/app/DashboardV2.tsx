@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel, usePeriodModel } from "@/lib/crm/hooks";
-import { dailyRows, pace, sumRange, workedDays, WORKED_TYPES, type DayRow, type GroupRow, type Index, type MonthCal, type MonthModel, type OpRow, type Pace } from "@/lib/crm/calc";
+import { dailyRows, pace, pendingIn, sumRange, workedDays, WORKED_TYPES, type DayRow, type GroupRow, type Index, type MonthCal, type MonthModel, type OpRow, type Pace } from "@/lib/crm/calc";
 import { addDays, fmtDay, fmtMonth, fmtRange, isoWeekday, isWorkday, monthOf, monthStart, nowHour, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, fmtSigned, LEADS, OPS, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Settings } from "@/lib/crm/types";
@@ -218,7 +218,7 @@ function buildScope(m: MonthModel, keys: string[] | null, ix: Index, s: Settings
     counts,
     hoursMap,
     hours,
-    lph: hours > 0 ? sumRange(counts, first, closedTo) / hours : null,
+    lph: hours > 0 ? (sumRange(counts, first, closedTo) - pendingIn(ix, first, closedTo, keys.reduce((a, k) => a + (ix.pendingGroup.get(k) ?? 0), 0))) / hours : null,
     headcount: line.filter((r) => r.op.status === "active").length,
     attendance: safeDiv(opDays, p.elapsedW),
     line,
@@ -322,13 +322,16 @@ export function DashboardV2() {
   );
   // сегодня: лиды за день, вчера, кто на смене — крупно рядом с фактом (в режиме «день» это и есть факт)
   const todayInfo = useMemo<HeroToday | null>(() => {
-    // конверсия дня — лиды ÷ часы смен по графику тех же операторов
+    // конверсия дня — лиды ÷ отработанные часы тех же операторов (сегодня — из Скорозвона;
+    // лиды тех, чьих часов ещё нет, не считаем — как везде)
     const convOn = (d: DayKey) => {
       let leads = 0;
       let hours = 0;
       for (const r of sc.line) {
+        const h = ix.hoursOpDay.get(r.op.id)?.get(d) ?? 0;
+        if (d === ix.openDay && !h) continue;
         leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
-        hours += ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
+        hours += h;
       }
       return hours > 0 ? leads / hours : null;
     };
@@ -1908,7 +1911,7 @@ function OpsCard({ m, line, settings, ref_, groups, span = "month" }: { m: Month
             {(() => {
               // последние 7 рабочих смен — выходные не тянут тренд к нулю
               const wd = workedDays(ix, r.op.id, ref_);
-              return <Spark values={wd.map((d) => ix.opDay.get(r.op.id)?.get(d) ?? 0)} days={wd} open={wd[wd.length - 1] === today && today > ix.workedTo} good={hasPlan && ratio * 100 >= settings.normalPct} />;
+              return <Spark values={wd.map((d) => ix.opDay.get(r.op.id)?.get(d) ?? 0)} days={wd} open={wd[wd.length - 1] === today && today === ix.openDay} good={hasPlan && ratio * 100 >= settings.normalPct} />;
             })()}
           </td>
         );
@@ -2187,15 +2190,18 @@ function HeatCard({ m, sc, rows, groups, focus }: { m: MonthModel; sc: Scope; ro
   const norm = data.settings.convNormPct / 100;
   const isFuture = (d: DayKey) => cal.phase === "future" || d > cal.ref;
 
-  // конверсия дня — лиды ÷ часы смен по тем же операторам, что в таблице (как в «Графике»)
+  // конверсия дня — лиды ÷ отработанные часы по тем же операторам, что в таблице; сегодня — часы из Скорозвона,
+  // лиды тех, чьих часов ещё нет, не считаем (как везде)
   const conv = useMemo(
     () =>
       days.map((d) => {
         let leads = 0;
         let hours = 0;
         for (const r of ops) {
+          const h = ix.hoursOpDay.get(r.op.id)?.get(d) ?? 0;
+          if (d === ix.openDay && !h) continue;
           leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
-          hours += ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
+          hours += h;
         }
         return { leads, hours, v: hours > 0 ? leads / hours : null };
       }),

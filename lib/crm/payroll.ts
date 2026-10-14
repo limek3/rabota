@@ -188,8 +188,8 @@ export function tieredMonth(
  */
 export function accrual(op: Operator, cal: MonthCal, st: DataState, ix: Index, upTo?: DayKey) {
   const t = opTerms(op, cal, st, ix);
-  // по факту: только закрытые дни (ix.workedTo) — и часы, и лиды. Сегодняшняя смена до закрытия
-  // дня ещё идёт: иначе утром в ФОТ сидела бы целая смена, а ступень сетки прыгала от неполного дня
+  // по факту: по ix.workedTo (сегодня) — и часы, и лиды. Сегодняшние часы — только фактические
+  // из Скорозвона (ix.openDay): смена по графику наперёд в ФОТ не попадает
   const days = monthDays(cal.month).filter((d) => d <= cal.ref && d <= ix.workedTo && (!upTo || d <= upTo));
   const hours = days.length ? round2(sumRange(ix.hoursOpDay.get(op.id), days[0], days[days.length - 1])) : 0;
   const leads = days.length ? sumRange(ix.opDay.get(op.id), days[0], days[days.length - 1]) : 0;

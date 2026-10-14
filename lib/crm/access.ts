@@ -59,6 +59,8 @@ export interface Access {
     systemSettings: boolean;
     manageData: boolean;
     manageAccounts: boolean;
+    /** Аккаунты операторов своих групп (супервайзер с правом из «Ролей и доступа»); у РОПа — все. */
+    opAccounts: boolean;
     /** Найм: кандидаты и приём в штат (супервайзеру — вместе с правом вести операторов). */
     manageHiring: boolean;
   };
@@ -105,20 +107,20 @@ export function computeAccess(acc: Account, st: DataState): Access {
     ? {
         createLeads: true, editLeads: true, manageOperators: true, manageGroups: true, editShifts: true, viewPayroll: true,
         editPayroll: true, editPlans: true, editTeamPlan: true, manageProjects: true, systemSettings: true, manageData: true, manageAccounts: true,
-        manageHiring: true,
+        opAccounts: true, manageHiring: true,
       }
     : isSup
       ? {
           createLeads: S.createLeads, editLeads: S.editLeads, manageOperators: S.manageOperators, manageGroups: false,
           editShifts: S.editShifts, viewPayroll: S.viewPayroll, editPayroll: S.viewPayroll && S.editPayroll, editPlans: S.editPlans,
           editTeamPlan: false, manageProjects: S.manageProjects, systemSettings: false, manageData: false, manageAccounts: false,
-          manageHiring: S.manageOperators,
+          opAccounts: S.opAccounts, manageHiring: S.manageOperators,
         }
       : {
           createLeads: O.createOwnLeads && !!opId, editLeads: O.editOwnLeadsHours > 0 && !!opId, manageOperators: false, manageGroups: false,
           editShifts: O.editOwnShifts && !!opId, viewPayroll: O.viewOwnPay && !!opId, editPayroll: false, editPlans: false,
           editTeamPlan: false, manageProjects: false, systemSettings: false, manageData: false, manageAccounts: false,
-          manageHiring: false,
+          opAccounts: false, manageHiring: false,
         };
 
   const routes = new Set<string>();
@@ -209,6 +211,17 @@ export function canManageOperator(a: Access, op: Operator | null, targetGroupId?
   return true;
 }
 
+/**
+ * Чужой аккаунт: РОП — любой; супервайзер с правом «аккаунты операторов» — только аккаунт оператора
+ * (или стажёра) с карточкой в своих группах, не свой. То же правило в базе — crm_can_manage_account
+ * (supabase/migrations/20261014000001_supervisor_accounts.sql).
+ */
+export function canManageAccount(a: Access, acc: Pick<Account, "role" | "operatorId">): boolean {
+  if (a.isHead) return true;
+  if (!a.isSup || !a.can.opAccounts || acc.role !== "operator" || !acc.operatorId || acc.operatorId === a.opId) return false;
+  return canTouchOp(a, acc.operatorId);
+}
+
 export function canEditShift(a: Access, operatorId: ID): boolean {
   return a.can.editShifts && canTouchOp(a, operatorId);
 }
@@ -261,7 +274,7 @@ export function scopeData(st: DataState, a: Access): DataState {
     return {
       ...st,
       adjustments: a.can.viewPayroll ? st.adjustments.filter((x) => canTouchOp(a, x.operatorId)) : [],
-      accounts: st.accounts.filter((x) => x.id === a.account.id),
+      accounts: st.accounts.filter((x) => x.id === a.account.id || canManageAccount(a, x)),
       candidates: st.candidates.filter((c) => canTouchCandidate(a, c)),
       notes: st.notes.filter((n) => canNote(a, n.operatorId)),
     };
@@ -297,7 +310,7 @@ export function scopeData(st: DataState, a: Access): DataState {
     ),
     // деньги: наставнику — только свои, даже если группа ему видна
     adjustments: canPay ? st.adjustments.filter((x) => (a.isMentor ? x.operatorId === a.opId : opIds.has(x.operatorId))) : [],
-    accounts: st.accounts.filter((x) => x.id === a.account.id),
+    accounts: st.accounts.filter((x) => x.id === a.account.id || canManageAccount(a, x)),
     candidates: st.candidates.filter((c) => canTouchCandidate(a, c)),
     // заметки СВ — только руководителям, оператору свои не показываем
     notes: st.notes.filter((n) => canNote(a, n.operatorId)),
