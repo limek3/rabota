@@ -1044,15 +1044,14 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     [patchOperator],
   );
 
-  const deleteOperator = useCallback<Store["deleteOperator"]>(
-    async (id) => {
-      const op = dataRef.current.operators.find((o) => o.id === id);
-      if (!op) return;
-      if (!canManageOperator(accessRef.current, op)) return deny();
-      if (!(await guardedBackup(`Перед удалением оператора «${op.name}»`))) return;
-      // мягкое удаление: лиды, смены и начисления остаются и продолжают ссылаться на оператора
-      const now = isoNow();
-      // удалили работающего — для графика и зарплаты это увольнение с сегодняшнего дня
+  /**
+   * Мягкое удаление карточки: лиды, смены и начисления остаются и продолжают ссылаться на оператора.
+   * Удалили работающего — для графика и зарплаты это увольнение с сегодняшнего дня, плановые смены
+   * после него снимаются, аккаунт оператора выключается.
+   */
+  const operatorRemoval = useCallback(
+    (op: Operator, now: string) => {
+      const id = op.id;
       const upd: Operator = { ...op, deletedAt: now, updatedAt: now, ...(op.status !== "fired" ? { status: "fired" as const, fireDate: todayKey() } : {}) };
       const drop = plannedAfterLeave(id, upd.fireDate || todayKey());
       // если был руководителем группы — оставляем ФИО текстом
@@ -1062,22 +1061,35 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const accs = dataRef.current.accounts
         .filter((x) => x.operatorId === id && x.role === "operator" && x.active)
         .map((x) => ({ ...x, active: false, updatedAt: now }));
-      const ok = await commit(
-        () =>
-          db.applyBatch([
-            { store: "operators", put: [upd] },
-            { store: "groups", put: groups },
-            { store: "accounts", put: accs },
-            { store: "shifts", del: drop },
-          ]),
-        (d) => ({
+      return {
+        upd,
+        drop,
+        batch: [
+          { store: "operators" as const, put: [upd] },
+          { store: "groups" as const, put: groups },
+          { store: "accounts" as const, put: accs },
+          { store: "shifts" as const, del: drop },
+        ],
+        apply: (d: DataState): DataState => ({
           ...d,
           operators: d.operators.map((o) => (o.id === id ? upd : o)),
           groups: d.groups.map((g) => groups.find((x) => x.id === g.id) ?? g),
           accounts: d.accounts.map((x) => accs.find((y) => y.id === x.id) ?? x),
           shifts: drop.length ? d.shifts.filter((s) => !drop.includes(s.id)) : d.shifts,
         }),
-      );
+      };
+    },
+    [plannedAfterLeave],
+  );
+
+  const deleteOperator = useCallback<Store["deleteOperator"]>(
+    async (id) => {
+      const op = dataRef.current.operators.find((o) => o.id === id);
+      if (!op) return;
+      if (!canManageOperator(accessRef.current, op)) return deny();
+      if (!(await guardedBackup(`Перед удалением оператора «${op.name}»`))) return;
+      const { upd, drop, batch, apply } = operatorRemoval(op, isoNow());
+      const ok = await commit(() => db.applyBatch(batch), apply);
       if (ok) {
         void log("operator", id, `${op.name}: удалён${upd.status !== op.status ? ", уволен с сегодняшнего дня" : ""}${drop.length ? ` · снято смен после увольнения: ${drop.length}` : ""}`, changesOf("operator", op, upd));
         toast(`Оператор удалён, история сохранена`, "info", {
@@ -1087,7 +1099,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [commit, guardedBackup, patchOperator, toast, deny, log, plannedAfterLeave],
+    [commit, guardedBackup, patchOperator, toast, deny, log, operatorRemoval],
   );
 
   const restoreOperator = useCallback<Store["restoreOperator"]>(
@@ -1566,20 +1578,54 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const prev = dataRef.current.candidates.find((c) => c.id === id);
       if (!prev) return;
       if (!canTouchCandidate(accessRef.current, prev)) return deny();
+      const st = dataRef.current;
       const now = isoNow();
       const upd: Candidate = { ...prev, deletedAt: now, updatedAt: now };
+      // карточка стажёра заводится только под кандидата («Начать обучение») — без него она не нужна:
+      // иначе человек остаётся в графике и в обучении. Принятого оператора не трогаем.
+      const card =
+        prev.stage !== "hired" && prev.operatorId
+          ? st.operators.find(
+              (o) =>
+                o.id === prev.operatorId &&
+                !o.deletedAt &&
+                o.role === "trainee" &&
+                !st.candidates.some((c) => c.id !== id && !c.deletedAt && c.operatorId === o.id),
+            )
+          : undefined;
+      const withCard = card && canManageOperator(accessRef.current, card) ? card : undefined;
+      const rm = withCard ? operatorRemoval(withCard, now) : null;
+      const prevAccs = withCard ? st.accounts.filter((x) => x.operatorId === withCard.id) : [];
       const ok = await commit(
-        () => db.putRecord("candidates", upd),
-        (d) => ({ ...d, candidates: d.candidates.map((c) => (c.id === id ? upd : c)) }),
+        () => (rm ? db.applyBatch([{ store: "candidates", put: [upd] }, ...rm.batch]) : db.putRecord("candidates", upd)),
+        (d) => {
+          const next = { ...d, candidates: d.candidates.map((c) => (c.id === id ? upd : c)) };
+          return rm ? rm.apply(next) : next;
+        },
       );
       if (!ok) return;
       void log("candidate", id, `Кандидат «${prev.name}» удалён`, changesOf("candidate", prev, undefined));
-      toast("Кандидат удалён", "info", {
+      if (withCard && rm) void log("operator", withCard.id, `${withCard.name}: удалён вместе с кандидатом${rm.drop.length ? ` · снято смен: ${rm.drop.length}` : ""}`, changesOf("operator", withCard, rm.upd));
+      toast(withCard ? "Кандидат и карточка стажёра удалены" : "Кандидат удалён", "info", {
         label: "Вернуть",
-        run: () => void commit(() => db.putRecord("candidates", prev), (d) => ({ ...d, candidates: d.candidates.map((c) => (c.id === id ? prev : c)) })),
+        // снятые плановые смены не возвращаем — их проще поставить заново
+        run: () =>
+          void commit(
+            () =>
+              db.applyBatch([
+                { store: "candidates", put: [prev] },
+                ...(withCard ? [{ store: "operators" as const, put: [withCard] }, { store: "accounts" as const, put: prevAccs }] : []),
+              ]),
+            (d) => ({
+              ...d,
+              candidates: d.candidates.map((c) => (c.id === id ? prev : c)),
+              operators: withCard ? d.operators.map((o) => (o.id === withCard.id ? withCard : o)) : d.operators,
+              accounts: withCard ? d.accounts.map((x) => prevAccs.find((y) => y.id === x.id) ?? x) : d.accounts,
+            }),
+          ),
       });
     },
-    [commit, deny, log, toast],
+    [commit, deny, log, toast, operatorRemoval],
   );
 
   /** Стажёр → оператор в той же карточке. Стартовая страница аккаунта: обучение → личный кабинет. */

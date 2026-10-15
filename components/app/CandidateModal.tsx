@@ -170,7 +170,12 @@ export function CandidateModal({ cand, onClose }: { cand: Candidate | null; onCl
 
   const remove = async () => {
     if (!cand) return;
-    if (await confirm({ title: "Удалить кандидата?", text: hired ? "Карточка оператора останется — удалится только запись в воронке." : cand.name, ok: "Удалить", danger: true })) {
+    const text = hired
+      ? "Карточка оператора останется — удалится только запись в воронке."
+      : op?.role === "trainee"
+        ? `${cand.name}: карточка стажёра тоже удалится — из графика и обучения.`
+        : cand.name;
+    if (await confirm({ title: "Удалить кандидата?", text, ok: "Удалить", danger: true })) {
       await deleteCandidate(cand.id);
       onClose();
     }

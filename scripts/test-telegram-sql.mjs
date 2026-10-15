@@ -261,6 +261,30 @@ async function main() {
     eq((await db.query("select count(*)::int n from public.operator_telegram where operator_id = 'op_ivan'")).rows[0].n, 1, "привязка пережила восстановление");
   });
 
+  // ── чаты команд (20261014000003_telegram_team_chats.sql) ──
+  const teams = read("supabase/migrations/20261014000003_telegram_team_chats.sql");
+  await db.exec(teams);
+  await db.exec(teams); // повторный запуск безопасен
+  await test("чаты команд: «чат подключён» и права — по чату группы оператора", async () => {
+    await db.exec(`
+      insert into public.groups (id, name) values ('g2', 'Недвижимость') on conflict do nothing;
+      update public.operators set group_id = 'g2' where id = 'op_ivan';
+      delete from public.telegram_bot_state where key like 'telegram_chat_id%' or key like 'tag_rights%';
+      insert into public.telegram_bot_state (key, value) values
+        ('telegram_chat_id:group:g1', '-100'), ('tag_rights:-100', 'ok'), ('tag_rights', 'no_manage_tags');
+    `);
+    const maria = await status("maria@x.ru");
+    eq(maria.chat_connected, true, "у первой команды свой чат");
+    eq(maria.tag_rights, "ok", "права — в чате её команды, а не общий ключ");
+    const ivan = await status("ivan@x.ru");
+    eq(ivan.chat_connected, false, "у второй команды чата нет, общего тоже");
+    await db.exec(`insert into public.telegram_bot_state (key, value) values ('telegram_chat_id', '-9')`);
+    const ivan2 = await status("ivan@x.ru");
+    eq(ivan2.chat_connected, true, "без своего чата — общий чат отдела");
+    eq(ivan2.tag_rights, "no_manage_tags", "прав по общему чату нет — прежний общий ключ");
+    await rejects(asUser("maria@x.ru", "select public.telegram_operator_chat('op_ivan')"), /permission denied/, "служебная функция закрыта");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   await db.close();
   process.exit(failed ? 1 : 0);

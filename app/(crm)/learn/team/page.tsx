@@ -41,6 +41,8 @@ interface Row {
   acc: Account | null;
   accountId: string | null;
   trainee: boolean;
+  /** Стажёр, чьего кандидата удалили в Найме: карточка осталась без воронки — её можно убрать. */
+  orphan: boolean;
   group: string;
   recs: Map<string, LearnProgress>;
   prog: ReturnType<typeof acadProgress> | null;
@@ -50,7 +52,7 @@ interface Row {
 }
 
 export default function TeamLearningPage() {
-  const { data, full, access, promoteTrainee, confirm, toast } = useCrm();
+  const { data, full, access, promoteTrainee, deleteOperator, confirm, toast } = useCrm();
   const router = useRouter();
   const allowed = !access.isOp || access.isMentor;
   useEffect(() => {
@@ -71,6 +73,8 @@ export default function TeamLearningPage() {
 
   const rows = useMemo<Row[]>(() => {
     const groups = new Map(data.groups.map((g) => [g.id, g.name]));
+    const liveCand = new Set(data.candidates.filter((c) => !c.deletedAt && c.operatorId).map((c) => c.operatorId));
+    const goneCand = new Set(data.candidates.filter((c) => c.deletedAt && c.operatorId).map((c) => c.operatorId));
     return data.operators
       .filter((o) => !o.deletedAt && o.status !== "fired" && o.role !== "supervisor")
       .map((op) => {
@@ -85,6 +89,7 @@ export default function TeamLearningPage() {
           acc,
           accountId: acc?.id ?? null,
           trainee: op.role === "trainee",
+          orphan: op.role === "trainee" && goneCand.has(op.id) && !liveCand.has(op.id),
           group: op.groupId ? groups.get(op.groupId) ?? "—" : "без группы",
           recs,
           prog,
@@ -94,7 +99,7 @@ export default function TeamLearningPage() {
         };
       })
       .sort((a, b) => (b.last ?? "").localeCompare(a.last ?? "") || a.op.name.localeCompare(b.op.name, "ru"));
-  }, [data.operators, data.groups, data.learn, full.accounts]);
+  }, [data.operators, data.groups, data.learn, data.candidates, full.accounts]);
 
   const trainees = rows.filter((r) => r.trainee);
   const shown = (scope === "trainee" ? trainees : rows).filter((r) => !q.trim() || r.op.name.toLowerCase().includes(q.trim().toLowerCase()));
@@ -118,6 +123,17 @@ export default function TeamLearningPage() {
     // та же карточка: роль «оператор», стартовая страница аккаунта — личный кабинет
     if (!(await promoteTrainee(r.op.id))) return;
     toast(`${r.op.name} — теперь оператор`);
+  };
+
+  const canRemove = (r: Row) => r.orphan && access.can.manageOperators && canTouchOp(access, r.op.id);
+  const remove = async (r: Row) => {
+    const ok = await confirm({
+      title: `Удалить карточку «${r.op.name}»?`,
+      text: "Кандидат уже удалён в Найме. Карточка стажёра уйдёт из графика и обучения, история сохранится.",
+      ok: "Удалить",
+      danger: true,
+    });
+    if (ok) await deleteOperator(r.op.id);
   };
 
   if (!allowed) return null;
@@ -188,7 +204,23 @@ export default function TeamLearningPage() {
                       </span>
                     </td>
                     <td className="wrap">
-                      {!r.accountId ? (
+                      {r.orphan ? (
+                        <span className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                          <span className="muted">кандидат удалён в Найме</span>
+                          {canRemove(r) && (
+                            <button
+                              className="btn btn-sm"
+                              style={{ color: "var(--c-red-fg)" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void remove(r);
+                              }}
+                            >
+                              Удалить карточку
+                            </button>
+                          )}
+                        </span>
+                      ) : !r.accountId ? (
                         <span className="muted">нет аккаунта — «Выдать доступ» в Найме или в Настройках</span>
                       ) : !p?.next ? (
                         <span className="row" style={{ gap: 8, flexWrap: "wrap" }}>
@@ -303,6 +335,7 @@ function Kpi({ icon, label, value, sub, tone }: { icon: Parameters<typeof Icon>[
 
 /** Раскрытая строка: модули, тесты с попытками, главы тренажёра. */
 function Detail({ r, now }: { r: Row; now: number }) {
+  if (r.orphan && !r.prog) return <span className="muted">Кандидат удалён в Найме, а карточка стажёра осталась — из-за неё он виден в графике. Удалите карточку кнопкой в строке.</span>;
   if (!r.accountId || !r.prog) return <span className="muted">У сотрудника нет аккаунта — прогресс появится, когда он войдёт и начнёт обучение.</span>;
   const p = r.prog;
   const simKeys = r.recs.get("sim")?.checks ?? [];
