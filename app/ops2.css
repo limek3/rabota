@@ -998,10 +998,20 @@
 .lc-tl-h span { font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .lc-tl-b > .o2-muted { font-size: 12px; }
 
-/* журнал лидов: фильтры в две ровные строки — поиск во всю ширину, под ним фильтры одной высоты */
-.l2-filters { flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 8px; }
-.l2-f-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.l2-filters .o2-search { flex: 1 1 320px; max-width: none; }
-.l2-filters .o2-found { margin-left: 4px; }
-/* фильтры второй строки — поровну: растягиваются до 200px, при переносе остаются одной ширины */
-.l2-f-row > .sel-trigger { flex: 1 1 150px; max-width: 200px; width: auto !important; }
+
+/*
+ * Панель фильтров в две строки (лиды, операторы, зарплата, выплаты, зарплата за период):
+ * 1 — поиск во всю ширину, «Найдено», столбцы; 2 — фильтры и действия. Фильтры делят строку поровну
+ * и заполняют её целиком, кнопки — своего размера; при переносе фильтры снова тянутся до края.
+ */
+.o2-filters.o2-2r { flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 8px; }
+.o2-frow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.o2-2r .o2-search { flex: 1 1 320px; max-width: none; }
+.o2-2r .o2-found { margin-left: 4px; }
+.o2-frow > .sel-trigger { flex: 1 1 150px; min-width: 130px; max-width: none; width: auto !important; }
+.o2-frow > .o2-btn, .o2-frow > .o2-badge { flex: none; }
+/* во второй строке нет фильтров (выплаты: месяцы и подпись) — подпись забирает остаток строки */
+.o2-frow > .o2-muted { flex: 1 1 200px; min-width: 0; }
+.o2-frow:empty { display: none; }
+/* во второй строке одни кнопки (нет фильтров) — делят строку поровну, без пустого места справа */
+.o2-frow:not(:has(> .sel-trigger)):not(:has(> .o2-muted)) > .o2-btn { flex: 1 1 auto; justify-content: center; }

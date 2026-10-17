@@ -488,9 +488,9 @@ export function LeadsV2() {
           </div>
 
           {/* ── фильтры ──────────────────────────────────────────── */}
-          <div className="card o2-filters l2-filters">
-            {/* строка 1: поиск на всю ширину, сколько найдено, столбцы; строка 2: фильтры одной высоты */}
-            <div className="l2-f-row">
+          <div className="card o2-filters o2-2r">
+            {/* строка 1: поиск во всю ширину, сколько найдено, столбцы; строка 2: фильтры и действия */}
+            <div className="o2-frow">
               <label className="o2-search">
                 <Icon name="search" size={14} />
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по клиенту, номеру или комментарию…" />
@@ -525,7 +525,7 @@ export function LeadsV2() {
                 )}
               </Popover>
             </div>
-            <div className="l2-f-row">
+            <div className="o2-frow">
               <Select width={160} value={operatorId} options={opOptions} onChange={setOperatorId} ariaLabel="Оператор" minPopWidth={280} />
               <Select
                 width={160}

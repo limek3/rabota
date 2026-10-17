@@ -667,117 +667,122 @@ export function OperatorsV2() {
           )}
 
           {/* ── фильтры ──────────────────────────────────────────── */}
-          <div className="card o2-filters">
-            <label className="o2-search">
-              <Icon name="search" size={14} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по имени, контакту или группе…" />
-            </label>
-            {groups.length > 0 && (
-              <Select
-                value={group}
-                onChange={setGroup}
-                width={150}
-                ariaLabel="Группа"
-                options={[{ value: "", label: "Все группы" }, ...groups.map<Opt>((g) => ({ value: g.id, label: g.name, icon: dot(g.color) })), { value: NO_GROUP, label: NO_GROUP_LABEL }]}
-              />
-            )}
-            <Select
-              value={stF}
-              onChange={(v) => setStF(v as "" | StKey)}
-              width={150}
-              ariaLabel="Статус"
-              options={[{ value: "", label: "Статус: все" }, ...(Object.keys(ST) as StKey[]).filter((k) => k !== "fired").map<Opt>((k) => ({ value: k, label: ST[k].label, icon: dot(ST[k].hue) }))]}
-            />
-            <Select
-              value={perfF}
-              onChange={setPerfF}
-              width={180}
-              ariaLabel="Выполнение плана"
-              options={[{ value: "", label: "Выполнение плана" }, ...PERF.map<Opt>((p) => ({ value: p.value, label: p.label }))]}
-            />
-            <Select
-              value={shiftF}
-              onChange={(v) => setShiftF(v as "" | "on" | "off")}
-              width={120}
-              ariaLabel="Смена сегодня"
-              options={[
-                { value: "", label: "Смена" },
-                { value: "on", label: "На смене сегодня" },
-                { value: "off", label: "Без смены сегодня" },
-              ]}
-            />
-            <Popover
-              button={(open, toggle, ref) => (
-                <button ref={ref} className="o2-btn" onClick={toggle} aria-expanded={open}>
-                  <Icon name="funnel" size={14} />
-                  Ещё фильтры
-                </button>
-              )}
-            >
-              <div className="tt">Сотрудники</div>
-              <label>
-                <input type="checkbox" className="o2-cb" checked={showPaused} onChange={(e) => setShowPaused(e.target.checked)} />
-                Показывать на паузе
+          <div className="card o2-filters o2-2r">
+            {/* строка 1: поиск во всю ширину, сколько найдено, столбцы; строка 2: фильтры и действия */}
+            <div className="o2-frow">
+              <label className="o2-search">
+                <Icon name="search" size={14} />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по имени, контакту или группе…" />
               </label>
-              <label>
-                <input type="checkbox" className="o2-cb" checked={showFired} onChange={(e) => setShowFired(e.target.checked)} />
-                Показывать уволенных
-              </label>
-              <label>
-                <input type="checkbox" className="o2-cb" checked={onlyTrainees} onChange={(e) => setOnlyTrainees(e.target.checked)} />
-                Только стажёры
-              </label>
-              {activeFilters > 0 && (
-                <>
-                  <div className="sep" />
-                  <button
-                    className="it"
-                    onClick={() => {
-                      setGroup("");
-                      setStF("");
-                      setPerfF("");
-                      setShiftF("");
-                      setShowPaused(true);
-                      setShowFired(false);
-                      setOnlyTrainees(false);
-                    }}
-                  >
-                    <Icon name="close" size={13} />
-                    Сбросить все фильтры
+              <span className="o2-found">Найдено: {list.length}</span>
+              <Popover
+                align="right"
+                button={(open, toggle, ref) => (
+                  <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
+                    <Icon name="dashboard" size={15} />
                   </button>
-                </>
+                )}
+              >
+                <div className="tt">Столбцы</div>
+                {COLS.map((k) => (
+                  <label key={k}>
+                    <input type="checkbox" className="o2-cb" checked={vis.shown.has(k)} onChange={() => vis.toggle(k)} />
+                    {COL_LABEL[k]}
+                  </label>
+                ))}
+                <div className="sep" />
+                <div className="tt">Порядок — перетащите заголовок столбца</div>
+                {vis.custom && (
+                  <button className="it" onClick={vis.reset}>
+                    <Icon name="check" size={13} /> Показать все
+                  </button>
+                )}
+                {colOrder.custom && (
+                  <button className="it" onClick={colOrder.reset}>
+                    <Icon name="refresh" size={13} /> Вернуть порядок столбцов
+                  </button>
+                )}
+              </Popover>
+            </div>
+            <div className="o2-frow">
+              {groups.length > 0 && (
+                <Select
+                  value={group}
+                  onChange={setGroup}
+                  width={150}
+                  ariaLabel="Группа"
+                  options={[{ value: "", label: "Все группы" }, ...groups.map<Opt>((g) => ({ value: g.id, label: g.name, icon: dot(g.color) })), { value: NO_GROUP, label: NO_GROUP_LABEL }]}
+                />
               )}
-            </Popover>
-            {activeFilters > 0 && <span className="o2-badge" title="Включено фильтров">{activeFilters}</span>}
-            <span className="o2-found">Найдено: {list.length}</span>
-            <Popover
-              align="right"
-              button={(open, toggle, ref) => (
-                <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
-                  <Icon name="dashboard" size={15} />
-                </button>
-              )}
-            >
-              <div className="tt">Столбцы</div>
-              {COLS.map((k) => (
-                <label key={k}>
-                  <input type="checkbox" className="o2-cb" checked={vis.shown.has(k)} onChange={() => vis.toggle(k)} />
-                  {COL_LABEL[k]}
+              <Select
+                value={stF}
+                onChange={(v) => setStF(v as "" | StKey)}
+                width={150}
+                ariaLabel="Статус"
+                options={[{ value: "", label: "Статус: все" }, ...(Object.keys(ST) as StKey[]).filter((k) => k !== "fired").map<Opt>((k) => ({ value: k, label: ST[k].label, icon: dot(ST[k].hue) }))]}
+              />
+              <Select
+                value={perfF}
+                onChange={setPerfF}
+                width={180}
+                ariaLabel="Выполнение плана"
+                options={[{ value: "", label: "Выполнение плана" }, ...PERF.map<Opt>((p) => ({ value: p.value, label: p.label }))]}
+              />
+              <Select
+                value={shiftF}
+                onChange={(v) => setShiftF(v as "" | "on" | "off")}
+                width={120}
+                ariaLabel="Смена сегодня"
+                options={[
+                  { value: "", label: "Смена" },
+                  { value: "on", label: "На смене сегодня" },
+                  { value: "off", label: "Без смены сегодня" },
+                ]}
+              />
+              <Popover
+                button={(open, toggle, ref) => (
+                  <button ref={ref} className="o2-btn" onClick={toggle} aria-expanded={open}>
+                    <Icon name="funnel" size={14} />
+                    Ещё фильтры
+                  </button>
+                )}
+              >
+                <div className="tt">Сотрудники</div>
+                <label>
+                  <input type="checkbox" className="o2-cb" checked={showPaused} onChange={(e) => setShowPaused(e.target.checked)} />
+                  Показывать на паузе
                 </label>
-              ))}
-              <div className="sep" />
-              <div className="tt">Порядок — перетащите заголовок столбца</div>
-              {vis.custom && (
-                <button className="it" onClick={vis.reset}>
-                  <Icon name="check" size={13} /> Показать все
-                </button>
-              )}
-              {colOrder.custom && (
-                <button className="it" onClick={colOrder.reset}>
-                  <Icon name="refresh" size={13} /> Вернуть порядок столбцов
-                </button>
-              )}
-            </Popover>
+                <label>
+                  <input type="checkbox" className="o2-cb" checked={showFired} onChange={(e) => setShowFired(e.target.checked)} />
+                  Показывать уволенных
+                </label>
+                <label>
+                  <input type="checkbox" className="o2-cb" checked={onlyTrainees} onChange={(e) => setOnlyTrainees(e.target.checked)} />
+                  Только стажёры
+                </label>
+                {activeFilters > 0 && (
+                  <>
+                    <div className="sep" />
+                    <button
+                      className="it"
+                      onClick={() => {
+                        setGroup("");
+                        setStF("");
+                        setPerfF("");
+                        setShiftF("");
+                        setShowPaused(true);
+                        setShowFired(false);
+                        setOnlyTrainees(false);
+                      }}
+                    >
+                      <Icon name="close" size={13} />
+                      Сбросить все фильтры
+                    </button>
+                  </>
+                )}
+              </Popover>
+              {activeFilters > 0 && <span className="o2-badge" title="Включено фильтров">{activeFilters}</span>}
+            </div>
           </div>
 
           {/* ── таблица ──────────────────────────────────────────── */}

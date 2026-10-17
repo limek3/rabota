@@ -406,54 +406,59 @@ export function PeriodPayroll({ pp, onAdj }: { pp: PeriodState; onAdj?: (opId: s
         {showRegistry && <RegistryModal pp={pp} isSv={isSvOp} onClose={() => setShowRegistry(false)} />}
 
         {/* ── фильтры ─────────────────────────────────────────────────── */}
-        <div className="card o2-filters">
-          <label className="o2-search">
-            <Icon name="search" size={14} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по сотруднику…" />
-          </label>
-          {groupOpts.length > 2 && <Select value={grp} options={groupOpts} onChange={setGrp} width={170} ariaLabel="Группа" />}
-          <button type="button" className={`o2-btn${showInfo ? " pri" : ""}`} aria-pressed={showInfo} onClick={toggleInfo} title={showInfo ? "Скрыть пояснение" : "Показать, как считается выплата"}>
-            <Icon name="info" size={14} /> Как считается
-          </button>
-          {access.can.systemSettings && (
-            <button type="button" className="o2-btn" onClick={() => setEditSched(true)} title="Периоды и дни выплат — поправить на любой месяц">
-              <Icon name="calendar" size={14} /> График выплат
+        <div className="card o2-filters o2-2r">
+          {/* строка 1: поиск во всю ширину, сколько найдено, столбцы; строка 2: фильтры и действия */}
+          <div className="o2-frow">
+            <label className="o2-search">
+              <Icon name="search" size={14} />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по сотруднику…" />
+            </label>
+            <span className="o2-found">Найдено: {fmtInt(rows.length)}</span>
+            <Popover
+              align="right"
+              button={(open, toggle, ref) => (
+                <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
+                  <Icon name="dashboard" size={15} />
+                </button>
+              )}
+            >
+              <div className="tt">Столбцы</div>
+              {COLS.map((k) => (
+                <label key={k} title={COL_HINT[k]}>
+                  <input type="checkbox" className="o2-cb" checked={vis.shown.has(k)} onChange={() => vis.toggle(k)} />
+                  {COL_LABEL[k]}
+                </label>
+              ))}
+              <div className="sep" />
+              <div className="tt">Порядок — перетащите заголовок столбца</div>
+              {vis.custom && (
+                <button className="it" onClick={vis.reset}>
+                  <Icon name="check" size={13} /> По умолчанию
+                </button>
+              )}
+              {colOrder.custom && (
+                <button className="it" onClick={colOrder.reset}>
+                  <Icon name="refresh" size={13} /> Вернуть порядок столбцов
+                </button>
+              )}
+            </Popover>
+          </div>
+          <div className="o2-frow">
+            {groupOpts.length > 2 && <Select value={grp} options={groupOpts} onChange={setGrp} width={170} ariaLabel="Группа" />}
+            <button type="button" className={`o2-btn${showInfo ? " pri" : ""}`} aria-pressed={showInfo} onClick={toggleInfo} title={showInfo ? "Скрыть пояснение" : "Показать, как считается выплата"}>
+              <Icon name="info" size={14} /> Как считается
             </button>
-          )}
-          {access.isHead && (
-            <button type="button" className="o2-btn" onClick={() => setShowRegistry(true)} title="Суммы периода — листами «План / Факт» в реестры бухгалтера для YouDo">
-              <Icon name="doc" size={14} /> Реестр YouDo
-            </button>
-          )}
-          <span className="o2-found">Найдено: {fmtInt(rows.length)}</span>
-          <Popover
-            align="right"
-            button={(open, toggle, ref) => (
-              <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
-                <Icon name="dashboard" size={15} />
+            {access.can.systemSettings && (
+              <button type="button" className="o2-btn" onClick={() => setEditSched(true)} title="Периоды и дни выплат — поправить на любой месяц">
+                <Icon name="calendar" size={14} /> График выплат
               </button>
             )}
-          >
-            <div className="tt">Столбцы</div>
-            {COLS.map((k) => (
-              <label key={k} title={COL_HINT[k]}>
-                <input type="checkbox" className="o2-cb" checked={vis.shown.has(k)} onChange={() => vis.toggle(k)} />
-                {COL_LABEL[k]}
-              </label>
-            ))}
-            <div className="sep" />
-            <div className="tt">Порядок — перетащите заголовок столбца</div>
-            {vis.custom && (
-              <button className="it" onClick={vis.reset}>
-                <Icon name="check" size={13} /> По умолчанию
+            {access.isHead && (
+              <button type="button" className="o2-btn" onClick={() => setShowRegistry(true)} title="Суммы периода — листами «План / Факт» в реестры бухгалтера для YouDo">
+                <Icon name="doc" size={14} /> Реестр YouDo
               </button>
             )}
-            {colOrder.custom && (
-              <button className="it" onClick={colOrder.reset}>
-                <Icon name="refresh" size={13} /> Вернуть порядок столбцов
-              </button>
-            )}
-          </Popover>
+          </div>
         </div>
 
         {/* ── ведомость ───────────────────────────────────────────────── */}

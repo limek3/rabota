@@ -433,48 +433,53 @@ export default function PayrollPage() {
             ) : (
               <>
                 {/* ── фильтры ───────────────────────────────────────── */}
-                <div className="card o2-filters">
-                  <label className="o2-search">
-                    <Icon name="search" size={14} />
-                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по сотруднику…" />
-                  </label>
-                  {groupOpts.length > 2 && <Select value={grp} options={groupOpts} onChange={setGrp} width={170} ariaLabel="Группа" />}
-                  {access.can.editPayroll && unfixed > 0 && cal.phase !== "future" && (
-                    <button className="o2-btn" onClick={() => void freezeAll()} title="Записать условия месяца, чтобы правки карточек не меняли эту ведомость">
-                      <Icon name="check" size={14} /> Зафиксировать условия
-                    </button>
-                  )}
-                  <span className="o2-found" title={`Оклад ${data.settings.prorateSalary ? "пропорционален часам, если норма не выполнена" : "платится полностью"} · удержание ${data.settings.withholdPct}% (кроме компенсаций)`}>
-                    Найдено: {fmtInt(rows.length)}
-                  </span>
-                  <Popover
-                    align="right"
-                    button={(open, toggle, ref) => (
-                      <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
-                        <Icon name="dashboard" size={15} />
+                <div className="card o2-filters o2-2r">
+                  {/* строка 1: поиск во всю ширину, сколько найдено, столбцы; строка 2: фильтры и действия */}
+                  <div className="o2-frow">
+                    <label className="o2-search">
+                      <Icon name="search" size={14} />
+                      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по сотруднику…" />
+                    </label>
+                    <span className="o2-found" title={`Оклад ${data.settings.prorateSalary ? "пропорционален часам, если норма не выполнена" : "платится полностью"} · удержание ${data.settings.withholdPct}% (кроме компенсаций)`}>
+                      Найдено: {fmtInt(rows.length)}
+                    </span>
+                    <Popover
+                      align="right"
+                      button={(open, toggle, ref) => (
+                        <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
+                          <Icon name="dashboard" size={15} />
+                        </button>
+                      )}
+                    >
+                      <div className="tt">Столбцы</div>
+                      {MCOLS.map((k) => (
+                        <label key={k} title={MCOL_HINT[k]}>
+                          <input type="checkbox" className="o2-cb" checked={vis.shown.has(k)} onChange={() => vis.toggle(k)} />
+                          {MCOL_LABEL[k]}
+                        </label>
+                      ))}
+                      <div className="sep" />
+                      <div className="tt">Порядок — перетащите заголовок столбца</div>
+                      {vis.custom && (
+                        <button className="it" onClick={vis.reset}>
+                          <Icon name="check" size={13} /> По умолчанию
+                        </button>
+                      )}
+                      {colOrder.custom && (
+                        <button className="it" onClick={colOrder.reset}>
+                          <Icon name="refresh" size={13} /> Вернуть порядок столбцов
+                        </button>
+                      )}
+                    </Popover>
+                  </div>
+                  <div className="o2-frow">
+                    {groupOpts.length > 2 && <Select value={grp} options={groupOpts} onChange={setGrp} width={170} ariaLabel="Группа" />}
+                    {access.can.editPayroll && unfixed > 0 && cal.phase !== "future" && (
+                      <button className="o2-btn" onClick={() => void freezeAll()} title="Записать условия месяца, чтобы правки карточек не меняли эту ведомость">
+                        <Icon name="check" size={14} /> Зафиксировать условия
                       </button>
                     )}
-                  >
-                    <div className="tt">Столбцы</div>
-                    {MCOLS.map((k) => (
-                      <label key={k} title={MCOL_HINT[k]}>
-                        <input type="checkbox" className="o2-cb" checked={vis.shown.has(k)} onChange={() => vis.toggle(k)} />
-                        {MCOL_LABEL[k]}
-                      </label>
-                    ))}
-                    <div className="sep" />
-                    <div className="tt">Порядок — перетащите заголовок столбца</div>
-                    {vis.custom && (
-                      <button className="it" onClick={vis.reset}>
-                        <Icon name="check" size={13} /> По умолчанию
-                      </button>
-                    )}
-                    {colOrder.custom && (
-                      <button className="it" onClick={colOrder.reset}>
-                        <Icon name="refresh" size={13} /> Вернуть порядок столбцов
-                      </button>
-                    )}
-                  </Popover>
+                  </div>
                 </div>
 
                 {/* ── ведомость ─────────────────────────────────────── */}
@@ -1469,41 +1474,46 @@ function PayoutsView({ month, toPay, q, setQ }: { month: string; toPay: number; 
           />
         </div>
 
-        <div className="card o2-filters">
-          <label className="o2-search">
-            <Icon name="search" size={14} />
-            <input
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Поиск по сотруднику…"
-            />
-          </label>
-          <div className="o2-seg" role="group">
-            {(
-              [
-                ["month", fmtMonth(month)],
-                ["all", "Все месяцы"],
-              ] as const
-            ).map(([k, l]) => (
-              <button
-                key={k}
-                className={scope === k ? "on" : ""}
-                onClick={() => {
-                  setScope(k);
+        <div className="card o2-filters o2-2r">
+          {/* строка 1: поиск во всю ширину, сколько найдено, столбцы; строка 2: фильтры и действия */}
+          <div className="o2-frow">
+            <label className="o2-search">
+              <Icon name="search" size={14} />
+              <input
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value);
                   setPage(1);
                 }}
-              >
-                {l}
-              </button>
-            ))}
+                placeholder="Поиск по сотруднику…"
+              />
+            </label>
+            <span className="o2-found">Найдено: {fmtInt(list.length)}</span>
           </div>
-          <span className="o2-muted" style={{ fontSize: 12 }}>
-            По дате выплаты · «Выплатить» в ведомости записывает остаток одной кнопкой
-          </span>
-          <span className="o2-found">Найдено: {fmtInt(list.length)}</span>
+          <div className="o2-frow">
+            <div className="o2-seg" role="group">
+              {(
+                [
+                  ["month", fmtMonth(month)],
+                  ["all", "Все месяцы"],
+                ] as const
+              ).map(([k, l]) => (
+                <button
+                  key={k}
+                  className={scope === k ? "on" : ""}
+                  onClick={() => {
+                    setScope(k);
+                    setPage(1);
+                  }}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <span className="o2-muted" style={{ fontSize: 12 }}>
+              По дате выплаты · «Выплатить» в ведомости записывает остаток одной кнопкой
+            </span>
+          </div>
         </div>
 
         <div className="card o2-card">
