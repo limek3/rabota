@@ -25,6 +25,8 @@ export interface VexaBridge {
   close: () => void;
   onMaximized: (cb: (isMax: boolean) => void) => () => void;
   notify: (payload: { title: string; body: string; matchId?: string }) => void;
+  /** Скачать файл по ссылке через Electron (окно «Сохранить как»). Старые сборки — без него. */
+  download?: (url: string, name: string) => void;
   onNavigate: (cb: (path: string) => void) => () => void;
   onUpdate?: (cb: (s: VexaUpdate) => void) => () => void;
   getUpdateState?: () => Promise<VexaUpdate>;

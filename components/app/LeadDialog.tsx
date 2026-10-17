@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lead } from "@/lib/crm/types";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { shortName } from "@/lib/crm/format";
+import { Layer, usePopover } from "@/components/ui/select";
+import { getVexaBridge } from "@/lib/electron";
+import { downloadBlob } from "@/lib/xlsx";
 import { DIALOG_BUSY, cachedDialog, dialogAvailable, dialogCallId, parseReport, readDialog, sameDialogCall, syncDialog, type LeadDialog as Dialog } from "@/lib/crm/dialog";
 
 /**
@@ -131,31 +134,6 @@ function waveBars(segs: Seg[], total: number, op: string | null, n = 64) {
   });
 }
 
-/** Пары «вопрос → ответ»: реплики оператора подряд — вопрос, следующие за ними реплики клиента — ответ. */
-function qaGroups(segs: Seg[], op: string | null) {
-  const out: { q: number[]; a: number[] }[] = [];
-  let cur: { q: number[]; a: number[] } | null = null;
-  segs.forEach((s, i) => {
-    const mine = s.who === op;
-    if (!cur || (mine && cur.a.length)) {
-      cur = { q: [], a: [] };
-      out.push(cur);
-    }
-    (mine ? cur.q : cur.a).push(i);
-  });
-  return out;
-}
-
-/** Вопрос квалификации в реплике оператора — помечаем, чтобы супервайзер видел, что спросили. */
-const QA_TAGS: [RegExp, string][] = [
-  [/обращаться|как вас зовут|ваше имя/i, "имя"],
-  [/модел|марк|какой автомобиль|какую машину/i, "модель"],
-  [/бюджет|сумм|стоимост|сколько готовы/i, "бюджет"],
-  [/когда планир|срок|в течение какого/i, "срок"],
-  [/кредит|наличн|рассрочк|способ оплат|как.*оплачива/i, "оплата"],
-  [/удобно.*(звон|связ)|перезвон|менеджер свяж/i, "звонок"],
-];
-const qaTag = (text: string) => (text.includes("?") ? QA_TAGS.find(([re]) => re.test(text))?.[1] : undefined);
 const BUSY_TEXT: Record<string, string> = {
   pending: "Берём запись разговора из Скорозвона…",
   waiting: "Скорозвон ещё готовит запись — проверим снова через 20 секунд",
@@ -164,7 +142,7 @@ const BUSY_TEXT: Record<string, string> = {
 
 /** Заглушка разбора: сводка, чек-лист, плеер — той же формы, что готовый блок. */
 function ReviewSkeleton({ caption, player = true }: { caption?: ReactNode; player?: boolean }) {
-  // без разбора: что происходит, плеер и строка «Расшифровка целиком»
+  // без разбора: что происходит и плеер
   if (!SHOW_REPORT)
     return (
       <>
@@ -174,7 +152,6 @@ function ReviewSkeleton({ caption, player = true }: { caption?: ReactNode; playe
           </div>
         )}
         {player && <div className="sk" style={{ height: 92, borderRadius: 12 }} aria-hidden />}
-        <div className="sk" style={{ height: 39, borderRadius: 10 }} aria-hidden />
       </>
     );
   return (
@@ -226,27 +203,64 @@ function Notice({ icon, title, danger, children, action }: { icon: IconName; tit
   );
 }
 
-/** Блоки проверки: разбор, чек-лист, запись, расшифровка. Плеер общий — чек-лист и реплики в него «прыгают». */
+const VOL_KEY = "leadup.playerVolume";
+function savedVolume(): number {
+  try {
+    const v = Number(localStorage.getItem(VOL_KEY));
+    return localStorage.getItem(VOL_KEY) != null && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** Имя файла записи: «Разговор Светлана +79375634685 17.10.2026 16-11.mp3». */
+function recordName(lead: Lead, url: string): string {
+  const ext = url.split("?")[0].match(/\.(mp3|wav|ogg|m4a)$/i)?.[1]?.toLowerCase() ?? "mp3";
+  const when = `${lead.at.slice(8, 10)}.${lead.at.slice(5, 7)}.${lead.at.slice(0, 4)} ${lead.at.slice(11, 16).replace(":", "-")}`;
+  return `${["Разговор", lead.client, lead.phone ? `+${lead.phone}` : "", when].filter(Boolean).join(" ")}.${ext}`;
+}
+
+/**
+ * Скачать запись. Хранилище Скорозвона без CORS: в десктопе качает сам Electron (окно «Сохранить как»),
+ * в браузере — пробуем файлом, не пускает — открываем запись во вкладке, там её можно сохранить.
+ */
+async function downloadRecord(url: string, name: string) {
+  const br = getVexaBridge();
+  if (br?.download) return br.download(url, name);
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(String(r.status));
+    downloadBlob(name, await r.blob());
+  } catch {
+    window.open(url, "_blank", "noopener");
+  }
+}
+
+/** Блоки проверки: разбор, чек-лист, запись. Плеер общий — пункты чек-листа в него «прыгают». */
 export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
   const audio = useRef<HTMLAudioElement>(null);
-  const chat = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [t, setT] = useState(0);
   const [dur, setDur] = useState(0);
   const [speed, setSpeed] = useState(1);
-  const [open, setOpen] = useState(false);
+  // громкость — общая для всех записей, запоминается
+  const [vol, setVol] = useState(savedVolume);
+  const [volOpen, setVolOpen] = useState(false);
+  const volBtn = useRef<HTMLButtonElement>(null);
+  const volPop = useRef<HTMLDivElement>(null);
+  const { style: volStyle } = usePopover(volOpen, volBtn, volPop, () => setVolOpen(false));
   const dlg = d.dlg;
   const total = dur || dlg?.callSec || 0;
   const report = useMemo(() => (dlg?.reportStatus === "done" ? parseReport(dlg.report, dlg.segments) : null), [dlg?.reportStatus, dlg?.report, dlg?.segments]);
   const bars = useMemo(() => (dlg ? waveBars(dlg.segments, total, dlg.operatorSpeaker) : []), [dlg, total]);
-  const groups = useMemo(() => (dlg ? qaGroups(dlg.segments, dlg.operatorSpeaker) : []), [dlg]);
-
-  // реплика, которая звучит сейчас
-  const active = playing || t > 0 ? (dlg?.segments.findIndex((s, i, a) => t >= s.s && (i === a.length - 1 || t < a[i + 1].s)) ?? -1) : -1;
   useEffect(() => {
-    if (!playing || active < 0 || !open) return;
-    chat.current?.querySelector<HTMLElement>(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [active, playing, open]);
+    if (audio.current) audio.current.volume = vol;
+    try {
+      localStorage.setItem(VOL_KEY, String(vol));
+    } catch {
+      /* ignore */
+    }
+  }, [vol]);
 
   if (d.state === "none") {
     if (!d.callId)
@@ -285,10 +299,7 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
     setT(sec);
     void a.play().catch(() => {});
   };
-  const jump = (sec: number) => {
-    setOpen(true);
-    seek(sec);
-  };
+  const jump = seek;
   const toggle = () => {
     const a = audio.current;
     if (!a) return;
@@ -383,6 +394,7 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
             onLoadedMetadata={(e) => {
               if (Number.isFinite(e.currentTarget.duration)) setDur(e.currentTarget.duration);
               e.currentTarget.playbackRate = speed;
+              e.currentTarget.volume = vol;
             }}
           />
           <div className="lw-row">
@@ -436,59 +448,57 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
               <span className="lc-dot op" /> {opName}
               <span className="lc-dot cl" style={{ marginLeft: 10 }} /> {clName}
             </span>
+            <button type="button" className="lw-ib" onClick={() => void downloadRecord(dlg.recordUrl, recordName(lead, dlg.recordUrl))} title="Скачать запись разговора" aria-label="Скачать запись">
+              <Icon name="download" size={14} />
+            </button>
+            <button
+              ref={volBtn}
+              type="button"
+              className={`lw-ib${volOpen ? " on" : ""}`}
+              onClick={() => setVolOpen((v) => !v)}
+              onWheel={(e) => setVol((v) => Math.max(0, Math.min(1, Math.round((v + (e.deltaY < 0 ? 0.1 : -0.1)) * 10) / 10)))}
+              title={`Громкость ${Math.round(vol * 100)}%`}
+              aria-label="Громкость"
+              aria-expanded={volOpen}
+            >
+              <VolumeIcon v={vol} />
+            </button>
             <button type="button" className="lc-speed num" onClick={nextSpeed} title="Скорость">
               {speed}×
             </button>
           </div>
+          {volOpen && (
+            <Layer>
+              <div ref={volPop} className="sel-pop lw-vol" style={volStyle} role="dialog" aria-label="Громкость">
+                <button type="button" className="lw-ib" onClick={() => setVol((v) => (v > 0 ? 0 : 1))} title={vol > 0 ? "Выключить звук" : "Включить звук"}>
+                  <VolumeIcon v={vol} />
+                </button>
+                <input type="range" min={0} max={100} step={5} value={Math.round(vol * 100)} onChange={(e) => setVol(Number(e.target.value) / 100)} aria-label="Громкость" />
+                <span className="num">{Math.round(vol * 100)}%</span>
+              </div>
+            </Layer>
+          )}
         </div>
       )}
 
-      {/* расшифровка целиком — по клику: пары «вопрос оператора → ответ клиента» */}
-      <details className="rv-fold" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
-        <summary>
-          <Icon name="chat" size={13} /> Расшифровка целиком
-          <span className="o2-muted num">{dlg.segments.length} реплик</span>
-          <Icon name="chevD" size={13} className="rv-chev" />
-        </summary>
-        <div className="qa-list" ref={chat}>
-          {groups.map((g, gi) => (
-            <div key={gi} className="qa-card">
-              {g.q.map((i) => {
-                const s = dlg.segments[i];
-                const tag = qaTag(s.t);
-                return (
-                  <button key={i} type="button" data-i={i} className={`qa-q${i === active ? " now" : ""}`} onClick={() => seek(s.s)} title={`${opName} · слушать с ${mmss(s.s)}`}>
-                    <span className="qa-ts num">{mmss(s.s)}</span>
-                    <span>
-                      {s.t}
-                      {tag && <span className="qa-tag">{tag}</span>}
-                    </span>
-                  </button>
-                );
-              })}
-              {g.a.map((i) => {
-                const s = dlg.segments[i];
-                return (
-                  <button key={i} type="button" data-i={i} className={`qa-a${i === active ? " now" : ""}`} onClick={() => seek(s.s)} title={`${clName} · слушать с ${mmss(s.s)}`}>
-                    <span className="qa-ts num">{mmss(s.s)}</span>
-                    <span>{s.t}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-        <div className="lc-talk-f">
-          <span>
-            <span className="qa-key q" /> вопрос — {opName}
-            <span className="qa-key a" style={{ marginLeft: 10 }} /> ответ — {clName}
-          </span>
-          <button type="button" className="lc-link" onClick={() => void d.act("swap")} disabled={d.busy} title="Если реплики оператора и клиента перепутаны">
-            <Icon name="move" size={12} /> Поменять стороны
-          </button>
-        </div>
-      </details>
       {d.err && <div className="lc-sub err">{d.err}</div>}
     </>
+  );
+}
+
+/** Динамик: волны по громкости, перечёркнут — без звука. */
+function VolumeIcon({ v }: { v: number }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2.5 6h2.2L8 3.2v9.6L4.7 10H2.5z" fill="currentColor" stroke="none" />
+      {v <= 0 ? (
+        <path d="M10.5 6l3.5 4M14 6l-3.5 4" />
+      ) : (
+        <>
+          <path d="M10.4 6.2a2.6 2.6 0 0 1 0 3.6" />
+          {v > 0.5 && <path d="M12.2 4.4a5.2 5.2 0 0 1 0 7.2" />}
+        </>
+      )}
+    </svg>
   );
 }

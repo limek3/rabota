@@ -14,6 +14,8 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
+/** Имена для скачиваний по ссылке (vexa:download): url → имя файла в окне «Сохранить как». */
+const pendingNames = new Map();
 const __dirname = path.dirname(__filename);
 
 const DEV = process.argv.includes("--vexa-dev");
@@ -378,6 +380,21 @@ async function createWindow() {
   // the title bar close button hides to tray instead of quitting
   ipcMain.on("vexa:close", () => win && win.close());
   ipcMain.on("vexa:notify", (_e, payload) => showLeadNotification(payload));
+  // скачать файл по ссылке (запись разговора из Скорозвона): у хранилища нет CORS, из страницы его
+  // не скачать — качает сам Electron, имя подставляется в окно «Сохранить как»
+  ipcMain.on("vexa:download", (_e, payload) => {
+    const url = String(payload?.url ?? "");
+    if (!win || !url.startsWith("https://")) return;
+    const name = String(payload?.name ?? "").replace(/[\\/:*?"<>|]+/g, " ").trim();
+    if (name) pendingNames.set(url, name);
+    win.webContents.downloadURL(url);
+  });
+  win.webContents.session.on("will-download", (_e, item) => {
+    const name = pendingNames.get(item.getURL());
+    if (!name) return;
+    pendingNames.delete(item.getURL());
+    item.setSaveDialogOptions({ defaultPath: path.join(app.getPath("downloads"), name) });
+  });
 
   win.on("maximize", () => win.webContents.send("vexa:maximized", true));
   win.on("unmaximize", () => win.webContents.send("vexa:maximized", false));
