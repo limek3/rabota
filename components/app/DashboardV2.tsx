@@ -10,7 +10,7 @@ import { dailyRows, pace, pendingIn, sumRange, workedDays, WORKED_TYPES, type Da
 import { addDays, fmtDay, fmtMonth, fmtRange, isoWeekday, isWorkday, monthOf, monthStart, nowHour, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, fmtSigned, LEADS, OPS, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Settings } from "@/lib/crm/types";
-import { Avatar, Collapse, Conv, MonthSwitcher, PageHead, StatusChip, foldRow, useConvNorm, useFoldGroups } from "@/components/ui/kit";
+import { Avatar, Collapse, Conv, MonthSwitcher, PageHead, StartTag, StatusChip, foldRow, useConvNorm, useFoldGroups } from "@/components/ui/kit";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { dot, Select, uiZoom, type Opt } from "@/components/ui/select";
 import { ColumnPicker, useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
@@ -2048,6 +2048,7 @@ function OpsCard({ m, line, settings, ref_, groups, span = "month" }: { m: Month
         <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
           <Avatar name={r.op.name} id={r.op.id} size={20} />
           {shortName(r.op.name)}
+          <StartTag op={r.op} />
           {badges.get(r.op.id)?.map((b) => (
             <span key={b.k} className="d2-badge" data-k={b.k} title={b.title}>
               <Icon name={b.icon} size={11} />

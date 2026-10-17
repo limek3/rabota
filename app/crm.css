@@ -1080,6 +1080,7 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .lane.plan { box-sizing: border-box; background: var(--sch-plan); color: var(--sch-plan-fg); box-shadow: none; border: 1.5px dashed var(--sch-plan-bd); border-left-width: 0; border-right-width: 0; }
 .lane.plan.first { border-left-width: 1.5px; }
 .lane.plan.last { border-right-width: 1.5px; }
+.lane.manual { background: var(--sch-manual); color: var(--sch-manual-fg); }
 .lane.train { background: var(--sch-train); color: var(--sch-train-fg); }
 .lane.plat { background: var(--sch-plat); color: var(--sch-plat-fg); }
 .lane.sick { background: var(--sch-sick); color: var(--sch-sick-fg, var(--sch-block-fg)); }

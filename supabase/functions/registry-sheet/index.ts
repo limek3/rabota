@@ -615,7 +615,7 @@ function addTo(map, key, v) {
   if (!s) map.set(key, s = /* @__PURE__ */ new Set());
   s.add(v);
 }
-var WORKED_TYPES = /* @__PURE__ */ new Set(["work", "training"]);
+var WORKED_TYPES = /* @__PURE__ */ new Set(["work", "manual", "training"]);
 var NO_CUTOFF = "9999-12-31";
 function closedThrough(today, hour, s) {
   return hour >= s.dayCloseHour ? today : addDays(today, -1);

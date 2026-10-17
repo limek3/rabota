@@ -12,7 +12,7 @@ import { ColumnPicker, useColumnDrag, useColumnOrder, useColumnVisibility, type 
 /** Столбцы таблицы по умолчанию (после закреплённого «Оператор»). Порядок каждый может поменять у себя. */
 const OP_COLS = ["status", "plan", "fact", "pct", "dev", "why", "lph", "real", "rr", "left", "need", "today", "week", "prev", "avg", "hours"] as const;
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Conv, EmploymentTag, Empty, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, foldRow, hueVars, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
+import { Avatar, Conv, EmploymentTag, Empty, StartTag, GoneSepRow, LeadN, GoneTag, MonthSwitcher, PageHead, Progress, Seg, SortTh, StatusChip, Swatch, Switch, foldRow, hueVars, useFoldGroups, useWheelHScroll, type FoldPhase, type SortState } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
@@ -347,6 +347,7 @@ export function OperatorsClassic() {
                 {shortName(r.op.name)}
                 {r.isLeader && <Icon name="star" size={12} stroke={2} style={{ color: "var(--c-amber-fg)" }} />}
                 <GoneTag op={r.op} />
+                <StartTag op={r.op} />
                 <EmploymentTag op={r.op} />
               </span>
               <span style={{ fontSize: 11.5, color: "var(--dim)" }}>

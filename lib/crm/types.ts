@@ -77,10 +77,11 @@ export interface SvBonusGrid {
 /**
  * Вид дня в графике. «platform» — обучение на платформе (курсы и тесты в CRM): отмечается
  * буквой «П», без часов — не оплачивается и не идёт ни в часы, ни в конверсию.
+ * «manual» — ручной обзвон: смена как рабочая (часы из Скорозвона, оплата, конверсия), в графике синяя.
  */
-export type DayType = "work" | "off" | "training" | "platform" | "vacation" | "sick";
+export type DayType = "work" | "manual" | "off" | "training" | "platform" | "vacation" | "sick";
 /** Виды дня, у которых в графике пишутся часы. Платформа — без часов, как выходной или отпуск. */
-export const HOURS_DAY_TYPES = new Set<DayType>(["work", "training"]);
+export const HOURS_DAY_TYPES = new Set<DayType>(["work", "manual", "training"]);
 export type AdjustmentType =
   | "accrual" // дополнительное начисление
   | "bonus" // премия
@@ -761,6 +762,7 @@ export const PAY_HINT: Record<PayType, string> = {
 
 export const DAY_LABEL: Record<DayType, string> = {
   work: "Рабочий день",
+  manual: "Ручной обзвон",
   off: "Выходной",
   training: "Обучение",
   platform: "Обучение на платформе",
@@ -771,6 +773,7 @@ export const DAY_LABEL: Record<DayType, string> = {
 /** Короткая буква для клетки графика. */
 export const DAY_SHORT: Record<DayType, string> = {
   work: "",
+  manual: "Р",
   off: "В",
   training: "Об",
   platform: "П",

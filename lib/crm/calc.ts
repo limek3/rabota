@@ -108,7 +108,7 @@ function addTo<K>(map: Map<K, Set<string>>, key: K, v: string) {
   s.add(v);
 }
 
-export const WORKED_TYPES = new Set(["work", "training"]);
+export const WORKED_TYPES = new Set(["work", "manual", "training"]);
 
 /** Без отсечки: все смены по дату включительно считаются отработанными (расчёты за прошлое, тесты). */
 export const NO_CUTOFF = "9999-12-31";

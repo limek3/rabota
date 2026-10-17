@@ -3,7 +3,7 @@
 import { Fragment } from "react";
 import { useCrm } from "@/lib/crm/store";
 import type { MonthCal, OpRow } from "@/lib/crm/calc";
-import { DAY_LABEL, DAY_SHORT } from "@/lib/crm/types";
+import { DAY_LABEL, DAY_SHORT, HOURS_DAY_TYPES } from "@/lib/crm/types";
 import { fmtDayShort, fmtWeekday } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, shortName } from "@/lib/crm/format";
 import { Avatar, Swatch } from "@/components/ui/kit";
@@ -69,7 +69,7 @@ export function DayHeatmap({
         </td>
       );
     }
-    if (sh && sh.type !== "work" && sh.type !== "training")
+    if (sh && !HOURS_DAY_TYPES.has(sh.type))
       return (
         <td key={d} className={cls}>
           <span className="hm-c hm-abs" title={`${when}: ${DAY_LABEL[sh.type].toLowerCase()}`}>

@@ -368,10 +368,11 @@ function LinkInput({ d }: { d: Draft }) {
   );
 }
 
-function regionHint(d: Draft): ReactNode {
+/** money=false — оператору цену и апрув не показываем: лишние вопросы. */
+function regionHint(d: Draft, money: boolean): ReactNode {
   if (d.remote && !hasLeadRegionColumn())
     return <span style={{ color: "var(--c-red-fg)" }}>Регион пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260926000002_lead_region.sql</span>;
-  if (!d.f.region) return undefined;
+  if (!d.f.region || !money) return undefined;
   return regionSegment(d.f.region, d.s) === "regional"
     ? `Регионы: апрув ${d.s.regions.regionalApprovePct}%, ${d.s.regions.regionalLeadRevenue.toLocaleString("ru-RU")} ₽ за лид`
     : "Основа: цена и апрув — как у проекта";
@@ -445,7 +446,7 @@ function LeadFields({ d, compact }: { d: Draft; compact?: boolean }) {
           <F label="Проект" error={d.tried ? d.err.pr : null} hint={d.noProjects ? "Справочник проектов пуст" : undefined}>
             <Select value={d.f.projectId} options={d.opts.project} onChange={d.set.projectId} invalid={d.tried && !!d.err.pr} ariaLabel="Проект" disabled={d.readOnly} />
           </F>
-          <F label="Регион" req={d.isNew} error={d.tried ? d.err.region : null} hint={regionHint(d)}>
+          <F label="Регион" req={d.isNew} error={d.tried ? d.err.region : null} hint={regionHint(d, !access.isOp)}>
             <Select value={d.f.region} options={d.opts.region} onChange={d.set.region} invalid={d.tried && !!d.err.region} ariaLabel="Регион" disabled={d.readOnly} placeholder="Регион" minPopWidth={240} />
           </F>
           {d.lead ? (

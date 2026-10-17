@@ -36,7 +36,7 @@ export function MorningCard({ m }: { m: MonthModel }) {
       if (op.fireDate && op.fireDate < today) continue;
 
       const sh = ix.shift.get(`${today}|${op.id}`);
-      const worksToday = !!sh && (sh.type === "work" || sh.type === "training") && sh.hours > 0;
+      const worksToday = !!sh && (sh.type === "work" || sh.type === "manual" || sh.type === "training") && sh.hours > 0;
       const leadsToday = ix.opDay.get(op.id)?.get(today) ?? 0;
       if (workday && !sh) noShift.push(r);
       else if (worksToday && leadsToday === 0) noLeads.push(r);

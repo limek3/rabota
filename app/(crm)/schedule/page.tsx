@@ -17,13 +17,14 @@ import { Icon } from "@/components/ui/icons";
 import { SkorozvonHours } from "@/components/app/SkorozvonHours";
 import { supabaseReady } from "@/lib/supabase";
 
-const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training: "indigo", platform: "purple", vacation: "amber", sick: "red" };
+const TYPE_HUE: Record<DayType, string> = { work: "blue", manual: "blue", off: "gray", training: "indigo", platform: "purple", vacation: "amber", sick: "red" };
 
 /**
  * «Лента»: день в графике — отрезок полосы. Подряд идущие дни одного вида сливаются
  * в одну полосу (как в календаре), поэтому серии смен, больничный и «дыры» видны сразу.
  *   work  — отработанная смена (сплошная, внутри лиды крупно и часы)
  *   plan  — смена наперёд (светлая)
+ *   manual — ручной обзвон (синяя, считается как смена: часы из Скорозвона, оплата, конверсия)
  *   train — обучение
  *   plat  — обучение на платформе (часы не оплачиваются и не идут в конверсию)
  *   sick / vac — больничный / отпуск
@@ -32,9 +33,9 @@ const TYPE_HUE: Record<DayType, string> = { work: "blue", off: "gray", training:
  * Супервайзер: график не заполняют — рабочие дни недели отмечены полосой без цифр
  * (часы СВ в показатели не идут, оклад — за эти дни).
  */
-type Lane = "work" | "plan" | "train" | "plat" | "sick" | "vac" | "gone" | "pre";
+type Lane = "work" | "plan" | "manual" | "train" | "plat" | "sick" | "vac" | "gone" | "pre";
 const LANE_TAG: Partial<Record<Lane, string>> = { sick: "Б", vac: "О", gone: "У" };
-const TYPES: DayType[] = ["work", "training", "platform", "off", "vacation", "sick"];
+const TYPES: DayType[] = ["work", "manual", "training", "platform", "off", "vacation", "sick"];
 
 interface Sel {
   opId: string;
@@ -93,9 +94,17 @@ export default function SchedulePage() {
     return out;
   }, [data.groups]);
   const isSvRow = useCallback((r: OpRow) => !isGone(r.op) && (r.op.role === "supervisor" || led.has(r.op.id)), [led]);
+  // СВ и наставник видят в графике только свои группы: переведённые в чужую группу (их история
+  // осталась в срезе) сюда не попадают — график показывает, кто работает в команде сейчас
+  const mine = useCallback(
+    (r: OpRow) =>
+      access.viewAll || r.op.id === access.opId || access.ownGroups.has(r.groupKey) || (led.has(r.op.id) && access.ownGroups.has(led.get(r.op.id)!)),
+    [access, led],
+  );
   const rows = useMemo(
     () =>
       m.ops
+        .filter(mine)
         .filter((r) => !r.op.deletedAt || r.hours > 0 || r.pace.fact > 0)
         // фильтр группы: её операторы и супервайзер, который её ведёт
         .filter((r) => !group || r.groupKey === group || led.get(r.op.id) === group)
@@ -104,7 +113,7 @@ export default function SchedulePage() {
           const gb = b.groupKey === NO_GROUP ? "я" : ix.groupById.get(b.groupKey)?.name ?? "";
           return Number(isSvRow(b)) - Number(isSvRow(a)) || ga.localeCompare(gb, "ru") || goneLast(a.op, b.op) || a.op.name.localeCompare(b.op.name, "ru");
         }),
-    [m.ops, group, ix, led, isSvRow],
+    [m.ops, group, ix, led, isSvRow, mine],
   );
 
   // у супервайзера вместо часов — отработанные дни по графику (закрытые дни месяца), как в окладе
@@ -378,6 +387,7 @@ export default function SchedulePage() {
         <div className="lane-legend">
           <span><i className="lane work first last" />смена</span>
           <span><i className="lane plan first last" />план</span>
+          <span title="Ручной обзвон — считается как смена: часы из Скорозвона, оплата и конверсия"><i className="lane manual first last" />ручной обзвон</span>
           <span><i className="lane train first last" />обучение</span>
           <span title="Обучение на платформе — буква «П», без часов: не оплачивается и не идёт в конверсию"><i className="lane plat first last" />на платформе</span>
           <span><i className="lane sick first last" />больничный</span>
@@ -604,6 +614,7 @@ function SchedRow({
       if (sh.type === "sick") return "sick";
       if (sh.type === "vacation") return "vac";
       if (sh.type === "off") return null;
+      if (sh.type === "manual") return "manual";
       if (sh.type === "training") return "train";
       if (sh.type === "platform") return "plat";
       return d > today ? "plan" : "work";
@@ -680,7 +691,7 @@ function SchedRow({
                 {lane === "plat" ? (
                   // обучение на платформе — буквой, без часов
                   <span className="lane-h">П</span>
-                ) : sv ? null : lane === "work" || lane === "train" ? (
+                ) : sv ? null : lane === "work" || lane === "manual" || lane === "train" ? (
                   // у супервайзера (выше) — полоса без цифр: часы и лиды в его графике не считаем
                   <>
                     <span className="lane-h num">{fmtNum(hours)}</span>
@@ -1171,7 +1182,7 @@ function FillModal({ rows, onClose }: { rows: OpRow[]; onClose: () => void }) {
       for (const r of rows) {
         if (ix.svIds.has(r.op.id)) continue; // часы супервайзера лидов не дают
         const ex = ix.shift.get(`${d}|${r.op.id}`);
-        if (ex && (ex.type === "work" || ex.type === "training") && !plan.some((p) => p.date === d && p.operatorId === r.op.id))
+        if (ex && HOURS_DAY_TYPES.has(ex.type) && !plan.some((p) => p.date === d && p.operatorId === r.op.id))
           perDay.set(d, (perDay.get(d) ?? 0) + ex.hours);
       }
     }

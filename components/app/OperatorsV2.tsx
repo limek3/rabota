@@ -9,7 +9,7 @@ import { canManageOperator } from "@/lib/crm/access";
 import { addDays, addMonths, fmtMonth, isoWeekday, isWorkday, monthEnd, monthOf, monthStart, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName, OPS } from "@/lib/crm/format";
 import { EMPLOYMENT_LABEL, startTimeLabel, NO_GROUP, NO_GROUP_LABEL, ROLE_LABEL, type DayKey, type DayType, type Operator, type Shift } from "@/lib/crm/types";
-import { Avatar, EmploymentTag } from "@/components/ui/kit";
+import { Avatar, EmploymentTag, StartTag } from "@/components/ui/kit";
 import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { StickyHead } from "@/components/app/StickyHead";
@@ -46,10 +46,10 @@ const PERF: { value: string; label: string; test: (p: number) => boolean }[] = [
   { value: "0", label: "Меньше 50%", test: (p) => p < 0.5 },
 ];
 
-const DAY_LABEL: Record<DayType, string> = { work: "смена", training: "обучение", off: "выходной", vacation: "отпуск", sick: "больничный", platform: "платформа" };
+const DAY_LABEL: Record<DayType, string> = { work: "смена", manual: "ручной обзвон", training: "обучение", off: "выходной", vacation: "отпуск", sick: "больничный", platform: "платформа" };
 /** Короткая отметка нерабочего дня в «Продуктивности». */
 const DAY_MARK: Partial<Record<DayType, string>> = { off: "вых", vacation: "отп", sick: "бол", platform: "пл" };
-const DAY_HUE: Record<DayType, string> = { work: "green", training: "green", off: "gray", vacation: "amber", sick: "red", platform: "gray" };
+const DAY_HUE: Record<DayType, string> = { work: "green", manual: "blue", training: "green", off: "gray", vacation: "amber", sick: "red", platform: "gray" };
 const DOW = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 const DOW_CAP = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const MON = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
@@ -834,6 +834,7 @@ export function OperatorsV2() {
                             <span className="row" style={{ gap: 10 }}>
                               <Avatar name={x.op.name} id={x.op.id} size={26} />
                               <span>{shortName(x.op.name)}</span>
+                              <StartTag op={x.op} />
                               <EmploymentTag op={x.op} />
                             </span>
                           </td>

@@ -55,7 +55,8 @@ export function LeadsClassic() {
   const [phonesOpen, setPhonesOpen] = useState(false);
   // только лиды с номером, который ещё не выгружали в Excel
   const [notExported, setNotExported] = useState(false);
-  const canExport = access.isHead || access.isSup;
+  // выгрузки (номера, таблица ОКК) — только РОП: супервайзер не должен случайно выгрузить или пометить номера
+  const canExport = access.isHead;
   const wrapRef = useRef<HTMLDivElement>(null);
   // свой порядок столбцов у каждого аккаунта; перетаскивание за заголовок
   const colOrder = useColumnOrder("leads", LEAD_COLS);

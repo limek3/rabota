@@ -3,7 +3,7 @@
 // ----------------------------------------------------------------------------
 // Каждый час в :05 по Москве (pg_cron, supabase/migrations/20261014000002_shift_hours_hourly.sql;
 // в 00:05 — последний раз за вчера) берёт отчёт Скорозвона «Занятость сотрудников» за день и каждому, у кого в графике
-// смена (работа или обучение), ставит часы = доступен + гудки + разговор + заполняет карточку.
+// смена (работа, ручной обзвон или обучение), ставит часы = доступен + гудки + разговор + заполняет карточку.
 // Перерывы, «не беспокоить» и офлайн не считаются. Оператор CRM ↔ сотрудник Скорозвона —
 // по фамилии (и имени, если фамилия встречается дважды). Не нашёлся или нашлись двое —
 // смену не трогаем, а в ответе и в журнале пишем, кого не сопоставили.
@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
 
     const admin = createClient(url, service, { auth: { persistSession: false } });
     const [{ data: shifts, error: sErr }, { data: ops, error: oErr }] = await Promise.all([
-      admin.from("shifts").select("id, date, operator_id, hours, type, comment").eq("date", date).in("type", ["work", "training"]),
+      admin.from("shifts").select("id, date, operator_id, hours, type, comment").eq("date", date).in("type", ["work", "manual", "training"]),
       admin.from("operators").select("id, name, deleted_at, status, fire_date"),
     ]);
     if (sErr || oErr) return json({ error: (sErr ?? oErr)!.message }, 500);

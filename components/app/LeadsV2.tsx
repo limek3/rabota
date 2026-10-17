@@ -70,7 +70,8 @@ export function LeadsV2() {
     setFailFor(fail ? id : null);
   };
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "at", dir: -1 });
-  const canExport = access.isHead || access.isSup;
+  // выгрузки (номера, таблица ОКК) — только РОП: супервайзер не должен случайно выгрузить или пометить номера
+  const canExport = access.isHead;
 
   const vis = useColumnVisibility("leads2", COLS, SHOWN_DEFAULT);
   const colOrder = useColumnOrder("leads2", COLS);

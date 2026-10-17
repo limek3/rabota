@@ -1445,6 +1445,8 @@ button {
   --sch-plan: transparent;
   --sch-plan-bd: #4f7a62;
   --sch-plan-fg: #8fc0a3;
+  --sch-manual: #2c6a9c;
+  --sch-manual-fg: #e3f2ff;
   --sch-train: #3d5a8a;
   --sch-train-fg: #e6eeff;
   --sch-plat: #6a5596;
@@ -1574,6 +1576,8 @@ button {
   --sch-plan: transparent;
   --sch-plan-bd: #8dbba0;
   --sch-plan-fg: #3f7a5a;
+  --sch-manual: #3a8fd4;
+  --sch-manual-fg: #ffffff;
   --sch-train: #4a6fae;
   --sch-train-fg: #ffffff;
   --sch-plat: #8d72c4;
@@ -1650,3 +1654,7 @@ input[type="checkbox"]:not(.sw input):disabled { opacity: 0.45; cursor: not-allo
   --ink-15: rgba(255, 255, 255, 0.27);
   --ink-25: rgba(255, 255, 255, 0.38);
 }
+
+/* плашка «во сколько выходит» рядом с ФИО (сводка, операторы) */
+.op-time { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 6px; border: 1px solid var(--ink-12); border-radius: 5px; background: var(--ink-05); color: var(--text); font-size: 10.5px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
+.op-time svg { color: var(--text-sub); flex: none; }

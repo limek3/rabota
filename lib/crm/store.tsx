@@ -924,6 +924,19 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     return dataRef.current.shifts.filter((s) => s.operatorId === opId && s.date > from).map((s) => s.id);
   }, []);
 
+  /**
+   * Перевели в другую группу — смены с сегодняшнего дня (план наперёд) переходят в новую группу.
+   * Прошлые остаются за старой (история группы), иначе её СВ видел бы в графике чужих людей.
+   */
+  const restampAhead = useCallback((opId: ID, groupId: ID | null, skip: ID[] = []): Shift[] => {
+    if (!canEditShift(accessRef.current, opId)) return [];
+    const from = todayKey();
+    const now = isoNow();
+    return dataRef.current.shifts
+      .filter((s) => s.operatorId === opId && s.date >= from && (s.groupId ?? null) !== groupId && !skip.includes(s.id))
+      .map((s) => ({ ...s, groupId, updatedAt: now }));
+  }, []);
+
   const saveOperator = useCallback<Store["saveOperator"]>(
     async (input) => {
       const st = dataRef.current;
@@ -958,19 +971,20 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       }
       const leaving = prev && op.status === "fired" && op.fireDate && (prev.status !== "fired" || prev.fireDate !== op.fireDate);
       const drop = leaving ? plannedAfterLeave(op.id, op.fireDate) : [];
+      const moved = prev && (prev.groupId ?? null) !== (op.groupId ?? null) ? restampAhead(op.id, op.groupId ?? null, drop) : [];
       const ok = await commit(
-        () => db.applyBatch([{ store: "operators", put: [op] }, { store: "plans", put: plans }, { store: "shifts", del: drop }]),
+        () => db.applyBatch([{ store: "operators", put: [op] }, { store: "plans", put: plans }, { store: "shifts", put: moved, del: drop }]),
         (d) => ({
           ...d,
           operators: prev ? d.operators.map((o) => (o.id === op.id ? op : o)) : [...d.operators, op],
           plans: plans.length ? d.plans.map((p) => plans.find((x) => x.id === p.id) ?? p) : d.plans,
-          shifts: drop.length ? d.shifts.filter((s) => !drop.includes(s.id)) : d.shifts,
+          shifts: drop.length || moved.length ? d.shifts.filter((s) => !drop.includes(s.id)).map((s) => moved.find((x) => x.id === s.id) ?? s) : d.shifts,
         }),
       );
       if (ok) void log("operator", op.id, opDiff(prev, op) + (drop.length ? ` · снято смен после увольнения: ${drop.length}` : ""), changesOf("operator", prev, op));
       return ok ? op : null;
     },
-    [commit, toast, deny, log, opDiff, plannedAfterLeave],
+    [commit, toast, deny, log, opDiff, plannedAfterLeave, restampAhead],
   );
 
   const patchOperator = useCallback(
@@ -989,13 +1003,14 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       // уволили — смены после даты увольнения снимаем, в графике там «уволен»
       const leaving = op.status === "fired" && op.fireDate && (prev.status !== "fired" || prev.fireDate !== op.fireDate);
       const drop = leaving ? plannedAfterLeave(id, op.fireDate) : [];
+      const moved = "groupId" in patch && (prev.groupId ?? null) !== (op.groupId ?? null) ? restampAhead(id, op.groupId ?? null, drop) : [];
       const ok = await commit(
-        () => db.applyBatch([{ store: "operators", put: [op] }, { store: "accounts", put: accs }, { store: "shifts", del: drop }]),
+        () => db.applyBatch([{ store: "operators", put: [op] }, { store: "accounts", put: accs }, { store: "shifts", put: moved, del: drop }]),
         (d) => ({
           ...d,
           operators: d.operators.map((o) => (o.id === id ? op : o)),
           accounts: accs.length ? d.accounts.map((x) => accs.find((y) => y.id === x.id) ?? x) : d.accounts,
-          shifts: drop.length ? d.shifts.filter((s) => !drop.includes(s.id)) : d.shifts,
+          shifts: drop.length || moved.length ? d.shifts.filter((s) => !drop.includes(s.id)).map((s) => moved.find((x) => x.id === s.id) ?? s) : d.shifts,
         }),
       );
       if (ok) {
@@ -1003,7 +1018,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         if (okText) toast(okText);
       }
     },
-    [commit, toast, deny, log, opDiff, plannedAfterLeave],
+    [commit, toast, deny, log, opDiff, plannedAfterLeave, restampAhead],
   );
 
   const applyGridPay = useCallback<Store["applyGridPay"]>(async () => {
@@ -1269,8 +1284,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         id,
         date,
         operatorId,
-        // группа на день смены: у существующей записи сохраняем исходную
-        groupId: prev ? prev.groupId : op?.groupId ?? null,
+        // группа на день смены: у прошлой записи сохраняем исходную, с сегодня — текущая группа оператора
+        groupId: prev && date < todayKey() ? prev.groupId : op ? op.groupId ?? null : prev?.groupId ?? null,
         hours,
         type: patch.type,
         comment: (patch.comment || "").trim(),
@@ -1324,7 +1339,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
           id,
           date: it.date,
           operatorId: it.operatorId,
-          groupId: prev ? prev.groupId : ixRef.current.opById.get(it.operatorId)?.groupId ?? null,
+          groupId: prev && it.date < todayKey() ? prev.groupId : (ixRef.current.opById.get(it.operatorId) ?? prev)?.groupId ?? null,
           hours: Math.min(24, Math.max(0, it.hours)),
           type: it.type,
           comment: it.comment ?? prev?.comment ?? "",

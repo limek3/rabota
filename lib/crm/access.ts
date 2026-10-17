@@ -1,5 +1,5 @@
 import type { Account, AccountRole, Candidate, DataState, ID, Lead, Operator } from "./types";
-import { nowMs } from "./dates";
+import { nowMs, todayKey } from "./dates";
 
 /**
  * Права доступа. Чистые функции: по аккаунту и данным решают, что человек видит
@@ -294,7 +294,10 @@ export function scopeData(st: DataState, a: Access): DataState {
     leads = st.leads.filter((l) => opIds.has(l.operatorId));
   }
 
-  const shifts = st.shifts.filter((s) => opIds.has(s.operatorId) || (groupWide && !!s.groupId && groupIds.has(s.groupId)));
+  // чужие по группе смены — только прошлые (история группы): план наперёд у переведённого
+  // в другую группу не должен приводить его в график этой группы
+  const today = todayKey();
+  const shifts = st.shifts.filter((s) => opIds.has(s.operatorId) || (groupWide && !!s.groupId && groupIds.has(s.groupId) && s.date < today));
   for (const s of shifts) opIds.add(s.operatorId);
   const canPay = a.can.viewPayroll;
 

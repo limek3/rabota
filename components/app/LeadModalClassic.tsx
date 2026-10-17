@@ -444,7 +444,8 @@ export function LeadModalClassic({ lead, preset }: { lead: Lead | null; preset?:
               hint={
                 remote && !hasLeadRegionColumn() ? (
                   <span style={{ color: "var(--c-red-fg)" }}>Регион пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260926000002_lead_region.sql</span>
-                ) : region ? (
+                ) : region && !access.isOp ? (
+                  // оператору цену и апрув не показываем
                   (() => {
                     const seg = regionSegment(region, s);
                     return seg === "regional"

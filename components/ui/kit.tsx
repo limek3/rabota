@@ -19,7 +19,7 @@ import {
 } from "@/lib/crm/dates";
 import type { DayKey, Lead, MonthKey, Operator } from "@/lib/crm/types";
 import { HUES, HUE_LABEL } from "@/lib/crm/defaults";
-import { EMPLOYMENT_HUE, EMPLOYMENT_LABEL, EMPLOYMENT_SHORT, LEAD_STATUS_HUE, LEAD_STATUS_LABEL } from "@/lib/crm/types";
+import { EMPLOYMENT_HUE, EMPLOYMENT_LABEL, EMPLOYMENT_SHORT, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, startTimeLabel } from "@/lib/crm/types";
 import { fmtInt, fmtNum, fmtPct, initials } from "@/lib/crm/format";
 import { PACE_HUE, PACE_LABEL, type PaceStatus } from "@/lib/crm/calc";
 import { SEGMENT_HUE, SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
@@ -71,6 +71,18 @@ export function EmploymentTag({ op, size = "sm" }: { op: Pick<Operator, "employm
     <Chip hue={EMPLOYMENT_HUE[e]} dot={size === "md"} title={`Оформление: ${EMPLOYMENT_LABEL[e]}`} style={style}>
       {size === "md" ? EMPLOYMENT_LABEL[e] : EMPLOYMENT_SHORT[e]}
     </Chip>
+  );
+}
+
+/** Плашка «во сколько выходит» (🕘 10:00) рядом с ФИО; не указано или уволен — ничего. */
+export function StartTag({ op }: { op: Pick<Operator, "startTime" | "status" | "deletedAt"> }) {
+  const label = startTimeLabel(op.startTime);
+  if (!label || op.status === "fired" || op.deletedAt) return null;
+  return (
+    <span className="op-time" title={`Выходит на смену с ${label}`}>
+      <Icon name="clock" size={11} />
+      {label}
+    </span>
   );
 }
 
