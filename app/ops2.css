@@ -997,3 +997,11 @@
 .lc-tl-h b { font-size: 12.5px; }
 .lc-tl-h span { font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .lc-tl-b > .o2-muted { font-size: 12px; }
+
+/* журнал лидов: фильтры в две ровные строки — поиск во всю ширину, под ним фильтры одной высоты */
+.l2-filters { flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 8px; }
+.l2-f-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.l2-filters .o2-search { flex: 1 1 320px; max-width: none; }
+.l2-filters .o2-found { margin-left: 4px; }
+/* фильтры второй строки — поровну: растягиваются до 200px, при переносе остаются одной ширины */
+.l2-f-row > .sel-trigger { flex: 1 1 150px; max-width: 200px; width: auto !important; }

@@ -488,85 +488,90 @@ export function LeadsV2() {
           </div>
 
           {/* ── фильтры ──────────────────────────────────────────── */}
-          <div className="card o2-filters">
-            <label className="o2-search">
-              <Icon name="search" size={14} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по клиенту, номеру или комментарию…" />
-            </label>
-            <Select width={170} value={operatorId} options={opOptions} onChange={setOperatorId} ariaLabel="Оператор" minPopWidth={280} />
-            <Select
-              width={140}
-              value={groupId}
-              onChange={setGroupId}
-              ariaLabel="Группа"
-              options={[
-                { value: "", label: "Все группы" },
-                ...data.groups.map<Opt>((g) => ({ value: g.id, label: g.name + (g.deletedAt ? " (удалена)" : ""), icon: dot(g.color) })),
-                { value: NO_GROUP, label: NO_GROUP_LABEL, icon: dot("gray") },
-              ]}
-            />
-            <Select
-              width={140}
-              value={projectId}
-              onChange={setProjectId}
-              ariaLabel="Проект"
-              options={[
-                { value: "", label: "Все проекты" },
-                ...projects.map<Opt>((p) => ({ value: p.id, label: p.name + (p.deletedAt ? " (удалён)" : ""), icon: dot(p.color) })),
-                { value: "__none__", label: "Без проекта", icon: dot("gray") },
-              ]}
-            />
-            <Select width={140} value={region} options={regionOptions} onChange={setRegion} ariaLabel="Регион" minPopWidth={260} />
-            {canExport && (
-              <button className={`o2-btn${notExported ? " pri" : ""}`} onClick={() => setNotExported((v) => !v)} title="Только лиды с номером, который ещё не выгружали в Excel">
-                Не выгружены · {fmtInt(notExportedCount)}
-              </button>
-            )}
-            {filtered && (
-              <button
-                className="o2-btn ghost"
-                onClick={() => {
-                  setOperatorId("");
-                  setGroupId("");
-                  setProjectId("");
-                  setQ("");
-                  setStatus("");
-                  setRegion("");
-                  setNotExported(false);
-                }}
+          <div className="card o2-filters l2-filters">
+            {/* строка 1: поиск на всю ширину, сколько найдено, столбцы; строка 2: фильтры одной высоты */}
+            <div className="l2-f-row">
+              <label className="o2-search">
+                <Icon name="search" size={14} />
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по клиенту, номеру или комментарию…" />
+              </label>
+              <span className="o2-found">Найдено: {fmtInt(list.length)}</span>
+              <Popover
+                align="right"
+                button={(open, toggle, ref) => (
+                  <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
+                    <Icon name="dashboard" size={15} />
+                  </button>
+                )}
               >
-                Сбросить
-              </button>
-            )}
-            <span className="o2-found">Найдено: {fmtInt(list.length)}</span>
-            <Popover
-              align="right"
-              button={(open, toggle, ref) => (
-                <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
-                  <Icon name="dashboard" size={15} />
+                <div className="tt">Столбцы</div>
+                {COLS.map((k) => (
+                  <label key={k}>
+                    <input type="checkbox" checked={vis.shown.has(k)} onChange={() => vis.toggle(k)} />
+                    {COL_TITLE[k]}
+                  </label>
+                ))}
+                <div className="sep" />
+                <div className="tt">Порядок — перетащите заголовок столбца</div>
+                {vis.custom && (
+                  <button className="it" onClick={vis.reset}>
+                    <Icon name="check" size={13} /> По умолчанию
+                  </button>
+                )}
+                {colOrder.custom && (
+                  <button className="it" onClick={colOrder.reset}>
+                    <Icon name="refresh" size={13} /> Вернуть порядок столбцов
+                  </button>
+                )}
+              </Popover>
+            </div>
+            <div className="l2-f-row">
+              <Select width={160} value={operatorId} options={opOptions} onChange={setOperatorId} ariaLabel="Оператор" minPopWidth={280} />
+              <Select
+                width={160}
+                value={groupId}
+                onChange={setGroupId}
+                ariaLabel="Группа"
+                options={[
+                  { value: "", label: "Все группы" },
+                  ...data.groups.map<Opt>((g) => ({ value: g.id, label: g.name + (g.deletedAt ? " (удалена)" : ""), icon: dot(g.color) })),
+                  { value: NO_GROUP, label: NO_GROUP_LABEL, icon: dot("gray") },
+                ]}
+              />
+              <Select
+                width={160}
+                value={projectId}
+                onChange={setProjectId}
+                ariaLabel="Проект"
+                options={[
+                  { value: "", label: "Все проекты" },
+                  ...projects.map<Opt>((p) => ({ value: p.id, label: p.name + (p.deletedAt ? " (удалён)" : ""), icon: dot(p.color) })),
+                  { value: "__none__", label: "Без проекта", icon: dot("gray") },
+                ]}
+              />
+              <Select width={160} value={region} options={regionOptions} onChange={setRegion} ariaLabel="Регион" minPopWidth={260} />
+              {canExport && (
+                <button className={`o2-btn${notExported ? " pri" : ""}`} onClick={() => setNotExported((v) => !v)} title="Только лиды с номером, который ещё не выгружали в Excel">
+                  Не выгружены · {fmtInt(notExportedCount)}
                 </button>
               )}
-            >
-              <div className="tt">Столбцы</div>
-              {COLS.map((k) => (
-                <label key={k}>
-                  <input type="checkbox" checked={vis.shown.has(k)} onChange={() => vis.toggle(k)} />
-                  {COL_TITLE[k]}
-                </label>
-              ))}
-              <div className="sep" />
-              <div className="tt">Порядок — перетащите заголовок столбца</div>
-              {vis.custom && (
-                <button className="it" onClick={vis.reset}>
-                  <Icon name="check" size={13} /> По умолчанию
+              {filtered && (
+                <button
+                  className="o2-btn ghost"
+                  onClick={() => {
+                    setOperatorId("");
+                    setGroupId("");
+                    setProjectId("");
+                    setQ("");
+                    setStatus("");
+                    setRegion("");
+                    setNotExported(false);
+                  }}
+                >
+                  Сбросить
                 </button>
               )}
-              {colOrder.custom && (
-                <button className="it" onClick={colOrder.reset}>
-                  <Icon name="refresh" size={13} /> Вернуть порядок столбцов
-                </button>
-              )}
-            </Popover>
+            </div>
           </div>
 
           {/* ── журнал ───────────────────────────────────────────── */}
