@@ -427,9 +427,9 @@ export function LeadN({ n, style }: { n: number; style?: CSSProperties }) {
   );
 }
 
-export function Seg<T extends string>({ value, options, onChange, style }: { value: T; options: { value: T; label: ReactNode }[]; onChange: (v: T) => void; style?: CSSProperties }) {
+export function Seg<T extends string>({ value, options, onChange, style, className }: { value: T; options: { value: T; label: ReactNode }[]; onChange: (v: T) => void; style?: CSSProperties; className?: string }) {
   return (
-    <div className="seg" role="group" style={style}>
+    <div className={`seg${className ? ` ${className}` : ""}`} role="group" style={style}>
       {options.map((o) => (
         <button key={o.value} type="button" aria-pressed={o.value === value} onClick={() => onChange(o.value)}>
           {o.label}
@@ -1106,7 +1106,7 @@ export function PeriodPicker({ value, onChange, today }: { value: Period; onChan
     else if (value.mode === "month") onChange(periodFor("month", monthStart(addMonths(monthOf(value.from), dir))));
   };
   return (
-    <div className="toolbar" style={{ gap: 6 }}>
+    <div className="toolbar pp-bar" style={{ gap: 6 }}>
       <Seg<PeriodMode>
         value={value.mode}
         onChange={(m) => {
@@ -1123,11 +1123,11 @@ export function PeriodPicker({ value, onChange, today }: { value: Period; onChan
         ]}
       />
       {value.mode !== "range" ? (
-        <div className="row" style={{ gap: 4 }}>
+        <div className="row pp-nav" style={{ gap: 4 }}>
           <button className="btn btn-sm btn-icon" onClick={() => shift(-1)} aria-label="Назад">
             <Icon name="chevL" size={14} />
           </button>
-          <span className="btn btn-sm" style={{ minWidth: 120, pointerEvents: "none", fontWeight: 600 }}>
+          <span className="btn btn-sm pp-label" style={{ minWidth: 120, pointerEvents: "none", fontWeight: 600 }}>
             {periodLabel(value)}
           </span>
           <button className="btn btn-sm btn-icon" onClick={() => shift(1)} aria-label="Вперёд">

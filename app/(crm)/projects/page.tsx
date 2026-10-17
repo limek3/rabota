@@ -81,7 +81,7 @@ export default function ProjectsPage() {
 
           <div className="card card-tbl" style={{ overflow: "hidden" }}>
             <div className="card-head" style={{ padding: "14px 18px 0" }}>
-              <Seg value={by} onChange={setBy} options={[{ value: "operator", label: "По операторам" }, { value: "group", label: "По группам" }]} />
+              <Seg className="seg-fill" value={by} onChange={setBy} options={[{ value: "operator", label: "По операторам" }, { value: "group", label: "По группам" }]} />
             </div>
             {table.length === 0 ? (
               <Empty icon="folder" title="Нет данных за период" />

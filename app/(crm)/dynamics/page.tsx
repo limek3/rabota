@@ -74,6 +74,7 @@ export default function DynamicsPage() {
       <div className="toolbar">
         <Select
           width={300}
+          style={{ flex: "1 1 260px", width: "auto" }}
           value={scope}
           onChange={setScope}
           ariaLabel="Чья динамика"

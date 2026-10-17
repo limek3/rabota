@@ -438,3 +438,5 @@
 :root[data-theme="dark"] .d2-hm { --hm-cross: rgba(255, 255, 255, 0.09); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .d2-hm { --hm-cross: rgba(255, 255, 255, 0.09); } }
 .d2-grid .c[data-ri]:hover { outline: 1.5px solid var(--text-sub); outline-offset: -1px; }
+/* плашки под «Людьми месяца» делят строку поровну — без пустого хвоста справа */
+.d2-pp-facts button { flex: 1 1 auto; justify-content: center; }

@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useCrm, type GroupInput } from "@/lib/crm/store";
 import { shortName } from "@/lib/crm/format";
-import type { Group } from "@/lib/crm/types";
+import { TRACK_LABEL, type Group, type Track } from "@/lib/crm/types";
+import { groupTrack } from "@/lib/crm/rop";
 import { Field, HuePicker, Modal, NumInput } from "@/components/ui/kit";
 import { Select, type Opt } from "@/components/ui/select";
 import { HUES } from "@/lib/crm/defaults";
 
 export function GroupModal({ group }: { group: Group | null }) {
-  const { data, closeModal, saveGroup, toast } = useCrm();
+  const { data, ix, closeModal, saveGroup, saveSettings, toast, access } = useCrm();
   const usedHues = new Set(data.groups.filter((g) => !g.deletedAt).map((g) => g.color));
   const [f, setF] = useState<GroupInput>(() =>
     group
@@ -23,6 +24,11 @@ export function GroupModal({ group }: { group: Group | null }) {
           color: HUES.find((h) => !usedHues.has(h)) ?? "blue",
         },
   );
+  // направление группы (авто / недвижимость): по нему сегменты и лимиты себестоимости в отчёте РОП;
+  // хранится в настройках отчёта (settings.rop.groupTrack), то же поле — в «Отчёты → Параметры»
+  const trackWas: Track = group ? groupTrack(data, ix, group.id) : "auto";
+  const [track, setTrack] = useState<Track>(trackWas);
+  const canTrack = access.can.systemSettings;
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof GroupInput>(k: K, v: GroupInput[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -34,6 +40,10 @@ export function GroupModal({ group }: { group: Group | null }) {
     if (errName || busy) return;
     setBusy(true);
     const saved = await saveGroup({ ...f, id: group?.id });
+    if (saved && canTrack && (!group || track !== trackWas || !data.settings.rop.groupTrack[saved.id])) {
+      const rop = data.settings.rop;
+      await saveSettings({ rop: { ...rop, groupTrack: { ...rop.groupTrack, [saved.id]: track } } });
+    }
     setBusy(false);
     if (saved) {
       toast(group ? "Группа сохранена" : "Группа создана");
@@ -76,12 +86,21 @@ export function GroupModal({ group }: { group: Group | null }) {
               ariaLabel="Руководитель"
             />
           </Field>
-          {!f.supervisorId && (
-            <Field label="ФИО руководителя">
-              <input className="inp" value={f.supervisorName} onChange={(e) => set("supervisorName", e.target.value)} placeholder="Необязательно" />
-            </Field>
-          )}
+          <Field label="Направление" hint={canTrack ? undefined : "Меняет РОП"}>
+            <Select
+              value={track}
+              options={(Object.keys(TRACK_LABEL) as Track[]).map<Opt>((t) => ({ value: t, label: TRACK_LABEL[t] }))}
+              onChange={(v) => setTrack(v as Track)}
+              ariaLabel="Направление"
+              disabled={!canTrack}
+            />
+          </Field>
         </div>
+        {!f.supervisorId && (
+          <Field label="ФИО руководителя">
+            <input className="inp" value={f.supervisorName} onChange={(e) => set("supervisorName", e.target.value)} placeholder="Необязательно" />
+          </Field>
+        )}
         <div className="grid2">
           <Field label="План группы, лидов/мес" hint="0 — сумма личных планов участников">
             <NumInput value={f.monthlyPlan} onChange={(v) => set("monthlyPlan", v ?? 0)} max={1_000_000} />

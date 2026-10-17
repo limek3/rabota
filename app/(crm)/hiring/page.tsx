@@ -172,6 +172,7 @@ export default function HiringPage() {
         {showWho && (
           <Select
             width={240}
+            style={{ flex: "1 1 220px", width: "auto" }}
             value={who}
             options={whoOpts}
             onChange={setWho}
@@ -180,6 +181,8 @@ export default function HiringPage() {
           />
         )}
         <Seg<Span>
+          // без выбора «чей найм» период — справа, чтобы панель не обрывалась пустым местом
+          style={showWho ? undefined : { marginLeft: "auto" }}
           value={span}
           onChange={setSpan}
           options={[

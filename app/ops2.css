@@ -1008,10 +1008,24 @@
 .o2-frow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .o2-2r .o2-search { flex: 1 1 320px; max-width: none; }
 .o2-2r .o2-found { margin-left: 4px; }
-.o2-frow > .sel-trigger { flex: 1 1 150px; min-width: 130px; max-width: none; width: auto !important; }
-.o2-frow > .o2-btn, .o2-frow > .o2-badge { flex: none; }
+.o2-frow > .sel-trigger { flex: 1 1 120px; min-width: 110px; max-width: none; width: auto !important; }
+.o2-frow > .o2-badge { flex: none; }
+/* кнопки растут вместе с фильтрами: в одну строку — делят остаток, перенеслись — тянутся во всю строку */
+.o2-frow > .o2-btn { flex: 1 0 auto; justify-content: center; }
 /* во второй строке нет фильтров (выплаты: месяцы и подпись) — подпись забирает остаток строки */
 .o2-frow > .o2-muted { flex: 1 1 200px; min-width: 0; }
 .o2-frow:empty { display: none; }
 /* во второй строке одни кнопки (нет фильтров) — делят строку поровну, без пустого места справа */
 .o2-frow:not(:has(> .sel-trigger)):not(:has(> .o2-muted)) > .o2-btn { flex: 1 1 auto; justify-content: center; }
+
+/* «Отчёты»: подпись периода — в конце строки панели, сжимается с многоточием, а не переносится */
+.rep-cap { margin-left: auto; flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+
+/* без пустых хвостов в панелях: переключатель во всю ширину, период растягивается, плашки делят строку */
+.seg.seg-fill { display: flex; width: 100%; }
+.seg.seg-fill > button { flex: 1 1 0; }
+.pp-bar .pp-nav { flex: 1 1 auto; }
+.pp-bar .pp-label { flex: 1 1 auto; justify-content: center; }
+/* панель «Отчётов» — одной строкой: подпись сжимается, а не переносится; на узком экране — перенос */
+.toolbar.rep-w { flex-wrap: nowrap; }
+@media (max-width: 1100px) { .toolbar.rep-w { flex-wrap: wrap; } }

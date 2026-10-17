@@ -5,7 +5,7 @@ import { useCrm } from "@/lib/crm/store";
 import { buildReport, reportRange, type ReportKind } from "@/lib/crm/report";
 import { buildRopReport, groupTrack, ropText } from "@/lib/crm/rop";
 import { NO_GROUP, NO_GROUP_LABEL, type RopSettings, type Track } from "@/lib/crm/types";
-import { addDays, fmtDate } from "@/lib/crm/dates";
+import { addDays } from "@/lib/crm/dates";
 import { Collapse, Field, NumInput, PageHead, SaveBar, Seg, useDraft } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
@@ -23,6 +23,9 @@ import { StickyHead } from "@/components/app/StickyHead";
  */
 
 type View = "ops" | "rop";
+/** «17.10» — коротко для подписи в панели (полная дата — в поле и на картинке отчёта). */
+const ddmm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
+
 export default function ReportsPage() {
   const { data, ix, today, toast, access, lens } = useCrm();
   // отчёт РОПа считает ФОТ и доход — ему нужны все лиды, фильтр «Проект» его не трогает
@@ -144,6 +147,7 @@ export default function ReportsPage() {
         {!rop && (
           <Select
             width={200}
+            style={{ flex: "1 1 180px", width: "auto" }}
             value={groupId}
             options={[
               { value: "", label: "Все группы" },
@@ -154,18 +158,16 @@ export default function ReportsPage() {
             ariaLabel="Группа"
           />
         )}
-        {rop ? (
+        {rop && (
           <button className={`btn${params ? " btn-primary" : ""}`} onClick={() => setParams((v) => !v)} aria-expanded={params} title="Расходы, лимиты себестоимости лида, направления групп и план найма">
             <Icon name="settings" size={14} /> Параметры
           </button>
-        ) : (
-          <>
-            <span className="spacer" />
-            <span style={{ fontSize: 12.5, color: "var(--dim)" }}>
-              {kind === "day" ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`} · {report?.rows.length ?? 0} опер.
-            </span>
-          </>
         )}
+        {/* что в отчёте — забирает остаток строки справа, чтобы панель не обрывалась пустым местом */}
+        <span className="rep-cap" title={rop ? "Весь отдел" : `${report?.rows.length ?? 0} операторов в отчёте`}>
+          {kind === "day" ? ddmm(from) : `${ddmm(from)} – ${ddmm(to)}`}
+          {rop ? " · весь отдел" : ` · ${report?.rows.length ?? 0} опер.`}
+        </span>
       </div>
 
       {rop && (
