@@ -759,6 +759,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         region,
         comment: (input.comment || "").trim(),
         source: LEAD_SOURCE,
+        // отметки чек-листа проекта (100 up — что заполнено в форме); при правке без чек-листа — прежние
+        ...((input.checks ?? prev?.checks)?.length ? { checks: input.checks ?? prev?.checks } : {}),
         // новый лид — «в работе»; правка полей статус не меняет
         status: prev?.status ?? "work",
         statusReason: prev?.statusReason ?? "",

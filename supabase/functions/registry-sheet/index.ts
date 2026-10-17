@@ -478,7 +478,7 @@ var SPEC = {
     deletedAt: null
   },
   groups: { id: "", name: "", supervisorId: null, supervisorName: "", monthlyPlan: 0, active: true, color: "gray", createdAt: NOW, updatedAt: NOW, deletedAt: null },
-  projects: { id: "", name: "", active: true, color: "gray", sort: 0, handoff: "transfer", brief: "", checklist: [], createdAt: NOW, updatedAt: NOW, deletedAt: null },
+  projects: { id: "", name: "", active: true, color: "gray", sort: 0, handoff: "transfer", brief: "", checklist: [], regions: [], createdAt: NOW, updatedAt: NOW, deletedAt: null },
   leads: {
     id: "",
     at: "",
@@ -496,6 +496,7 @@ var SPEC = {
     statusReason: "",
     statusAt: OPT,
     statusBy: OPT,
+    checks: OPT,
     createdAt: NOW,
     updatedAt: NOW
   },

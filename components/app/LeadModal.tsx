@@ -3,9 +3,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useCrm, type LeadPreset } from "@/lib/crm/store";
 import type { Lead, LeadStatus } from "@/lib/crm/types";
-import { LEAD_SOURCE, LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
+import { HANDOFF_LABEL, LEAD_SOURCE, LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
+import type { Project } from "@/lib/crm/types";
 import { Avatar, Chip, Modal, RegionTag } from "@/components/ui/kit";
-import { Select, dot, type Opt } from "@/components/ui/select";
+import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
 import { canCreateLeadFor, canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
@@ -26,6 +27,8 @@ import { CallReview, mmss, useLeadDialog } from "./LeadDialog";
 const LAST_OP = "leadup.lastOperator";
 const LAST_PR = "leadup.lastProject";
 const LAST_RG = "leadup.lastRegion";
+/** Последний город — свой у каждого проекта (у 100 up свой список городов); авто.ру — прежний ключ. */
+const rgKey = (projectId: string) => (projectId ? `${LAST_RG}.${projectId}` : LAST_RG);
 
 function remembered(key: string): string {
   try {
@@ -70,7 +73,12 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     [data.operators, access],
   );
   const liveProjects = useMemo(() => data.projects.filter((p) => !p.deletedAt && p.active).sort((a, b) => a.sort - b.sort), [data.projects]);
-  const regionList = useMemo(() => [...s.regions.main, ...s.regions.regional], [s.regions]);
+  const settingsRegions = useMemo(() => [...s.regions.main, ...s.regions.regional], [s.regions]);
+  // у проекта свои города (100 up — города автосалонов), иначе — «Основа» и «Регионы» из настроек
+  const regionsOf = (pid: string) => {
+    const own = data.projects.find((p) => p.id === pid)?.regions ?? [];
+    return own.length ? own : settingsRegions;
+  };
 
   const [operatorId, setOperatorId] = useState(() => {
     if (lead) return lead.operatorId;
@@ -96,12 +104,13 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
   const [region, setRegion] = useState(() => {
     if (lead) return lead.region ?? "";
     if (preset?.region) return preset.region;
-    const last = remembered(LAST_RG);
-    return last && regionList.includes(last) ? last : "";
+    const last = remembered(rgKey(projectId)) || remembered(LAST_RG);
+    return last && regionsOf(projectId).includes(last) ? last : "";
   });
   const [groupId, setGroupId] = useState<string>(lead ? lead.groupId ?? "" : "");
-  // чек-лист проекта (для «формы» — что заполнено в форме заказчика): отмечается заново у каждого нового лида
-  const [checks, setChecks] = useState<Set<number>>(() => new Set());
+  // чек-лист проекта (для «формы» — что заполнено в форме заказчика): у нового лида отмечается заново,
+  // у записанного — то, что отметили при записи (по тексту пункта)
+  const [checks, setChecks] = useState<Set<string>>(() => new Set(lead?.checks ?? []));
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
   const [added, setAdded] = useState(0);
@@ -118,6 +127,7 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     setLink(lead.link ?? "");
     setRegion(lead.region ?? "");
     setGroupId(lead.groupId ?? "");
+    setChecks(new Set(lead.checks ?? []));
     setTried(false);
   };
 
@@ -135,13 +145,14 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
       icon: <Avatar name={o.name} id={o.id} size={20} />,
     }));
   }, [lead, liveOps, ix]);
-  const projectOpts = useMemo<Opt[]>(() => {
+  // проекты для переключателя сверху; у старого лида его проект показываем, даже если он скрыт или удалён
+  const projectList = useMemo(() => {
     const list = [...liveProjects];
     if (lead?.projectId && !list.some((p) => p.id === lead.projectId)) {
       const p = data.projects.find((x) => x.id === lead.projectId);
       if (p) list.push(p);
     }
-    return list.map((p) => ({ value: p.id, label: p.name + (p.deletedAt ? " (удалён)" : ""), icon: dot(p.color) }));
+    return list;
   }, [lead, liveProjects, data.projects]);
   const groupOpts = useMemo<Opt[]>(
     () => [
@@ -152,26 +163,41 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     ],
     [data.groups, lead?.groupId],
   );
-  const regionOpts = useMemo<Opt[]>(() => {
-    const opts: Opt[] = [
-      ...s.regions.main.map((r) => ({ value: r, label: r, group: "Основа", hint: SEGMENT_LABEL.main })),
-      ...s.regions.regional.map((r) => ({ value: r, label: r, group: "Регионы", hint: SEGMENT_LABEL.regional })),
-    ];
-    // у старого лида регион могли убрать из списков — всё равно показываем его
-    if (region && !regionList.includes(region)) opts.push({ value: region, label: region, group: "Прочее" });
-    return opts;
-  }, [s.regions, region, regionList]);
-
-  const phoneNorm = normPhone(phone);
-  const at = lead?.at ?? nowStamp();
-  const dup = useMemo(
-    () => (phoneNorm.length >= 10 ? findDuplicate(data.leads, phoneNorm, at, s.duplicateDays, lead?.id) : null),
-    [data.leads, phoneNorm, at, s.duplicateDays, lead?.id],
-  );
-
   const project = projectId ? data.projects.find((p) => p.id === projectId) ?? null : null;
   const checklist = project?.checklist ?? [];
   const isForm = project?.handoff === "form";
+  const ownCities = project?.regions?.length ? project.regions : null;
+  const regionList = ownCities ?? settingsRegions;
+
+  const regionOpts = useMemo<Opt[]>(() => {
+    const opts: Opt[] = ownCities
+      ? ownCities.map((r) => ({ value: r, label: r }))
+      : [
+          ...s.regions.main.map((r) => ({ value: r, label: r, group: "Основа", hint: SEGMENT_LABEL.main })),
+          ...s.regions.regional.map((r) => ({ value: r, label: r, group: "Регионы", hint: SEGMENT_LABEL.regional })),
+        ];
+    // у старого лида регион могли убрать из списков — всё равно показываем его
+    if (region && !regionList.includes(region)) opts.push({ value: region, label: region, group: "Прочее" });
+    return opts;
+  }, [s.regions, region, regionList, ownCities]);
+
+  const phoneNorm = normPhone(phone);
+  const at = lead?.at ?? nowStamp();
+  // дубль — только в том же проекте: авто.ру и 100 up — разные заказчики, один клиент может уйти обоим.
+  // Старые лиды без проекта — авто.ру: с ними сверяем всё, кроме проектов с формой
+  const dup = useMemo(
+    () =>
+      phoneNorm.length >= 10
+        ? findDuplicate(
+            data.leads.filter((l) => (l.projectId ?? "") === projectId || (!l.projectId && !isForm)),
+            phoneNorm,
+            at,
+            s.duplicateDays,
+            lead?.id,
+          )
+        : null,
+    [data.leads, projectId, isForm, phoneNorm, at, s.duplicateDays, lead?.id],
+  );
 
   // новый лид — только полный: клиент, телефон, ссылка, регион. Старые записи без них правятся как раньше
   const isNew = !lead;
@@ -191,8 +217,8 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
       : phone.trim() && phoneNorm.length < 6
         ? "Слишком короткий номер"
         : null,
-    region: isNew && regionList.length > 0 && !region ? "Выберите регион" : null,
-    checks: isNew && checklist.length > 0 && checklist.some((_, i) => !checks.has(i)) ? (isForm ? "Отметьте всё, что заполнено в форме" : "Отметьте чек-лист") : null,
+    region: isNew && regionList.length > 0 && !region ? (ownCities ? "Выберите город клиента" : "Выберите регион") : null,
+    checks: isNew && checklist.length > 0 && checklist.some((c) => !checks.has(c)) ? (isForm ? "Отметьте всё, что заполнено в форме" : "Отметьте чек-лист") : null,
     link:
       link.trim() && !linkNorm
         ? "Не похоже на ссылку — вставьте адрес целиком"
@@ -206,7 +232,7 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
   };
   const invalid = Object.values(err).some(Boolean);
   const missing = isNew
-    ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!err.region && "регион", !!err.checks && (isForm ? "чек-лист формы" : "чек-лист")].filter(Boolean)
+    ? [!!err.pr && "проект", !client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!err.region && (ownCities ? "город" : "регион"), !!err.checks && (isForm ? "чек-лист формы" : "чек-лист")].filter(Boolean)
     : [];
 
   const dirty =
@@ -218,7 +244,8 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
       comment !== lead.comment ||
       linkNorm !== (lead.link ?? "") ||
       region !== (lead.region ?? "") ||
-      groupId !== (lead.groupId ?? ""));
+      groupId !== (lead.groupId ?? "") ||
+      [...checks].sort().join("|") !== [...(lead.checks ?? [])].sort().join("|"));
 
   const readOnly = !!lead && !canEditLead(access, lead, full);
   const canDelete = !!lead && canEditLead(access, lead, full, true);
@@ -241,13 +268,15 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
       // «Город / ДЦ» больше не заполняют — город задаёт регион; старое значение у лида сохраняется
       direction: lead?.direction ?? "",
       comment,
+      // отмеченные пункты чек-листа текущего проекта; проект без чек-листа — отметок нет
+      checks: checklist.filter((c) => checks.has(c)),
       ...(lead ? { groupId: groupId || null } : {}),
     });
     setBusy(false);
     if (!saved) return false;
     remember(LAST_OP, operatorId);
     if (projectId) remember(LAST_PR, projectId);
-    if (region) remember(LAST_RG, region);
+    if (region) remember(rgKey(projectId), region);
     if (lead) {
       toast("Лид изменён");
       setTried(false);
@@ -294,14 +323,22 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
         if (lead) setGroupId(ix.opById.get(v)?.groupId ?? "");
       },
       projectId: (v: string) => {
+        if (v === projectId) return;
         setProjectId(v);
-        setChecks(new Set());
+        setChecks(new Set(lead && (lead.projectId ?? "") === v ? lead.checks ?? [] : []));
+        // у проектов разные списки городов: нового лида ставим на последний город этого проекта
+        const list = regionsOf(v);
+        if (region && !list.includes(region) && (!lead || region !== lead.region)) setRegion("");
+        if (!lead) {
+          const last = remembered(rgKey(v)) || remembered(LAST_RG);
+          setRegion(last && list.includes(last) ? last : "");
+        }
       },
-      check: (i: number) =>
+      check: (item: string) =>
         setChecks((prev) => {
           const next = new Set(prev);
-          if (next.has(i)) next.delete(i);
-          else next.add(i);
+          if (next.has(item)) next.delete(item);
+          else next.add(item);
           return next;
         }),
       client: setClient,
@@ -318,7 +355,9 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
       region: setRegion,
       groupId: setGroupId,
     },
-    opts: { op: opOpts, project: projectOpts, group: groupOpts, region: regionOpts },
+    opts: { op: opOpts, group: groupOpts, region: regionOpts },
+    projectList,
+    ownCities,
     phoneNorm,
     linkNorm,
     linkPhone,
@@ -395,7 +434,8 @@ function LinkInput({ d }: { d: Draft }) {
 function regionHint(d: Draft, money: boolean): ReactNode {
   if (d.remote && !hasLeadRegionColumn())
     return <span style={{ color: "var(--c-red-fg)" }}>Регион пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260926000002_lead_region.sql</span>;
-  if (!d.f.region || !money) return undefined;
+  // свои города проекта (100 up) — без «основы» и «регионов»: это деление авто.ру
+  if (!d.f.region || !money || d.ownCities) return undefined;
   return regionSegment(d.f.region, d.s) === "regional"
     ? `Регионы: апрув ${d.s.regions.regionalApprovePct}%, ${d.s.regions.regionalLeadRevenue.toLocaleString("ru-RU")} ₽ за лид`
     : "Основа: цена и апрув — как у проекта";
@@ -405,16 +445,48 @@ function dupHint(d: Draft, opName: (id: string) => string): ReactNode {
   if (!d.dup) return undefined;
   return (
     <span style={{ color: "var(--c-amber-fg)" }}>
-      Номер уже передавали {fmtStamp(d.dup.at)} ({shortName(opName(d.dup.operatorId)) || "—"}). Не дубль ли?
+      Номер уже передавали{d.project ? ` в «${d.project.name}»` : ""} {fmtStamp(d.dup.at)} ({shortName(opName(d.dup.operatorId)) || "—"}). Не дубль ли?
     </span>
   );
 }
 
-/** Поля для правки: клиент, ссылка, оператор и проект, регион, группа, комментарий. */
-function LeadFields({ d, compact }: { d: Draft; compact?: boolean }) {
+/**
+ * Проект — переключателем, а не списком: проектов два-три, и от выбора зависит всё окно
+ * (города, условия, чек-лист формы, подпись кнопки). В попапе нового лида он в шапке, в карточке — сверху полей.
+ */
+function ProjectSwitch({ d, inHead }: { d: Draft; inHead?: boolean }) {
+  if (d.projectList.length < 2 && !(d.tried && d.err.pr)) return null;
+  return (
+    <div className={`lf-proj${inHead ? " head" : ""}${d.tried && d.err.pr ? " bad" : ""}`} role="radiogroup" aria-label="Проект">
+      {d.projectList.map((p) => {
+        const on = d.f.projectId === p.id;
+        return (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            className={on ? "on" : ""}
+            onClick={() => d.set.projectId(p.id)}
+            disabled={d.readOnly}
+            title={p.handoff === "form" ? `${p.name}: отправка формы, клиента не переводим` : `${p.name}: перевод на менеджера`}
+          >
+            <i style={{ background: `var(--c-${p.color}-fg)` }} />
+            {p.name}
+            {p.deletedAt ? " (удалён)" : ""}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Поля лида: (проект) → ссылка → клиент и город → условия проекта и чек-лист → комментарий → оператор. */
+function LeadFields({ d, compact, projectInHead }: { d: Draft; compact?: boolean; projectInHead?: boolean }) {
   const { access, ix } = useCrm();
   const linkNotStored = d.remote && !hasLeadLinkColumn();
   const dh = dupHint(d, (id) => ix.opById.get(id)?.name ?? "");
+  const cityLabel = d.ownCities ? "Город клиента" : "Регион";
   const linkSec = (
     <Sec icon="external" title="Лид в Скорозвоне">
       <F
@@ -438,6 +510,12 @@ function LeadFields({ d, compact }: { d: Draft; compact?: boolean }) {
   // новый лид: сначала ссылка из Скорозвона — номер из неё подставится сам
   return (
     <>
+      {!projectInHead && (
+        <>
+          <ProjectSwitch d={d} />
+          {d.tried && d.err.pr && <span className="field-err">{d.err.pr}</span>}
+        </>
+      )}
       {d.isNew && linkSec}
       <Sec icon="user" title="Клиент">
         <div className="lf-grid">
@@ -456,28 +534,47 @@ function LeadFields({ d, compact }: { d: Draft; compact?: boolean }) {
               readOnly={d.readOnly}
             />
           </F>
+          <F label={cityLabel} req={d.isNew} wide error={d.tried ? d.err.region : null} hint={regionHint(d, !access.isOp)}>
+            <Select
+              value={d.f.region}
+              options={d.opts.region}
+              onChange={d.set.region}
+              invalid={d.tried && !!d.err.region}
+              ariaLabel={cityLabel}
+              disabled={d.readOnly}
+              placeholder={d.ownCities ? "Город автосалона" : "Регион"}
+              minPopWidth={240}
+            />
+          </F>
         </div>
       </Sec>
 
       {!d.isNew && linkSec}
 
-      <Sec icon="folder" title="Оператор, проект и регион">
+      <ProjectBrief d={d} />
+
+      <Sec icon="doc" title="Комментарий оператора">
+        <textarea
+          className="inp lf-ta"
+          value={d.f.comment}
+          onChange={(e) => d.set.comment(e.target.value)}
+          rows={compact ? 2 : 3}
+          placeholder={d.isForm ? "Критерии клиента — то же, что в комментарии формы: авто, бюджет, кредит / трейд-ин, сроки" : "Что важно знать менеджеру"}
+          readOnly={d.readOnly}
+        />
+      </Sec>
+
+      <Sec icon="user" title={d.lead ? "Оператор и группа" : "Оператор"}>
         <div className="lf-grid">
-          <F label="Оператор" wide error={d.tried ? d.err.op : null}>
+          <F label="Оператор" wide={!!d.lead} error={d.tried ? d.err.op : null}>
             <Select value={d.f.operatorId} options={d.opts.op} onChange={d.set.operatorId} disabled={access.isOp || d.readOnly} invalid={d.tried && !!d.err.op} ariaLabel="Оператор" minPopWidth={300} />
-          </F>
-          <F label="Проект" error={d.tried ? d.err.pr : null} hint={d.noProjects ? "Справочник проектов пуст" : undefined}>
-            <Select value={d.f.projectId} options={d.opts.project} onChange={d.set.projectId} invalid={d.tried && !!d.err.pr} ariaLabel="Проект" disabled={d.readOnly} />
-          </F>
-          <F label="Регион" req={d.isNew} error={d.tried ? d.err.region : null} hint={regionHint(d, !access.isOp)}>
-            <Select value={d.f.region} options={d.opts.region} onChange={d.set.region} invalid={d.tried && !!d.err.region} ariaLabel="Регион" disabled={d.readOnly} placeholder="Регион" minPopWidth={240} />
           </F>
           {d.lead ? (
             <F label="Группа на момент передачи" wide hint={compact ? undefined : "Меняется сама, если сменить оператора"}>
               <Select value={d.f.groupId} options={d.opts.group} onChange={d.set.groupId} ariaLabel="Группа" disabled={d.readOnly || access.isOp} />
             </F>
           ) : (
-            <F label="Время передачи, МСК" wide hint="Ставится само в момент записи">
+            <F label="Время передачи, МСК" hint="Ставится само в момент записи">
               <div className="lead-time">
                 <Icon name="clock" size={14} />
                 сейчас {nowStamp().slice(11)}
@@ -485,12 +582,6 @@ function LeadFields({ d, compact }: { d: Draft; compact?: boolean }) {
             </F>
           )}
         </div>
-      </Sec>
-
-      <ProjectBrief d={d} />
-
-      <Sec icon="doc" title="Комментарий оператора">
-        <textarea className="inp lf-ta" value={d.f.comment} onChange={(e) => d.set.comment(e.target.value)} rows={compact ? 2 : 3} placeholder={d.isForm ? "Критерии клиента — то же, что в комментарии формы: авто, бюджет, кредит / трейд-ин, сроки" : "Что важно знать менеджеру"} readOnly={d.readOnly} />
       </Sec>
     </>
   );
@@ -655,6 +746,7 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
   const g = lead.groupId ? ix.groupById.get(lead.groupId) : null;
   const p = lead.projectId ? ix.projectById.get(lead.projectId) : null;
   const history = useLeadHistory(lead);
+  const proj = lead.projectId ? data.projects.find((x) => x.id === lead.projectId) ?? null : null;
 
   const copyPhone = () => {
     const v = fmtPhone(lead.phone);
@@ -687,7 +779,7 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
             ) : (
               <span className="o2-muted">номер не указан</span>
             )}
-            {lead.region && <RegionTag region={lead.region} />}
+            {lead.region && (proj?.regions?.length ? <span>{lead.region}</span> : <RegionTag region={lead.region} />)}
           </div>
         </div>
         {lead.link && (
@@ -739,6 +831,8 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
             </div>
           )}
 
+          {proj && (proj.handoff === "form" || (proj.checklist?.length ?? 0) > 0) && <FormChecks lead={lead} project={proj} />}
+
           <details className="rv-fold" open>
             <summary>
               <Icon name="user" size={13} /> Данные лида
@@ -785,7 +879,10 @@ function LeadInfo({ lead, canEdit, onEdit, dupHintNode, exported }: { lead: Lead
   const op = ix.opById.get(lead.operatorId);
   const g = lead.groupId ? ix.groupById.get(lead.groupId) : null;
   const p = lead.projectId ? ix.projectById.get(lead.projectId) : null;
-  const seg = lead.region ? regionSegment(lead.region, data.settings) : null;
+  const proj = lead.projectId ? data.projects.find((x) => x.id === lead.projectId) ?? null : null;
+  // свои города проекта (100 up) — без деления «основа / регионы»: оно про цену лида авто.ру
+  const cities = !!proj?.regions?.length;
+  const seg = lead.region && !cities ? regionSegment(lead.region, data.settings) : null;
   const skId = lead.link.match(/#\/leads\/(\d+)/)?.[1];
   return (
     <div className="lc-info">
@@ -797,10 +894,16 @@ function LeadInfo({ lead, canEdit, onEdit, dupHintNode, exported }: { lead: Lead
           {fmtPhone(lead.phone) || <span className="o2-muted">не указан</span>}
           {dupHintNode && <div className="lc-hint">{dupHintNode}</div>}
         </dd>
-        <dt>Регион</dt>
-        <dd>{lead.region ? <>{lead.region} <span className="o2-muted">· {seg ? SEGMENT_LABEL[seg].toLowerCase() : ""}</span></> : <span className="o2-muted">не указан</span>}</dd>
+        <dt>{cities ? "Город" : "Регион"}</dt>
+        <dd>{lead.region ? <>{lead.region} {seg && <span className="o2-muted">· {SEGMENT_LABEL[seg].toLowerCase()}</span>}</> : <span className="o2-muted">не указан</span>}</dd>
         <dt>Проект</dt>
         <dd>{p ? <Chip hue={p.color}>{p.name}</Chip> : <span className="o2-muted">без проекта</span>}</dd>
+        {proj && (
+          <>
+            <dt>Передача</dt>
+            <dd>{HANDOFF_LABEL[proj.handoff ?? "transfer"]}</dd>
+          </>
+        )}
         <dt>Оператор</dt>
         <dd>
           {op ? (
@@ -1063,6 +1166,7 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
             <Icon name="plus" size={15} stroke={2.4} />
           </span>
           {d.isForm ? "Отправлена форма" : "Передан лид"}
+          {!d.noOps && <ProjectSwitch d={d} inHead />}
         </span>
       }
       onClose={onClose}
@@ -1096,7 +1200,7 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
             : "Сначала добавьте хотя бы одного активного оператора (в вашей зоне) — лид всегда привязан к оператору, который его передал."}
         </div>
       ) : (
-        <div className="lf-body" ref={bodyRef} onKeyDown={onCtrlEnter(() => void submit(false))}>
+        <div className="lf-body lf-new" ref={bodyRef} onKeyDown={onCtrlEnter(() => void submit(false))}>
           {access.isOp && op && (
             <div className="lf-who">
               <Avatar name={op.name} id={op.id} size={30} />
@@ -1106,7 +1210,8 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
               </div>
             </div>
           )}
-          <LeadFields d={d} />
+          {d.tried && d.err.pr && <div className="field-err">Выберите проект — переключатель вверху окна</div>}
+          <LeadFields d={d} projectInHead />
           {d.missing.length > 0 && (
             <div className="lead-missing">
               <Icon name="alert" size={13} /> Чтобы записать лид, заполните: {d.missing.join(", ")}
@@ -1121,38 +1226,84 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
 
 /**
  * Условия проекта и чек-лист. «Форма» (100 up): клиента не переводим — отправляем форму заказчика,
- * поэтому перед записью оператор отмечает, что в форме есть всё обязательное.
+ * поэтому перед записью оператор отмечает, что в форме есть всё обязательное. Условия — длинный текст:
+ * в окне одна строка, сам текст — во всплывающем окне по кнопке, чтобы окно лида не росло.
  */
 function ProjectBrief({ d }: { d: Draft }) {
   const p = d.project;
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const { style } = usePopover(open, btnRef, popRef, () => setOpen(false));
   if (!p || (!p.brief?.trim() && !d.checklist.length && !d.isForm)) return null;
-  const showChecks = d.isNew && d.checklist.length > 0;
+  const brief = p.brief?.trim() ?? "";
   return (
     <Sec
       icon={d.isForm ? "doc" : "rules"}
       title={d.isForm ? `«${p.name}» — отправка формы, клиента не переводим` : `Условия «${p.name}»`}
       right={
-        p.brief?.trim() ? (
-          <button type="button" className="o2-btn ghost" style={{ height: 22, padding: "0 6px", fontSize: 12 }} onClick={() => setOpen((v) => !v)}>
-            {open ? "Свернуть" : "Условия"}
+        brief ? (
+          <button ref={btnRef} type="button" className={`lf-brief-btn${open ? " on" : ""}`} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            <Icon name="rules" size={12} /> Условия проекта
           </button>
         ) : undefined
       }
     >
-      {open && p.brief?.trim() && <div className="lf-brief">{p.brief.trim()}</div>}
-      {showChecks && (
+      {open && brief && (
+        <Layer>
+          <div ref={popRef} className="sel-pop lf-brief-pop" style={style} role="dialog" aria-label={`Условия «${p.name}»`}>
+            <div className="lf-brief-h">Условия «{p.name}»</div>
+            <div className="lf-brief">{brief}</div>
+          </div>
+        </Layer>
+      )}
+      {d.checklist.length > 0 && (
         <div className="lf-checks" role="group" aria-label={d.isForm ? "Что заполнено в форме" : "Чек-лист"}>
           <span className="lf-l">{d.isForm ? "В форме заполнено" : "Перед записью"}</span>
-          {d.checklist.map((item, i) => (
-            <label key={i} className={`lf-check${d.f.checks.has(i) ? " on" : ""}`}>
-              <input type="checkbox" checked={d.f.checks.has(i)} onChange={() => d.set.check(i)} disabled={d.readOnly} />
-              {item}
-            </label>
-          ))}
+          <div className="lf-checks-g">
+            {d.checklist.map((item) => (
+              <label key={item} title={item} className={`lf-check${d.f.checks.has(item) ? " on" : ""}`}>
+                <input type="checkbox" checked={d.f.checks.has(item)} onChange={() => d.set.check(item)} disabled={d.readOnly} />
+                <span>{item}</span>
+              </label>
+            ))}
+          </div>
           {d.tried && d.err.checks && <span className="field-err">{d.err.checks}</span>}
         </div>
       )}
     </Sec>
+  );
+}
+
+/**
+ * Карточка лида: что оператор отметил в чек-листе проекта при записи (100 up — что заполнено в форме).
+ * Пункты — текущий чек-лист проекта плюс отмеченные, которых в нём уже нет. Отметок нет вовсе — лид записан
+ * до чек-листа (или в базе нет колонки), так и пишем, а не рисуем пустые квадраты.
+ */
+function FormChecks({ lead, project }: { lead: Lead; project: Project }) {
+  const done = new Set(lead.checks ?? []);
+  const items = [...(project.checklist ?? []), ...(lead.checks ?? []).filter((c) => !(project.checklist ?? []).includes(c))];
+  const isForm = project.handoff === "form";
+  const all = items.length > 0 && items.every((c) => done.has(c));
+  return (
+    <div className={`lc-form${all ? " ok" : ""}`}>
+      <div className="lc-form-h">
+        <Icon name={isForm ? "doc" : "rules"} size={13} />
+        <b>{isForm ? "Отправлена форма" : "Чек-лист"}</b>
+        <span className="o2-muted">{isForm ? `${project.name} · клиента не переводили` : project.name}</span>
+      </div>
+      {lead.checks?.length ? (
+        <ul className="lc-form-l">
+          {items.map((c) => (
+            <li key={c} className={done.has(c) ? "on" : "off"}>
+              <Icon name={done.has(c) ? "check" : "close"} size={12} stroke={2.4} />
+              {c}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="o2-muted" style={{ fontSize: 12 }}>Отметок нет — лид записан до чек-листа</div>
+      )}
+    </div>
   );
 }

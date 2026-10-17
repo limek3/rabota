@@ -14,6 +14,7 @@ import type {
   PayType,
   Settings,
   Shift,
+  Project,
 } from "./types";
 import { NO_GROUP, NO_GROUP_LABEL } from "./types";
 import {
@@ -47,7 +48,7 @@ type DayMap = Map<DayKey, number>;
 export interface Index {
   opById: Map<ID, Operator>;
   groupById: Map<ID, Group>;
-  projectById: Map<ID, { id: ID; name: string; color: string; active: boolean; deletedAt?: string | null }>;
+  projectById: Map<ID, Project>;
   planById: Map<ID, MonthPlan>;
   /** Лиды команды по дням. */
   day: DayMap;

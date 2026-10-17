@@ -938,3 +938,42 @@
 .lf-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 5px 8px; border-radius: 7px; border: 1px solid var(--ink-07); }
 .lf-check input { margin: 0; width: 15px; height: 15px; accent-color: var(--c-green-fg); }
 .lf-check.on { border-color: var(--c-green-bd); background: var(--c-green-bg); }
+
+/* окно лида: проект — переключателем (в шапке попапа нового лида, в карточке — над полями) */
+.modal-title:has(.lf-mh) { flex: 1; min-width: 0; }
+.lf-mh { display: flex; width: 100%; }
+.lf-proj { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--ink-05); border: 1px solid var(--ink-07); align-self: flex-start; }
+.lf-proj.head { margin-left: auto; margin-right: 6px; }
+.lf-proj.bad { border-color: var(--c-red-fg); box-shadow: 0 0 0 2px var(--c-red-bg); }
+.lf-proj button { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--text-sub); font: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0; cursor: pointer; white-space: nowrap; }
+.lf-proj button i { width: 8px; height: 8px; border-radius: 3px; flex: none; opacity: 0.55; }
+.lf-proj button:hover:not(:disabled) { color: var(--text); }
+.lf-proj button.on { background: var(--bg-panel); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--ink-07); }
+.lf-proj button.on i { opacity: 1; }
+.lf-proj button:disabled { cursor: default; }
+
+/* карточка лида: отметки формы (100 up) */
+.lc-form { border: 1px solid var(--ink-08, var(--ink-07)); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.lc-form.ok { border-color: var(--c-green-bd); background: color-mix(in srgb, var(--c-green-bg) 55%, transparent); }
+.lc-form-h { display: flex; align-items: center; gap: 7px; font-size: 13px; flex-wrap: wrap; }
+.lc-form-h .o2-muted { font-size: 12px; }
+.lc-form-l { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; font-size: 12.5px; }
+.lc-form-l li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.lc-form-l li.on svg { color: var(--c-green-fg); flex: none; }
+.lc-form-l li.off { color: var(--c-red-fg); }
+.lc-form-l li.off svg { flex: none; }
+/* проект в журнале лидов — цветом из справочника проектов */
+.l2-tag.pr { color: var(--pr-fg); background: var(--pr-bg); border-color: var(--pr-bd); font-weight: 500; }
+
+/* условия проекта — одной строкой, текст во всплывающем окне; чек-лист — сеткой 2×2 */
+.lf-brief-btn { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 7px; border: 1px solid var(--ink-12); background: var(--bg-panel); color: var(--text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.lf-brief-btn:hover, .lf-brief-btn.on { background: var(--ink-05); }
+.lf-brief-pop { width: 460px; max-width: calc(100vw - 32px); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.lf-brief-pop .lf-brief { max-height: min(420px, 60vh); background: none; border: 0; padding: 0; }
+.lf-brief-h { font-size: 13px; font-weight: 700; }
+.lf-checks-g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.lf-checks-g .lf-check { font-size: 12.5px; padding: 6px 8px; min-width: 0; }
+.lf-checks-g .lf-check span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) { .lf-checks-g { grid-template-columns: 1fr; } }
+/* попап нового лида — одной высоты для любого проекта: переключили авто.ру ↔ 100 up — окно не прыгает */
+.modal:has(.lf-body.lf-new) .modal-body { height: min(var(--lf-new-h, 640px), calc(100vh / var(--ui-scale, 1) - 210px)); }

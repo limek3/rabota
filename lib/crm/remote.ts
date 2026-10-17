@@ -44,6 +44,10 @@ const isMissingLink = (e: { message: string; code?: string } | null) => !!e && (
 let leadRegionReady = true;
 export const hasLeadRegionColumn = () => leadRegionReady;
 const isMissingRegion = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /region/.test(e.message);
+/** Колонка leads.checks (что отмечено в форме проекта, 100 up) — без неё лиды пишутся без отметок. */
+let leadChecksReady = true;
+export const hasLeadChecksColumn = () => leadChecksReady;
+const isMissingChecks = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /checks/.test(e.message);
 const dropCol = (rows: Record<string, unknown>[], col: string) => rows.map(({ [col]: _drop, ...rest }) => rest);
 /**
  * Поздние колонки operators: employment (оформление: СМЗ) и start_time (выход на смену). Пока SQL
@@ -57,15 +61,16 @@ const missingOpCol = (e: { message: string; code?: string } | null) =>
   e && (e.code === "PGRST204" || e.code === "42703") ? OP_LATE_COLS.find((c) => opColReady[c] && e.message.includes(c)) : undefined;
 const dropOpCols = (rows: Record<string, unknown>[]) => OP_LATE_COLS.reduce((acc, c) => (opColReady[c] ? acc : dropCol(acc, c)), rows);
 /**
- * Поздние колонки projects: handoff, brief, checklist (способ передачи, условия, чек-лист формы).
- * Пока SQL 20261017000002_project_form.sql не выполнен — проекты пишутся без них.
+ * Поздние колонки projects: handoff, brief, checklist (SQL 20261017000002_project_form.sql) и regions — города
+ * проекта (20261017000003_project_cities.sql). Пока SQL не выполнен — проекты пишутся без этих колонок.
  */
-const PROJ_LATE_COLS = ["handoff", "brief", "checklist"] as const;
-let projColsReady = true;
-export const hasProjectFormColumns = () => projColsReady;
-const isMissingProjCol = (e: { message: string; code?: string } | null) =>
-  !!e && (e.code === "PGRST204" || e.code === "42703") && PROJ_LATE_COLS.some((c) => e.message.includes(c));
-const dropProjCols = (rows: Record<string, unknown>[]) => (projColsReady ? rows : PROJ_LATE_COLS.reduce((acc, c) => dropCol(acc, c), rows));
+const PROJ_LATE_COLS = ["handoff", "brief", "checklist", "regions"] as const;
+const projColReady: Record<(typeof PROJ_LATE_COLS)[number], boolean> = { handoff: true, brief: true, checklist: true, regions: true };
+export const hasProjectFormColumns = () => projColReady.handoff && projColReady.brief && projColReady.checklist;
+export const hasProjectCitiesColumn = () => projColReady.regions;
+const missingProjCol = (e: { message: string; code?: string } | null) =>
+  e && (e.code === "PGRST204" || e.code === "42703") ? PROJ_LATE_COLS.find((c) => projColReady[c] && e.message.includes(c)) : undefined;
+const dropProjCols = (rows: Record<string, unknown>[]) => PROJ_LATE_COLS.reduce((acc, c) => (projColReady[c] ? acc : dropCol(acc, c)), rows);
 /** Колонка audit.changes (было → стало) — без неё журнал пишется как раньше, одной строкой. */
 let auditChangesReady = true;
 const isMissingChanges = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /changes/.test(e.message);
@@ -117,11 +122,12 @@ export async function loadAll(): Promise<{ state: DataState; persistent: boolean
   if (leadRows.length) {
     leadLinkReady = "link" in leadRows[0];
     leadRegionReady = "region" in leadRows[0];
+    leadChecksReady = "checks" in leadRows[0];
   }
   const opRows = rows[TABLES.indexOf("operators")];
   if (opRows.length) for (const c of OP_LATE_COLS) opColReady[c] = c in opRows[0];
   const projRows = rows[TABLES.indexOf("projects")];
-  if (projRows.length) projColsReady = "handoff" in projRows[0];
+  if (projRows.length) for (const c of PROJ_LATE_COLS) projColReady[c] = c in projRows[0];
   const val = (key: string) => kv.find((r) => r.key === key)?.value as unknown;
   // секреты выгрузки лежат отдельно (читает только РОП) — собираем настройки обратно
   const settings = (val("settings") ?? {}) as Partial<Settings>;
@@ -164,8 +170,8 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
       auditChangesReady = false;
       ({ error } = await supabase().from(table).insert(dropCol(rows, "changes")));
     }
-    if (error && table === "projects" && isMissingProjCol(error)) {
-      projColsReady = false;
+    for (let col = table === "projects" ? missingProjCol(error) : undefined; col; col = missingProjCol(error)) {
+      projColReady[col] = false;
       ({ error } = await supabase().from(table).upsert(dropProjCols(rows), { onConflict: "id" }));
     }
     // поздней колонки ещё нет (не выполнен SQL) — сохраняем оператора без неё
@@ -186,6 +192,7 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
 async function putLeads(recs: object[]): Promise<void> {
   let rows = recs.map((r) => toRow("leads", r));
   if (!leadRegionReady) rows = dropCol(rows, "region");
+  if (!leadChecksReady) rows = dropCol(rows, "checks");
   const withLink = leadLinkReady ? rows.filter((r) => String(r.link ?? "").trim()) : [];
   const noLink = dropCol(rows.filter((r) => !withLink.includes(r)), "link");
   for (const batch of [withLink, noLink]) {
@@ -194,12 +201,15 @@ async function putLeads(recs: object[]): Promise<void> {
       for (let attempt = 0; ; attempt++) {
         const { error } = await supabase().from("leads").upsert(part, { onConflict: "id" });
         if (!error) break;
-        if (attempt < 2 && isMissingLink(error)) {
+        if (attempt < 3 && isMissingLink(error)) {
           leadLinkReady = false;
           part = dropCol(part, "link");
-        } else if (attempt < 2 && isMissingRegion(error)) {
+        } else if (attempt < 3 && isMissingRegion(error)) {
           leadRegionReady = false;
           part = dropCol(part, "region");
+        } else if (attempt < 3 && isMissingChecks(error)) {
+          leadChecksReady = false;
+          part = dropCol(part, "checks");
         } else fail(error, "leads");
       }
     }

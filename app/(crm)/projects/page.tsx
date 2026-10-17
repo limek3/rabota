@@ -6,7 +6,7 @@ import { useCrm } from "@/lib/crm/store";
 import { filterLeads, pivot } from "@/lib/crm/calc";
 import { HUES } from "@/lib/crm/defaults";
 import { DEFAULT_FORM_CHECKLIST, HANDOFF_LABEL, NO_GROUP, NO_GROUP_LABEL, type Project, type ProjectHandoff } from "@/lib/crm/types";
-import { hasProjectFormColumns } from "@/lib/crm/remote";
+import { hasLeadChecksColumn, hasProjectCitiesColumn, hasProjectFormColumns } from "@/lib/crm/remote";
 import { fmtInt, fmtPct, safeDiv, shortName } from "@/lib/crm/format";
 import { Chip, Collapse, Empty, HuePicker, PageHead, PeriodPicker, Progress, Seg, Swatch, hueFg, periodFor, periodLabel, type Period } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
@@ -340,9 +340,11 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
   const [handoff, setHandoff] = useState<ProjectHandoff>(p.handoff ?? "transfer");
   const [brief, setBrief] = useState(p.brief ?? "");
   const [list, setList] = useState((p.checklist?.length ? p.checklist : handoff === "form" ? DEFAULT_FORM_CHECKLIST : []).join("\n"));
+  const [cities, setCities] = useState((p.regions ?? []).join("\n"));
   const [busy, setBusy] = useState(false);
   const items = list.split("\n").map((x) => x.trim()).filter(Boolean);
-  const notStored = remote && !hasProjectFormColumns();
+  const cityList = cities.split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
+  const notStored = remote && (!hasProjectFormColumns() || !hasProjectCitiesColumn() || !hasLeadChecksColumn());
   const pickHandoff = (v: ProjectHandoff) => {
     setHandoff(v);
     // форма без чек-листа — подставляем обязательные поля формы
@@ -350,7 +352,7 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
   };
   const save = async () => {
     setBusy(true);
-    const ok = await saveProject({ ...p, handoff, brief: brief.trim(), checklist: items });
+    const ok = await saveProject({ ...p, handoff, brief: brief.trim(), checklist: items, regions: cityList });
     setBusy(false);
     if (ok) onDone();
   };
@@ -376,9 +378,13 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
         {handoff === "form" ? "Чек-лист формы — по пункту в строке; оператор отмечает каждый перед записью лида" : "Чек-лист перед записью лида (необязательно) — по пункту в строке"}
         <textarea className="inp" rows={4} value={list} onChange={(e) => setList(e.target.value)} readOnly={!canEdit} />
       </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-sub)" }}>
+        Города проекта — по городу в строке; в окне лида это список «Город клиента». Пусто — регионы из настроек
+        <textarea className="inp" rows={4} value={cities} onChange={(e) => setCities(e.target.value)} readOnly={!canEdit} placeholder={"Москва\nКраснодар\nСамара"} />
+      </label>
       {notStored && (
         <span style={{ fontSize: 12, color: "var(--c-red-fg)" }}>
-          Условия пока не сохраняются: выполните в Supabase файл supabase/migrations/20261017000002_project_form.sql
+          Не всё сохраняется: выполните в Supabase файлы supabase/migrations/20261017000002_project_form.sql и 20261017000003_project_cities.sql
         </span>
       )}
       {canEdit && (

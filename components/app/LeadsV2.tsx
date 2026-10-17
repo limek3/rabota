@@ -184,8 +184,14 @@ export function LeadsV2() {
       { value: "seg:regional", label: "Все регионы", group: "Сегмент", hint: s.regions.regional.join(", ") },
       ...s.regions.main.map<Opt>((r) => ({ value: r, label: r, group: "Основа" })),
       ...s.regions.regional.map<Opt>((r) => ({ value: r, label: r, group: "Регионы" })),
+      // свои города проектов (100 up) — тех, что ещё нет в списках выше
+      ...data.projects
+        .filter((p) => !p.deletedAt && p.regions?.length)
+        .flatMap((p) =>
+          p.regions!.filter((r) => !s.regions.main.includes(r) && !s.regions.regional.includes(r)).map<Opt>((r) => ({ value: r, label: r, group: `Города «${p.name}»` })),
+        ),
     ],
-    [s.regions],
+    [s.regions, data.projects],
   );
   const filtered = !!(operatorId || groupId || projectId || q || status || region || notExported);
 
@@ -283,7 +289,7 @@ export function LeadsV2() {
           </td>
         );
       case "project":
-        return <td key={c} data-col={c}>{p ? <span className="l2-tag">{p.name}</span> : <span className="o2-muted">—</span>}</td>;
+        return <td key={c} data-col={c}>{p ? <span className="l2-tag pr" style={{ ["--pr-fg" as string]: `var(--c-${p.color}-fg)`, ["--pr-bg" as string]: `var(--c-${p.color}-bg)`, ["--pr-bd" as string]: `var(--c-${p.color}-bd)` }}>{p.name}</span> : <span className="o2-muted">—</span>}</td>;
       case "status":
         return (
           <td key={c} data-col={c}>
@@ -307,7 +313,8 @@ export function LeadsV2() {
       case "region":
         return (
           <td key={c} data-col={c}>
-            <RegionTag region={l.region} />
+            {/* свои города проекта (100 up) — без «основа / регионы»: это деление авто.ру */}
+            {p?.regions?.length && l.region ? <span>{l.region}</span> : <RegionTag region={l.region} />}
           </td>
         );
       case "comment":

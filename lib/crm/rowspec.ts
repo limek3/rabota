@@ -21,10 +21,10 @@ const SPEC: Record<Table, Record<string, Def>> = {
     employment: "none", startTime: "", createdAt: NOW, updatedAt: NOW, deletedAt: null,
   },
   groups: { id: "", name: "", supervisorId: null, supervisorName: "", monthlyPlan: 0, active: true, color: "gray", createdAt: NOW, updatedAt: NOW, deletedAt: null },
-  projects: { id: "", name: "", active: true, color: "gray", sort: 0, handoff: "transfer", brief: "", checklist: [], createdAt: NOW, updatedAt: NOW, deletedAt: null },
+  projects: { id: "", name: "", active: true, color: "gray", sort: 0, handoff: "transfer", brief: "", checklist: [], regions: [], createdAt: NOW, updatedAt: NOW, deletedAt: null },
   leads: {
     id: "", at: "", client: "", phone: "", projectId: null, operatorId: "", groupId: null, direction: "", link: "", region: "", comment: "", source: "Скорозвон",
-    status: "work", statusReason: "", statusAt: OPT, statusBy: OPT, createdAt: NOW, updatedAt: NOW,
+    status: "work", statusReason: "", statusAt: OPT, statusBy: OPT, checks: OPT, createdAt: NOW, updatedAt: NOW,
   },
   shifts: { id: "", date: "", operatorId: "", groupId: null, hours: 0, type: "work", comment: "", updatedAt: NOW },
   plans: {
