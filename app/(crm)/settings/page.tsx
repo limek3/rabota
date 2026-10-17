@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { PAY_HINT, PAY_LABEL, type PayType, type Settings } from "@/lib/crm/types";
 import { WEEKDAYS_SHORT, currentMonth, fmtDate, fmtMonth, fmtStamp, nowStamp } from "@/lib/crm/dates";
-import { fmtInt, fmtMoney } from "@/lib/crm/format";
+import { fmtInt, fmtMoney, fmtNum } from "@/lib/crm/format";
 import { checkIntegrity, type Issue } from "@/lib/crm/validate";
 import * as db from "@/lib/crm/db";
 import { AUTH_ENABLED } from "@/lib/appMode";
@@ -347,6 +347,31 @@ export default function SettingsPage() {
                   {f.regions.regionalLeadRevenue > 0 ? fmtMoney((f.regions.regionalLeadRevenue * f.regions.regionalApprovePct) / 100) : "—"}
                 </td>
               </tr>
+              {/* проекты со своей ценой (100 up) — здесь для обзора, меняются в «Проектах» */}
+              {data.projects
+                .filter((p) => !p.deletedAt && (p.leadPrice ?? 0) > 0)
+                .map((p) => {
+                  const apr = p.approvePct ?? f.svBonus.defaultApprovePct;
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <span className="chip" style={hueVars(p.color)}>{p.name}</span>
+                      </td>
+                      <td className="muted" style={{ fontSize: 12.5 }}>
+                        {p.regions?.length ? p.regions.join(", ") : "все города"} ·{" "}
+                        <Link href="/projects" style={{ color: "inherit" }}>
+                          меняется в «Проектах»
+                        </Link>
+                      </td>
+                      <td className="r num">{fmtMoney(p.leadPrice ?? 0)}</td>
+                      <td className="r num">
+                        {fmtNum(apr)}%
+                        {p.approvePct == null && <div className="field-hint" style={{ marginTop: 4, textAlign: "right" }}>общий — апрув проекта не задан</div>}
+                      </td>
+                      <td className="r num" style={{ fontWeight: 600 }}>{fmtMoney(((p.leadPrice ?? 0) * apr) / 100)}</td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>

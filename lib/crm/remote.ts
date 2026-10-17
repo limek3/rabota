@@ -62,12 +62,14 @@ const missingOpCol = (e: { message: string; code?: string } | null) =>
 const dropOpCols = (rows: Record<string, unknown>[]) => OP_LATE_COLS.reduce((acc, c) => (opColReady[c] ? acc : dropCol(acc, c)), rows);
 /**
  * Поздние колонки projects: handoff, brief, checklist (SQL 20261017000002_project_form.sql) и regions — города
- * проекта (20261017000003_project_cities.sql). Пока SQL не выполнен — проекты пишутся без этих колонок.
+ * проекта (20261017000003_project_cities.sql), lead_price и approve_pct — цена лида и апрув проекта
+ * (20261017000004_project_price.sql). Пока SQL не выполнен — проекты пишутся без этих колонок.
  */
-const PROJ_LATE_COLS = ["handoff", "brief", "checklist", "regions"] as const;
-const projColReady: Record<(typeof PROJ_LATE_COLS)[number], boolean> = { handoff: true, brief: true, checklist: true, regions: true };
+const PROJ_LATE_COLS = ["handoff", "brief", "checklist", "regions", "lead_price", "approve_pct"] as const;
+const projColReady: Record<(typeof PROJ_LATE_COLS)[number], boolean> = { handoff: true, brief: true, checklist: true, regions: true, lead_price: true, approve_pct: true };
 export const hasProjectFormColumns = () => projColReady.handoff && projColReady.brief && projColReady.checklist;
 export const hasProjectCitiesColumn = () => projColReady.regions;
+export const hasProjectPriceColumns = () => projColReady.lead_price && projColReady.approve_pct;
 const missingProjCol = (e: { message: string; code?: string } | null) =>
   e && (e.code === "PGRST204" || e.code === "42703") ? PROJ_LATE_COLS.find((c) => projColReady[c] && e.message.includes(c)) : undefined;
 const dropProjCols = (rows: Record<string, unknown>[]) => PROJ_LATE_COLS.reduce((acc, c) => (projColReady[c] ? acc : dropCol(acc, c)), rows);

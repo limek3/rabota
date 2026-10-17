@@ -771,6 +771,35 @@ console.log("ALL OK");
   console.log(`25 ok: регионы — доход с лида ${Math.round(before)} → ${Math.round(mixed)} ₽ (регион 400 ₽), апрув ${ap}%`);
 }
 
+/* 25a. Своя цена проекта (100 up — 750 ₽): лиды проекта по ней, без деления на регионы; апрув проекта по умолчанию */
+{
+  const assert = require("assert");
+  const { incomePerLead, incomeBySegment } = R("calc");
+  const { buildDemo } = R("demo");
+  const { normalizeSettings } = R("defaults");
+  const month = "2026-09";
+  const st = buildDemo("2026-09-18");
+  st.settings = normalizeSettings({ ...st.settings, leadRevenue: 3000 });
+  const inMonth = st.leads.filter((l) => l.status !== "failed" && l.at.startsWith(month));
+  const up = { id: "pr_100up_test", name: "100 up", active: true, color: "blue", sort: 9, handoff: "form", leadPrice: 750, approvePct: null, createdAt: "", updatedAt: "" };
+  st.projects.push(up);
+  // все лиды месяца — 100 up, половина «из регионов»: регионы на них не влияют
+  inMonth.forEach((l, i) => ((l.projectId = up.id), (l.region = i % 2 ? "Челябинск" : "Самара")));
+  const def = st.settings.svBonus.defaultApprovePct;
+  const one = incomePerLead(st, month);
+  assert.ok(Math.abs(one - (750 * def) / 100) < 0.01, `лид 100 up = 750 × общий апрув ${def}% (${one})`);
+  // апрув проекта по умолчанию
+  up.approvePct = 40;
+  assert.ok(Math.abs(incomePerLead(st, month) - 300) < 0.01, "750 × 40% = 300 ₽");
+  // апрув проекта за месяц важнее апрува по умолчанию
+  st.approves.push({ id: "ap_t", month, projectId: up.id, pct: 20, comment: "", updatedAt: "" });
+  assert.ok(Math.abs(incomePerLead(st, month) - 150) < 0.01, "апрув за месяц 20% → 150 ₽");
+  const seg = incomeBySegment(st, month);
+  assert.strictEqual(seg.regional.leads, 0, "лиды со своей ценой не уходят в регионы");
+  assert.ok(Math.abs(seg.main.revenue - 150 * inMonth.length) < 0.5, "доход основы — по цене проекта");
+  console.log(`25a ok: своя цена проекта — 750 ₽ × апрув: общий ${def}% → ${Math.round(one)} ₽, проекта 40% → 300 ₽, за месяц 20% → 150 ₽`);
+}
+
 /* 26. Подсказки СВ: причина отставания раскладывается ровно на отставание, тренд, заметки до/после */
 {
   const assert = require("assert");

@@ -130,6 +130,8 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
         brief: str(p.brief),
         checklist: Array.isArray(p.checklist) ? p.checklist.map((x: unknown) => str(x).trim()).filter(Boolean) : [],
         regions: Array.isArray(p.regions) ? p.regions.map((x: unknown) => str(x).trim()).filter(Boolean) : [],
+        leadPrice: Math.max(0, num(p.leadPrice, 0)),
+        approvePct: p.approvePct == null || p.approvePct === "" ? null : Math.max(0, Math.min(100, num(p.approvePct, 0))),
         createdAt: str(p.createdAt, now),
         updatedAt: str(p.updatedAt, now),
         deletedAt: p.deletedAt ? str(p.deletedAt) : null,

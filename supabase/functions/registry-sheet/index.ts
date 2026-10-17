@@ -478,7 +478,7 @@ var SPEC = {
     deletedAt: null
   },
   groups: { id: "", name: "", supervisorId: null, supervisorName: "", monthlyPlan: 0, active: true, color: "gray", createdAt: NOW, updatedAt: NOW, deletedAt: null },
-  projects: { id: "", name: "", active: true, color: "gray", sort: 0, handoff: "transfer", brief: "", checklist: [], regions: [], createdAt: NOW, updatedAt: NOW, deletedAt: null },
+  projects: { id: "", name: "", active: true, color: "gray", sort: 0, handoff: "transfer", brief: "", checklist: [], regions: [], leadPrice: 0, approvePct: null, createdAt: NOW, updatedAt: NOW, deletedAt: null },
   leads: {
     id: "",
     at: "",
@@ -785,10 +785,21 @@ function approvePctFor(st, ix, month) {
   cache.set(month, out);
   return out;
 }
+function ownPriceProjects(st) {
+  const out = /* @__PURE__ */ new Map();
+  for (const p of st.projects) if ((p.leadPrice ?? 0) > 0) out.set(p.id, p.leadPrice);
+  return out;
+}
 function approveTable(st, month) {
   const fallback = st.approves.find((a) => a.month === month && !a.projectId)?.pct ?? st.settings.svBonus.defaultApprovePct;
   const byProject = new Map(st.approves.filter((a) => a.month === month && a.projectId).map((a) => [a.projectId, a.pct]));
-  return (l) => isRegionalLead(l, st.settings) ? st.settings.regions.regionalApprovePct : (l.projectId ? byProject.get(l.projectId) : void 0) ?? fallback;
+  const projDefault = new Map(st.projects.filter((p) => p.approvePct != null).map((p) => [p.id, p.approvePct]));
+  const own = ownPriceProjects(st);
+  return (l) => {
+    const pid = l.projectId;
+    if (!(pid && own.has(pid)) && isRegionalLead(l, st.settings)) return st.settings.regions.regionalApprovePct;
+    return (pid ? byProject.get(pid) ?? projDefault.get(pid) : void 0) ?? fallback;
+  };
 }
 function approvePctWhere(st, month, keep) {
   const pctOf = approveTable(st, month);

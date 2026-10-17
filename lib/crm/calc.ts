@@ -600,11 +600,34 @@ export function approvePctFor(st: DataState, ix: Index, month: MonthKey): number
   return out;
 }
 
-/** Апрув проектов месяца: по проекту, иначе общий на месяц, иначе по умолчанию из сетки супервайзера. */
+/** Проекты со своей ценой лида (100 up): их лиды — по ней, без деления «основа / регионы». */
+function ownPriceProjects(st: DataState): Map<ID, number> {
+  const out = new Map<ID, number>();
+  for (const p of st.projects) if ((p.leadPrice ?? 0) > 0) out.set(p.id, p.leadPrice!);
+  return out;
+}
+
+/** Цена лида у заказчика: своя цена проекта, иначе регионы / основа из настроек. */
+function priceTable(st: DataState) {
+  const own = ownPriceProjects(st);
+  const s = st.settings;
+  return (l: Lead) => (l.projectId ? own.get(l.projectId) : undefined) ?? (isRegionalLead(l, s) ? s.regions.regionalLeadRevenue : s.leadRevenue);
+}
+
+/**
+ * Апрув проектов месяца: по проекту за месяц, иначе апрув проекта по умолчанию, иначе общий на месяц,
+ * иначе по умолчанию из сетки супервайзера. Региональный лид — апрув регионов, кроме проектов со своей ценой.
+ */
 function approveTable(st: DataState, month: MonthKey) {
   const fallback = st.approves.find((a) => a.month === month && !a.projectId)?.pct ?? st.settings.svBonus.defaultApprovePct;
   const byProject = new Map(st.approves.filter((a) => a.month === month && a.projectId).map((a) => [a.projectId, a.pct]));
-  return (l: Lead) => (isRegionalLead(l, st.settings) ? st.settings.regions.regionalApprovePct : (l.projectId ? byProject.get(l.projectId) : undefined) ?? fallback);
+  const projDefault = new Map(st.projects.filter((p) => p.approvePct != null).map((p) => [p.id, p.approvePct as number]));
+  const own = ownPriceProjects(st);
+  return (l: Lead) => {
+    const pid = l.projectId;
+    if (!(pid && own.has(pid)) && isRegionalLead(l, st.settings)) return st.settings.regions.regionalApprovePct;
+    return (pid ? byProject.get(pid) ?? projDefault.get(pid) : undefined) ?? fallback;
+  };
 }
 
 /**
@@ -633,11 +656,12 @@ export function approvePctWhere(st: DataState, month: MonthKey, keep: (l: Lead) 
 export function incomePerLead(st: DataState, month: MonthKey, keep: (l: Lead) => boolean = () => true): number {
   const s = st.settings;
   const pctOf = approveTable(st, month);
+  const priceOf = priceTable(st);
   let sum = 0;
   let n = 0;
   for (const l of st.leads) {
     if (l.status === "failed" || l.at.slice(0, 7) !== month || !keep(l)) continue;
-    const price = isRegionalLead(l, s) ? s.regions.regionalLeadRevenue : s.leadRevenue;
+    const price = priceOf(l);
     sum += (price * pctOf(l)) / 100;
     n++;
   }
@@ -661,13 +685,16 @@ export function incomeBySegment(st: DataState, month: MonthKey, keep: (l: Lead) 
   const pctOf = approveTable(st, month);
   const main = { leads: 0, price: s.leadRevenue, approve: 0, revenue: 0 };
   const regional = { leads: 0, price: s.regions.regionalLeadRevenue, approve: s.regions.regionalApprovePct, revenue: 0 };
+  // проекты со своей ценой (100 up) — в «основе» по своей цене: итог дохода верный, деления на регионы у них нет
+  const own = ownPriceProjects(st);
   let mainPct = 0;
   for (const l of st.leads) {
     if (l.status === "failed" || l.at.slice(0, 7) !== month || !keep(l)) continue;
-    const seg = isRegionalLead(l, s) ? regional : main;
+    const ownPrice = l.projectId ? own.get(l.projectId) : undefined;
+    const seg = ownPrice == null && isRegionalLead(l, s) ? regional : main;
     const pct = pctOf(l);
     seg.leads++;
-    seg.revenue += (seg.price * pct) / 100;
+    seg.revenue += ((ownPrice ?? seg.price) * pct) / 100;
     if (seg === main) mainPct += pct;
   }
   const fallback = st.approves.find((a) => a.month === month && !a.projectId)?.pct ?? s.svBonus.defaultApprovePct;

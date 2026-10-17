@@ -6,9 +6,9 @@ import { useCrm } from "@/lib/crm/store";
 import { filterLeads, pivot } from "@/lib/crm/calc";
 import { HUES } from "@/lib/crm/defaults";
 import { DEFAULT_FORM_CHECKLIST, HANDOFF_LABEL, NO_GROUP, NO_GROUP_LABEL, type Project, type ProjectHandoff } from "@/lib/crm/types";
-import { hasLeadChecksColumn, hasProjectCitiesColumn, hasProjectFormColumns } from "@/lib/crm/remote";
+import { hasLeadChecksColumn, hasProjectCitiesColumn, hasProjectFormColumns, hasProjectPriceColumns } from "@/lib/crm/remote";
 import { fmtInt, fmtPct, safeDiv, shortName } from "@/lib/crm/format";
-import { Chip, Collapse, Empty, HuePicker, PageHead, PeriodPicker, Progress, Seg, Swatch, hueFg, periodFor, periodLabel, type Period } from "@/components/ui/kit";
+import { Chip, Collapse, Empty, HuePicker, NumInput, PageHead, PeriodPicker, Progress, Seg, Swatch, hueFg, periodFor, periodLabel, type Period } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 import { StickyHead } from "@/components/app/StickyHead";
 
@@ -336,7 +336,11 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
  * в окне лида он видит условия и отмечает чек-лист, без отметок лид не записать.
  */
 function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; onDone: () => void }) {
-  const { saveProject, remote } = useCrm();
+  const { saveProject, remote, access, data } = useCrm();
+  // цена лида и апрув — деньги: видит и меняет только РОП
+  const money = access.can.systemSettings;
+  const [price, setPrice] = useState<number | null>(p.leadPrice ? p.leadPrice : null);
+  const [approve, setApprove] = useState<number | null>(p.approvePct ?? null);
   const [handoff, setHandoff] = useState<ProjectHandoff>(p.handoff ?? "transfer");
   const [brief, setBrief] = useState(p.brief ?? "");
   const [list, setList] = useState((p.checklist?.length ? p.checklist : handoff === "form" ? DEFAULT_FORM_CHECKLIST : []).join("\n"));
@@ -344,7 +348,7 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
   const [busy, setBusy] = useState(false);
   const items = list.split("\n").map((x) => x.trim()).filter(Boolean);
   const cityList = cities.split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
-  const notStored = remote && (!hasProjectFormColumns() || !hasProjectCitiesColumn() || !hasLeadChecksColumn());
+  const notStored = remote && (!hasProjectFormColumns() || !hasProjectCitiesColumn() || !hasLeadChecksColumn() || (money && !hasProjectPriceColumns()));
   const pickHandoff = (v: ProjectHandoff) => {
     setHandoff(v);
     // форма без чек-листа — подставляем обязательные поля формы
@@ -352,7 +356,14 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
   };
   const save = async () => {
     setBusy(true);
-    const ok = await saveProject({ ...p, handoff, brief: brief.trim(), checklist: items, regions: cityList });
+    const ok = await saveProject({
+      ...p,
+      handoff,
+      brief: brief.trim(),
+      checklist: items,
+      regions: cityList,
+      ...(money ? { leadPrice: price ?? 0, approvePct: approve } : {}),
+    });
     setBusy(false);
     if (ok) onDone();
   };
@@ -363,6 +374,20 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
         onChange={canEdit ? pickHandoff : () => undefined}
         options={(["transfer", "form"] as ProjectHandoff[]).map((v) => ({ value: v, label: HANDOFF_LABEL[v] }))}
       />
+      {money && (
+        <div className="grid2" style={{ gap: 8 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-sub)" }}>
+            Цена лида, ₽
+            <NumInput value={price} onChange={setPrice} max={10_000_000} placeholder={`как в настройках · ${fmtInt(data.settings.leadRevenue)}`} />
+            <span className="field-hint">Пусто — цена «основы» / «регионов» из настроек</span>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-sub)" }}>
+            Апрув по умолчанию, %
+            <NumInput value={approve} onChange={setApprove} max={100} step={0.5} placeholder={`общий · ${fmtInt(data.settings.svBonus.defaultApprovePct)}`} />
+            <span className="field-hint">Пусто — общий. Апрув за месяц — в «Зарплате»</span>
+          </label>
+        </div>
+      )}
       <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-sub)" }}>
         Условия для оператора — видны в окне лида
         <textarea
@@ -384,7 +409,7 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
       </label>
       {notStored && (
         <span style={{ fontSize: 12, color: "var(--c-red-fg)" }}>
-          Не всё сохраняется: выполните в Supabase файлы supabase/migrations/20261017000002_project_form.sql и 20261017000003_project_cities.sql
+          Не всё сохраняется: выполните в Supabase файлы supabase/migrations/20261017000002_project_form.sql, 20261017000003_project_cities.sql и 20261017000004_project_price.sql
         </span>
       )}
       {canEdit && (
