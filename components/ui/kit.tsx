@@ -80,7 +80,7 @@ export function EmploymentTag({ op, size = "sm" }: { op: Pick<Operator, "employm
  */
 export function StartTag({ op }: { op: Pick<Operator, "startTime" | "status" | "deletedAt"> }) {
   const label = op.status === "fired" || op.deletedAt ? "" : startTimeLabel(op.startTime);
-  if (!label) return <span className="op-time empty" aria-hidden />;
+  if (!label) return <span className="op-time op-time-none" aria-hidden />;
   return (
     <span className="op-time" title={`Выходит на смену с ${label}`}>
       <Icon name="clock" size={11} />

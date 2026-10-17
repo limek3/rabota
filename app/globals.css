@@ -1669,4 +1669,4 @@ input[type="checkbox"]:not(.sw input):disabled { opacity: 0.45; cursor: not-allo
 .lens-note { color: var(--dim); margin-left: 6px; }
 /* одна ширина у всех: ФИО за плашкой стоят ровно; пустая — то же место без рамки */
 .op-time { box-sizing: border-box; width: 52px; justify-content: center; }
-.op-time.empty { border-color: transparent; background: none; }
+.op-time.op-time-none { border-color: transparent; background: none; }

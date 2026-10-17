@@ -1018,14 +1018,13 @@
 /* во второй строке одни кнопки (нет фильтров) — делят строку поровну, без пустого места справа */
 .o2-frow:not(:has(> .sel-trigger)):not(:has(> .o2-muted)) > .o2-btn { flex: 1 1 auto; justify-content: center; }
 
-/* «Отчёты»: подпись периода — в конце строки панели, сжимается с многоточием, а не переносится */
-.rep-cap { margin-left: auto; flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
-
 /* без пустых хвостов в панелях: переключатель во всю ширину, период растягивается, плашки делят строку */
 .seg.seg-fill { display: flex; width: 100%; }
 .seg.seg-fill > button { flex: 1 1 0; }
 .pp-bar .pp-nav { flex: 1 1 auto; }
 .pp-bar .pp-label { flex: 1 1 auto; justify-content: center; }
-/* панель «Отчётов» — одной строкой: подпись сжимается, а не переносится; на узком экране — перенос */
-.toolbar.rep-w { flex-wrap: nowrap; }
-@media (max-width: 1100px) { .toolbar.rep-w { flex-wrap: wrap; } }
+
+/* «Отчёты»: переключатели не сжимаются в два этажа; остаток строки забирают дата и выбор группы */
+.toolbar.rep-w > .seg { flex: none; flex-wrap: nowrap; }
+.toolbar.rep-w > .rep-date { flex: 1 1 230px; min-width: 0; }
+.rep-date > .date-inp { flex: 1 1 130px; min-width: 130px; }

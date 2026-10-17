@@ -23,9 +23,6 @@ import { StickyHead } from "@/components/app/StickyHead";
  */
 
 type View = "ops" | "rop";
-/** «17.10» — коротко для подписи в панели (полная дата — в поле и на картинке отчёта). */
-const ddmm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
-
 export default function ReportsPage() {
   const { data, ix, today, toast, access, lens } = useCrm();
   // отчёт РОПа считает ФОТ и доход — ему нужны все лиды, фильтр «Проект» его не трогает
@@ -125,11 +122,12 @@ export default function ReportsPage() {
             { value: "week", label: "За неделю" },
           ]}
         />
-        <div className="row" style={{ gap: 4 }}>
+        {/* дата — забирает остаток строки (вместе с выбором группы), чтобы панель не обрывалась пустым местом */}
+        <div className="row rep-date" style={{ gap: 4 }}>
           <button className="btn btn-icon" onClick={() => setAnchor(addDays(anchor, -step))} title={kind === "day" ? "Предыдущий день" : "Предыдущая неделя"}>
             <Icon name="chevL" size={14} />
           </button>
-          <DateInput value={anchor} onChange={(v) => v && setAnchor(v)} max={today} width={150} ariaLabel="Дата отчёта" />
+          <DateInput value={anchor} onChange={(v) => v && setAnchor(v)} max={today} width="auto" ariaLabel="Дата отчёта" />
           <button
             className="btn btn-icon"
             onClick={() => setAnchor(addDays(anchor, step) > today ? today : addDays(anchor, step))}
@@ -163,11 +161,6 @@ export default function ReportsPage() {
             <Icon name="settings" size={14} /> Параметры
           </button>
         )}
-        {/* что в отчёте — забирает остаток строки справа, чтобы панель не обрывалась пустым местом */}
-        <span className="rep-cap" title={rop ? "Весь отдел" : `${report?.rows.length ?? 0} операторов в отчёте`}>
-          {kind === "day" ? ddmm(from) : `${ddmm(from)} – ${ddmm(to)}`}
-          {rop ? " · весь отдел" : ` · ${report?.rows.length ?? 0} опер.`}
-        </span>
       </div>
 
       {rop && (
