@@ -1683,3 +1683,22 @@ body.is-col-dragging .clip-tip { display: none; }
 .sh-ctl { display: inline-flex; align-items: center; gap: 8px; }
 .sh-per { font-size: 12px; color: var(--text-sub); white-space: nowrap; }
 
+
+/* «Группы»: карточка выбранной группы и блок «Состав» под карточками */
+.grp-card { transition: box-shadow var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease); }
+.grp-card.picked { border-color: var(--grp-hue); box-shadow: 0 0 0 1px var(--grp-hue); }
+.grp-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--ink-06); padding-top: 12px; margin-top: auto; }
+.grp-foot > .btn:first-child { flex: 1; justify-content: center; }
+.grp-members { padding: 0; overflow: hidden; scroll-margin-top: 80px; }
+.grp-members-head { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 12px 14px; border-bottom: 1px solid var(--ink-06); }
+.grp-members-title { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; }
+.grp-tabs { display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--ink-05); border: 1px solid var(--ink-06); flex: 1 1 auto; min-width: 0; overflow-x: auto; }
+.grp-tabs button { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-sub); cursor: pointer; white-space: nowrap; flex: 1 1 0; justify-content: center; }
+.grp-tabs button .num { font-weight: 500; color: var(--dim); }
+.grp-tabs button:hover { color: var(--text); }
+.grp-tabs button.on { background: var(--bg-panel); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px var(--ink-07); }
+.grp-members-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.grp-tbl td, .grp-tbl th { padding-top: 7px; padding-bottom: 7px; }
+.grp-tbl tr.dim td { opacity: 0.6; }
+.grp-gone-toggle td { cursor: pointer; font-size: 12.5px; color: var(--text-sub); background: var(--ink-03); }
+.grp-gone-toggle:hover td { color: var(--text); }

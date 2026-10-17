@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { useInsights, useMonthModel } from "@/lib/crm/hooks";
 import { groupSpread, type OpInsight } from "@/lib/crm/insights";
@@ -11,7 +12,7 @@ import { fundStat, payroll } from "@/lib/crm/payroll";
 import { NO_GROUP } from "@/lib/crm/types";
 import { fmtMonth, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Collapse, Conv, Empty, LeadN, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
+import { Avatar, Chip, Conv, Empty, LeadN, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
 import { Select, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { StickyHead, planItems } from "@/components/app/StickyHead";
@@ -21,6 +22,14 @@ export default function GroupsPage() {
   const m = useMonthModel();
   const { byOp } = useInsights(m);
   const [view, setView] = useState<"cards" | "table">("cards");
+  // чей состав показан под карточками: своя группа у СВ, иначе первая
+  const [pick, setPick] = useState<string>("");
+  const picked = m.groups.some((g) => g.key === pick) ? pick : m.groups.find((g) => access.ownGroups.has(g.key))?.key ?? m.groups[0]?.key ?? "";
+  const pickedRow = m.groups.find((g) => g.key === picked) ?? null;
+  const pickGroup = (key: string, scroll = false) => {
+    setPick(key);
+    if (scroll) requestAnimationFrame(() => document.getElementById("grp-members")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
 
   return (
     <div className="stack">
@@ -56,11 +65,15 @@ export default function GroupsPage() {
           />
         </div>
       ) : view === "cards" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 14 }}>
-          {m.groups.map((g) => (
-            <GroupCard key={g.key} g={g} byOp={byOp} />
-          ))}
-        </div>
+        <>
+          {/* карточки — своей высоты: соседняя не тянется за раскрытой */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 14, alignItems: "start" }}>
+            {m.groups.map((g) => (
+              <GroupCard key={g.key} g={g} byOp={byOp} picked={g.key === picked} onPick={() => pickGroup(g.key, true)} />
+            ))}
+          </div>
+          {pickedRow && <GroupMembers groups={m.groups} g={pickedRow} onPick={(k) => pickGroup(k)} />}
+        </>
       ) : (
         <GroupTable groups={m.groups} past={m.cal.phase === "past"} byOp={byOp} />
       )}
@@ -68,8 +81,8 @@ export default function GroupsPage() {
   );
 }
 
-function GroupCard({ g, byOp }: { g: GroupRow; byOp: Map<string, OpInsight> }) {
-  const { data, ix, month, today, openGroup, openOperator, deleteGroup, moveOperator, confirm, access } = useCrm();
+function GroupCard({ g, byOp, picked, onPick }: { g: GroupRow; byOp: Map<string, OpInsight>; picked: boolean; onPick: () => void }) {
+  const { data, ix, month, today, openGroup, deleteGroup, confirm, access } = useCrm();
   // ФОТ группы: начисления её операторов против дохода по переданным лидам
   const fund = useMemo(() => {
     // наставник видит группу, но не её деньги
@@ -82,18 +95,19 @@ function GroupCard({ g, byOp }: { g: GroupRow; byOp: Map<string, OpInsight> }) {
     const ids = new Set(rows.map((r) => r.op.id));
     return fundStat(gross, leads, incomePerLead(data, month, (l) => ids.has(l.operatorId)), data.settings.payrollCapPct);
   }, [access.can.viewPayroll, access.isMentor, data, ix, month, today, g.group]);
-  const [open, setOpen] = useState(false);
   const p = g.pace;
   const supFull = g.group?.supervisorId ? ix.opById.get(g.group.supervisorId)?.name : g.group?.supervisorName;
   const sup = supFull ? shortName(supFull) : supFull;
   const isNone = g.key === NO_GROUP;
-  const canEdit = access.isHead || access.ownGroups.has(g.key);
-  const candidates = data.operators.filter((o) => !o.deletedAt && o.status !== "fired" && (o.groupId || NO_GROUP) !== g.key);
-  const members = [...g.members].sort((a, b) => goneLast(a.op, b.op) || b.pace.fact - a.pace.fact);
+  const gone = g.members.filter((r) => isGone(r.op)).length;
+  const active = g.members.length - gone;
   const sp = useMemo(() => groupSpread(g.members, byOp), [g.members, byOp]);
 
   return (
-    <div className="card" style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14, opacity: g.group && !g.group.active ? 0.75 : 1 }}>
+    <div
+      className={`card grp-card${picked ? " picked" : ""}`}
+      style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14, opacity: g.group && !g.group.active ? 0.75 : 1, ["--grp-hue" as string]: `var(--c-${g.color}-fg)` }}
+    >
       <div className="row" style={{ alignItems: "flex-start" }}>
         <Swatch hue={g.color} size={12} />
         <div style={{ flex: 1, minWidth: 0, marginTop: -3 }}>
@@ -195,53 +209,15 @@ function GroupCard({ g, byOp }: { g: GroupRow; byOp: Map<string, OpInsight> }) {
         )}
       </div>
 
-      <div>
-        <button className="btn btn-ghost btn-sm" onClick={() => setOpen((v) => !v)} style={{ marginLeft: -8 }}>
-          <Icon name="chevR" size={13} className={`grp-chev${open ? " open" : ""}`} /> Состав · {members.length}
+      {/* состав — отдельным блоком под карточками, а не списком внутри карточки */}
+      <div className="grp-foot">
+        <button type="button" className={`btn btn-sm${picked ? " btn-primary" : ""}`} onClick={onPick} aria-pressed={picked}>
+          <Icon name="users" size={13} /> Состав · {fmtInt(active)}
+          {gone > 0 && <span style={{ opacity: 0.7 }}> + {fmtInt(gone)} увол.</span>}
         </button>
-        <Collapse open={open} innerStyle={{ paddingTop: 8 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {members.length === 0 && <div style={{ fontSize: 12.5, color: "var(--dim)" }}>В группе никого нет.</div>}
-            {members.map((r, i) => (
-              <Fragment key={r.op.id}>
-              {isGone(r.op) && (i === 0 || !isGone(members[i - 1].op)) && <div className="gone-sep-line">Уволены · {members.filter((x) => isGone(x.op)).length}</div>}
-              <div className="row" style={{ gap: 8, fontSize: 12.5 }}>
-                <Avatar name={r.op.name} id={r.op.id} size={22} />
-                <Link href={`/operators?id=${encodeURIComponent(r.op.id)}`} style={{ flex: 1, minWidth: 0, color: "var(--text)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {shortName(r.op.name)}
-                </Link>
-                <StatusChip status={r.status} />
-                <span className="num" style={{ width: 64, textAlign: "right" }}>
-                  {fmtInt(r.pace.fact)}/{fmtInt(r.terms.plan)}
-                </span>
-              </div>
-              </Fragment>
-            ))}
-            <div className="row" style={{ gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-              {!isNone && g.group && !g.group.deletedAt && access.can.manageOperators && canEdit && (
-                <button className="btn btn-sm" onClick={() => openOperator(null, { groupId: g.group!.id })}>
-                  <Icon name="plus" size={13} /> Новый оператор
-                </button>
-              )}
-              {!isNone && g.group && !g.group.deletedAt && access.can.manageOperators && canEdit && candidates.length > 0 && (
-                <Select
-                  size="sm"
-                  width={230}
-                  value=""
-                  resetOnPick
-                  placeholder="Перевести сюда…"
-                  options={candidates.map<Opt>((o) => ({ value: o.id, label: shortName(o.name), hint: o.groupId ? ix.groupById.get(o.groupId)?.name ?? "" : "без группы" }))}
-                  onChange={(v) => v && void moveOperator(v, g.group!.id)}
-                  ariaLabel="Перевести в группу"
-                  minPopWidth={280}
-                />
-              )}
-              <Link className="btn btn-sm btn-ghost" href={`/leads?group=${encodeURIComponent(g.key)}&from=${monthStart(month)}&to=${monthEnd(month)}`}>
-                Лиды группы
-              </Link>
-            </div>
-          </div>
-        </Collapse>
+        <Link className="btn btn-sm btn-ghost" href={`/leads?group=${encodeURIComponent(g.key)}&from=${monthStart(month)}&to=${monthEnd(month)}`}>
+          Лиды группы <Icon name="arrowR" size={12} />
+        </Link>
       </div>
     </div>
   );
@@ -341,6 +317,130 @@ function GroupTable({ groups, past, byOp }: { groups: GroupRow[]; past: boolean;
       <div style={{ padding: "10px 14px", fontSize: 12, color: "var(--dim)", borderTop: "1px solid var(--ink-06)" }}>
         <Chip hue="gray">Без группы</Chip> — системная категория: сюда попадают сотрудники после удаления их группы.
       </div>
+    </div>
+  );
+}
+
+/**
+ * Состав выбранной группы — под карточками, одной таблицей: кто работает, сколько сделал против плана,
+ * часы и конверсия. Группа выбирается переключателем сверху или кнопкой «Состав» в карточке.
+ * Уволенные — свёрнуты строкой внизу, чтобы список не растягивался на полстраницы.
+ */
+function GroupMembers({ groups, g, onPick }: { groups: GroupRow[]; g: GroupRow; onPick: (key: string) => void }) {
+  const { data, ix, month, openOperator, moveOperator, access } = useCrm();
+  const router = useRouter();
+  const [showGone, setShowGone] = useState(false);
+  const isNone = g.key === NO_GROUP;
+  const canEdit = access.isHead || access.ownGroups.has(g.key);
+  const sorted = [...g.members].sort((a, b) => goneLast(a.op, b.op) || b.pace.fact - a.pace.fact);
+  const live = sorted.filter((r) => !isGone(r.op));
+  const gone = sorted.filter((r) => isGone(r.op));
+  const candidates = data.operators.filter((o) => !o.deletedAt && o.status !== "fired" && (o.groupId || NO_GROUP) !== g.key);
+  const manage = !isNone && !!g.group && !g.group.deletedAt && access.can.manageOperators && canEdit;
+
+  const row = (r: GroupRow["members"][number]) => {
+    const plan = r.terms.plan;
+    const pct = plan > 0 ? r.pace.fact / plan : 0;
+    return (
+      <tr key={r.op.id} className={`clickable${isGone(r.op) ? " dim" : ""}`} onClick={() => router.push(`/operators?id=${encodeURIComponent(r.op.id)}`)}>
+        <td>
+          <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+            <Avatar name={r.op.name} id={r.op.id} size={24} />
+            <span style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{shortName(r.op.name)}</span>
+          </span>
+        </td>
+        <td>
+          <StatusChip status={r.status} />
+        </td>
+        <td className="r num">
+          <b>{fmtInt(r.pace.fact)}</b>
+          <span className="muted"> / {fmtInt(plan)}</span>
+        </td>
+        <td>
+          <div className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+            <Progress value={pct} hue={PACE_HUE[r.status]} style={{ flex: 1, minWidth: 60 }} />
+            <span className="num muted" style={{ fontSize: 12, width: 40, textAlign: "right" }}>{plan > 0 ? fmtPct(pct) : "—"}</span>
+          </div>
+        </td>
+        <td className="r num">{fmtNum(r.hours, 0)}</td>
+        <td className="r num">{r.lph == null ? <span className="muted">—</span> : <Conv value={r.lph} />}</td>
+        <td className="r num">{fmtInt(r.pace.today)}</td>
+      </tr>
+    );
+  };
+
+  return (
+    <div className="card grp-members" id="grp-members">
+      <div className="grp-members-head">
+        <div className="grp-members-title">
+          <Icon name="users" size={15} /> Состав группы
+        </div>
+        {/* группы — переключателем: одна таблица, а не список в каждой карточке */}
+        <div className="grp-tabs" role="tablist" aria-label="Группа">
+          {groups.map((x) => (
+            <button key={x.key} type="button" role="tab" aria-selected={x.key === g.key} className={x.key === g.key ? "on" : ""} onClick={() => onPick(x.key)}>
+              <Swatch hue={x.color} size={9} />
+              {x.name}
+              <span className="num">{fmtInt(x.members.filter((r) => !isGone(r.op)).length)}</span>
+            </button>
+          ))}
+        </div>
+        <div className="grp-members-tools">
+          {manage && (
+            <button className="btn btn-sm" onClick={() => openOperator(null, { groupId: g.group!.id })}>
+              <Icon name="plus" size={13} /> Новый оператор
+            </button>
+          )}
+          {manage && candidates.length > 0 && (
+            <Select
+              size="sm"
+              width={210}
+              value=""
+              resetOnPick
+              placeholder="Перевести сюда…"
+              options={candidates.map<Opt>((o) => ({ value: o.id, label: shortName(o.name), hint: o.groupId ? ix.groupById.get(o.groupId)?.name ?? "" : "без группы" }))}
+              onChange={(v) => v && void moveOperator(v, g.group!.id)}
+              ariaLabel="Перевести в группу"
+              minPopWidth={280}
+            />
+          )}
+          <Link className="btn btn-sm btn-ghost" href={`/leads?group=${encodeURIComponent(g.key)}&from=${monthStart(month)}&to=${monthEnd(month)}`}>
+            Лиды группы <Icon name="arrowR" size={12} />
+          </Link>
+        </div>
+      </div>
+
+      {g.members.length === 0 ? (
+        <div style={{ padding: "18px 16px", fontSize: 13, color: "var(--dim)" }}>В группе никого нет.</div>
+      ) : (
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+          <table className="tbl grp-tbl">
+            <thead>
+              <tr>
+                <th>Сотрудник</th>
+                <th>Темп</th>
+                <th className="r">Факт / план</th>
+                <th style={{ minWidth: 160 }}>Выполнение</th>
+                <th className="r">Часы</th>
+                <th className="r" title="Лиды ÷ отработанные часы">Конв.</th>
+                <th className="r">Сегодня</th>
+              </tr>
+            </thead>
+            <tbody>
+              {live.map(row)}
+              {gone.length > 0 && (
+                <tr className="grp-gone-toggle" onClick={() => setShowGone((v) => !v)}>
+                  <td colSpan={7}>
+                    <Icon name="chevR" size={12} className={`grp-chev${showGone ? " open" : ""}`} /> Уволенные · {fmtInt(gone.length)}
+                    <span className="muted"> — {showGone ? "скрыть" : "показать"}</span>
+                  </td>
+                </tr>
+              )}
+              {showGone && gone.map(row)}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
