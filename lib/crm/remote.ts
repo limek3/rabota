@@ -56,6 +56,16 @@ export const hasStartTimeColumn = () => opColReady.start_time;
 const missingOpCol = (e: { message: string; code?: string } | null) =>
   e && (e.code === "PGRST204" || e.code === "42703") ? OP_LATE_COLS.find((c) => opColReady[c] && e.message.includes(c)) : undefined;
 const dropOpCols = (rows: Record<string, unknown>[]) => OP_LATE_COLS.reduce((acc, c) => (opColReady[c] ? acc : dropCol(acc, c)), rows);
+/**
+ * Поздние колонки projects: handoff, brief, checklist (способ передачи, условия, чек-лист формы).
+ * Пока SQL 20261017000002_project_form.sql не выполнен — проекты пишутся без них.
+ */
+const PROJ_LATE_COLS = ["handoff", "brief", "checklist"] as const;
+let projColsReady = true;
+export const hasProjectFormColumns = () => projColsReady;
+const isMissingProjCol = (e: { message: string; code?: string } | null) =>
+  !!e && (e.code === "PGRST204" || e.code === "42703") && PROJ_LATE_COLS.some((c) => e.message.includes(c));
+const dropProjCols = (rows: Record<string, unknown>[]) => (projColsReady ? rows : PROJ_LATE_COLS.reduce((acc, c) => dropCol(acc, c), rows));
 /** Колонка audit.changes (было → стало) — без неё журнал пишется как раньше, одной строкой. */
 let auditChangesReady = true;
 const isMissingChanges = (e: { message: string; code?: string } | null) => !!e && (e.code === "PGRST204" || e.code === "42703") && /changes/.test(e.message);
@@ -110,6 +120,8 @@ export async function loadAll(): Promise<{ state: DataState; persistent: boolean
   }
   const opRows = rows[TABLES.indexOf("operators")];
   if (opRows.length) for (const c of OP_LATE_COLS) opColReady[c] = c in opRows[0];
+  const projRows = rows[TABLES.indexOf("projects")];
+  if (projRows.length) projColsReady = "handoff" in projRows[0];
   const val = (key: string) => kv.find((r) => r.key === key)?.value as unknown;
   // секреты выгрузки лежат отдельно (читает только РОП) — собираем настройки обратно
   const settings = (val("settings") ?? {}) as Partial<Settings>;
@@ -145,11 +157,16 @@ export async function putRecords(table: Table, recs: object[]): Promise<void> {
     let rows = part.map((r) => toRow(table, r));
     if (table === "audit" && !auditChangesReady) rows = dropCol(rows, "changes");
     if (table === "operators") rows = dropOpCols(rows);
+    if (table === "projects") rows = dropProjCols(rows);
     // журнал — только добавление: читать его могут не все, а upsert требует права чтения
     let { error } = table === "audit" ? await supabase().from(table).insert(rows) : await supabase().from(table).upsert(rows, { onConflict: "id" });
     if (error && table === "audit" && isMissingChanges(error)) {
       auditChangesReady = false;
       ({ error } = await supabase().from(table).insert(dropCol(rows, "changes")));
+    }
+    if (error && table === "projects" && isMissingProjCol(error)) {
+      projColsReady = false;
+      ({ error } = await supabase().from(table).upsert(dropProjCols(rows), { onConflict: "id" }));
     }
     // поздней колонки ещё нет (не выполнен SQL) — сохраняем оператора без неё
     for (let col = table === "operators" ? missingOpCol(error) : undefined; col; col = missingOpCol(error)) {

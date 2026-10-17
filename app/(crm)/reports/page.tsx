@@ -24,7 +24,10 @@ import { StickyHead } from "@/components/app/StickyHead";
 
 type View = "ops" | "rop";
 export default function ReportsPage() {
-  const { data, ix, today, toast, access } = useCrm();
+  const { data, ix, today, toast, access, lens } = useCrm();
+  // отчёт РОПа считает ФОТ и доход — ему нужны все лиды, фильтр «Проект» его не трогает
+  const ropData = lens?.base.data ?? data;
+  const ropIx = lens?.base.ix ?? ix;
   const [view, setView] = useState<View>("rop");
   const rop = access.isHead && view === "rop";
   const [kind, setKind] = useState<ReportKind>("day");
@@ -35,7 +38,7 @@ export default function ReportsPage() {
   const pic = useRef<ReportCanvasHandle>(null);
 
   const report = useMemo(() => (rop ? null : buildReport(data, ix, kind, anchor, groupId, today)), [rop, data, ix, kind, anchor, groupId, today]);
-  const ropReport = useMemo(() => (rop ? buildRopReport(data, ix, kind, anchor, today) : null), [rop, data, ix, kind, anchor, today]);
+  const ropReport = useMemo(() => (rop ? buildRopReport(ropData, ropIx, kind, anchor, today) : null), [rop, ropData, ropIx, kind, anchor, today]);
   const { from, to } = reportRange(kind, anchor);
   const step = kind === "day" ? 1 : 7;
   const groups = data.groups.filter((g) => !g.deletedAt);

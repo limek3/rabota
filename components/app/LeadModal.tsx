@@ -100,6 +100,8 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     return last && regionList.includes(last) ? last : "";
   });
   const [groupId, setGroupId] = useState<string>(lead ? lead.groupId ?? "" : "");
+  // чек-лист проекта (для «формы» — что заполнено в форме заказчика): отмечается заново у каждого нового лида
+  const [checks, setChecks] = useState<Set<number>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
   const [added, setAdded] = useState(0);
@@ -167,6 +169,10 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     [data.leads, phoneNorm, at, s.duplicateDays, lead?.id],
   );
 
+  const project = projectId ? data.projects.find((p) => p.id === projectId) ?? null : null;
+  const checklist = project?.checklist ?? [];
+  const isForm = project?.handoff === "form";
+
   // новый лид — только полный: клиент, телефон, ссылка, регион. Старые записи без них правятся как раньше
   const isNew = !lead;
   const linkNorm = normLink(link);
@@ -186,6 +192,7 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
         ? "Слишком короткий номер"
         : null,
     region: isNew && regionList.length > 0 && !region ? "Выберите регион" : null,
+    checks: isNew && checklist.length > 0 && checklist.some((_, i) => !checks.has(i)) ? (isForm ? "Отметьте всё, что заполнено в форме" : "Отметьте чек-лист") : null,
     link:
       link.trim() && !linkNorm
         ? "Не похоже на ссылку — вставьте адрес целиком"
@@ -198,7 +205,9 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
               : null,
   };
   const invalid = Object.values(err).some(Boolean);
-  const missing = isNew ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!err.region && "регион"].filter(Boolean) : [];
+  const missing = isNew
+    ? [!client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!err.region && "регион", !!err.checks && (isForm ? "чек-лист формы" : "чек-лист")].filter(Boolean)
+    : [];
 
   const dirty =
     !!lead &&
@@ -251,6 +260,7 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
       setPhone("");
       setComment("");
       setLink("");
+      setChecks(new Set());
       setTried(false);
       return true;
     }
@@ -273,14 +283,27 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     remote,
     noOps: liveOps.length === 0 && !lead,
     noProjects: liveProjects.length === 0,
-    f: { operatorId, projectId, client, phone, comment, link, region, groupId },
+    f: { operatorId, projectId, client, phone, comment, link, region, groupId, checks },
+    project,
+    checklist,
+    isForm,
     set: {
       operatorId: (v: string) => {
         setOperatorId(v);
         // при правке: лид другого оператора — и группа его
         if (lead) setGroupId(ix.opById.get(v)?.groupId ?? "");
       },
-      projectId: setProjectId,
+      projectId: (v: string) => {
+        setProjectId(v);
+        setChecks(new Set());
+      },
+      check: (i: number) =>
+        setChecks((prev) => {
+          const next = new Set(prev);
+          if (next.has(i)) next.delete(i);
+          else next.add(i);
+          return next;
+        }),
       client: setClient,
       phone: setPhone,
       comment: setComment,
@@ -464,8 +487,10 @@ function LeadFields({ d, compact }: { d: Draft; compact?: boolean }) {
         </div>
       </Sec>
 
+      <ProjectBrief d={d} />
+
       <Sec icon="doc" title="Комментарий оператора">
-        <textarea className="inp lf-ta" value={d.f.comment} onChange={(e) => d.set.comment(e.target.value)} rows={compact ? 2 : 3} placeholder="Что важно знать менеджеру" readOnly={d.readOnly} />
+        <textarea className="inp lf-ta" value={d.f.comment} onChange={(e) => d.set.comment(e.target.value)} rows={compact ? 2 : 3} placeholder={d.isForm ? "Критерии клиента — то же, что в комментарии формы: авто, бюджет, кредит / трейд-ин, сроки" : "Что важно знать менеджеру"} readOnly={d.readOnly} />
       </Sec>
     </>
   );
@@ -1037,7 +1062,7 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
           <span className="lf-mh-ic">
             <Icon name="plus" size={15} stroke={2.4} />
           </span>
-          Передан лид
+          {d.isForm ? "Отправлена форма" : "Передан лид"}
         </span>
       }
       onClose={onClose}
@@ -1058,7 +1083,7 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
               Записать и ещё
             </button>
             <button type="button" className="o2-btn pri" onClick={() => void submit(false)} disabled={d.busy} title="Ctrl+Enter">
-              <Icon name="check" size={13} /> Записать лид
+              <Icon name="check" size={13} /> {d.isForm ? "Форма отправлена — записать" : "Записать лид"}
             </button>
           </div>
         )
@@ -1091,5 +1116,43 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
         </div>
       )}
     </Modal>
+  );
+}
+
+/**
+ * Условия проекта и чек-лист. «Форма» (100 up): клиента не переводим — отправляем форму заказчика,
+ * поэтому перед записью оператор отмечает, что в форме есть всё обязательное.
+ */
+function ProjectBrief({ d }: { d: Draft }) {
+  const p = d.project;
+  const [open, setOpen] = useState(true);
+  if (!p || (!p.brief?.trim() && !d.checklist.length && !d.isForm)) return null;
+  const showChecks = d.isNew && d.checklist.length > 0;
+  return (
+    <Sec
+      icon={d.isForm ? "doc" : "rules"}
+      title={d.isForm ? `«${p.name}» — отправка формы, клиента не переводим` : `Условия «${p.name}»`}
+      right={
+        p.brief?.trim() ? (
+          <button type="button" className="o2-btn ghost" style={{ height: 22, padding: "0 6px", fontSize: 12 }} onClick={() => setOpen((v) => !v)}>
+            {open ? "Свернуть" : "Условия"}
+          </button>
+        ) : undefined
+      }
+    >
+      {open && p.brief?.trim() && <div className="lf-brief">{p.brief.trim()}</div>}
+      {showChecks && (
+        <div className="lf-checks" role="group" aria-label={d.isForm ? "Что заполнено в форме" : "Чек-лист"}>
+          <span className="lf-l">{d.isForm ? "В форме заполнено" : "Перед записью"}</span>
+          {d.checklist.map((item, i) => (
+            <label key={i} className={`lf-check${d.f.checks.has(i) ? " on" : ""}`}>
+              <input type="checkbox" checked={d.f.checks.has(i)} onChange={() => d.set.check(i)} disabled={d.readOnly} />
+              {item}
+            </label>
+          ))}
+          {d.tried && d.err.checks && <span className="field-err">{d.err.checks}</span>}
+        </div>
+      )}
+    </Sec>
   );
 }

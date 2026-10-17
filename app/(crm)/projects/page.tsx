@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useCrm } from "@/lib/crm/store";
 import { filterLeads, pivot } from "@/lib/crm/calc";
 import { HUES } from "@/lib/crm/defaults";
-import { NO_GROUP, NO_GROUP_LABEL, type Project } from "@/lib/crm/types";
+import { DEFAULT_FORM_CHECKLIST, HANDOFF_LABEL, NO_GROUP, NO_GROUP_LABEL, type Project, type ProjectHandoff } from "@/lib/crm/types";
+import { hasProjectFormColumns } from "@/lib/crm/remote";
 import { fmtInt, fmtPct, safeDiv, shortName } from "@/lib/crm/format";
 import { Chip, Collapse, Empty, HuePicker, PageHead, PeriodPicker, Progress, Seg, Swatch, hueFg, periodFor, periodLabel, type Period } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
@@ -151,6 +152,8 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
   const [newColor, setNewColor] = useState<string | null>(null);
   // у какого проекта сейчас открыт выбор цвета
   const [colorFor, setColorFor] = useState<string | null>(null);
+  // у какого проекта открыты условия и способ передачи
+  const [termsFor, setTermsFor] = useState<string | null>(null);
   const totals = useMemo(() => {
     const m = new Map<string, number>();
     for (const l of data.leads) if (l.projectId) m.set(l.projectId, (m.get(l.projectId) ?? 0) + 1);
@@ -248,7 +251,7 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
                   {p.name}
                 </span>
                 <span className="num" style={{ fontSize: 11.5, color: "var(--dim)" }}>
-                  {fmtInt(totals.get(p.id) ?? 0)} лид. всего{!p.active && " · скрыт"}
+                  {fmtInt(totals.get(p.id) ?? 0)} лид. всего{p.handoff === "form" && " · форма"}{!p.active && " · скрыт"}
                 </span>
               </span>
             )}
@@ -259,6 +262,14 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
             </button>
             <button className="btn btn-ghost btn-sm btn-icon" title="Ниже" disabled={i === live.length - 1} onClick={() => void move(p, 1)}>
               <Icon name="chevR" size={13} style={{ transform: "rotate(90deg)" }} />
+            </button>
+            <button
+              className="btn btn-ghost btn-sm btn-icon"
+              title="Передача лида и условия для оператора"
+              aria-expanded={termsFor === p.id}
+              onClick={() => setTermsFor((cur) => (cur === p.id ? null : p.id))}
+            >
+              <Icon name="rules" size={13} />
             </button>
             <button className="btn btn-ghost btn-sm btn-icon" title="Переименовать" onClick={() => (setEditId(p.id), setEditName(p.name))}>
               <Icon name="edit" size={13} />
@@ -279,6 +290,7 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
             </>
             )}
           </div>
+          {termsFor === p.id && <ProjectTerms p={p} canEdit={canEdit} onDone={() => setTermsFor(null)} />}
           {colorFor === p.id && (
             <HuePicker
               value={p.color}
@@ -313,6 +325,70 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
               ))}
             </div>
           </Collapse>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Передача лида и условия проекта. «Форма» — оператор не переводит клиента, а отправляет форму заказчика:
+ * в окне лида он видит условия и отмечает чек-лист, без отметок лид не записать.
+ */
+function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; onDone: () => void }) {
+  const { saveProject, remote } = useCrm();
+  const [handoff, setHandoff] = useState<ProjectHandoff>(p.handoff ?? "transfer");
+  const [brief, setBrief] = useState(p.brief ?? "");
+  const [list, setList] = useState((p.checklist?.length ? p.checklist : handoff === "form" ? DEFAULT_FORM_CHECKLIST : []).join("\n"));
+  const [busy, setBusy] = useState(false);
+  const items = list.split("\n").map((x) => x.trim()).filter(Boolean);
+  const notStored = remote && !hasProjectFormColumns();
+  const pickHandoff = (v: ProjectHandoff) => {
+    setHandoff(v);
+    // форма без чек-листа — подставляем обязательные поля формы
+    if (v === "form" && !list.trim()) setList(DEFAULT_FORM_CHECKLIST.join("\n"));
+  };
+  const save = async () => {
+    setBusy(true);
+    const ok = await saveProject({ ...p, handoff, brief: brief.trim(), checklist: items });
+    setBusy(false);
+    if (ok) onDone();
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 4 }}>
+      <Seg<ProjectHandoff>
+        value={handoff}
+        onChange={canEdit ? pickHandoff : () => undefined}
+        options={(["transfer", "form"] as ProjectHandoff[]).map((v) => ({ value: v, label: HANDOFF_LABEL[v] }))}
+      />
+      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-sub)" }}>
+        Условия для оператора — видны в окне лида
+        <textarea
+          className="inp"
+          rows={6}
+          value={brief}
+          onChange={(e) => setBrief(e.target.value)}
+          readOnly={!canEdit}
+          placeholder={"Марки и модели, города, бюджет, кому не звоним.\nНапример: стоимость от 500 тыс до 5 млн, не лизинг, гражданство РФ"}
+        />
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-sub)" }}>
+        {handoff === "form" ? "Чек-лист формы — по пункту в строке; оператор отмечает каждый перед записью лида" : "Чек-лист перед записью лида (необязательно) — по пункту в строке"}
+        <textarea className="inp" rows={4} value={list} onChange={(e) => setList(e.target.value)} readOnly={!canEdit} />
+      </label>
+      {notStored && (
+        <span style={{ fontSize: 12, color: "var(--c-red-fg)" }}>
+          Условия пока не сохраняются: выполните в Supabase файл supabase/migrations/20261017000002_project_form.sql
+        </span>
+      )}
+      {canEdit && (
+        <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+          <button className="btn btn-sm" onClick={onDone}>
+            Отмена
+          </button>
+          <button className="btn btn-sm btn-primary" onClick={() => void save()} disabled={busy}>
+            Сохранить
+          </button>
         </div>
       )}
     </div>

@@ -341,13 +341,13 @@ export function OperatorsClassic() {
       <tr key={r.op.id} className={`clickable ${r.op.deletedAt || r.op.status === "fired" ? "dim" : ""} ${f.className}`} style={f.style} onClick={() => setOpenId(r.op.id)}>
         <td className="sticky-col">
           <span className="row" style={{ gap: 9 }}>
+            <StartTag op={r.op} />
             <Avatar name={r.op.name} id={r.op.id} size={26} />
             <span style={{ minWidth: 0 }}>
               <span style={{ display: "flex", alignItems: "center", gap: 5, fontWeight: 500 }}>
                 {shortName(r.op.name)}
                 {r.isLeader && <Icon name="star" size={12} stroke={2} style={{ color: "var(--c-amber-fg)" }} />}
                 <GoneTag op={r.op} />
-                <StartTag op={r.op} />
                 <EmploymentTag op={r.op} />
               </span>
               <span style={{ fontSize: 11.5, color: "var(--dim)" }}>

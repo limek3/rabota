@@ -931,3 +931,10 @@
 @media (max-width: 900px) and (max-height: 820px) {
   :root { --pad-t: 12px; --pad-b: 24px; }
 }
+
+/* окно лида: условия проекта и чек-лист формы (100 up) */
+.lf-brief { white-space: pre-wrap; font-size: 12.5px; line-height: 1.5; color: var(--text); background: var(--ink-04, var(--ink-05)); border: 1px solid var(--ink-07); border-radius: 8px; padding: 8px 10px; max-height: 220px; overflow: auto; }
+.lf-checks { display: flex; flex-direction: column; gap: 6px; }
+.lf-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 5px 8px; border-radius: 7px; border: 1px solid var(--ink-07); }
+.lf-check input { margin: 0; width: 15px; height: 15px; accent-color: var(--c-green-fg); }
+.lf-check.on { border-color: var(--c-green-bd); background: var(--c-green-bg); }

@@ -74,10 +74,13 @@ export function EmploymentTag({ op, size = "sm" }: { op: Pick<Operator, "employm
   );
 }
 
-/** Плашка «во сколько выходит» (🕘 10:00) рядом с ФИО; не указано или уволен — ничего. */
+/**
+ * Плашка «во сколько выходит» (🕘 10:00) слева от ФИО. Ширина у всех одна; время не указано или
+ * уволен — пустое место той же ширины, чтобы ФИО в списке стояли ровно.
+ */
 export function StartTag({ op }: { op: Pick<Operator, "startTime" | "status" | "deletedAt"> }) {
-  const label = startTimeLabel(op.startTime);
-  if (!label || op.status === "fired" || op.deletedAt) return null;
+  const label = op.status === "fired" || op.deletedAt ? "" : startTimeLabel(op.startTime);
+  if (!label) return <span className="op-time empty" aria-hidden />;
   return (
     <span className="op-time" title={`Выходит на смену с ${label}`}>
       <Icon name="clock" size={11} />

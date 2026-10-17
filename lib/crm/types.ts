@@ -154,12 +154,27 @@ export interface Group {
   deletedAt?: string | null;
 }
 
+/**
+ * Как оператор передаёт лид по проекту: transfer — переводит звонок на менеджера (авто.ру),
+ * form — заполняет и отправляет форму заказчика, клиента не переводит (100 up).
+ */
+export type ProjectHandoff = "transfer" | "form";
+export const HANDOFF_LABEL: Record<ProjectHandoff, string> = { transfer: "Перевод на менеджера", form: "Отправка формы" };
+/** Чек-лист формы по умолчанию: без этих полей заказчик форму не примет. */
+export const DEFAULT_FORM_CHECKLIST = ["Телефон", "Имя", "Город клиента", "В комментарии — все остальные критерии"];
+
 export interface Project {
   id: ID;
   name: string;
   active: boolean;
   color: string;
   sort: number;
+  /** Способ передачи лида; нет — перевод на менеджера, как было. */
+  handoff?: ProjectHandoff;
+  /** Условия проекта для оператора (марки, города, бюджет, кому не звоним): показываются в окне лида. */
+  brief?: string;
+  /** Что оператор отмечает перед записью лида (для «формы» — что заполнено в форме). */
+  checklist?: string[];
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;

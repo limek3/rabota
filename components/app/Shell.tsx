@@ -23,6 +23,7 @@ import { currentMonth, fmtMonth } from "@/lib/crm/dates";
 import { fmtInt, fmtPct } from "@/lib/crm/format";
 import { NumberTween } from "@/components/app/NumberTween";
 import { PageSkeleton, ShellSkeleton } from "@/components/app/Skeletons";
+import { LENS_ROUTES, ProjectLens } from "@/components/app/ProjectLens";
 
 /**
  * Месяц в меню слева. РОП — весь отдел и разбивка по группам; супервайзер и наставник — только
@@ -438,7 +439,7 @@ function Body({ children }: { children: ReactNode }) {
   if (!access.routes.has(route)) return null; // RouteGuard уже уводит на разрешённую страницу
   return (
     <div key={`${pathname}|${access.account.id}`} style={{ minWidth: 0 }}>
-      {children}
+      {LENS_ROUTES.has(route) ? <ProjectLens>{children}</ProjectLens> : children}
     </div>
   );
 }

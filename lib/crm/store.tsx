@@ -138,6 +138,11 @@ interface Store {
   ix: Index;
   /** Все данные без среза — только для проверок и управления аккаунтами. */
   full: DataState;
+  /**
+   * Фильтр «Проект» на страницах статистики (ProjectLens): в data и ix — только лиды проекта,
+   * часы, планы и деньги общие. base — без фильтра (зарплата, ФОТ). Нет — фильтр не выбран.
+   */
+  lens?: { projectId: ID; base: { data: DataState; ix: Index } };
   me: Account;
   access: Access;
   switchAccount: (id: ID) => void;
@@ -259,6 +264,11 @@ export function useCrm(): Store {
   const s = useContext(Ctx);
   if (!s) throw new Error("useCrm вне CrmProvider");
   return s;
+}
+
+/** Подменить значение стора для части дерева (фильтр «Проект» на страницах статистики). */
+export function CrmOverride({ value, children }: { value: Store; children: ReactNode }) {
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 /** То же, но без ошибки вне CrmProvider (для общих компонентов вроде аватарки). */

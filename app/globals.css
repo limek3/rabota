@@ -1658,3 +1658,15 @@ input[type="checkbox"]:not(.sw input):disabled { opacity: 0.45; cursor: not-allo
 /* плашка «во сколько выходит» рядом с ФИО (сводка, операторы) */
 .op-time { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 6px; border: 1px solid var(--ink-12); border-radius: 5px; background: var(--ink-05); color: var(--text); font-size: 10.5px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
 .op-time svg { color: var(--text-sub); flex: none; }
+
+/* фильтр «Проект» на страницах статистики (ProjectLens) */
+.lens-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; font-size: 12.5px; }
+.lens-l { color: var(--text-sub); margin-right: 2px; }
+.lens-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--ink-12); background: var(--bg); color: var(--text); font: inherit; font-weight: 500; cursor: pointer; }
+.lens-chip i { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+.lens-chip:hover { background: var(--ink-05); }
+.lens-chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.lens-note { color: var(--dim); margin-left: 6px; }
+/* одна ширина у всех: ФИО за плашкой стоят ровно; пустая — то же место без рамки */
+.op-time { box-sizing: border-box; width: 52px; justify-content: center; }
+.op-time.empty { border-color: transparent; background: none; }

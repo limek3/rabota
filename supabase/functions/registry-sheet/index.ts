@@ -100,6 +100,7 @@ var DEFAULT_ACCESS = {
     createLeads: true,
     editLeads: true,
     manageOperators: true,
+    opAccounts: true,
     editShifts: true,
     viewPayroll: true,
     editPayroll: false,
@@ -471,12 +472,13 @@ var SPEC = {
     contact: "",
     comment: "",
     employment: "none",
+    startTime: "",
     createdAt: NOW,
     updatedAt: NOW,
     deletedAt: null
   },
   groups: { id: "", name: "", supervisorId: null, supervisorName: "", monthlyPlan: 0, active: true, color: "gray", createdAt: NOW, updatedAt: NOW, deletedAt: null },
-  projects: { id: "", name: "", active: true, color: "gray", sort: 0, createdAt: NOW, updatedAt: NOW, deletedAt: null },
+  projects: { id: "", name: "", active: true, color: "gray", sort: 0, handoff: "transfer", brief: "", checklist: [], createdAt: NOW, updatedAt: NOW, deletedAt: null },
   leads: {
     id: "",
     at: "",
@@ -620,13 +622,15 @@ var NO_CUTOFF = "9999-12-31";
 function closedThrough(today, hour, s) {
   return hour >= s.dayCloseHour ? today : addDays(today, -1);
 }
+var SKOROZVON_MARK = "Скорозвон:";
+var fromSkorozvon = (s) => (s.comment ?? "").split("\n").some((l) => l.trim().startsWith(SKOROZVON_MARK));
 function supervisorIds(st) {
   const out = /* @__PURE__ */ new Set();
   for (const o of st.operators) if (o.role === "supervisor" || o.payType === "sv_volume") out.add(o.id);
   for (const g of st.groups) if (!g.deletedAt && g.supervisorId) out.add(g.supervisorId);
   return out;
 }
-function buildIndex(st, workedTo = NO_CUTOFF) {
+function buildIndex(st, workedTo = NO_CUTOFF, openDay = null) {
   const ix = {
     opById: new Map(st.operators.map((o) => [o.id, o])),
     groupById: new Map(st.groups.map((g) => [g.id, g])),
@@ -642,6 +646,10 @@ function buildIndex(st, workedTo = NO_CUTOFF) {
     svIds: supervisorIds(st),
     plannedOpDay: /* @__PURE__ */ new Map(),
     workedTo,
+    openDay,
+    pendingOp: /* @__PURE__ */ new Map(),
+    pendingGroup: /* @__PURE__ */ new Map(),
+    pendingTeam: 0,
     shift: /* @__PURE__ */ new Map(),
     opMonths: /* @__PURE__ */ new Map(),
     groupMonthOps: /* @__PURE__ */ new Map(),
@@ -667,12 +675,14 @@ function buildIndex(st, workedTo = NO_CUTOFF) {
     if (!last || d > last) ix.lastLead.set(l.operatorId, d);
   }
   for (const s of st.shifts) {
+    const op = ix.opById.get(s.operatorId);
+    if (op?.status === "fired" && op.fireDate && s.date > op.fireDate) continue;
     ix.shift.set(`${s.date}|${s.operatorId}`, s);
     const m = s.date.slice(0, 7);
     addTo(ix.opMonths, s.operatorId, m);
     ix.months.add(m);
     if (WORKED_TYPES.has(s.type) && s.hours > 0) bump(ix.plannedOpDay, s.operatorId, s.date, s.hours);
-    if (WORKED_TYPES.has(s.type) && s.hours > 0 && s.date <= workedTo) {
+    if (WORKED_TYPES.has(s.type) && s.hours > 0 && s.date <= workedTo && (s.date !== openDay || fromSkorozvon(s))) {
       bump(ix.hoursOpDay, s.operatorId, s.date, s.hours);
       if (ix.svIds.has(s.operatorId)) continue;
       ix.hoursDay.set(s.date, (ix.hoursDay.get(s.date) ?? 0) + s.hours);
@@ -683,7 +693,22 @@ function buildIndex(st, workedTo = NO_CUTOFF) {
     addTo(ix.opMonths, a.operatorId, a.month);
     ix.months.add(a.month);
   }
+  if (openDay) {
+    for (const l of st.leads) {
+      if (l.status === "failed" || l.at.slice(0, 10) !== openDay || ix.hoursOpDay.get(l.operatorId)?.has(openDay)) continue;
+      ix.pendingOp.set(l.operatorId, (ix.pendingOp.get(l.operatorId) ?? 0) + 1);
+      ix.pendingGroup.set(gk(l.groupId), (ix.pendingGroup.get(gk(l.groupId)) ?? 0) + 1);
+      ix.pendingTeam++;
+    }
+  }
   return ix;
+}
+function svWorkday(ix, op, d, isWork) {
+  const sh = ix.shift.get(`${d}|${op.id}`);
+  if (sh) return WORKED_TYPES.has(sh.type);
+  if (op.hireDate && d < op.hireDate) return false;
+  if (op.status === "fired" && (!op.fireDate || d > op.fireDate)) return false;
+  return isWork(d);
 }
 function sumRange(map, from, to) {
   if (!map || from > to) return 0;
@@ -941,11 +966,7 @@ function accrual(op, cal, st, ix, upTo) {
   let tierUse = [];
   let sv = null;
   if (isSvVolume(t.payType)) {
-    const hasSchedule = cal.days.some((d) => ix.shift.has(`${d}|${op.id}`));
-    const credited = hasSchedule ? days.filter((d) => {
-      const sh = ix.shift.get(`${d}|${op.id}`);
-      return !!sh && WORKED_TYPES.has(sh.type) && sh.hours > 0;
-    }).length : days.filter((d) => cal.isWork(d)).length;
+    const credited = days.filter((d) => svWorkday(ix, op, d, cal.isWork)).length;
     salaryShare = Math.min(1, credited / cal.W);
     base = t.salary * salaryShare;
     const gLeads = supervisedLeads(st, ix, op.id, cal.month);

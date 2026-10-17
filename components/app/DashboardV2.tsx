@@ -2046,9 +2046,9 @@ function OpsCard({ m, line, settings, ref_, groups, span = "month" }: { m: Month
     <tr key={r.op.id} className={extra?.className || undefined} style={extra?.style} onClick={() => router.push(`/operators?id=${encodeURIComponent(r.op.id)}`)}>
       <td>
         <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
+          <StartTag op={r.op} />
           <Avatar name={r.op.name} id={r.op.id} size={20} />
           {shortName(r.op.name)}
-          <StartTag op={r.op} />
           {badges.get(r.op.id)?.map((b) => (
             <span key={b.k} className="d2-badge" data-k={b.k} title={b.title}>
               <Icon name={b.icon} size={11} />
@@ -2301,9 +2301,20 @@ function HeatCard({ m, sc, rows, groups, focus }: { m: MonthModel; sc: Scope; ro
     });
   const colLeft = (c: number) => `calc(${NAME_W}px + (100% - ${NAME_W}px) * ${c} / ${days.length})`;
   const colWidth = (n: number) => `calc((100% - ${NAME_W}px) * ${n} / ${days.length})`;
+  // подсветка «крестом», как в «Графике»: строка и столбец под курсором — CSS по номерам, без перерисовки
+  const rowIdx = useMemo(() => new Map(ops.map((r, i) => [r.op.id, i])), [ops]);
+  const crossCss = useMemo(
+    () =>
+      [
+        ...days.map((_, i) => `.d2-hm-wrap:not(.picking):has([data-ci="${i}"]:hover) .c[data-ci="${i}"]{box-shadow:inset 0 0 0 100px var(--hm-cross)}.d2-hm-wrap:not(.picking):has([data-ci="${i}"]:hover) .dh[data-ci="${i}"]{color:var(--text);font-weight:700}`),
+        ...ops.map((_, i) => `.d2-hm-wrap:has([data-ri="${i}"]:hover) .c[data-ri="${i}"]{box-shadow:inset 0 0 0 100px var(--hm-cross)}.d2-hm-wrap:has([data-ri="${i}"]:hover) .nm[data-ri="${i}"]{font-weight:600}`),
+      ].join(""),
+    [days, ops],
+  );
 
   return (
     <section className="card d2-hm">
+      <style>{crossCss}</style>
       <div className="d2-hm-head">
         <h3 className="d2-h" style={{ marginTop: 3 }}><Icon name="calendar" size={15} className="title-ic" />Тепловая карта: оператор × день</h3>
         <div className="d2-leg" style={{ marginTop: 6 }}>
@@ -2361,7 +2372,7 @@ function HeatCard({ m, sc, rows, groups, focus }: { m: MonthModel; sc: Scope; ro
                 {dow(d)}
               </div>
             ))}
-            {!sections && ops.map((r) => <HeatRow key={r.op.id} r={r} days={days} cal={cal} shade={shade} />)}
+            {!sections && ops.map((r) => <HeatRow key={r.op.id} r={r} ri={rowIdx.get(r.op.id) ?? -1} days={days} cal={cal} shade={shade} />)}
           </div>
 
           {/* весь отдел — по группам: заголовок с лидами группы по дням, строки сворачиваются плавно */}
@@ -2389,7 +2400,7 @@ function HeatCard({ m, sc, rows, groups, focus }: { m: MonthModel; sc: Scope; ro
                 <Collapse open={open}>
                   <div className="d2-grid" style={{ gridTemplateColumns: cols }}>
                     {sec.rows.map((r) => (
-                      <HeatRow key={r.op.id} r={r} days={days} cal={cal} shade={shade} />
+                      <HeatRow key={r.op.id} r={r} ri={rowIdx.get(r.op.id) ?? -1} days={days} cal={cal} shade={shade} />
                     ))}
                   </div>
                 </Collapse>
@@ -2505,12 +2516,12 @@ function HeatTip({
   );
 }
 
-function HeatRow({ r, days, cal, shade }: { r: OpRow; days: DayKey[]; cal: MonthCal; shade: (v: number) => CSSProperties }) {
+function HeatRow({ r, ri, days, cal, shade }: { r: OpRow; ri: number; days: DayKey[]; cal: MonthCal; shade: (v: number) => CSSProperties }) {
   const { ix } = useCrm();
   const counts = ix.opDay.get(r.op.id);
   return (
     <>
-      <Link className="nm" href={`/operators?id=${encodeURIComponent(r.op.id)}`} title={r.op.name}>
+      <Link className="nm" data-ri={ri} href={`/operators?id=${encodeURIComponent(r.op.id)}`} title={r.op.name}>
         {shortName(r.op.name)}
       </Link>
       {days.map((d, i) => {
@@ -2521,42 +2532,42 @@ function HeatRow({ r, days, cal, shade }: { r: OpRow; days: DayKey[]; cal: Month
         const dayOff = sh ? sh.type === "off" : employed && !cal.isWork(d);
         if (future)
           return sh?.type === "off" ? (
-            <div key={d} className="c f o" data-ci={i} title={`${dayNum(d)} ${dow(d)}: выходной`}>
+            <div key={d} className="c f o" data-ci={i} data-ri={ri} title={`${dayNum(d)} ${dow(d)}: выходной`}>
               вых
             </div>
           ) : (
-            <div key={d} className="c f" data-ci={i}>—</div>
+            <div key={d} className="c f" data-ci={i} data-ri={ri}>—</div>
           );
         const v = counts?.get(d) ?? 0;
         if (v > 0) {
           return (
-            <div key={d} className="c" data-ci={i} style={shade(v)} title={`${dayNum(d)} ${dow(d)}: ${v} лид.${sh ? ` · ${sh.hours} ч` : ""}`}>
+            <div key={d} className="c" data-ci={i} data-ri={ri} style={shade(v)} title={`${dayNum(d)} ${dow(d)}: ${v} лид.${sh ? ` · ${sh.hours} ч` : ""}`}>
               {v}
             </div>
           );
         }
         if (sh && isWorked(sh.type, sh.hours)) {
           return (
-            <div key={d} className="c z" data-ci={i} title={`${dayNum(d)} ${dow(d)}: смена ${sh.hours} ч, лидов нет`}>
+            <div key={d} className="c z" data-ci={i} data-ri={ri} title={`${dayNum(d)} ${dow(d)}: смена ${sh.hours} ч, лидов нет`}>
               0
             </div>
           );
         }
         if (dayOff) {
           return (
-            <div key={d} className="c o" data-ci={i} title={`${dayNum(d)} ${dow(d)}: выходной`}>
+            <div key={d} className="c o" data-ci={i} data-ri={ri} title={`${dayNum(d)} ${dow(d)}: выходной`}>
               вых
             </div>
           );
         }
         if (sh && ABSENT_LABEL[sh.type] && sh.type !== "off") {
           return (
-            <div key={d} className="c a" data-ci={i} title={`${dayNum(d)} ${dow(d)}: ${ABSENT_LABEL[sh.type]}`}>
+            <div key={d} className="c a" data-ci={i} data-ri={ri} title={`${dayNum(d)} ${dow(d)}: ${ABSENT_LABEL[sh.type]}`}>
               {ABSENT_LABEL[sh.type]![0]}
             </div>
           );
         }
-        return <div key={d} className="c n" data-ci={i}>—</div>;
+        return <div key={d} className="c n" data-ci={i} data-ri={ri}>—</div>;
       })}
     </>
   );

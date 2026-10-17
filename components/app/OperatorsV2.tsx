@@ -832,9 +832,9 @@ export function OperatorsV2() {
                           </td>
                           <td>
                             <span className="row" style={{ gap: 10 }}>
+                              <StartTag op={x.op} />
                               <Avatar name={x.op.name} id={x.op.id} size={26} />
                               <span>{shortName(x.op.name)}</span>
-                              <StartTag op={x.op} />
                               <EmploymentTag op={x.op} />
                             </span>
                           </td>
