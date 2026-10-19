@@ -39,6 +39,8 @@ const LANE_TAG: Partial<Record<Lane, string>> = { sick: "Б", vac: "О", gone: "
 const TYPES: DayType[] = ["work", "training", "platform", "off", "vacation", "sick"];
 /** С этого часа сегодняшний день без смены в графике — выходной. */
 const REST_FROM_HOUR = 9;
+/** Понедельник (не первый столбец) — тонкий разделитель недели: другой сетки между днями нет. */
+const wk = (d: DayKey, i: number) => (i > 0 && weekStart(d) === d ? " wk" : "");
 
 interface Sel {
   opId: string;
@@ -451,7 +453,7 @@ export default function SchedulePage() {
                   return (
                     <th
                       key={d}
-                      className={`day ${off ? "off" : ""} ${d === today ? "today" : ""} ${on ? "csel" : ""}`}
+                      className={`day ${off ? "off" : ""} ${d === today ? "today" : ""} ${on ? "csel" : ""}${wk(d, ci)}`}
                       data-c={ci}
                       title={dayRange ? undefined : `${fmtDay(d)}, ${fmtWeekday(d)}${off ? " · выходной" : ""} — протяните по датам, чтобы увидеть итоги`}
                       onMouseDown={(e) => {
@@ -507,28 +509,31 @@ export default function SchedulePage() {
             </tbody>
             <tfoot>
               <tr className="day-row">
-                <td className="sticky-col">Итого по дням</td>
+                <td className="sticky-col">
+                  Итого по дням
+                  {/* план дня один на весь месяц — пишем один раз здесь, а не «/38» в каждом дне */}
+                  {dayPlan > 0 && <span className="day-tot-sub">план {fmtNum(dayPlan, 0)} лид. в день</span>}
+                </td>
                 {dayTotals.map((t, i) => {
                   const d = days[i];
                   const p = planOf(d);
-                  const pr = Math.round(p);
                   // факт к плану — только за прошедшие дни: зелёный, если план дня выполнен
                   const tone = p > 0 && d <= today && (t.h > 0 || t.n > 0) ? (t.n >= p ? "ok" : "bad") : "";
                   return (
                     <td
                       key={d}
                       data-c={i}
-                      className={`c num day-tot ${isWorkday(d, s) ? "" : "off"} ${colSel && i >= colSel.c0 && i <= colSel.c1 ? "csel" : ""}`}
+                      className={`c num day-tot ${isWorkday(d, s) ? "" : "off"} ${colSel && i >= colSel.c0 && i <= colSel.c1 ? "csel" : ""}${wk(d, i)}`}
                       title={`${fmtDay(d)}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${p ? ` · план дня ${fmtNum(p, 1)}` : ""}${t.c?.lph != null ? ` · конверсия ${fmtPct(t.c.lph)} (${fmtNum(t.c.leads)} лид. ÷ ${fmtNum(t.c.hours)} ч)` : ""}${t.who.length ? `\n${t.who.join("\n")}` : ""}`}
                     >
-                      {t.h || t.n ? (
+                      {d > today && t.h ? (
+                        // наперёд — сколько часов поставлено в график
+                        <span className="day-tot-fut">{fmtNum(t.h)} ч</span>
+                      ) : t.h || t.n ? (
                         <>
-                          <div>{fmtNum(t.h)}</div>
-                          <div className={`day-tot-l ${tone}`}>
-                            {d <= today ? t.n : ""}
-                            {pr > 0 && <span className="day-tot-p">/{pr}</span>}
-                          </div>
-                          {/* конверсия дня (лиды ÷ часы): ниже нормы из настроек — красным, от нормы — зелёным; у будущих дней не считаем */}
+                          {/* лиды дня: план выполнен — зелёным, нет — красным; часы — в подсказке и в строке недель */}
+                          <div className={`day-tot-l ${tone}`}>{t.n}</div>
+                          {/* конверсия дня (лиды ÷ часы): ниже нормы из настроек — красным, от нормы — зелёным */}
                           {t.c?.lph != null && (
                             <div className="day-tot-c">
                               <Conv value={t.c.lph} />
@@ -670,7 +675,7 @@ function SchedRow({
     <tr className="sch-row">
       <td className="sticky-col">
         <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
-          <Avatar name={r.op.name} id={r.op.id} size={28} />
+          <Avatar name={r.op.name} id={r.op.id} size={22} />
           <span style={{ minWidth: 0 }}>
             <span className="op-n" title={r.op.name}>
               {shortName(r.op.name)}
@@ -700,7 +705,7 @@ function SchedRow({
         return (
           <td
             key={d}
-            className={`cell ${off ? "off" : ""} ${d === today ? "today" : ""} ${isSel ? "sel" : ""} ${isRange ? "rng" : ""} ${colSel && colIndex >= colSel.c0 && colIndex <= colSel.c1 ? "csel" : ""}`}
+            className={`cell ${off ? "off" : ""} ${d === today ? "today" : ""} ${isSel ? "sel" : ""} ${isRange ? "rng" : ""} ${colSel && colIndex >= colSel.c0 && colIndex <= colSel.c1 ? "csel" : ""}${wk(d, colIndex)}`}
             style={{ cursor: canEdit && !gone ? undefined : "default" }}
             title={`${fmtDay(d)}${sh && !gone ? ` · ${DAY_LABEL[sh.type]}${sh.hours && !sv ? `, ${fmtNum(sh.hours)} ч` : ""}${sh.comment ? ` · ${sh.comment}` : ""}` : ""}${!sh && sv && (lane === "work" || lane === "plan") && !n ? " · рабочий день супервайзера" : ""}${restDay ? " · выходной (смена не записана)" : ""}${n ? ` · лидов: ${n}` : ""}${outside ? " · до даты приёма" : ""}${gone ? " · уволен" : ""}`}
             onMouseDown={(e) => {
@@ -729,7 +734,7 @@ function SchedRow({
                 )}
               </div>
             ) : sh?.type === "off" || restDay ? (
-              <span className="lane-off">В</span>
+              <span className="lane-off" aria-label="выходной" />
             ) : null}
           </td>
         );

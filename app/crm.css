@@ -991,25 +991,28 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
   --ctl-h: 38px;
   --th-py: 10px;
   --td-py: 10px;
-  --sch-row: 48px;
-  --sch-lane: 36px;
-  --sch-col: 42px;
-  --sch-head-h: 52px;
-  --sch-grp-h: 38px;
-  --sch-foot-h: 60px;
-  --sch-week-h: 38px;
+  /* график — в размер скелетона: ряд 38 (плашка 30), колонка имени 180, аватар 22 */
+  --sch-row: 38px;
+  --sch-lane: 30px;
+  --sch-col: 40px;
+  --sch-name-w: 180px;
+  --sch-head-h: 44px;
+  --sch-grp-h: 32px;
+  --sch-foot-h: 40px;
+  --sch-week-h: 26px;
 }
 :root[data-density="compact"] {
   --ctl-h: 34px;
   --th-py: 7px;
   --td-py: 6px;
-  --sch-row: 40px;
-  --sch-lane: 30px;
-  --sch-col: 38px;
-  --sch-head-h: 46px;
-  --sch-grp-h: 34px;
-  --sch-foot-h: 54px;
-  --sch-week-h: 32px;
+  --sch-row: 34px;
+  --sch-lane: 27px;
+  --sch-col: 36px;
+  --sch-name-w: 170px;
+  --sch-head-h: 40px;
+  --sch-grp-h: 30px;
+  --sch-foot-h: 36px;
+  --sch-week-h: 24px;
 }
 
 /* ── общие компоненты ── */
@@ -1048,11 +1051,14 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .tbl.sched .sticky-col { border-right: 1px solid var(--sch-grid-strong); }
 .tbl.sched .sticky-col + :is(th, td) { border-left: none; }
 .tbl.sched .sum-h { border-left: 1px solid var(--sch-grid-strong); }
+/* лёгкая сетка: между днями линий нет, ритм дают выходные-столбцы и разделитель недели (с понедельника) */
+.tbl.sched :is(th.day, td.cell, td.day-tot) { border-left: none; }
+.tbl.sched :is(th.day, td.cell, td.day-tot).wk { border-left: 1px solid var(--sch-grid); }
 .tbl.sched tbody td { border-bottom: 1px solid var(--sch-grid); }
 
 /* шапка дней */
 .sched thead th { height: var(--sch-head-h); padding-top: 6px; padding-bottom: 5px; background: var(--sch-head); color: var(--text-sub); font-weight: 600; border-bottom: 1px solid var(--line); }
-.sched thead th.sticky-col { min-width: 224px; width: 224px; padding-left: 16px; text-align: left; color: var(--text-quote); }
+.sched thead th.sticky-col { min-width: var(--sch-name-w); width: var(--sch-name-w); padding-left: 14px; text-align: left; color: var(--text-quote); }
 .sched th.day { min-width: var(--sch-col); width: var(--sch-col); padding: 6px 0 5px; font-size: 10px; font-weight: 500; line-height: 1.1; color: var(--text-sub); background: var(--sch-head); }
 .sched th.day .dh-d { font-size: 12.5px; line-height: 16px; font-weight: 600; color: var(--text); }
 .sched th.day.off, .sched td.cell.off { background: var(--sch-weekend); }
@@ -1089,33 +1095,36 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .lane-h { font-weight: 600; }
 .lane-n { margin-top: 2px; font-size: 10px; line-height: 10px; font-weight: 500; opacity: 0.92; }
 .lane-tag { font-size: 12px; font-weight: 600; }
-.lane-off { color: var(--sch-off); font-size: 11px; font-weight: 500; }
+/* выходной — тихая точка вместо буквы «В» в каждой клетке (в подсказке — «выходной») */
+.lane-off { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--sch-off); opacity: 0.55; vertical-align: middle; }
 /* выделение поверх полосы — рамкой, полосу видно */
 .sched td.cell.sel .lane, .sched td.cell.rng .lane { box-shadow: inset 0 0 0 2px var(--text); }
 
 /* ── столбец операторов ── */
-.sched tbody tr.sch-row > td.sticky-col { min-width: 224px; width: 224px; height: var(--sch-row); padding: 4px 10px 4px 14px; background: var(--bg-panel); }
+.sched tbody tr.sch-row > td.sticky-col { min-width: var(--sch-name-w); width: var(--sch-name-w); height: var(--sch-row); padding: 2px 8px 2px 12px; background: var(--bg-panel); }
 .sched tr.sch-row > td.sticky-col > .row { display: flex; width: 100%; }
 .sched tr.sch-row > td.sticky-col > .row > span:nth-child(2) { flex: 1; }
 /* время выхода на смену — справа от ФИО */
-.sched .op-start { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 6px; border: 1px solid var(--ink-12); border-radius: 6px; background: var(--ink-05); color: var(--text); font: inherit; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+.sched .op-start { flex: none; display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 5px; border: 1px solid var(--ink-12); border-radius: 5px; background: var(--ink-05); color: var(--text); font: inherit; font-size: 10.5px; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
 .sched .op-start svg { color: var(--text-sub); }
 .sched .op-start:not(:disabled):hover, .sched .op-start.open { border-color: var(--ink-20, var(--ink-12)); background: var(--ink-08, var(--ink-05)); }
 .sched .op-start:disabled { cursor: default; }
 .sched .op-start.unset { border-style: dashed; background: none; color: var(--dim); font-weight: 500; opacity: 0.55; }
 .sched tr.sch-row:hover .op-start.unset, .sched .op-start.unset.open { opacity: 1; }
-.sched .op-n { display: block; max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; line-height: 17px; font-weight: 600; color: var(--text); }
-.sched .op-sub { display: block; margin-top: 1px; font-size: 11.5px; line-height: 14px; color: var(--text-sub); }
+.sched .op-n { display: block; max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; line-height: 15px; font-weight: 600; color: var(--text); }
+.sched .op-sub { display: block; font-size: 10.5px; line-height: 12px; color: var(--text-sub); white-space: nowrap; }
 /* строка: минимальный ховер — реагирует только имя */
 .tbl.sched tbody tr.sch-row:hover td:not(.cell):not(.sticky-col) { background: var(--bg-panel); }
 .tbl.sched tbody tr.sch-row:hover td.sticky-col { background: var(--sch-hover); }
 
 /* ── секции: группа / уволенные — шеврон, свернуть, итоги справа ── */
-.tbl.sched tr.sch-grp td { height: var(--sch-grp-h); padding-top: 0; padding-bottom: 0; background: var(--sch-group); color: var(--text-quote); border-bottom: 1px solid var(--sch-grid-strong); font-size: 14px; font-weight: 600; }
+.tbl.sched tr.sch-grp td { height: var(--sch-grp-h); padding-top: 0; padding-bottom: 0; background: var(--sch-group); color: var(--text-quote); border-bottom: 1px solid var(--sch-grid-strong); font-size: 13px; font-weight: 600; }
 .tbl.sched tbody tr.sch-grp:hover td { background: var(--sch-group); }
 .tbl.sched tr.sch-grp td.sticky-col { padding-left: 16px; }
 .sched tr.sch-grp td[colspan] { border-left: none !important; }
-.sched .sch-grp-btn { display: inline-flex; align-items: center; gap: 8px; height: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
+/* название секции не распирает колонку имени: шириной 0 оно выходит на пустую полосу дней справа */
+.sched .sch-grp-btn { display: inline-flex; align-items: center; gap: 8px; width: 0; height: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; overflow: visible; }
+.tbl.sched tr.sch-grp td.sticky-col { overflow: visible; }
 .sched .sch-grp-btn svg { color: var(--text-sub); }
 
 /* ── итоги справа: часы → лиды → ± к плану → конверсия ── */
@@ -1134,13 +1143,17 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 
 /* ── «Итого по дням»: закреплена внизу, светлее строк ── */
 .sched tfoot td { height: var(--sch-foot-h); background: var(--sch-foot); color: var(--text); border-top: 1px solid var(--sch-foot-border); }
-.sched tfoot td.sticky-col { padding-left: 16px; font-size: 15px; font-weight: 700; }
+.sched tfoot td.sticky-col { padding: 0 8px 0 14px; font-size: 13px; line-height: 15px; font-weight: 700; }
 .sched tfoot td.sticky-col, .sched tfoot .sum { background: var(--sch-foot); }
-.sched tfoot td.day-tot { font-size: 13px; font-weight: 600; line-height: 1.2; padding: 4px 0; }
-.sched tfoot .day-tot-c { margin-top: 1px; font-size: 10.5px; line-height: 1.2; }
+.sched tfoot td.day-tot { font-size: 11.5px; font-weight: 600; line-height: 1.12; padding: 2px 0; }
+.sched tfoot .sum { font-size: 12px; }
+.sched tfoot .day-tot-c { margin-top: 0; font-size: 9.5px; line-height: 1.12; }
 .sched tfoot td.day-tot.off { background: var(--sch-foot-we); }
 .sched tfoot .day-tot-l { color: var(--brand); }
 .sched tfoot .day-tot-none { color: var(--dimmer); font-weight: 500; }
+.sched tfoot .day-tot-l { font-size: 12.5px; }
+.sched tfoot .day-tot-fut { color: var(--dim); font-size: 10.5px; font-weight: 500; white-space: nowrap; }
+.sched tfoot .day-tot-sub { display: block; line-height: 12px; white-space: nowrap; color: var(--text-sub); font-size: 10.5px; font-weight: 500; }
 
 /* ── легенда: маленькие капсулы тех же цветов, что блоки ── */
 .lane-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; font-size: 13px; color: var(--text-sub); }
@@ -1235,13 +1248,13 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 /* ── «Итого по дням»: факт к плану дня ── */
 .sched tfoot .day-tot-l.ok { color: var(--c-green-fg); }
 .sched tfoot .day-tot-l.bad { color: var(--c-red-fg); }
-.sched .day-tot-p { font-size: 10px; font-weight: 500; color: var(--dim); }
+.sched .day-tot-p { font-size: 9px; font-weight: 500; color: var(--dim); }
 
 /* ── «По неделям»: вторая закреплённая строка под итогами дня ── */
 .sched tfoot tr.day-row td { bottom: var(--sch-week-h); }
 .sched tfoot tr.week-row td { height: var(--sch-week-h); bottom: 0; padding-top: 0; padding-bottom: 0; border-top: 1px solid var(--sch-grid); background: var(--sch-foot); }
-.sched tfoot tr.week-row td.sticky-col { padding-left: 16px; font-size: 13px; font-weight: 600; color: var(--text-sub); }
-.tbl.sched tfoot td.week-tot { padding: 0 6px; text-align: center; font-size: 12px; font-weight: 600; border-left: 1px solid var(--sch-grid-strong); }
+.sched tfoot tr.week-row td.sticky-col { padding-left: 14px; font-size: 12px; font-weight: 600; color: var(--text-sub); }
+.tbl.sched tfoot td.week-tot { padding: 0 6px; text-align: center; font-size: 11px; font-weight: 600; border-left: 1px solid var(--sch-grid); }
 .sched .week-tot-in { display: inline-flex; align-items: baseline; gap: 8px; max-width: 100%; overflow: hidden; white-space: nowrap; }
 .sched .week-tot-l { color: var(--brand); }
 .sched .week-tot-l.ok { color: var(--c-green-fg); }

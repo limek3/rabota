@@ -94,17 +94,32 @@ async function employment(date: string): Promise<EmpRow[]> {
   const out: EmpRow[] = [];
   for (let page = 1, pages = 1; page <= pages && page <= 100; page++) {
     let j: { data?: EmpRow[]; total_pages?: number } | null = null;
-    for (let k = 0; k < 3 && !j; k++) {
-      const r = await fetch(`${SK}/api/reports/managers_employment.json`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ start_time: Math.floor(from / 1000), end_time: Math.floor(to / 1000), length: 100, page }),
-      });
+    // Скорозвон под нагрузкой отвечает 429/5xx: ждём дольше с каждой попыткой (1,5 → 3 → 6 → 10 с)
+    // и уважаем Retry-After; сетевой сбой — тоже повод повторить
+    let last = "";
+    const waits = [1500, 3000, 6000, 10000];
+    for (let k = 0; k <= waits.length && !j; k++) {
+      let r: Response;
+      try {
+        r = await fetch(`${SK}/api/reports/managers_employment.json`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ start_time: Math.floor(from / 1000), end_time: Math.floor(to / 1000), length: 100, page }),
+        });
+      } catch (e) {
+        last = `сеть: ${e instanceof Error ? e.message : String(e)}`;
+        if (k < waits.length) await new Promise((res) => setTimeout(res, waits[k]));
+        continue;
+      }
       if (r.ok) j = await r.json();
       else if (r.status < 500 && r.status !== 429) throw new Fail(`Скорозвон: отчёт «Занятость сотрудников» — HTTP ${r.status}`);
-      else await new Promise((res) => setTimeout(res, 1500));
+      else {
+        last = `HTTP ${r.status}`;
+        const ra = Number(r.headers.get("retry-after"));
+        if (k < waits.length) await new Promise((res) => setTimeout(res, ra > 0 && ra <= 20 ? ra * 1000 : waits[k]));
+      }
     }
-    if (!j) throw new Error("Скорозвон не отдал отчёт «Занятость сотрудников» — попробуйте позже");
+    if (!j) throw new Error(`Скорозвон не отдал отчёт «Занятость сотрудников» (${last}, страница ${page}) — попробуйте через пару минут`);
     pages = Number(j.total_pages) || 1;
     for (const row of j.data ?? []) if (row.date === ru) out.push(row);
   }
