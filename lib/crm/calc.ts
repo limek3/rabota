@@ -133,6 +133,18 @@ export function closedThrough(today: DayKey, hour: number, s: Pick<Settings, "da
 /** Строка, которую функция shift-hours пишет в комментарий смены: часы — фактические, из Скорозвона. */
 export const SKOROZVON_MARK = "Скорозвон:";
 export const fromSkorozvon = (s: Pick<Shift, "comment">) => (s.comment ?? "").split("\n").some((l) => l.trim().startsWith(SKOROZVON_MARK));
+/**
+ * Комментарий смены после правки руками: если часы поменяли, строка «Скорозвон: …» уже не про эти часы —
+ * убираем её, иначе плановые часы сегодняшней смены сойдут за факт из Скорозвона (и испортят конверсию).
+ */
+export function shiftComment(comment: string, prevHours: number | undefined, hours: number): string {
+  if (prevHours == null || Math.abs(prevHours - hours) < 0.005) return comment;
+  return comment
+    .split("\n")
+    .filter((l) => !l.trim().startsWith(SKOROZVON_MARK))
+    .join("\n")
+    .trim();
+}
 
 /** Сколько лидов вычесть из конверсии за период from…to: лиды идущего дня без часов. */
 export function pendingIn(ix: Index, from: DayKey, to: DayKey, n: number): number {
@@ -222,11 +234,17 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF, openDay:
     const last = ix.lastLead.get(l.operatorId);
     if (!last || d > last) ix.lastLead.set(l.operatorId, d);
   }
+  // одна смена на оператора в день: если записей на день две (старый id, слияние карточек), берём
+  // последнюю изменённую — ту же, что видна в клетке графика, иначе часы дня задваиваются
   for (const s of st.shifts) {
     // после даты увольнения смен нет: в графике там «уволен», в часы и зарплату остатки не идут
     const op = ix.opById.get(s.operatorId);
     if (op?.status === "fired" && op.fireDate && s.date > op.fireDate) continue;
-    ix.shift.set(`${s.date}|${s.operatorId}`, s);
+    const key = `${s.date}|${s.operatorId}`;
+    const prev = ix.shift.get(key);
+    if (!prev || (s.updatedAt ?? "") >= (prev.updatedAt ?? "")) ix.shift.set(key, s);
+  }
+  for (const s of ix.shift.values()) {
     const m = s.date.slice(0, 7);
     addTo(ix.opMonths, s.operatorId, m);
     ix.months.add(m);

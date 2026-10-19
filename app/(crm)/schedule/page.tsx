@@ -24,18 +24,21 @@ const TYPE_HUE: Record<DayType, string> = { work: "blue", manual: "blue", off: "
  * в одну полосу (как в календаре), поэтому серии смен, больничный и «дыры» видны сразу.
  *   work  — отработанная смена (сплошная, внутри лиды крупно и часы)
  *   plan  — смена наперёд (светлая)
- *   manual — ручной обзвон (синяя, считается как смена: часы из Скорозвона, оплата, конверсия)
  *   train — обучение
  *   plat  — обучение на платформе (часы не оплачиваются и не идут в конверсию)
  *   sick / vac — больничный / отпуск
  *   gone  — после увольнения (смены после даты увольнения не учитываются)
- * Выходной — буква «В»; прошедший день без смены и без лидов тоже считается выходным.
+ * Ручной обзвон — обычная смена: его время в Скорозвоне идёт в часы (старые записи «ручной обзвон» — как смена).
+ * Выходной — буква «В»; день без смены и без лидов тоже выходной — сегодняшний с 9:00
+ * (нужна смена — СВ ставит её, часы подтянутся из Скорозвона).
  * Супервайзер: график не заполняют — рабочие дни недели отмечены полосой без цифр
  * (часы СВ в показатели не идут, оклад — за эти дни).
  */
-type Lane = "work" | "plan" | "manual" | "train" | "plat" | "sick" | "vac" | "gone" | "pre";
+type Lane = "work" | "plan" | "train" | "plat" | "sick" | "vac" | "gone" | "pre";
 const LANE_TAG: Partial<Record<Lane, string>> = { sick: "Б", vac: "О", gone: "У" };
-const TYPES: DayType[] = ["work", "manual", "training", "platform", "off", "vacation", "sick"];
+const TYPES: DayType[] = ["work", "training", "platform", "off", "vacation", "sick"];
+/** С этого часа сегодняшний день без смены в графике — выходной. */
+const REST_FROM_HOUR = 9;
 
 interface Sel {
   opId: string;
@@ -93,6 +96,7 @@ export default function SchedulePage() {
     for (const g of data.groups) if (!g.deletedAt && g.supervisorId && !out.has(g.supervisorId)) out.set(g.supervisorId, g.id);
     return out;
   }, [data.groups]);
+  // уволенные (с любой датой увольнения) — всегда в свёрнутом блоке «Уволены» своей группы
   const isSvRow = useCallback((r: OpRow) => !isGone(r.op) && (r.op.role === "supervisor" || led.has(r.op.id)), [led]);
   // СВ и наставник видят в графике только свои группы: переведённые в чужую группу (их история
   // осталась в срезе) сюда не попадают — график показывает, кто работает в команде сейчас
@@ -132,15 +136,23 @@ export default function SchedulePage() {
         let h = 0;
         let n = 0;
         let people = 0;
+        // кто дал часы и лиды — в подсказку итога дня, чтобы было видно, из чего он сложился
+        const who: string[] = [];
         for (const r of rows) {
-          n += ix.opDay.get(r.op.id)?.get(d) ?? 0;
+          const nn = ix.opDay.get(r.op.id)?.get(d) ?? 0;
+          n += nn;
           // часы супервайзера в итоги дня не входят
-          if (ix.svIds.has(r.op.id)) continue;
+          if (ix.svIds.has(r.op.id)) {
+            if (nn) who.push(`${shortName(r.op.name)} (СВ): ${nn} лид.`);
+            continue;
+          }
           const hh = (future ? ix.plannedOpDay : ix.hoursOpDay).get(r.op.id)?.get(d) ?? 0;
           h += hh;
           if (hh > 0) people++;
+          if (hh > 0) who.push(`${shortName(r.op.name)}: ${fmtNum(hh)} ч${future ? "" : `, ${nn} лид.`}`);
+          else if (nn > 0) who.push(`${shortName(r.op.name)}: ${nn} лид., часов нет${d === ix.openDay ? " — ждут Скорозвон, в конверсию не идут" : ""}`);
         }
-        return { h, n, people, c: future ? null : dayConv(ix, rowIds, d) };
+        return { h, n, people, who, c: future ? null : dayConv(ix, rowIds, d) };
       }),
     [days, rows, rowIds, ix, today],
   );
@@ -404,7 +416,6 @@ export default function SchedulePage() {
         <div className="lane-legend">
           <span><i className="lane work first last" />смена</span>
           <span><i className="lane plan first last" />план</span>
-          <span title="Ручной обзвон — считается как смена: часы из Скорозвона, оплата и конверсия"><i className="lane manual first last" />ручной обзвон</span>
           <span><i className="lane train first last" />обучение</span>
           <span title="Обучение на платформе — буква «П», без часов: не оплачивается и не идёт в конверсию"><i className="lane plat first last" />на платформе</span>
           <span><i className="lane sick first last" />больничный</span>
@@ -508,7 +519,7 @@ export default function SchedulePage() {
                       key={d}
                       data-c={i}
                       className={`c num day-tot ${isWorkday(d, s) ? "" : "off"} ${colSel && i >= colSel.c0 && i <= colSel.c1 ? "csel" : ""}`}
-                      title={`${fmtDay(d)}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${p ? ` · план дня ${fmtNum(p, 1)}` : ""}${t.c?.lph != null ? ` · конверсия ${fmtPct(t.c.lph)} (${fmtNum(t.c.lph, 2)} лид/ч)` : ""}`}
+                      title={`${fmtDay(d)}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${p ? ` · план дня ${fmtNum(p, 1)}` : ""}${t.c?.lph != null ? ` · конверсия ${fmtPct(t.c.lph)} (${fmtNum(t.c.leads)} лид. ÷ ${fmtNum(t.c.hours)} ч)` : ""}${t.who.length ? `\n${t.who.join("\n")}` : ""}`}
                     >
                       {t.h || t.n ? (
                         <>
@@ -614,7 +625,7 @@ function SchedRow({
   /** Супервайзер: отработанные дни месяца (вместо часов); null — оператор линии. */
   svDays: number | null;
 }) {
-  const { ix, data, today, access } = useCrm();
+  const { ix, data, today, hour, access } = useCrm();
   const s = data.settings;
   const canEdit = canEditShift(access, r.op.id);
   const counts = ix.opDay.get(r.op.id);
@@ -631,7 +642,6 @@ function SchedRow({
       if (sh.type === "sick") return "sick";
       if (sh.type === "vacation") return "vac";
       if (sh.type === "off") return null;
-      if (sh.type === "manual") return "manual";
       if (sh.type === "training") return "train";
       if (sh.type === "platform") return "plat";
       return d > today ? "plan" : "work";
@@ -676,8 +686,8 @@ function SchedRow({
         const lane = lanes[colIndex];
         const gone = lane === "gone";
         const outside = !!hire && d < hire;
-        // прошедший день без смены и без лидов — выходной
-        const restDay = !lane && !sh && d < today && !outside;
+        // день без смены и без лидов — выходной: прошедший, а сегодняшний — с 9:00
+        const restDay = !lane && !sh && !outside && (d < today || (d === today && hour >= REST_FROM_HOUR));
         const n = counts?.get(d) ?? 0;
         const isSel = sel?.opId === r.op.id && sel.day === d;
         const isRange = inRange(range, rowIndex, colIndex);
@@ -708,7 +718,7 @@ function SchedRow({
                 {lane === "plat" ? (
                   // обучение на платформе — буквой, без часов
                   <span className="lane-h">П</span>
-                ) : sv ? null : lane === "work" || lane === "manual" || lane === "train" ? (
+                ) : sv ? null : lane === "work" || lane === "train" ? (
                   // у супервайзера (выше) — полоса без цифр: часы и лиды в его графике не считаем
                   <>
                     <span className="lane-h num">{fmtNum(hours)}</span>
@@ -1041,7 +1051,8 @@ function CellEditor({ sel, onClose }: { sel: Sel; onClose: () => void }) {
   const s = data.settings;
   const existing: Shift | undefined = ix.shift.get(`${sel.day}|${sel.opId}`);
   const op = ix.opById.get(sel.opId);
-  const [type, setType] = useState<DayType>(existing?.type ?? "work");
+  // старая запись «ручной обзвон» открывается как рабочий день
+  const [type, setType] = useState<DayType>(!existing || existing.type === "manual" ? "work" : existing.type);
   const [hours, setHours] = useState<number | null>(existing ? existing.hours : s.dayHours);
   const [comment, setComment] = useState(existing?.comment ?? "");
   const ref = useRef<HTMLDivElement>(null);

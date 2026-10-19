@@ -21,6 +21,7 @@ const PARTS: [string, string][] = [
   ["wrapup", "карточка"],
   ["ringing", "гудки"],
   ["normal", "доступен"],
+  ["manual", "ручной обзвон"],
 ];
 const hhmm = (sec: number) => `${Math.floor(sec / 3600)}:${String(Math.floor((sec % 3600) / 60)).padStart(2, "0")}`;
 
@@ -91,7 +92,7 @@ export function SkorozvonHours({ onClose }: { onClose: () => void }) {
     >
       <div className="skh-top">
         <DateInput value={date} onChange={(v) => v && setDate(v)} max={today} width={170} ariaLabel="День" />
-        <span className="o2-muted">Часы = разговор + заполняет карточку + гудки + доступен. Перерывы и «не беспокоить» не считаются.</span>
+        <span className="o2-muted">Часы = разговор + заполняет карточку + гудки + доступен + ручной обзвон. Перерывы и «не беспокоить» не считаются.</span>
       </div>
 
       {err && <div className="skh-err">{err}</div>}
@@ -124,7 +125,17 @@ export function SkorozvonHours({ onClose }: { onClose: () => void }) {
                       <span className="num skh-h">
                         <s>{fmtNum(u.from)}</s> → <b>{fmtNum(u.to)} ч</b>
                       </span>
-                      <span className="o2-muted num skh-parts">{PARTS.map(([k, l]) => `${l} ${hhmm(u.parts[k] ?? 0)}`).join(" · ")}</span>
+                      <span className="o2-muted num skh-parts">
+                        {PARTS.filter(([k]) => k !== "manual" || (u.parts[k] ?? 0) > 0)
+                          .map(([k, l]) => `${l} ${hhmm(u.parts[k] ?? 0)}`)
+                          .join(" · ")}
+                        {/* статусы, которые в часы не идут: видно, как Скорозвон их называет */}
+                        {u.other && Object.keys(u.other).length > 0 && (
+                          <span title="Эти статусы в часы не идут">
+                            {" "}· не в часах: {Object.entries(u.other).map(([k, v]) => `${k} ${hhmm(v)}`).join(", ")}
+                          </span>
+                        )}
+                      </span>
                     </div>
                   ))}
               </div>

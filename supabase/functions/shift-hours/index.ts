@@ -3,8 +3,8 @@
 // ----------------------------------------------------------------------------
 // Каждый час в :05 по Москве (pg_cron, supabase/migrations/20261014000002_shift_hours_hourly.sql;
 // в 00:05 — последний раз за вчера) берёт отчёт Скорозвона «Занятость сотрудников» за день и каждому, у кого в графике
-// смена (работа, ручной обзвон или обучение), ставит часы = доступен + гудки + разговор + заполняет карточку.
-// Перерывы, «не беспокоить» и офлайн не считаются. Оператор CRM ↔ сотрудник Скорозвона —
+// смена (работа или обучение), ставит часы = доступен + гудки + разговор + заполняет карточку + ручной обзвон.
+// Перерывы, «не беспокоить» и офлайн не считаются. (Старые смены вида «ручной обзвон» — как рабочие.) Оператор CRM ↔ сотрудник Скорозвона —
 // по фамилии (и имени, если фамилия встречается дважды). Не нашёлся или нашлись двое —
 // смену не трогаем, а в ответе и в журнале пишем, кого не сопоставили.
 // В комментарий смены дописывается строка «Скорозвон: …» с разбивкой по статусам;
@@ -37,6 +37,27 @@ const SK = "https://app.skorozvon.ru";
 /** Статусы Скорозвона, которые считаются рабочим временем. */
 const WORK = { speaking: "разговор", wrapup: "карточка", ringing: "гудки", normal: "доступен" } as const;
 type WorkKey = keyof typeof WORK;
+/**
+ * Ручной обзвон (звонки руками, не через автодозвон) — тоже рабочее время смены: все статусы
+ * Скорозвона, в названии которых есть «manual», складываются в часть «manual».
+ */
+const isManual = (k: string) => /manual/i.test(k);
+const MANUAL_LABEL = "ручной обзвон";
+
+/** Секунды по статусам: рабочие (WORK + manual) и остальные — для просмотра, в часы не идут. */
+function splitStatuses(st: Record<string, number> | undefined): { parts: Record<string, number>; other: Record<string, number> } {
+  const parts: Record<string, number> = Object.fromEntries((Object.keys(WORK) as WorkKey[]).map((k) => [k, 0]));
+  parts.manual = 0;
+  const other: Record<string, number> = {};
+  for (const [k, v] of Object.entries(st ?? {})) {
+    const sec = Math.max(0, Number(v) || 0);
+    if (!sec) continue;
+    if (k in WORK) parts[k] += sec;
+    else if (isManual(k)) parts.manual += sec;
+    else other[k] = sec;
+  }
+  return { parts, other };
+}
 const MARK = "Скорозвон:";
 const MSK = 3 * 3600_000;
 
@@ -167,7 +188,7 @@ Deno.serve(async (req) => {
     const gone = (o: { status?: string; fire_date?: string | null }) => o.status === "fired" && (!o.fire_date || date > o.fire_date);
     const opById = new Map((ops ?? []).filter((o) => !o.deleted_at && !gone(o)).map((o) => [o.id as string, o as Op]));
 
-    const updated: { name: string; from: number; to: number; parts: Record<string, number> }[] = [];
+    const updated: { name: string; from: number; to: number; parts: Record<string, number>; other: Record<string, number> }[] = [];
     const skipped: { name: string; why: string }[] = [];
     const recs: { id: string; hours: number; comment: string; updated_at: string }[] = [];
     const now = new Date().toISOString();
@@ -180,11 +201,11 @@ Deno.serve(async (req) => {
         skipped.push({ name: op.name, why: m.why ?? "" });
         continue;
       }
-      const parts = Object.fromEntries((Object.keys(WORK) as WorkKey[]).map((k) => [k, Math.max(0, Number(m.row!.statuses?.[k]) || 0)]));
+      const { parts, other } = splitStatuses(m.row.statuses);
       const sec = Object.values(parts).reduce((a, b) => a + b, 0);
       const hours = Math.round((sec / 3600) * 100) / 100;
-      const line = `${MARK} ${(Object.keys(WORK) as WorkKey[]).map((k) => `${WORK[k]} ${hhmm(parts[k])}`).join(" · ")}`;
-      updated.push({ name: op.name, from: Number(s.hours) || 0, to: hours, parts });
+      const line = `${MARK} ${(Object.keys(WORK) as WorkKey[]).map((k) => `${WORK[k]} ${hhmm(parts[k])}`).join(" · ")}${parts.manual ? ` · ${MANUAL_LABEL} ${hhmm(parts.manual)}` : ""}`;
+      updated.push({ name: op.name, from: Number(s.hours) || 0, to: hours, parts, other });
       const comment = withMark(String(s.comment ?? ""), line);
       // ничего не поменялось с прошлого часа — не пишем: лишние записи будят все открытые CRM
       if (Math.abs((Number(s.hours) || 0) - hours) < 0.005 && comment === String(s.comment ?? "")) continue;

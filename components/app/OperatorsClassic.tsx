@@ -198,7 +198,10 @@ export function OperatorsClassic() {
         const sum = (f: (r: OpRow) => number) => rs.reduce((a, r) => a + f(r), 0);
         const plan = sum((r) => r.terms.plan);
         const fact = sum((r) => r.pace.fact);
-        const hours = sum((r) => r.hours);
+        // конверсия — как везде: лиды линии с часами (factClosed) ÷ часы линии, без супервайзеров
+        const line = (r: OpRow) => !ix.svIds.has(r.op.id);
+        const hours = sum((r) => (line(r) ? r.hours : 0));
+        const convLeads = sum((r) => (line(r) ? r.factClosed : 0));
         return {
           key,
           sv: key === SV_KEY,
@@ -208,7 +211,7 @@ export function OperatorsClassic() {
           status: m.groups.find((x) => x.key === key)?.status ?? null,
           rows: rs,
           t: {
-            plan, fact, hours,
+            plan, fact, hours, convLeads,
             planToDate: sum((r) => r.pace.planToDate),
             dev: sum((r) => r.pace.deviation),
             rr: sum((r) => r.pace.rr),
@@ -238,9 +241,11 @@ export function OperatorsClassic() {
     const plan = list.reduce((a, r) => a + r.terms.plan, 0);
     const fact = list.reduce((a, r) => a + r.pace.fact, 0);
     // часы итога — без супервайзеров: их график не входит в показатели команды
-    const hours = list.reduce((a, r) => a + (isSvRow(r) ? 0 : r.hours), 0);
-    return { plan, fact, hours, today: list.reduce((a, r) => a + r.pace.today, 0), week: list.reduce((a, r) => a + r.pace.thisWeek, 0), prev: list.reduce((a, r) => a + r.pace.prevWeek, 0) };
-  }, [list, isSvRow]);
+    const hours = list.reduce((a, r) => a + (isSvRow(r) || ix.svIds.has(r.op.id) ? 0 : r.hours), 0);
+    // конверсия — лиды линии с часами (без лидов сегодняшней смены, чьи часы ещё не пришли) ÷ часы
+    const convLeads = list.reduce((a, r) => a + (isSvRow(r) || ix.svIds.has(r.op.id) ? 0 : r.factClosed), 0);
+    return { plan, fact, hours, convLeads, today: list.reduce((a, r) => a + r.pace.today, 0), week: list.reduce((a, r) => a + r.pace.thisWeek, 0), prev: list.reduce((a, r) => a + r.pace.prevWeek, 0) };
+  }, [list, isSvRow, ix]);
 
   const openRow = openId ? rows.find((r) => r.op.id === openId) ?? null : null;
 
@@ -398,7 +403,7 @@ export function OperatorsClassic() {
       case "hours":
         return <td key={k} data-col={k} className="r num">{fmtNum(sec.t.hours)}</td>;
       case "lph":
-        return <td key={k} data-col={k} className="r num"><Conv leads={sec.t.fact} hours={sec.t.hours} /></td>;
+        return <td key={k} data-col={k} className="r num"><Conv leads={sec.t.convLeads} hours={sec.t.hours} /></td>;
     }
     return <td key={k} data-col={k} />;
   };
@@ -419,7 +424,7 @@ export function OperatorsClassic() {
       case "hours":
         return <td key={k} data-col={k} className="r num">{fmtNum(totals.hours)}</td>;
       case "lph":
-        return <td key={k} data-col={k} className="r num"><Conv leads={totals.fact} hours={totals.hours} /></td>;
+        return <td key={k} data-col={k} className="r num"><Conv leads={totals.convLeads} hours={totals.hours} /></td>;
     }
     return <td key={k} data-col={k} />;
   };

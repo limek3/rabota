@@ -31,7 +31,7 @@ import type {
   Track,
 } from "./types";
 import { ADJ_LABEL, CANDIDATE_STAGE_LABEL, DAY_LABEL, EMPLOYMENT_LABEL, HOURS_DAY_TYPES, LEAD_SOURCE, LEAD_STATUS_LABEL } from "./types";
-import { buildIndex, closedThrough, employmentShare, freezePastMonths, monthCal, type Index } from "./calc";
+import { buildIndex, closedThrough, employmentShare, freezePastMonths, fromSkorozvon, monthCal, shiftComment, type Index } from "./calc";
 import { currentMonth, fmtDate, fmtDay, isoNow, monthOf, nowHour, nowStamp, todayKey } from "./dates";
 import { emptyState, newAccount, normalizePrefs, normalizeSettings, operatorDraft } from "./defaults";
 import {
@@ -156,6 +156,8 @@ interface Store {
    * из Скорозвона (обновляются каждый час), без них — после закрытия дня (ix.openDay).
    */
   workedTo: DayKey;
+  /** Текущий час (обновляется вместе с today). */
+  hour: number;
   month: MonthKey;
   setMonth: (m: MonthKey) => void;
 
@@ -345,7 +347,11 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   // (settings.dayCloseHour) идёт в часы, только если её часы уже пришли из Скорозвона
   const [hour, setHour] = useState(() => nowHour());
   const workedTo = today;
-  const openDay = closedThrough(today, hour, data.settings) < today ? today : null;
+  // Скорозвон подключён (у сегодняшних смен есть его часы) — сегодня до полуночи считаем только его часы:
+  // плановые 8 ч того, чьи часы не пришли (не сопоставился, не вышел), в час закрытия не становятся
+  // фактом и не роняют конверсию дня. Без Скорозвона — как раньше, смена идёт в расчёты в час закрытия
+  const skToday = useMemo(() => data.shifts.some((s) => s.date === today && fromSkorozvon(s)), [data.shifts, today]);
+  const openDay = skToday || closedThrough(today, hour, data.settings) < today ? today : null;
 
   // полный индекс — для действий; срез по правам — для экранов
   const fullIx = useMemo(() => buildIndex(data, workedTo, openDay), [data, workedTo, openDay]);
@@ -1300,7 +1306,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         groupId: prev && date < todayKey() ? prev.groupId : op ? op.groupId ?? null : prev?.groupId ?? null,
         hours,
         type: patch.type,
-        comment: (patch.comment || "").trim(),
+        comment: shiftComment((patch.comment || "").trim(), prev?.hours, hours),
         updatedAt: isoNow(),
       };
       const ok = await commit(
@@ -1347,14 +1353,15 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const recs: Shift[] = allowed.map((it) => {
         const id = shiftId(it.date, it.operatorId);
         const prev = ixRef.current.shift.get(id);
+        const hours = Math.min(24, Math.max(0, it.hours));
         return {
           id,
           date: it.date,
           operatorId: it.operatorId,
           groupId: prev && it.date < todayKey() ? prev.groupId : (ixRef.current.opById.get(it.operatorId) ?? prev)?.groupId ?? null,
-          hours: Math.min(24, Math.max(0, it.hours)),
+          hours,
           type: it.type,
-          comment: it.comment ?? prev?.comment ?? "",
+          comment: it.comment ?? shiftComment(prev?.comment ?? "", prev?.hours, hours),
           updatedAt: now,
         };
       });
@@ -2435,6 +2442,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     createOperatorAccounts,
     today,
     workedTo,
+    hour,
     month,
     setMonth,
     toasts,

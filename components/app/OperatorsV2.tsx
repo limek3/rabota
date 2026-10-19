@@ -46,10 +46,10 @@ const PERF: { value: string; label: string; test: (p: number) => boolean }[] = [
   { value: "0", label: "Меньше 50%", test: (p) => p < 0.5 },
 ];
 
-const DAY_LABEL: Record<DayType, string> = { work: "смена", manual: "ручной обзвон", training: "обучение", off: "выходной", vacation: "отпуск", sick: "больничный", platform: "платформа" };
+const DAY_LABEL: Record<DayType, string> = { work: "смена", manual: "смена", training: "обучение", off: "выходной", vacation: "отпуск", sick: "больничный", platform: "платформа" };
 /** Короткая отметка нерабочего дня в «Продуктивности». */
 const DAY_MARK: Partial<Record<DayType, string>> = { off: "вых", vacation: "отп", sick: "бол", platform: "пл" };
-const DAY_HUE: Record<DayType, string> = { work: "green", manual: "blue", training: "green", off: "gray", vacation: "amber", sick: "red", platform: "gray" };
+const DAY_HUE: Record<DayType, string> = { work: "green", manual: "green", training: "green", off: "gray", vacation: "amber", sick: "red", platform: "gray" };
 const DOW = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 const DOW_CAP = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const MON = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];

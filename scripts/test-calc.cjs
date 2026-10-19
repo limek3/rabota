@@ -998,6 +998,34 @@ console.log("ALL OK");
   console.log(`27c ok: конверсия дня одна везде — сегодня ${expLeads} лид. ÷ 6 ч = ${Math.round(c.lph * 100)}% (плановые часы не идут), месяц ${Math.round(m.team.lph * 100)}%`);
 }
 
+/* 27d. Часы дня не задваиваются и не берутся из плана: две записи смены на один день — в часы идёт
+   одна (последняя изменённая, она же в клетке); правка часов руками снимает отметку «Скорозвон:» —
+   плановые часы сегодняшней смены не сходят за факт. */
+{
+  const assert = require("assert");
+  const { buildIndex, dayConv, shiftComment } = R("calc");
+  const { buildDemo } = R("demo");
+  const today = "2026-09-17";
+  const st = buildDemo(today);
+  const ix0 = buildIndex(st, today, today);
+  const sh = st.shifts.find((x) => x.date === today && x.hours > 0 && x.type === "work" && !ix0.svIds.has(x.operatorId));
+  const sk = { ...sh, hours: 4.1, comment: "Скорозвон: доступен 4:06", updatedAt: "2026-09-17T12:00:00.000Z" };
+  const old = { ...sh, id: `old-${sh.id}`, hours: 8, comment: "", updatedAt: "2026-09-01T00:00:00.000Z" };
+  const live = { ...st, shifts: [...st.shifts.filter((x) => x.id !== sh.id), sk, old] };
+  const ix = buildIndex(live, today, today);
+  assert.strictEqual(ix.hoursOpDay.get(sh.operatorId).get(today), 4.1, "дубль смены не добавляет часов");
+  assert.strictEqual(ix.shift.get(`${today}|${sh.operatorId}`).hours, 4.1, "в клетке — та же смена");
+  assert.strictEqual(dayConv(ix, [sh.operatorId], today).hours, 4.1);
+  // СВ протянул 8 ч по графику с сегодня: отметка Скорозвона снимается — 8 ч не факт, пока не придут часы
+  const c = shiftComment("опоздал\nСкорозвон: доступен 4:06", 4.1, 8);
+  assert.strictEqual(c, "опоздал");
+  assert.strictEqual(shiftComment("Скорозвон: доступен 4:06", 4.1, 4.1), "Скорозвон: доступен 4:06", "часы те же — отметка остаётся");
+  const planned = { ...live, shifts: live.shifts.filter((x) => x.id !== old.id).map((x) => (x.id === sk.id ? { ...x, hours: 8, comment: c } : x)) };
+  const ix2 = buildIndex(planned, today, today);
+  assert.ok(!ix2.hoursOpDay.get(sh.operatorId)?.get(today), "плановые 8 ч сегодня в факт не идут");
+  console.log("27d ok: дубль смены не задваивает часы (4.1 ч, не 12.1), плановые 8 ч после правки — не факт");
+}
+
 /* ── 27b. налог самозанятого: к переводу = остаток ÷ 0,94, до рубля (=ОКРУГЛ(P2/0,94;0)) ── */
 {
   const assert = require("assert");
