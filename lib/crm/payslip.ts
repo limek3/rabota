@@ -61,7 +61,7 @@ const adjNote = (a: Adjustment) => [a.date.slice(8, 10) + "." + a.date.slice(5, 
 
 function dayRows(row: PayRow, days: DayKey[], upTo: DayKey, ix: Index): SlipDay[] {
   if (isSvVolume(row.payType)) return [];
-  const leadMap = ix.opDay.get(row.op.id);
+  const leadMap = ix.payOpDay.get(row.op.id); // расчётный лист — оплачиваемые лиды, как ведомость
   const hourMap = ix.hoursOpDay.get(row.op.id);
   const out: SlipDay[] = [];
   for (const d of days) {

@@ -9,7 +9,7 @@ import { safeDiv } from "./format";
  * Готовые отчёты за день и за неделю — для супервайзеров: собрать ключевые
  * цифры и отправить картинкой в чат (рисует components/app/ReportCanvas.tsx).
  *
- * Факт — как везде в CRM: лиды «не доведён» в факт не идут. Часы и план — только
+ * Факт — как везде в CRM: все переданные лиды, «не доведён» тоже (в зарплату он не идёт). Часы и план — только
  * по сегодняшний день: неделя в процессе сравнивается с планом на прошедшие дни.
  */
 
@@ -132,7 +132,8 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
       const c = counts?.get(d);
       const h = inGroup(op.groupId) || c ? ix.hoursOpDay.get(id)?.get(d) ?? 0 : 0;
       const p = inGroup(op.groupId) ? dayPlan(op, d) : 0;
-      const n = c ? c.done + c.work : 0;
+      // все переданные — и «не доведён»: он в факте, плане и конверсии (не в зарплате); сколько их — колонкой рядом
+      const n = c ? c.done + c.work + c.failed : 0;
       row.hours += h;
       row.plan += p;
       row.leads += n;

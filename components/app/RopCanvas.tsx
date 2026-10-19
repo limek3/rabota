@@ -279,7 +279,7 @@ function render(ctx: CanvasRenderingContext2D, r: RopReport, company: string, sa
   if (segSum > 0 && none) notes.push(`${fmtInt(none)} ${none % 10 === 1 && none % 100 !== 11 ? "лид" : none % 10 >= 2 && none % 10 <= 4 && (none % 100 < 12 || none % 100 > 14) ? "лида" : "лидов"} без региона — не попали в сегменты`);
   if (segSum === 0 && r.leads.total) notes.push("у лидов не указан город — заполните регион в карточке лида, и появится деление МСК / Регионы / СПб");
   if (r.leads.re && r.leads.auto) notes.push(`недвижимость ${fmtInt(r.leads.re)}, авто ${fmtInt(r.leads.auto)}`);
-  if (r.leads.failed) notes.push(`не доведено ${fmtInt(r.leads.failed)} — в факт не входят`);
+  if (r.leads.failed) notes.push(`не доведено ${fmtInt(r.leads.failed)} — в факте, но не в зарплате`);
   if (notes.length) note(notes.join(" · "));
 
   // ── группы ──

@@ -263,7 +263,7 @@ console.log("ALL OK");
     const t = opTerms(r.op, cal, st, ix);
     let base = 0, bonus = 0, days = 0;
     for (const d of monthDays("2026-09")) {
-      const leads = ix.opDay.get(r.op.id)?.get(d) ?? 0;
+      const leads = ix.payOpDay.get(r.op.id)?.get(d) ?? 0;
       const hours = ix.hoursOpDay.get(r.op.id)?.get(d) ?? 0;
       if (!leads && !hours) continue;
       days++;
@@ -368,7 +368,7 @@ console.log("ALL OK");
   console.log(`12 ok: прогноз ФОТ 200 000 ₽ = 17% (норма), перерасход ловится; апрув по проектам ${base}% → ${mixed}%`);
 }
 
-/* 13. Статусы лидов: «не доведён» выпадает из факта, проверяет супервайзер своей группы */
+/* 13. Статусы лидов: «не доведён» остаётся в факте и конверсии, но не в зарплате; проверяет супервайзер своей группы */
 {
   const assert = require("assert");
   const { buildIndex, monthModel, filterLeads } = R("calc");
@@ -380,9 +380,12 @@ console.log("ALL OK");
   const ix = buildIndex(st);
   let counted = 0;
   for (const m of ix.opDay.values()) for (const v of m.values()) counted += v;
-  assert.equal(counted, st.leads.length - failed.length, "в факт идут все, кроме «не доведён»");
+  assert.equal(counted, st.leads.length, "в факт идут все переданные, «не доведён» тоже");
+  let paid = 0;
+  for (const m of ix.payOpDay.values()) for (const v of m.values()) paid += v;
+  assert.equal(paid, st.leads.length - failed.length, "в зарплату — все, кроме «не доведён»");
   const sep = filterLeads(st.leads, { from: "2026-09-01", to: "2026-09-30", status: "counted" }).length;
-  assert.equal(monthModel(st, ix, "2026-09", "2026-09-19").team.pace.fact, sep, "факт месяца = лиды без «не доведён»");
+  assert.equal(monthModel(st, ix, "2026-09", "2026-09-19").team.pace.fact, sep, "факт месяца = все переданные лиды месяца");
 
   const head = computeAccess(st.accounts.find((a) => a.role === "head"), st);
   const opAcc = st.accounts.find((a) => a.role === "operator");
@@ -396,7 +399,7 @@ console.log("ALL OK");
   assert.ok(!canReviewLead(sup, betaLead), "чужую группу — нет");
   assert.ok(!canReviewLead(sup, ownLead), "свои лиды супервайзер не проверяет");
   assert.ok(!canReviewLead(op, st.leads.find((l) => l.operatorId === opAcc.operatorId)), "оператор статус не ставит");
-  console.log(`13 ok: статусы; не доведено ${failed.length} из ${st.leads.length}, в факт идут ${counted}`);
+  console.log(`13 ok: статусы; не доведено ${failed.length} из ${st.leads.length}: в факте ${counted}, в зарплате ${paid}`);
 }
 
 /* 14. Очистка демо-данных прежних версий: настоящие записи остаются */
@@ -479,7 +482,7 @@ console.log("ALL OK");
   const st = buildDemo(today);
   const ix = buildIndex(st);
   const day = buildReport(st, ix, "day", "2026-09-17", "", today);
-  assert.equal(day.total.leads, ix.day.get("2026-09-17") ?? 0, "лиды дня = факт по индексу (без «не доведён»)");
+  assert.equal(day.total.leads, ix.day.get("2026-09-17") ?? 0, "лиды дня = факт по индексу (с «не доведён»)");
   const failedDay = st.leads.filter((l) => l.at.startsWith("2026-09-17") && l.status === "failed").length;
   assert.equal(day.total.failed, failedDay, "не доведённые посчитаны отдельно");
   assert.ok(day.total.plan > 0 && day.total.hours > 0, "есть план и часы");

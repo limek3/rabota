@@ -356,7 +356,7 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
 
   // ── подвал ──
   font(11.5);
-  text("Лиды «не доведён» в факт не входят · конверсия = лиды ÷ часы · план — по рабочим дням месяца", P, H - P + 8, C.dim);
+  text("Лиды «не доведён» — в факте, но не в зарплате · конверсия = лиды ÷ часы · план — по рабочим дням месяца", P, H - P + 8, C.dim);
 }
 
 export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number, fill: string) {

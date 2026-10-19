@@ -227,10 +227,10 @@ export function PeriodPayroll({ pp, onAdj }: { pp: PeriodState; onAdj?: (opId: s
     return [0, 1, 2].map((i) => periodAt(s, from + i));
   }, [s, today, period.idx]);
 
-  // сверка лидов: все доведённые лиды за период против тех, что попали в зарплату
+  // сверка лидов: все оплачиваемые лиды за период (без «не доведён») против тех, что попали в зарплату
   const leadsTo = period.to < today ? period.to : today;
-  const leadsAll = sumRange(ix.day, prAll.start, leadsTo);
-  const leadsOpen = leadsTo > ix.workedTo ? sumRange(ix.day, addDays(ix.workedTo, 1), leadsTo) : 0;
+  const leadsAll = sumRange(ix.payDay, prAll.start, leadsTo);
+  const leadsOpen = leadsTo > ix.workedTo ? sumRange(ix.payDay, addDays(ix.workedTo, 1), leadsTo) : 0;
   const waiting = rowsVisible.filter((r) => r.toPay > 0.005).length;
   const overdue = t.toPay > 0.005 && today > period.pay;
 

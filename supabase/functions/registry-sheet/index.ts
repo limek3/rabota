@@ -641,6 +641,9 @@ function buildIndex(st, workedTo = NO_CUTOFF, openDay = null) {
     opDay: /* @__PURE__ */ new Map(),
     groupDay: /* @__PURE__ */ new Map(),
     projectDay: /* @__PURE__ */ new Map(),
+    payDay: /* @__PURE__ */ new Map(),
+    payOpDay: /* @__PURE__ */ new Map(),
+    payGroupDay: /* @__PURE__ */ new Map(),
     hoursDay: /* @__PURE__ */ new Map(),
     hoursOpDay: /* @__PURE__ */ new Map(),
     hoursGroupDay: /* @__PURE__ */ new Map(),
@@ -662,15 +665,15 @@ function buildIndex(st, workedTo = NO_CUTOFF, openDay = null) {
   for (const l of st.leads) {
     const d = l.at.slice(0, 10);
     const m = d.slice(0, 7);
-    if (l.status === "failed") {
-      addTo(ix.opMonths, l.operatorId, m);
-      ix.months.add(m);
-      continue;
-    }
     ix.day.set(d, (ix.day.get(d) ?? 0) + 1);
     bump(ix.opDay, l.operatorId, d, 1);
     bump(ix.groupDay, gk(l.groupId), d, 1);
     bump(ix.projectDay, l.projectId || "__none__", d, 1);
+    if (l.status !== "failed") {
+      ix.payDay.set(d, (ix.payDay.get(d) ?? 0) + 1);
+      bump(ix.payOpDay, l.operatorId, d, 1);
+      bump(ix.payGroupDay, gk(l.groupId), d, 1);
+    }
     if (!ix.svIds.has(l.operatorId)) {
       ix.convDay.set(d, (ix.convDay.get(d) ?? 0) + 1);
       bump(ix.convGroupDay, gk(l.groupId), d, 1);
@@ -684,7 +687,11 @@ function buildIndex(st, workedTo = NO_CUTOFF, openDay = null) {
   for (const s of st.shifts) {
     const op = ix.opById.get(s.operatorId);
     if (op?.status === "fired" && op.fireDate && s.date > op.fireDate) continue;
-    ix.shift.set(`${s.date}|${s.operatorId}`, s);
+    const key = `${s.date}|${s.operatorId}`;
+    const prev = ix.shift.get(key);
+    if (!prev || (s.updatedAt ?? "") >= (prev.updatedAt ?? "")) ix.shift.set(key, s);
+  }
+  for (const s of ix.shift.values()) {
     const m = s.date.slice(0, 7);
     addTo(ix.opMonths, s.operatorId, m);
     ix.months.add(m);
@@ -702,7 +709,7 @@ function buildIndex(st, workedTo = NO_CUTOFF, openDay = null) {
   }
   if (openDay) {
     for (const l of st.leads) {
-      if (l.status === "failed" || l.at.slice(0, 10) !== openDay || ix.hoursOpDay.get(l.operatorId)?.has(openDay)) continue;
+      if (l.at.slice(0, 10) !== openDay || ix.hoursOpDay.get(l.operatorId)?.has(openDay)) continue;
       ix.pendingOp.set(l.operatorId, (ix.pendingOp.get(l.operatorId) ?? 0) + 1);
       if (ix.svIds.has(l.operatorId)) continue;
       ix.pendingGroup.set(gk(l.groupId), (ix.pendingGroup.get(gk(l.groupId)) ?? 0) + 1);
@@ -857,7 +864,7 @@ function supervisedLeads(st, ix, operatorId, month) {
   const from = monthStart(month);
   const to = monthEnd(month);
   let n = 0;
-  for (const g of supervisedGroups(st, operatorId)) n += sumRange(ix.groupDay.get(g), from, to);
+  for (const g of supervisedGroups(st, operatorId)) n += sumRange(ix.payGroupDay.get(g), from, to);
   return n;
 }
 function freezePastMonths(st, ix, today) {
@@ -951,7 +958,7 @@ function tierFor(tiers, leads) {
   return cur;
 }
 function tieredMonth(operatorId, days, ix, tiers, withHourly) {
-  const leadMap = ix.opDay.get(operatorId);
+  const leadMap = ix.payOpDay.get(operatorId);
   const hourMap = ix.hoursOpDay.get(operatorId);
   const use = /* @__PURE__ */ new Map();
   let hourly = 0;
@@ -978,7 +985,7 @@ function accrual(op, cal, st, ix, upTo) {
   const t = opTerms(op, cal, st, ix);
   const days = monthDays(cal.month).filter((d) => d <= cal.ref && d <= ix.workedTo && (!upTo || d <= upTo));
   const hours = days.length ? round2(sumRange(ix.hoursOpDay.get(op.id), days[0], days[days.length - 1])) : 0;
-  const leads = days.length ? sumRange(ix.opDay.get(op.id), days[0], days[days.length - 1]) : 0;
+  const leads = days.length ? sumRange(ix.payOpDay.get(op.id), days[0], days[days.length - 1]) : 0;
   let base = 0;
   let leadPay = 0;
   let salaryShare = 0;

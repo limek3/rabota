@@ -188,10 +188,8 @@ export function buildRopReport(st: DataState, ix: Index, kind: ReportKind, ancho
   const byGroup = new Map<string, { leads: number; done: number }>();
   for (const l of st.leads) {
     if (!inFact(l)) continue;
-    if (l.status === "failed") {
-      leads.failed++;
-      continue;
-    }
+    // «не доведён» — в количестве и факте (отдельно показываем, сколько их), но не в зарплате
+    if (l.status === "failed") leads.failed++;
     const k = gk(l.groupId);
     const g = byGroup.get(k) ?? { leads: 0, done: 0 };
     g.leads++;
@@ -376,7 +374,7 @@ export function ropText(r: RopReport, company = ""): string {
   }
   if (r.segments.none) L.push(`  • регион не указан — ${fmtInt(r.segments.none)}`);
   if (r.leads.auto && r.leads.re) L.push(`Недвижимость — ${fmtInt(r.leads.re)}, авто — ${fmtInt(r.leads.auto)}`);
-  if (r.leads.failed) L.push(`Не доведено — ${fmtInt(r.leads.failed)} (в факт не входят)`);
+  if (r.leads.failed) L.push(`Не доведено — ${fmtInt(r.leads.failed)} (в факте, но не в зарплате)`);
 
   // группы
   blank();

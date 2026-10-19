@@ -50,11 +50,19 @@ export interface Index {
   groupById: Map<ID, Group>;
   projectById: Map<ID, Project>;
   planById: Map<ID, MonthPlan>;
-  /** Лиды команды по дням. */
+  /**
+   * Лиды команды по дням — все переданные, и «не доведён» тоже: они идут в количество, факт, план
+   * и конверсию (оператор лид передал, сорвался он уже дальше). Не идут они только в зарплату —
+   * для неё payOpDay / payGroupDay.
+   */
   day: DayMap;
   opDay: Map<ID, DayMap>;
   groupDay: Map<string, DayMap>;
   projectDay: Map<string, DayMap>;
+  /** Оплачиваемые лиды — без «не доведён»: по ним считаются зарплата, ступени ставок и бонус СВ. */
+  payDay: DayMap;
+  payOpDay: Map<ID, DayMap>;
+  payGroupDay: Map<string, DayMap>;
   /**
    * Отработанные часы (рабочий день + обучение) — только за закрытые дни (≤ workedTo).
    * Сегодняшняя смена до закрытия дня ещё идёт: в часы, конверсию и зарплату она не попадает.
@@ -193,6 +201,9 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF, openDay:
     opDay: new Map(),
     groupDay: new Map(),
     projectDay: new Map(),
+    payDay: new Map(),
+    payOpDay: new Map(),
+    payGroupDay: new Map(),
     hoursDay: new Map(),
     hoursOpDay: new Map(),
     hoursGroupDay: new Map(),
@@ -214,16 +225,16 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF, openDay:
   for (const l of st.leads) {
     const d = l.at.slice(0, 10);
     const m = d.slice(0, 7);
-    // «не доведён» не идёт ни в факт, ни в зарплату; «в работе» считается сразу, пока его не отклонили
-    if (l.status === "failed") {
-      addTo(ix.opMonths, l.operatorId, m);
-      ix.months.add(m);
-      continue;
-    }
+    // все переданные лиды — в количество, факт, план и конверсию; «не доведён» — только не в зарплату
     ix.day.set(d, (ix.day.get(d) ?? 0) + 1);
     bump(ix.opDay, l.operatorId, d, 1);
     bump(ix.groupDay, gk(l.groupId), d, 1);
     bump(ix.projectDay, l.projectId || "__none__", d, 1);
+    if (l.status !== "failed") {
+      ix.payDay.set(d, (ix.payDay.get(d) ?? 0) + 1);
+      bump(ix.payOpDay, l.operatorId, d, 1);
+      bump(ix.payGroupDay, gk(l.groupId), d, 1);
+    }
     if (!ix.svIds.has(l.operatorId)) {
       ix.convDay.set(d, (ix.convDay.get(d) ?? 0) + 1);
       bump(ix.convGroupDay, gk(l.groupId), d, 1);
@@ -264,7 +275,7 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF, openDay:
   }
   if (openDay) {
     for (const l of st.leads) {
-      if (l.status === "failed" || l.at.slice(0, 10) !== openDay || ix.hoursOpDay.get(l.operatorId)?.has(openDay)) continue;
+      if (l.at.slice(0, 10) !== openDay || ix.hoursOpDay.get(l.operatorId)?.has(openDay)) continue;
       ix.pendingOp.set(l.operatorId, (ix.pendingOp.get(l.operatorId) ?? 0) + 1);
       // в группе и команде — только линия: лиды супервайзера в конверсию не идут вовсе
       if (ix.svIds.has(l.operatorId)) continue;
@@ -817,7 +828,8 @@ export function supervisedLeads(st: DataState, ix: Index, operatorId: ID, month:
   const from = monthStart(month);
   const to = monthEnd(month);
   let n = 0;
-  for (const g of supervisedGroups(st, operatorId)) n += sumRange(ix.groupDay.get(g), from, to);
+  // бонус СВ — деньги: только оплачиваемые лиды групп, без «не доведён»
+  for (const g of supervisedGroups(st, operatorId)) n += sumRange(ix.payGroupDay.get(g), from, to);
   return n;
 }
 
@@ -1334,7 +1346,7 @@ export interface LeadFilter {
   operatorId?: ID | "";
   groupId?: string; // id | NO_GROUP | ""
   projectId?: string; // id | "__none__" | ""
-  /** Статус лида; "counted" — всё, что идёт в факт (кроме «не доведён»). */
+  /** Статус лида; "counted" — всё, что идёт в факт (все переданные, «не доведён» тоже). */
   status?: LeadStatus | "counted" | "";
   q?: string;
 }
@@ -1348,7 +1360,7 @@ export function filterLeads(leads: Lead[], f: LeadFilter): Lead[] {
     if (f.operatorId && l.operatorId !== f.operatorId) return false;
     if (f.groupId && gk(l.groupId) !== f.groupId) return false;
     if (f.projectId && (l.projectId || "__none__") !== f.projectId) return false;
-    if (f.status && (f.status === "counted" ? l.status === "failed" : l.status !== f.status)) return false;
+    if (f.status && f.status !== "counted" && l.status !== f.status) return false;
     if (q) {
       const hitName = l.client.toLowerCase().includes(q);
       const hitPhone = qDigits.length >= 3 && l.phone.includes(qDigits);

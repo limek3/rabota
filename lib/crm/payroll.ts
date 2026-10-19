@@ -156,7 +156,7 @@ export function tieredMonth(
   tiers: RateTier[],
   withHourly: boolean,
 ): { hourly: number; bonus: number; use: TierUse[] } {
-  const leadMap = ix.opDay.get(operatorId);
+  const leadMap = ix.payOpDay.get(operatorId); // ступень и бонус — по оплачиваемым лидам смены (без «не доведён»)
   const hourMap = ix.hoursOpDay.get(operatorId);
   const use = new Map<number, TierUse>();
   let hourly = 0;
@@ -192,7 +192,8 @@ export function accrual(op: Operator, cal: MonthCal, st: DataState, ix: Index, u
   // из Скорозвона (ix.openDay): смена по графику наперёд в ФОТ не попадает
   const days = monthDays(cal.month).filter((d) => d <= cal.ref && d <= ix.workedTo && (!upTo || d <= upTo));
   const hours = days.length ? round2(sumRange(ix.hoursOpDay.get(op.id), days[0], days[days.length - 1])) : 0;
-  const leads = days.length ? sumRange(ix.opDay.get(op.id), days[0], days[days.length - 1]) : 0;
+  // в зарплату — только оплачиваемые лиды: «не доведён» идёт в факт и конверсию, но не в деньги
+  const leads = days.length ? sumRange(ix.payOpDay.get(op.id), days[0], days[days.length - 1]) : 0;
 
   let base = 0;
   let leadPay = 0;

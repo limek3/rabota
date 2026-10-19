@@ -1513,8 +1513,7 @@ function HourCard({ day, keys, plan }: { day: DayKey; keys: string[] | null; pla
     const cur = new Array<number>(24).fill(0);
     const prev = new Array<number>(24).fill(0);
     for (const l of data.leads) {
-      // как в факте: «не доведён» не считается
-      if (l.status === "failed") continue;
+      // как в факте: все переданные, «не доведён» тоже
       const d = l.at.slice(0, 10);
       if (d !== day && d !== prevDay) continue;
       if (set && !set.has(l.groupId || NO_GROUP)) continue;
