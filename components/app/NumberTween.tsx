@@ -86,6 +86,7 @@ export function NumberTween() {
     // что мы сами записали в узел: наши кадры наблюдатель тоже видит — их пропускаем
     const own = new WeakMap<Text, string>();
     let raf = 0;
+    let guard = 0;
 
     const write = (node: Text, text: string) => {
       if (node.data === text) return;
@@ -128,11 +129,21 @@ export function NumberTween() {
         write(node, render(fromV, to, 0));
       }
       if (runs.size && !raf) raf = requestAnimationFrame(step);
+      // страховка: кадры не идут (вкладка в фоне, окно свернули посреди анимации) — через DUR
+      // ставим итоговый текст сами, иначе на экране так и осталось бы старое число
+      if (runs.size) {
+        clearTimeout(guard);
+        guard = window.setTimeout(() => {
+          for (const [node, r] of runs) write(node, r.final);
+          runs.clear();
+        }, DUR + 80);
+      }
     });
     mo.observe(document.body, { subtree: true, characterData: true, characterDataOldValue: true });
     return () => {
       mo.disconnect();
       cancelAnimationFrame(raf);
+      clearTimeout(guard);
       // недоигранные — сразу к итоговому тексту
       for (const [node, r] of runs) node.data = r.final;
       runs.clear();

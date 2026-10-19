@@ -166,10 +166,12 @@ interface BarPoint {
   count: number | null;
   isWork: boolean;
   hours: number;
+  /** Лиды для конверсии дня (DayRow.convLeads). */
+  conv: number;
 }
 
 export function DailyBars({ rows, dailyPlan, height = 200 }: { rows: DayRow[]; dailyPlan: number; height?: number }) {
-  const data: BarPoint[] = rows.map((r, i) => ({ d: i + 1, day: r.day, count: r.future ? null : r.count, isWork: r.isWork, hours: r.hours }));
+  const data: BarPoint[] = rows.map((r, i) => ({ d: i + 1, day: r.day, count: r.future ? null : r.count, isWork: r.isWork, hours: r.hours, conv: r.convLeads }));
   return (
     <div style={{ width: "100%", height, overflow: "hidden" }}>
       <ResponsiveContainer debounce={CHART_RESIZE_DEBOUNCE}>
@@ -191,7 +193,7 @@ export function DailyBars({ rows, dailyPlan, height = 200 }: { rows: DayRow[]; d
                   <TipRow label="Передано" value={p.count == null ? "—" : fmtInt(p.count)} />
                   {p.isWork && <TipRow label="Дневной план" value={fmtNum(dailyPlan)} />}
                   {p.hours > 0 && <TipRow label="Часы" value={fmtNum(p.hours)} />}
-                  {p.hours > 0 && p.count != null && <TipRow label="Конверсия" value={fmtPct(p.count / p.hours)} />}
+                  {p.hours > 0 && p.count != null && <TipRow label="Конверсия" value={fmtPct(p.conv / p.hours)} />}
                 </TipBox>
               );
             }}

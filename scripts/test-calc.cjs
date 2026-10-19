@@ -943,6 +943,61 @@ console.log("ALL OK");
   console.log(`27a ok: на сейчас — ${rS.op.name}: 3.5 ч из Скорозвона сразу; ${rP.op.name}: ${lp} лид. ждут часов, в конверсию не идут`);
 }
 
+/* 27c. Конверсия дня — одно правило везде (dayConv): график, сводка «сегодня», команда, группы.
+   Лиды линии ÷ фактические часы; идущий день — только у тех, чьи часы пришли из Скорозвона;
+   плановые часы смен не считаются; супервайзер не входит ни лидами, ни часами. */
+{
+  const assert = require("assert");
+  const { buildIndex, monthModel, dayConv, dailyRows } = R("calc");
+  const { buildDemo } = R("demo");
+  const today = "2026-09-17";
+  const st = buildDemo(today);
+  const ix0 = buildIndex(st, today, today);
+  const work = st.shifts.filter((x) => x.date === today && x.hours > 0 && (x.type === "work" || x.type === "training") && !ix0.svIds.has(x.operatorId));
+  const synced = work.filter((x) => (ix0.opDay.get(x.operatorId)?.get(today) ?? 0) > 0).slice(0, 2);
+  const live = { ...st, shifts: st.shifts.map((x) => (synced.some((y) => y.id === x.id) ? { ...x, hours: 3, comment: "Скорозвон: доступен 3:00" } : x)) };
+  const ix = buildIndex(live, today, today);
+  const m = monthModel(live, ix, "2026-09", today);
+  const line = m.ops.filter((r) => !ix.svIds.has(r.op.id)).map((r) => r.op.id);
+  const all = m.ops.map((r) => r.op.id);
+  // сегодня: только двое с часами из Скорозвона, 3 + 3 ч, их лиды
+  const c = dayConv(ix, all, today);
+  const expLeads = synced.reduce((a, x) => a + ix.opDay.get(x.operatorId).get(today), 0);
+  assert.strictEqual(c.hours, 6, "часы сегодня — только из Скорозвона, плановые не идут");
+  assert.strictEqual(c.leads, expLeads, "лиды сегодня — только у тех, чьи часы пришли");
+  // сводка «сегодня» = то же число
+  assert.ok(Math.abs(m.team.lphToday - c.lph) < 1e-9, `сводка «сегодня» ${m.team.lphToday} = график ${c.lph}`);
+  // супервайзер не влияет: с ним и без него — одно и то же
+  assert.deepStrictEqual(dayConv(ix, line, today), c, "супервайзер не входит в конверсию");
+  // месяц: сумма dayConv по закрытым дням и сегодня = конверсия команды
+  let L = 0;
+  let H = 0;
+  for (const d of m.cal.days) {
+    if (d > today) break;
+    const x = dayConv(ix, all, d);
+    L += x.leads;
+    H += x.hours;
+  }
+  assert.ok(Math.abs(m.team.lph - L / H) < 1e-9, `месяц по дням ${L / H} = команда ${m.team.lph}`);
+  // «Динамика»: dailyRows с conv — та же конверсия дня
+  const rows = dailyRows(m.cal, m.team.plan, ix.day, ix.hoursDay, { counts: ix.convDay, pending: ix.pendingTeam, openDay: ix.openDay });
+  const rT = rows.find((r) => r.day === today);
+  assert.ok(Math.abs(rT.convLeads / rT.hours - c.lph) < 1e-9, "динамика «сегодня» = график");
+  // группа: та же сумма по её линии
+  const g = m.groups.find((x) => x.lph != null);
+  let gl = 0;
+  let gh = 0;
+  for (const d of m.cal.days) {
+    if (d > today) break;
+    const ids = m.ops.filter((r) => r.groupKey === g.key).map((r) => r.op.id);
+    const x = dayConv(ix, ids, d);
+    gl += x.leads;
+    gh += x.hours;
+  }
+  assert.ok(Math.abs(g.lph - gl / gh) < 0.02, `группа ${g.name}: ${g.lph} ≈ по дням ${gl / gh}`);
+  console.log(`27c ok: конверсия дня одна везде — сегодня ${expLeads} лид. ÷ 6 ч = ${Math.round(c.lph * 100)}% (плановые часы не идут), месяц ${Math.round(m.team.lph * 100)}%`);
+}
+
 /* ── 27b. налог самозанятого: к переводу = остаток ÷ 0,94, до рубля (=ОКРУГЛ(P2/0,94;0)) ── */
 {
   const assert = require("assert");

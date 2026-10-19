@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { createPortal } from "react-dom";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel } from "@/lib/crm/hooks";
-import { goneLast, isGone, sumRange, svWorkday, type OpRow } from "@/lib/crm/calc";
+import { dayConv, goneLast, isGone, sumRange, svWorkday, type OpRow } from "@/lib/crm/calc";
 import { DAY_LABEL, DAY_SHORT, HOURS_DAY_TYPES, NO_GROUP, NO_GROUP_LABEL, startTimeLabel, type DayKey, type DayType, type Operator, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
@@ -122,23 +122,27 @@ export default function SchedulePage() {
     [days, ix, today, m.cal],
   );
 
+  // итоги дня: часы — фактические (прошлые дни и часы из Скорозвона за сегодня), у будущих — по графику;
+  // лиды — все (и супервайзера, как в сводке); конверсия — dayConv, то же правило, что в сводке и отчётах
+  const rowIds = useMemo(() => rows.map((r) => r.op.id), [rows]);
   const dayTotals = useMemo(
     () =>
       days.map((d) => {
+        const future = d > today;
         let h = 0;
         let n = 0;
         let people = 0;
         for (const r of rows) {
-          // итоги дня — по операторам на линии: график супервайзера в них не входит
+          n += ix.opDay.get(r.op.id)?.get(d) ?? 0;
+          // часы супервайзера в итоги дня не входят
           if (ix.svIds.has(r.op.id)) continue;
-          const hh = ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
+          const hh = (future ? ix.plannedOpDay : ix.hoursOpDay).get(r.op.id)?.get(d) ?? 0;
           h += hh;
           if (hh > 0) people++;
-          n += ix.opDay.get(r.op.id)?.get(d) ?? 0;
         }
-        return { h, n, people };
+        return { h, n, people, c: future ? null : dayConv(ix, rowIds, d) };
       }),
-    [days, rows, ix],
+    [days, rows, rowIds, ix, today],
   );
 
   // секции таблицы: работающие группы и её уволенные — отдельными сворачиваемыми блоками с итогами
@@ -193,7 +197,9 @@ export default function SchedulePage() {
     // план СВ в план отдела не входит (как в сводке и отчёте), его лиды — входят
     const planToDate = rows.reduce((a, r) => a + (ix.svIds.has(r.op.id) ? 0 : r.pace.planToDate), 0);
     const plan = rows.reduce((a, r) => a + (ix.svIds.has(r.op.id) ? 0 : r.pace.plan), 0);
-    return { hours, leads, planToDate, plan };
+    // конверсия — лиды линии (без СВ) закрытых дней и сегодняшние у тех, чьи часы уже пришли (как в сводке)
+    const convLeads = rows.reduce((a, r) => a + (ix.svIds.has(r.op.id) ? 0 : r.factClosed), 0);
+    return { hours, leads, planToDate, plan, convLeads };
   }, [rows, ix]);
 
   // план дня: план месяца строк на экране ÷ рабочие дни месяца; в выходные плана нет
@@ -202,12 +208,12 @@ export default function SchedulePage() {
 
   // итоги по неделям (пн–вс; первая и последняя неделя месяца — неполные)
   const weeks = useMemo(() => {
-    const out: { from: DayKey; to: DayKey; c0: number; span: number; h: number; n: number; plan: number; past: boolean }[] = [];
+    const out: { from: DayKey; to: DayKey; c0: number; span: number; h: number; n: number; cl: number; ch: number; plan: number; past: boolean }[] = [];
     days.forEach((d, i) => {
       const t = dayTotals[i];
       let w = out[out.length - 1];
       if (!w || weekStart(d) !== weekStart(w.from)) {
-        w = { from: d, to: d, c0: i, span: 0, h: 0, n: 0, plan: 0, past: false };
+        w = { from: d, to: d, c0: i, span: 0, h: 0, n: 0, cl: 0, ch: 0, plan: 0, past: false };
         out.push(w);
       }
       w.to = d;
@@ -217,6 +223,8 @@ export default function SchedulePage() {
       if (d <= today) {
         w.h += t.h;
         w.n += t.n;
+        w.cl += t.c?.leads ?? 0;
+        w.ch += t.c?.hours ?? 0;
         w.past = true;
       }
     });
@@ -232,21 +240,30 @@ export default function SchedulePage() {
     let leads = 0;
     let shifts = 0;
     let workdays = 0;
+    // конверсия — dayConv по прошедшим дням (будущие смены в неё не идут)
+    let convLeads = 0;
+    let convHours = 0;
     for (let c = c0; c <= c1; c++) {
       const d = days[c];
       if (!d) continue;
       if (isWorkday(d, s)) workdays++;
+      const future = d > today;
       for (const r of rows) {
-        // как в «Итого по дням»: смены супервайзера в часы и конверсию не идут, его лиды — идут
+        // как в «Итого по дням»: часы супервайзера не идут, его лиды — идут; часы — факт, у будущих — по графику
         leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
         if (ix.svIds.has(r.op.id)) continue;
-        const hh = ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
+        const hh = (future ? ix.plannedOpDay : ix.hoursOpDay).get(r.op.id)?.get(d) ?? 0;
         hours += hh;
         if (hh > 0) shifts++;
       }
+      if (!future) {
+        const cv = dayConv(ix, rowIds, d);
+        convLeads += cv.leads;
+        convHours += cv.hours;
+      }
     }
-    return { from: days[c0], to: days[c1], c0, c1, count: c1 - c0 + 1, workdays, hours, leads, shifts };
-  }, [dayRange, days, rows, ix, s]);
+    return { from: days[c0], to: days[c1], c0, c1, count: c1 - c0 + 1, workdays, hours, leads, shifts, convLeads, convHours };
+  }, [dayRange, days, rows, rowIds, ix, s, today]);
 
   const clearDays = () => {
     dayDrag.current = false;
@@ -491,7 +508,7 @@ export default function SchedulePage() {
                       key={d}
                       data-c={i}
                       className={`c num day-tot ${isWorkday(d, s) ? "" : "off"} ${colSel && i >= colSel.c0 && i <= colSel.c1 ? "csel" : ""}`}
-                      title={`${fmtDay(d)}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${p ? ` · план дня ${fmtNum(p, 1)}` : ""}${t.h ? ` · конверсия ${fmtPct(t.n / t.h)} (${fmtNum(t.n / t.h, 2)} лид/ч)` : ""}`}
+                      title={`${fmtDay(d)}: ${fmtNum(t.h)} ч, ${t.people} чел., ${t.n} лид.${p ? ` · план дня ${fmtNum(p, 1)}` : ""}${t.c?.lph != null ? ` · конверсия ${fmtPct(t.c.lph)} (${fmtNum(t.c.lph, 2)} лид/ч)` : ""}`}
                     >
                       {t.h || t.n ? (
                         <>
@@ -501,9 +518,9 @@ export default function SchedulePage() {
                             {pr > 0 && <span className="day-tot-p">/{pr}</span>}
                           </div>
                           {/* конверсия дня (лиды ÷ часы): ниже нормы из настроек — красным, от нормы — зелёным; у будущих дней не считаем */}
-                          {t.h > 0 && d <= today && (
+                          {t.c?.lph != null && (
                             <div className="day-tot-c">
-                              <Conv leads={t.n} hours={t.h} />
+                              <Conv value={t.c.lph} />
                             </div>
                           )}
                         </>
@@ -516,7 +533,7 @@ export default function SchedulePage() {
                 <td className="r num sum sum-h">{fmtNum(tot.hours)}</td>
                 <td className="r num sum sum-l"><LeadN n={tot.leads} /></td>
                 <LeadsDelta fact={tot.leads} plan={tot.plan} planToDate={tot.planToDate} />
-                <td className="r num sum sum-c"><Conv leads={tot.leads} hours={tot.hours} /></td>
+                <td className="r num sum sum-c"><Conv leads={tot.convLeads} hours={tot.hours} /></td>
               </tr>
               <tr className="week-row">
                 <td className="sticky-col">По неделям</td>
@@ -529,7 +546,7 @@ export default function SchedulePage() {
                       key={w.from}
                       colSpan={w.span}
                       className="week-tot num"
-                      title={`${range}: ${fmtNum(w.h)} ч, ${w.n} лид.${pr ? ` из ${fmtNum(w.plan, 1)} по плану` : ""}${w.h ? ` · конверсия ${fmtPct(w.n / w.h)}` : ""}`}
+                      title={`${range}: ${fmtNum(w.h)} ч, ${w.n} лид.${pr ? ` из ${fmtNum(w.plan, 1)} по плану` : ""}${w.ch ? ` · конверсия ${fmtPct(w.cl / w.ch)}` : ""}`}
                     >
                       {w.past && (w.h > 0 || w.n > 0) ? (
                         <span className="week-tot-in">
@@ -538,7 +555,7 @@ export default function SchedulePage() {
                             {pr > 0 && <span className="day-tot-p">/{pr}</span>}
                           </b>
                           {w.span >= 3 && <span className="week-tot-h">{fmtNum(w.h)} ч</span>}
-                          {w.span >= 2 && w.h > 0 && <Conv leads={w.n} hours={w.h} />}
+                          {w.span >= 2 && w.ch > 0 && <Conv leads={w.cl} hours={w.ch} />}
                         </span>
                       ) : pr > 0 && w.span >= 2 ? (
                         <span className="week-tot-in muted">план {pr}</span>
@@ -717,7 +734,7 @@ function SchedRow({
       <td className="r num sum sum-l"><LeadN n={r.pace.fact} /></td>
       <LeadsDelta fact={r.pace.fact} plan={r.pace.plan} planToDate={r.pace.planToDate} />
       {/* у супервайзера конверсии нет: его часы — работа с группой */}
-      {ix.svIds.has(r.op.id) ? <td className="r num muted sum sum-c">—</td> : <td className="r num sum sum-c"><Conv leads={r.pace.fact} hours={r.hours} /></td>}
+      {ix.svIds.has(r.op.id) ? <td className="r num muted sum sum-c">—</td> : <td className="r num sum sum-c"><Conv leads={r.factClosed} hours={r.hours} /></td>}
     </tr>
   );
 }
@@ -810,6 +827,8 @@ function SectionRow({
   let plan = 0;
   let planToDate = 0;
   let days = 0;
+  // конверсия — по лидам закрытых дней и сегодняшним с часами из Скорозвона (как в сводке)
+  let convLeads = 0;
   for (const i of sec.idx) {
     const r = rows[i];
     leads += r.pace.fact;
@@ -819,6 +838,7 @@ function SectionRow({
       continue;
     }
     hours += r.hours;
+    convLeads += r.factClosed;
     plan += r.pace.plan;
     planToDate += r.pace.planToDate;
   }
@@ -836,7 +856,7 @@ function SectionRow({
       {sec.sv ? <td className="r num sum sum-h" title="Отработано дней по графику">{days} дн.</td> : <td className="r num sum sum-h">{fmtNum(hours)}</td>}
       <td className="r num sum sum-l"><LeadN n={leads} /></td>
       <LeadsDelta fact={leads} plan={plan} planToDate={planToDate} />
-      {sec.sv ? <td className="r num muted sum sum-c">—</td> : <td className="r num sum sum-c"><Conv leads={leads} hours={hours} /></td>}
+      {sec.sv ? <td className="r num muted sum sum-c">—</td> : <td className="r num sum sum-c"><Conv leads={convLeads} hours={hours} /></td>}
     </tr>
   );
 }
@@ -863,7 +883,7 @@ function DayTip({
   scope,
 }: {
   at: { x: number; y: number };
-  st: { from: DayKey; to: DayKey; count: number; workdays: number; hours: number; leads: number; shifts: number };
+  st: { from: DayKey; to: DayKey; count: number; workdays: number; hours: number; leads: number; shifts: number; convLeads: number; convHours: number };
   scope: string | null;
 }) {
   const W = 240;
@@ -873,7 +893,7 @@ function DayTip({
   const vh = window.innerHeight / uiZoom();
   const left = at.x + 16 + W > vw - 8 ? at.x - W - 16 : at.x + 16;
   const top = at.y + 18 + H > vh - 8 ? at.y - H - 12 : at.y + 18;
-  const conv = st.hours > 0 ? st.leads / st.hours : null;
+  const conv = st.convHours > 0 ? st.convLeads / st.convHours : null;
   return createPortal(
     <div className="card day-tip" role="status" style={{ left: Math.max(8, left), top: Math.max(8, top), width: W }}>
       <div className="day-tip-head">

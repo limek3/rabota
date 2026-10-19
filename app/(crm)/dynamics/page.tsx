@@ -23,13 +23,14 @@ export default function DynamicsPage() {
   const sel = useMemo(() => {
     if (scope.startsWith("g:")) {
       const g = m.groups.find((x) => x.key === scope.slice(2));
-      if (g) return { label: g.name, plan: g.plan, counts: ix.groupDay.get(g.key), hours: ix.hoursGroupDay.get(g.key), pace: g.pace };
+      if (g) return { label: g.name, plan: g.plan, counts: ix.groupDay.get(g.key), hours: ix.hoursGroupDay.get(g.key), pace: g.pace, conv: { counts: ix.convGroupDay.get(g.key), pending: ix.pendingGroup.get(g.key) ?? 0 } };
     }
     if (scope.startsWith("o:")) {
       const r = m.ops.find((x) => x.op.id === scope.slice(2));
-      if (r) return { label: shortName(r.op.name), plan: r.terms.plan, counts: ix.opDay.get(r.op.id), hours: ix.hoursOpDay.get(r.op.id), pace: r.pace };
+      if (r) return { label: shortName(r.op.name), plan: r.terms.plan, counts: ix.opDay.get(r.op.id), hours: ix.hoursOpDay.get(r.op.id), pace: r.pace, conv: { counts: ix.opDay.get(r.op.id), pending: ix.pendingOp.get(r.op.id) ?? 0 } };
     }
-    return { label: "Вся команда", plan: m.team.plan, counts: ix.day, hours: ix.hoursDay, pace: m.team.pace };
+    // conv — числитель конверсии: лиды линии без ждущих часов из Скорозвона (как в сводке и графике)
+    return { label: "Вся команда", plan: m.team.plan, counts: ix.day, hours: ix.hoursDay, pace: m.team.pace, conv: { counts: ix.convDay, pending: ix.pendingTeam } };
   }, [scope, m, ix]);
 
   // лиды выбранного среза — для карты по часам (группа — на момент передачи, как в факте)
@@ -45,7 +46,7 @@ export default function DynamicsPage() {
     return data.leads;
   }, [scope, data.leads]);
 
-  const days = useMemo(() => dailyRows(m.cal, sel.plan, sel.counts, sel.hours), [m.cal, sel]);
+  const days = useMemo(() => dailyRows(m.cal, sel.plan, sel.counts, sel.hours, { ...sel.conv, openDay: ix.openDay }), [m.cal, sel, ix.openDay]);
   const weeks = useMemo(() => weeklyRows(m.cal, sel.plan, sel.counts), [m.cal, sel]);
   const p = sel.pace;
   const cur = m.cal.phase === "current";
@@ -139,7 +140,7 @@ export default function DynamicsPage() {
                   <td className="r num">{d.future || d.avgPace == null ? "" : fmtNum(d.avgPace)}</td>
                   <td className="r num">{d.future || d.needPace == null ? "" : fmtNum(d.needPace)}</td>
                   <td className="r num bl">{d.hours ? fmtNum(d.hours) : ""}</td>
-                  <td className="r num">{d.hours > 0 && !d.future ? <Conv leads={d.count} hours={d.hours} /> : ""}</td>
+                  <td className="r num">{d.hours > 0 && !d.future ? <Conv leads={d.convLeads} hours={d.hours} /> : ""}</td>
                 </tr>
               ))}
             </tbody>

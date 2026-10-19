@@ -244,6 +244,8 @@ export interface LeadExportLogEntry {
   to: DayKey;
   /** Что выгружали: нет — номера (Excel «Номера»), "sheet" — лиды в таблицу ОКК (lib/crm/leadsheet.ts). */
   kind?: "sheet";
+  /** Проект выгрузки (название); нет — все проекты. */
+  project?: string;
 }
 
 /** Смена: одна запись на оператора в день (id = `${date}|${operatorId}`). */

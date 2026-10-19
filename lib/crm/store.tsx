@@ -179,7 +179,7 @@ interface Store {
   /** Статус лидов: «доведён» / «не доведён» (причина обязательна) / вернуть «в работе». Возвращает число изменённых. */
   setLeadStatus: (ids: ID[], status: LeadStatus, reason?: string) => Promise<number>;
   /** Номера этих лидов выгружены в Excel: отметка с датой и строка в истории выгрузок (РОП и супервайзер). */
-  markLeadsExported: (ids: ID[], period: { from: DayKey; to: DayKey; count: number }) => Promise<boolean>;
+  markLeadsExported: (ids: ID[], period: { from: DayKey; to: DayKey; count: number; project?: string }) => Promise<boolean>;
   /** Выгрузка лидов в таблицу ОКК (Excel или Google) — строка в истории выгрузок. Номера при этом не отмечаются. */
   logSheetExport: (period: { from: DayKey; to: DayKey; count: number }, where: string) => Promise<boolean>;
   saveOperator: (input: OperatorInput) => Promise<Operator | null>;
@@ -820,7 +820,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       }
       if (!ids.length) return true;
       const now = isoNow();
-      const entry: LeadExportLogEntry = { at: now, by: a.account.name, count: period.count, from: period.from, to: period.to };
+      const entry: LeadExportLogEntry = { at: now, by: a.account.name, count: period.count, from: period.from, to: period.to, ...(period.project ? { project: period.project } : {}) };
       let next: Record<ID, string> = {};
       let nextLog: LeadExportLogEntry[] = [];
       const ok = await commit(
@@ -835,7 +835,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         (d) => ({ ...d, leadExports: next, leadExportLog: nextLog }),
         "Не удалось отметить выгрузку",
       );
-      if (ok) void log("lead", ids.slice(0, 50).join(","), `Выгружены номера: ${period.count} · ${fmtDate(period.from)}–${fmtDate(period.to)}`);
+      if (ok) void log("lead", ids.slice(0, 50).join(","), `Выгружены номера: ${period.count}${period.project ? ` · ${period.project}` : ""} · ${fmtDate(period.from)}–${fmtDate(period.to)}`);
       return ok;
     },
     [commit, deny, log],

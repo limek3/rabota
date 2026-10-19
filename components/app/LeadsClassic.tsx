@@ -506,8 +506,18 @@ export function PhonesExport({
   const [to, setTo] = useState<DayKey>(to0 < from0 ? from0 : to0);
   const [onlyNew, setOnlyNew] = useState(true);
   const [busy, setBusy] = useState(false);
+  // проект: авто.ру и 100 up выгружают отдельно — у них разные заказчики; «» — все, «__none__» — без проекта
+  const [project, setProject] = useState("");
+  const projects = useMemo(() => data.projects.filter((p) => !p.deletedAt).sort((a, b) => a.sort - b.sort), [data.projects]);
+  const projectName = project === "__none__" ? "Без проекта" : projects.find((p) => p.id === project)?.name ?? "";
 
-  const withPhone = useMemo(() => (from <= to ? pick(from, to) : []).filter((l) => filePhone(l.phone)), [pick, from, to]);
+  const withPhone = useMemo(
+    () =>
+      (from <= to ? pick(from, to) : []).filter(
+        (l) => filePhone(l.phone) && (!project || (project === "__none__" ? !l.projectId : l.projectId === project)),
+      ),
+    [pick, from, to, project],
+  );
   const done = useMemo(() => withPhone.filter((l) => data.leadExports[l.id]).length, [withPhone, data.leadExports]);
   const out = useMemo(() => {
     const src = (onlyNew ? withPhone.filter((l) => !data.leadExports[l.id]) : withPhone).slice().sort((a, b) => a.at.localeCompare(b.at));
@@ -528,10 +538,11 @@ export function PhonesExport({
   const download = async () => {
     setBusy(true);
     const span = from === to ? fmtDate(from) : `${fmtDate(from)}–${fmtDate(to)}`;
-    downloadBlob(`Номера ${span}.xlsx`, buildXlsx([["Имя", "Телефон", "Дата"], ...out.rows], { sheet: "Номера", widths: [34, 18, 12] }));
+    const tag = projectName ? ` ${projectName.replace(/[\\/:*?"<>|]+/g, " ").trim()}` : "";
+    downloadBlob(`Номера${tag} ${span}.xlsx`, buildXlsx([["Имя", "Телефон", "Дата"], ...out.rows], { sheet: "Номера", widths: [34, 18, 12] }));
     const ok = await markLeadsExported(
       out.leads.map((l) => l.id),
-      { from, to, count: out.rows.length },
+      { from, to, count: out.rows.length, ...(projectName ? { project: projectName } : {}) },
     );
     setBusy(false);
     if (!ok) return;
@@ -559,6 +570,16 @@ export function PhonesExport({
         Файл Excel: имя, телефон и дата лида. Выгруженные номера отмечаются галочкой в журнале лидов.
         {filtered && " Учитываются фильтры страницы."}
       </div>
+      {projects.length > 1 && (
+        <div className="exp-proj" role="radiogroup" aria-label="Проект">
+          {[{ id: "", name: "Все проекты", color: "" }, ...projects].map((p) => (
+            <button key={p.id || "all"} type="button" role="radio" aria-checked={project === p.id} className={project === p.id ? "on" : ""} onClick={() => setProject(p.id)}>
+              {p.color && <i style={{ background: `var(--c-${p.color}-fg)` }} />}
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid2">
         <Field label="С">
           <DateInput value={from} onChange={(d) => d && setFrom(d)} max={today} ariaLabel="С" />
@@ -597,7 +618,10 @@ export function PhonesExport({
             {phoneLog.slice(0, 8).map((e) => (
               <div key={e.at + e.by} className="exp-log-row">
                 <span className="num">{fmtStamp(e.at)}</span>
-                <span className="exp-log-by">{e.by}</span>
+                <span className="exp-log-by">
+                  {e.by}
+                  {e.project && <span className="muted"> · {e.project}</span>}
+                </span>
                 <b className="num">
                   {fmtInt(e.count)} {plural(e.count, NUMBERS)}
                 </b>

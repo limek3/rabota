@@ -1,4 +1,4 @@
-import type { DataState, DayKey, Operator } from "./types";
+import type { DataState, DayKey, ID, Operator } from "./types";
 import { NO_GROUP, NO_GROUP_LABEL } from "./types";
 import { WORKED_TYPES, employmentWindow, goneLast, isGone, monthModel, probation, type Index, type MonthModel, type OpRow } from "./calc";
 import { daysBetween } from "./hiring";
@@ -119,6 +119,8 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
 
   const rows: ReportRow[] = [];
   const byDay = days.map((day) => ({ day, leads: 0, plan: 0, hours: 0 }));
+  // числитель конверсии (как dayConv): идущий день — только у тех, чьи часы уже пришли из Скорозвона
+  const convLeadsOf = new Map<ID, number>();
   for (const id of ids) {
     const op = ix.opById.get(id) ?? st.operators.find((o) => o.id === id);
     if (!op) continue;
@@ -134,6 +136,7 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
       row.hours += h;
       row.plan += p;
       row.leads += n;
+      if (!(d === ix.openDay && !h)) convLeadsOf.set(id, (convLeadsOf.get(id) ?? 0) + n);
       row.done += c?.done ?? 0;
       row.failed += c?.failed ?? 0;
       row.work += c?.work ?? 0;
@@ -146,7 +149,7 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     // супервайзер не на линии: строку показываем, только если он сам передавал лиды — иначе итог лидов не сойдётся
     if (sv && !row.leads && !row.failed && !row.work) continue;
     row.pct = row.plan > 0 ? row.leads / row.plan : null;
-    row.conv = !sv && row.hours > 0 ? row.leads / row.hours : null;
+    row.conv = !sv && row.hours > 0 ? (convLeadsOf.get(id) ?? 0) / row.hours : null;
     rows.push(row);
   }
   rows.sort((a, b) => goneLast(a.op, b.op) || b.leads - a.leads || (b.conv ?? 0) - (a.conv ?? 0) || a.op.name.localeCompare(b.op.name, "ru"));
@@ -166,7 +169,9 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     people: line.filter((r) => r.hours > 0).length,
   };
   total.pct = total.plan > 0 ? total.leads / total.plan : null;
-  total.conv = total.hours > 0 ? total.leads / total.hours : null;
+  // конверсия итога — лиды линии (без супервайзеров и без ждущих часов) ÷ часы линии, как в сводке
+  const convLeads = line.reduce((a, r) => a + (convLeadsOf.get(r.op.id) ?? 0), 0);
+  total.conv = total.hours > 0 ? convLeads / total.hours : null;
 
   // месяц для контекста: факт, план и RR — группы или всего отдела
   const mm = model(factTo);

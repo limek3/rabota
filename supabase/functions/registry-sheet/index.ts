@@ -651,6 +651,8 @@ function buildIndex(st, workedTo = NO_CUTOFF, openDay = null) {
     pendingOp: /* @__PURE__ */ new Map(),
     pendingGroup: /* @__PURE__ */ new Map(),
     pendingTeam: 0,
+    convDay: /* @__PURE__ */ new Map(),
+    convGroupDay: /* @__PURE__ */ new Map(),
     shift: /* @__PURE__ */ new Map(),
     opMonths: /* @__PURE__ */ new Map(),
     groupMonthOps: /* @__PURE__ */ new Map(),
@@ -669,6 +671,10 @@ function buildIndex(st, workedTo = NO_CUTOFF, openDay = null) {
     bump(ix.opDay, l.operatorId, d, 1);
     bump(ix.groupDay, gk(l.groupId), d, 1);
     bump(ix.projectDay, l.projectId || "__none__", d, 1);
+    if (!ix.svIds.has(l.operatorId)) {
+      ix.convDay.set(d, (ix.convDay.get(d) ?? 0) + 1);
+      bump(ix.convGroupDay, gk(l.groupId), d, 1);
+    }
     addTo(ix.opMonths, l.operatorId, m);
     addTo(ix.groupMonthOps, `${m}|${gk(l.groupId)}`, l.operatorId);
     ix.months.add(m);
@@ -698,6 +704,7 @@ function buildIndex(st, workedTo = NO_CUTOFF, openDay = null) {
     for (const l of st.leads) {
       if (l.status === "failed" || l.at.slice(0, 10) !== openDay || ix.hoursOpDay.get(l.operatorId)?.has(openDay)) continue;
       ix.pendingOp.set(l.operatorId, (ix.pendingOp.get(l.operatorId) ?? 0) + 1);
+      if (ix.svIds.has(l.operatorId)) continue;
       ix.pendingGroup.set(gk(l.groupId), (ix.pendingGroup.get(gk(l.groupId)) ?? 0) + 1);
       ix.pendingTeam++;
     }

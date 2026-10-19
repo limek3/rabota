@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { useMonthModel, usePeriodModel } from "@/lib/crm/hooks";
-import { dailyRows, pace, pendingIn, sumRange, workedDays, WORKED_TYPES, type DayRow, type GroupRow, type Index, type MonthCal, type MonthModel, type OpRow, type Pace } from "@/lib/crm/calc";
+import { dailyRows, dayConv, pace, pendingIn, sumRange, workedDays, WORKED_TYPES, type DayRow, type GroupRow, type Index, type MonthCal, type MonthModel, type OpRow, type Pace } from "@/lib/crm/calc";
 import { addDays, fmtDay, fmtMonth, fmtRange, isoWeekday, isWorkday, monthOf, monthStart, nowHour, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, fmtSigned, LEADS, OPS, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Settings } from "@/lib/crm/types";
@@ -218,7 +218,11 @@ function buildScope(m: MonthModel, keys: string[] | null, ix: Index, s: Settings
     counts,
     hoursMap,
     hours,
-    lph: hours > 0 ? (sumRange(counts, first, closedTo) - pendingIn(ix, first, closedTo, keys.reduce((a, k) => a + (ix.pendingGroup.get(k) ?? 0), 0))) / hours : null,
+    // конверсия — лиды линии (без супервайзеров) ÷ часы, как у команды и в графике
+    lph:
+      hours > 0
+        ? (sumRange(mergeDays(keys.map((k) => ix.convGroupDay.get(k))), first, closedTo) - pendingIn(ix, first, closedTo, keys.reduce((a, k) => a + (ix.pendingGroup.get(k) ?? 0), 0))) / hours
+        : null,
     headcount: line.filter((r) => r.op.status === "active").length,
     attendance: safeDiv(opDays, p.elapsedW),
     line,
@@ -324,17 +328,7 @@ export function DashboardV2() {
   const todayInfo = useMemo<HeroToday | null>(() => {
     // конверсия дня — лиды ÷ отработанные часы тех же операторов (сегодня — из Скорозвона;
     // лиды тех, чьих часов ещё нет, не считаем — как везде)
-    const convOn = (d: DayKey) => {
-      let leads = 0;
-      let hours = 0;
-      for (const r of sc.line) {
-        const h = ix.hoursOpDay.get(r.op.id)?.get(d) ?? 0;
-        if (d === ix.openDay && !h) continue;
-        leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
-        hours += h;
-      }
-      return hours > 0 ? leads / hours : null;
-    };
+    const convOn = (d: DayKey) => dayConv(ix, sc.line.map((r) => r.op.id), d).lph;
     if (span === "day") {
       const d = addDays(anchor, -7);
       const n = sc.counts?.get(d) ?? 0;
@@ -2179,6 +2173,7 @@ function HeatCard({ m, sc, rows, groups, focus }: { m: MonthModel; sc: Scope; ro
   const attendance = sc.attendance;
   const days = cal.days;
   const ops = useMemo(() => [...line].sort((a, b) => b.pace.fact - a.pace.fact || a.op.name.localeCompare(b.op.name, "ru")), [line]);
+  const opIds = useMemo(() => ops.map((r) => r.op.id), [ops]);
   let max = 1;
   for (const r of ops) for (const d of days) max = Math.max(max, ix.opDay.get(r.op.id)?.get(d) ?? 0);
   const todayIdx = cal.phase === "current" ? days.indexOf(cal.today) : -1;
@@ -2196,17 +2191,10 @@ function HeatCard({ m, sc, rows, groups, focus }: { m: MonthModel; sc: Scope; ro
   const conv = useMemo(
     () =>
       days.map((d) => {
-        let leads = 0;
-        let hours = 0;
-        for (const r of ops) {
-          const h = ix.hoursOpDay.get(r.op.id)?.get(d) ?? 0;
-          if (d === ix.openDay && !h) continue;
-          leads += ix.opDay.get(r.op.id)?.get(d) ?? 0;
-          hours += h;
-        }
-        return { leads, hours, v: hours > 0 ? leads / hours : null };
+        const c = dayConv(ix, opIds, d);
+        return { leads: c.leads, hours: c.hours, v: c.lph };
       }),
-    [days, ops, ix],
+    [days, opIds, ix],
   );
 
   /* ── выделение дней, как в «Графике»: протянуть по датам или клеткам — итоги у курсора ── */
@@ -2259,32 +2247,48 @@ function HeatCard({ m, sc, rows, groups, focus }: { m: MonthModel; sc: Scope; ro
     let zero = 0;
     let workdays = 0;
     const people = new Set<string>();
-    const per = new Map<string, { name: string; leads: number; hours: number }>();
+    const per = new Map<string, { name: string; leads: number; hours: number; cl: number; ch: number }>();
+    // конверсия выделения — dayConv по прошедшим дням, как в «Итого» и в графике
+    let convLeads = 0;
+    let convHours = 0;
     for (let c = c0; c <= c1; c++) {
       const d = days[c];
       if (!d) continue;
       if (cal.isWork(d)) workdays++;
+      const future = isFuture(d);
+      if (!future) {
+        const cv = dayConv(ix, opIds, d);
+        convLeads += cv.leads;
+        convHours += cv.hours;
+      }
       for (const r of ops) {
         const l = ix.opDay.get(r.op.id)?.get(d) ?? 0;
-        const h = ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
+        // часы — факт (сегодня — из Скорозвона), у будущих дней — по графику
+        const h = (future ? ix.plannedOpDay : ix.hoursOpDay).get(r.op.id)?.get(d) ?? 0;
+        const planned = ix.plannedOpDay.get(r.op.id)?.get(d) ?? 0;
         leads += l;
         hours += h;
-        if (h > 0) {
+        if (planned > 0) {
           shifts++;
           people.add(r.op.id);
-          if (l === 0 && !isFuture(d)) zero++;
+          if (l === 0 && !future && d !== ix.openDay) zero++;
         }
         if (l || h) {
-          const x = per.get(r.op.id) ?? { name: r.op.name, leads: 0, hours: 0 };
+          const x = per.get(r.op.id) ?? { name: r.op.name, leads: 0, hours: 0, cl: 0, ch: 0 };
           x.leads += l;
           x.hours += h;
+          if (!future) {
+            const cv = dayConv(ix, [r.op.id], d);
+            x.cl += cv.leads;
+            x.ch += cv.hours;
+          }
           per.set(r.op.id, x);
         }
       }
     }
     const top = [...per.values()].filter((x) => x.leads > 0).sort((a, b) => b.leads - a.leads || a.name.localeCompare(b.name, "ru")).slice(0, 3);
     const plan = dailyPlan * workdays;
-    return { from: days[c0], to: days[c1], c0, c1, count: c1 - c0 + 1, workdays, leads, hours, shifts, zero, people: people.size, plan, top };
+    return { from: days[c0], to: days[c1], c0, c1, count: c1 - c0 + 1, workdays, leads, hours, shifts, zero, people: people.size, plan, top, convLeads, convHours };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range, days, ops, ix, cal, dailyPlan]);
 
@@ -2456,7 +2460,7 @@ function HeatTip({
   norm,
 }: {
   at: { x: number; y: number };
-  st: { from: DayKey; to: DayKey; count: number; workdays: number; leads: number; hours: number; shifts: number; zero: number; people: number; plan: number; top: { name: string; leads: number; hours: number }[] };
+  st: { from: DayKey; to: DayKey; count: number; workdays: number; leads: number; hours: number; shifts: number; zero: number; people: number; plan: number; top: { name: string; leads: number; hours: number; cl: number; ch: number }[]; convLeads: number; convHours: number };
   norm: number;
 }) {
   const W = 268;
@@ -2465,7 +2469,7 @@ function HeatTip({
   const vh = window.innerHeight / uiZoom();
   const left = at.x + 16 + W > vw - 8 ? at.x - W - 16 : at.x + 16;
   const top = at.y + 18 + H > vh - 8 ? at.y - H - 12 : at.y + 18;
-  const conv = st.hours > 0 ? st.leads / st.hours : null;
+  const conv = st.convHours > 0 ? st.convLeads / st.convHours : null;
   const pct = st.plan > 0 ? st.leads / st.plan : null;
   return createPortal(
     <div className="card day-tip" role="status" style={{ left: Math.max(8, left), top: Math.max(8, top), width: W }}>
@@ -2506,7 +2510,7 @@ function HeatTip({
             <div key={x.name}>
               <i>{shortName(x.name)}</i>
               <b className="num">{fmtInt(x.leads)}</b>
-              <em>{x.hours > 0 ? fmtPct(x.leads / x.hours) : "—"}</em>
+              <em>{x.ch > 0 ? fmtPct(x.cl / x.ch) : "—"}</em>
             </div>
           ))}
         </div>

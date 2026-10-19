@@ -83,6 +83,13 @@ export interface Index {
   pendingOp: Map<ID, number>;
   pendingGroup: Map<string, number>;
   pendingTeam: number;
+  /**
+   * Лиды операторов на линии (без супервайзеров) — числитель конверсии команды и групп. Часы
+   * супервайзера в конверсию не идут, значит и его лиды тоже: лиды ÷ часы тех же людей.
+   * pendingGroup / pendingTeam — тоже только по линии (у супервайзера часов из Скорозвона нет).
+   */
+  convDay: DayMap;
+  convGroupDay: Map<string, DayMap>;
   /** Смена по ключу `${дата}|${оператор}`. */
   shift: Map<string, Shift>;
   /** Месяцы, в которых у оператора есть лиды/смены/начисления. */
@@ -133,6 +140,26 @@ export function pendingIn(ix: Index, from: DayKey, to: DayKey, n: number): numbe
 }
 
 /**
+ * Конверсия дня по набору сотрудников — одно правило для всех экранов (как lph / lphToday в сводке):
+ * лиды ÷ фактические часы (ix.hoursOpDay — закрытые дни и часы из Скорозвона за идущий день).
+ * Идущий день: лиды тех, чьих часов из Скорозвона ещё нет, не считаем — они ждут часов.
+ * Супервайзер не входит ни часами, ни лидами (его время — работа с группой) — как ix.convDay.
+ * Плановые часы будущих смен (ix.plannedOpDay) в конверсию не идут никогда.
+ */
+export function dayConv(ix: Index, opIds: Iterable<ID>, d: DayKey): { leads: number; hours: number; lph: number | null } {
+  let leads = 0;
+  let hours = 0;
+  for (const id of opIds) {
+    if (ix.svIds.has(id)) continue;
+    const h = ix.hoursOpDay.get(id)?.get(d) ?? 0;
+    if (d === ix.openDay && !h) continue;
+    leads += ix.opDay.get(id)?.get(d) ?? 0;
+    hours += h;
+  }
+  return { leads, hours, lph: hours > 0 ? leads / hours : null };
+}
+
+/**
  * Супервайзеры: роль «Супервайзер» в карточке, схема оплаты «оклад + бонус за объём группы»
  * или руководитель группы. Их график не влияет на показатели команды: часы не идут в часы
  * и конверсию команды и групп, в численность и выработку на человека они не входят.
@@ -164,6 +191,8 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF, openDay:
     pendingOp: new Map(),
     pendingGroup: new Map(),
     pendingTeam: 0,
+    convDay: new Map(),
+    convGroupDay: new Map(),
     shift: new Map(),
     opMonths: new Map(),
     groupMonthOps: new Map(),
@@ -183,6 +212,10 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF, openDay:
     bump(ix.opDay, l.operatorId, d, 1);
     bump(ix.groupDay, gk(l.groupId), d, 1);
     bump(ix.projectDay, l.projectId || "__none__", d, 1);
+    if (!ix.svIds.has(l.operatorId)) {
+      ix.convDay.set(d, (ix.convDay.get(d) ?? 0) + 1);
+      bump(ix.convGroupDay, gk(l.groupId), d, 1);
+    }
     addTo(ix.opMonths, l.operatorId, m);
     addTo(ix.groupMonthOps, `${m}|${gk(l.groupId)}`, l.operatorId);
     ix.months.add(m);
@@ -215,6 +248,8 @@ export function buildIndex(st: DataState, workedTo: DayKey = NO_CUTOFF, openDay:
     for (const l of st.leads) {
       if (l.status === "failed" || l.at.slice(0, 10) !== openDay || ix.hoursOpDay.get(l.operatorId)?.has(openDay)) continue;
       ix.pendingOp.set(l.operatorId, (ix.pendingOp.get(l.operatorId) ?? 0) + 1);
+      // в группе и команде — только линия: лиды супервайзера в конверсию не идут вовсе
+      if (ix.svIds.has(l.operatorId)) continue;
       ix.pendingGroup.set(gk(l.groupId), (ix.pendingGroup.get(gk(l.groupId)) ?? 0) + 1);
       ix.pendingTeam++;
     }
@@ -1092,7 +1127,7 @@ function buildModel(st: DataState, ix: Index, src: ModelSrc): MonthModel {
       pace: p,
       status: paceStatus(p, s, cal),
       hours,
-      lph: hours > 0 ? (sumRange(ix.groupDay.get(key), first, closedTo) - pendingIn(ix, first, closedTo, ix.pendingGroup.get(key) ?? 0)) / hours : null,
+      lph: hours > 0 ? (sumRange(ix.convGroupDay.get(key), first, closedTo) - pendingIn(ix, first, closedTo, ix.pendingGroup.get(key) ?? 0)) / hours : null,
       headcount,
       contributors,
       avgPerOp: safeDiv(p.fact, contributors || headcount),
@@ -1138,9 +1173,10 @@ function buildModel(st: DataState, ix: Index, src: ModelSrc): MonthModel {
       hours,
       hoursToday,
       hoursWeek,
-      lph: hours > 0 ? (sumRange(ix.day, first, closedTo) - pendingIn(ix, first, closedTo, ix.pendingTeam)) / hours : null,
-      lphToday: hoursToday > 0 ? (tp.today - pendingIn(ix, ref, ref, ix.pendingTeam)) / hoursToday : null,
-      lphWeek: hoursWeek > 0 ? (sumRange(ix.day, ws, ref < ix.workedTo ? ref : ix.workedTo) - pendingIn(ix, ws, ref, ix.pendingTeam)) / hoursWeek : null,
+      // конверсия — лиды линии ÷ её часы (без супервайзеров), идущий день — по тем, чьи часы уже пришли
+      lph: hours > 0 ? (sumRange(ix.convDay, first, closedTo) - pendingIn(ix, first, closedTo, ix.pendingTeam)) / hours : null,
+      lphToday: hoursToday > 0 ? ((ix.convDay.get(ref) ?? 0) - pendingIn(ix, ref, ref, ix.pendingTeam)) / hoursToday : null,
+      lphWeek: hoursWeek > 0 ? (sumRange(ix.convDay, ws, ref < ix.workedTo ? ref : ix.workedTo) - pendingIn(ix, ws, ref, ix.pendingTeam)) / hoursWeek : null,
       headcount: live.length,
       contributors,
       avgPerOp: safeDiv(tp.fact, contributors || live.length),
@@ -1167,6 +1203,8 @@ export interface DayRow {
   avgPace: number | null;
   needPace: number | null;
   hours: number;
+  /** Лиды для конверсии дня: без супервайзеров и без лидов, ждущих часов из Скорозвона (идущий день). */
+  convLeads: number;
 }
 
 export interface WeekRow {
@@ -1197,11 +1235,23 @@ export function workedDays(ix: Index, opId: string, upTo: DayKey, n = 7, lookBac
   return out.reverse();
 }
 
-export function dailyRows(cal: MonthCal, plan: number, counts: DayMap | undefined, hours?: DayMap): DayRow[] {
+/**
+ * Дни месяца для таблиц и графиков. conv — для конверсии дня: лиды линии (ix.convDay / convGroupDay;
+ * у оператора — его opDay) и сколько лидов идущего дня ждут часов (pendingTeam / Group / Op).
+ * Без conv конверсия считается по всем лидам дня.
+ */
+export function dailyRows(
+  cal: MonthCal,
+  plan: number,
+  counts: DayMap | undefined,
+  hours?: DayMap,
+  conv?: { counts: DayMap | undefined; pending: number; openDay: DayKey | null },
+): DayRow[] {
   let cum = 0;
   return cal.days.map((d) => {
     const future = cal.phase === "future" || d > cal.ref;
     const c = future ? 0 : counts?.get(d) ?? 0;
+    const cl = future ? 0 : conv ? Math.max(0, (conv.counts?.get(d) ?? 0) - (d === conv.openDay ? conv.pending : 0)) : c;
     cum += c;
     const w = cal.wIdx(d);
     const cumPlan = (plan * w) / cal.W;
@@ -1217,6 +1267,7 @@ export function dailyRows(cal: MonthCal, plan: number, counts: DayMap | undefine
       avgPace: w > 0 ? cum / w : null,
       needPace: left > 0 ? Math.max(0, plan - cum) / left : null,
       hours: hours?.get(d) ?? 0,
+      convLeads: cl,
     };
   });
 }

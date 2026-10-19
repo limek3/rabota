@@ -1028,3 +1028,10 @@
 .toolbar.rep-w > .seg { flex: none; flex-wrap: nowrap; }
 .toolbar.rep-w > .rep-date { flex: 1 1 230px; min-width: 0; }
 .rep-date > .date-inp { flex: 1 1 130px; min-width: 130px; }
+
+/* выгрузка номеров: проект — переключателем во всю ширину (авто.ру и 100 up выгружают отдельно) */
+.exp-proj { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--ink-05); border: 1px solid var(--ink-07); }
+.exp-proj button { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--text-sub); cursor: pointer; white-space: nowrap; }
+.exp-proj button i { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+.exp-proj button:hover { color: var(--text); }
+.exp-proj button.on { background: var(--bg-panel); color: var(--text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 0 0 1px var(--ink-07); }

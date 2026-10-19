@@ -233,6 +233,8 @@ export function buildRopReport(st: DataState, ix: Index, kind: ReportKind, ancho
     const cnt = byGroup.get(key) ?? { leads: 0, done: 0 };
     const hours = costTo ? sumRange(ix.hoursGroupDay.get(key), from, costTo) : 0;
     const leadsClosed = costTo ? sumRange(ix.groupDay.get(key), from, costTo) - pendingIn(ix, from, costTo, ix.pendingGroup.get(key) ?? 0) : 0;
+    // конверсия — лиды линии (без супервайзера) ÷ часы, как в сводке; себестоимость — по всем лидам группы
+    const convClosed = costTo ? sumRange(ix.convGroupDay.get(key), from, costTo) - pendingIn(ix, from, costTo, ix.pendingGroup.get(key) ?? 0) : 0;
     const cost = opCostBy.get(key) ?? 0;
     const track = trackOf.get(key) ?? "re";
     const rev = revenueWhere((l) => gk(l.groupId) === key);
@@ -285,7 +287,7 @@ export function buildRopReport(st: DataState, ix: Index, kind: ReportKind, ancho
       opCost: cost,
       leadsClosed,
       hours,
-      conv: hours > 0 ? leadsClosed / hours : null,
+      conv: hours > 0 ? convClosed / hours : null,
       costPerLead: leadsClosed > 0 && cost > 0 ? cost / leadsClosed : null,
       cap: track === "auto" ? s.rop.capAuto : s.rop.capRe,
       fotPct: rev > 0 ? cost / rev : null,
