@@ -2,18 +2,19 @@ import type { DataState, DayKey, ID, Operator } from "./types";
 import { NO_GROUP, NO_GROUP_LABEL } from "./types";
 import { WORKED_TYPES, employmentWindow, goneLast, isGone, monthModel, probation, type Index, type MonthModel, type OpRow } from "./calc";
 import { daysBetween } from "./hiring";
-import { addDays, monthOf, rangeDays, weekStart } from "./dates";
+import { addDays, monthEnd, monthOf, monthStart, rangeDays, weekStart } from "./dates";
 import { safeDiv } from "./format";
 
 /**
- * Готовые отчёты за день и за неделю — для супервайзеров: собрать ключевые
+ * Готовые отчёты за день, неделю и месяц — для супервайзеров: собрать ключевые
  * цифры и отправить картинкой в чат (рисует components/app/ReportCanvas.tsx).
+ * Месяц — свой вид: разбивка по группам, прогноз к концу месяца, лучшие и отстающие.
  *
  * Факт — как везде в CRM: все переданные лиды, «не доведён» тоже (в зарплату он не идёт). Часы и план — только
  * по сегодняшний день: неделя в процессе сравнивается с планом на прошедшие дни.
  */
 
-export type ReportKind = "day" | "week";
+export type ReportKind = "day" | "week" | "month";
 
 export interface ReportRow {
   op: Operator;
@@ -28,6 +29,32 @@ export interface ReportRow {
   pct: number | null;
   /** Лидов на час (null — часов нет). */
   conv: number | null;
+  /** Смен с отработанными часами. */
+  shifts: number;
+  /** Супервайзер: не на линии — в «Лучших» и норме конверсии не участвует. */
+  sv: boolean;
+  /** План на весь месяц и прогноз к его концу (RR) — из модели месяца, как в сводке. */
+  monthPlan: number;
+  rr: number;
+}
+
+/** Итоги группы в отчёте — те же столбцы, что у операторов. */
+export interface ReportGroup {
+  key: string;
+  name: string;
+  color: string;
+  rows: ReportRow[];
+  hours: number;
+  leads: number;
+  failed: number;
+  plan: number;
+  pct: number | null;
+  conv: number | null;
+  /** Операторов на линии с часами в периоде. */
+  people: number;
+  monthPlan: number;
+  rr: number;
+  rrPct: number | null;
 }
 
 export interface Report {
@@ -40,8 +67,12 @@ export interface Report {
   total: { leads: number; done: number; failed: number; work: number; hours: number; plan: number; pct: number | null; conv: number | null; people: number };
   byDay: { day: DayKey; leads: number; plan: number; hours: number }[];
   rows: ReportRow[];
+  /** Разбивка по группам (порядок — как в сводке, «без группы» в конце). */
+  groups: ReportGroup[];
+  /** Лучший день периода по лидам. */
+  bestDay: { day: DayKey; leads: number } | null;
   month: { month: string; fact: number; plan: number; rr: number; rrPct: number };
-  attention: { noShift: string[]; noLeads: string[]; lowConv: { name: string; conv: number }[] };
+  attention: { noShift: string[]; noLeads: string[]; lowConv: { name: string; conv: number }[]; lagging: { name: string; pct: number }[] };
   /** Кадровые события периода — отдельно от цифр: приём, увольнение, закрытая стажировка. */
   events: ReportEvent[];
   convNorm: number;
@@ -57,6 +88,7 @@ export interface ReportEvent {
 
 export function reportRange(kind: ReportKind, anchor: DayKey): { from: DayKey; to: DayKey } {
   if (kind === "day") return { from: anchor, to: anchor };
+  if (kind === "month") return { from: monthStart(monthOf(anchor)), to: monthEnd(monthOf(anchor)) };
   const from = weekStart(anchor);
   return { from, to: addDays(from, 6) };
 }
@@ -124,7 +156,8 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
   for (const id of ids) {
     const op = ix.opById.get(id) ?? st.operators.find((o) => o.id === id);
     if (!op) continue;
-    const row: ReportRow = { op, hours: 0, leads: 0, done: 0, failed: 0, work: 0, plan: 0, pct: null, conv: null };
+    const mr = rowOf(factTo, id);
+    const row: ReportRow = { op, hours: 0, leads: 0, done: 0, failed: 0, work: 0, plan: 0, pct: null, conv: null, shifts: 0, sv: ix.svIds.has(id), monthPlan: ix.svIds.has(id) ? 0 : mr?.terms.plan ?? 0, rr: ix.svIds.has(id) ? 0 : mr?.pace.rr ?? 0 };
     const counts = byOpDay.get(id);
     // супервайзер: часы не идут в итоги и конверсию
     const sv = ix.svIds.has(id);
@@ -135,6 +168,7 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
       // все переданные — и «не доведён»: он в факте, плане и конверсии (не в зарплате); сколько их — колонкой рядом
       const n = c ? c.done + c.work + c.failed : 0;
       row.hours += h;
+      if (h > 0) row.shifts++;
       row.plan += p;
       row.leads += n;
       if (!(d === ix.openDay && !h)) convLeadsOf.set(id, (convLeadsOf.get(id) ?? 0) + n);
@@ -181,7 +215,7 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
   const monthPlan = g ? g.plan : mm.team.plan;
 
   const convNorm = st.settings.convNormPct / 100;
-  const attention: Report["attention"] = { noShift: [], noLeads: [], lowConv: [] };
+  const attention: Report["attention"] = { noShift: [], noLeads: [], lowConv: [], lagging: [] };
   if (kind === "day" && anchor <= today) {
     for (const d of days) {
       if (!model(d).cal.isWork(d)) continue;
@@ -200,8 +234,16 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
       }
     }
   }
-  for (const r of rows) if (r.conv != null && r.hours >= 4 && r.conv < convNorm && r.leads > 0) attention.lowConv.push({ name: r.op.name, conv: r.conv });
+  // за месяц конверсию судим по набранным часам: пара коротких смен — ещё не вывод
+  const minHours = kind === "month" ? 16 : 4;
+  for (const r of rows) if (r.conv != null && r.hours >= minHours && r.conv < convNorm && r.leads > 0) attention.lowConv.push({ name: r.op.name, conv: r.conv });
   attention.lowConv.sort((a, b) => a.conv - b.conv);
+  // месяц: кто идёт ниже порога «отстаёт» к плану на сегодня (уволенные — уже не про это)
+  if (kind === "month") {
+    const lag = st.settings.lagPct / 100;
+    for (const r of rows) if (r.pct != null && r.plan >= 1 && r.pct < lag && !isGone(r.op)) attention.lagging.push({ name: r.op.name, pct: r.pct });
+    attention.lagging.sort((a, b) => a.pct - b.pct);
+  }
 
   // кадровые события периода: в таблице цифр им не место, но РОПу важно их видеть
   const events: ReportEvent[] = [];
@@ -222,6 +264,46 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
   }
   events.sort((a, b) => a.day.localeCompare(b.day) || a.name.localeCompare(b.name, "ru"));
 
+  // группы: порядок — как в сводке, «без группы» в конце
+  const order = new Map(mm.groups.map((x, i) => [x.key, i]));
+  const byGroup = new Map<string, ReportRow[]>();
+  for (const r of rows) {
+    const k = r.op.groupId || NO_GROUP;
+    byGroup.set(k, [...(byGroup.get(k) ?? []), r]);
+  }
+  const groups: ReportGroup[] = [...byGroup.entries()]
+    .map(([key, list]) => {
+      const gr = ix.groupById.get(key);
+      const mg = mm.groups.find((x) => x.key === key);
+      const ln = list.filter((r) => !ix.svIds.has(r.op.id));
+      const hours = Math.round(ln.reduce((a, r) => a + r.hours, 0) * 10) / 10;
+      const leads = list.reduce((a, r) => a + r.leads, 0);
+      const plan = list.reduce((a, r) => a + r.plan, 0);
+      const cl = ln.reduce((a, r) => a + (convLeadsOf.get(r.op.id) ?? 0), 0);
+      const mPlan = mg ? mg.plan : list.reduce((a, r) => a + r.monthPlan, 0);
+      const rr = mg ? mg.pace.rr : list.reduce((a, r) => a + r.rr, 0);
+      return {
+        key,
+        name: key === NO_GROUP ? NO_GROUP_LABEL : gr?.name ?? "Группа",
+        color: gr?.color ?? "gray",
+        rows: list,
+        hours,
+        leads,
+        failed: list.reduce((a, r) => a + r.failed, 0),
+        plan,
+        pct: plan > 0 ? leads / plan : null,
+        conv: hours > 0 ? cl / hours : null,
+        people: ln.filter((r) => r.hours > 0).length,
+        monthPlan: mPlan,
+        rr,
+        rrPct: mPlan > 0 ? rr / mPlan : null,
+      };
+    })
+    .sort((a, b) => (a.key === NO_GROUP ? 1 : 0) - (b.key === NO_GROUP ? 1 : 0) || (order.get(a.key) ?? 1e6) - (order.get(b.key) ?? 1e6) || a.name.localeCompare(b.name, "ru"));
+
+  let bestDay: Report["bestDay"] = null;
+  for (const b of byDay) if (b.day <= factTo && b.leads > 0 && (!bestDay || b.leads > bestDay.leads)) bestDay = { day: b.day, leads: b.leads };
+
   const scope = !groupId ? "Весь отдел" : groupId === NO_GROUP ? NO_GROUP_LABEL : ix.groupById.get(groupId)?.name ?? "Группа";
   return {
     kind,
@@ -232,6 +314,8 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     total,
     byDay,
     rows,
+    groups,
+    bestDay,
     month: { month: mm.cal.month, fact: pace.fact, plan: monthPlan, rr: pace.rr, rrPct: safeDiv(pace.rr, monthPlan) },
     attention,
     events,

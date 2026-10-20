@@ -7,6 +7,7 @@ import "./dash2.css";
 import "./ops2.css";
 import "./learn.css";
 import "./academy.css";
+import "./cities.css";
 
 // Шрифты лежат локально (./fonts): сборка не зависит от сети.
 // Весь текст — Inter.

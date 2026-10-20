@@ -13,6 +13,7 @@ import { LeadModal } from "./LeadModal";
 import { OperatorModal } from "./OperatorModal";
 import { GroupModal } from "./GroupModal";
 import { CommandPalette } from "./CommandPalette";
+import { CityPeek } from "./CityPeek";
 import { AccountMenu } from "./AccountMenu";
 import { LAST_MAIN_KEY, LearnRail } from "./LearnRail";
 import { SheetsAutoSync } from "./SheetsSync";
@@ -488,6 +489,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         <Modals />
         <CommandPalette />
+        <CityPeek />
         <ConfirmHost />
         <ToastHost />
         <TitleTips />

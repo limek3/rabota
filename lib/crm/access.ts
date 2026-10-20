@@ -70,7 +70,7 @@ export interface Access {
   scopeLabel: string;
 }
 
-export const ALL_ROUTES = ["/dashboard", "/me", "/stats", "/leads", "/operators", "/groups", "/hiring", "/schedule", "/payroll", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"];
+export const ALL_ROUTES = ["/dashboard", "/me", "/stats", "/leads", "/operators", "/groups", "/cities", "/hiring", "/schedule", "/payroll", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"];
 
 export function supervisorGroups(acc: Account, st: DataState): Set<ID> {
   const live = new Set(st.groups.filter((g) => !g.deletedAt).map((g) => g.id));
@@ -125,8 +125,8 @@ export function computeAccess(acc: Account, st: DataState): Access {
 
   const routes = new Set<string>();
   if (isHead) ALL_ROUTES.forEach((r) => routes.add(r));
-  else if (isSup) ["/dashboard", "/leads", "/operators", "/groups", "/schedule", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"].forEach((r) => routes.add(r));
-  else ["/me", "/stats", "/leads", "/schedule", "/dynamics", "/learn", "/settings"].forEach((r) => routes.add(r));
+  else if (isSup) ["/dashboard", "/leads", "/operators", "/groups", "/cities", "/schedule", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"].forEach((r) => routes.add(r));
+  else ["/me", "/stats", "/leads", "/cities", "/schedule", "/dynamics", "/learn", "/settings"].forEach((r) => routes.add(r));
   // наставник видит свою группу: сводку, операторов, группу и отчёт по операторам (без денег)
   if (isMentor) ["/dashboard", "/operators", "/groups", "/reports"].forEach((r) => routes.add(r));
   if (can.viewPayroll) routes.add("/payroll");
@@ -139,6 +139,8 @@ export function computeAccess(acc: Account, st: DataState): Access {
   if (isTrainee) {
     routes.clear();
     routes.add("/learn");
+    // справочник городов — и стажёру: он уже учит, куда вести клиента из какого города
+    routes.add("/cities");
     (Object.keys(can) as (keyof Access["can"])[]).forEach((k) => (can[k] = false));
   }
 

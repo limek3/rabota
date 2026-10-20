@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { buildReport, reportRange, type ReportKind } from "@/lib/crm/report";
 import { buildRopReport, groupTrack, ropText } from "@/lib/crm/rop";
 import { NO_GROUP, NO_GROUP_LABEL, type RopSettings, type Track } from "@/lib/crm/types";
-import { addDays } from "@/lib/crm/dates";
-import { Collapse, Field, NumInput, PageHead, SaveBar, Seg, useDraft } from "@/components/ui/kit";
+import { addDays, isDayKey, isMonthKey, monthOf, monthStart } from "@/lib/crm/dates";
+import { Collapse, Field, MonthSwitcher, NumInput, PageHead, SaveBar, Seg, useDraft } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { ReportCanvas, type ReportCanvasHandle } from "@/components/app/ReportCanvas";
@@ -14,7 +14,9 @@ import { RopCanvas } from "@/components/app/RopCanvas";
 import { StickyHead } from "@/components/app/StickyHead";
 
 /**
- * Готовые отчёты за день и неделю — картинкой (скопировать PNG в буфер или скачать).
+ * Готовые отчёты за день, неделю и месяц — картинкой (скопировать PNG в буфер или скачать).
+ * Месяц — только по операторам: группы, прогноз, лучшие. Со сводки сюда ведёт кнопка
+ * «Отчёт за месяц»: /reports?kind=month&month=YYYY-MM&group=<id>.
  *
  * Какие отчёты — решает доступ:
  *   РОП         — оба: по операторам (как у супервайзера) и отчёт РОП — деньги, сегменты,
@@ -29,13 +31,39 @@ export default function ReportsPage() {
   const ropData = lens?.base.data ?? data;
   const ropIx = lens?.base.ix ?? ix;
   const [view, setView] = useState<View>("rop");
-  const rop = access.isHead && view === "rop";
   const [kind, setKind] = useState<ReportKind>("day");
+  // отчёт РОП — за день и неделю; месяц — по операторам
+  const rop = access.isHead && view === "rop" && kind !== "month";
   const [anchor, setAnchor] = useState(today);
   const [groupId, setGroupId] = useState("");
   const [params, setParams] = useState(false);
   const [busy, setBusy] = useState(false);
   const pic = useRef<ReportCanvasHandle>(null);
+
+  // пришли со сводки: сразу нужный отчёт (месяц, группа)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const k = q.get("kind");
+    if (k === "day" || k === "week" || k === "month") {
+      setKind(k);
+      if (k !== "day" && access.isHead) setView("ops");
+    }
+    const m = q.get("month");
+    const d = q.get("day");
+    if (isDayKey(d) && d <= today) setAnchor(d);
+    else if (isMonthKey(m)) setAnchor(monthOf(today) === m ? today : monthStart(m) <= today ? monthStart(m) : today);
+    const g = q.get("group");
+    if (g) setGroupId(g);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const pickKind = (k: ReportKind) => {
+    setKind(k);
+    if (k === "month" && access.isHead) setView("ops");
+  };
+  const pickView = (v: View) => {
+    setView(v);
+    if (v === "rop" && kind === "month") setKind("day");
+  };
 
   const report = useMemo(() => (rop ? null : buildReport(data, ix, kind, anchor, groupId, today)), [rop, data, ix, kind, anchor, groupId, today]);
   const ropReport = useMemo(() => (rop ? buildRopReport(ropData, ropIx, kind, anchor, today) : null), [rop, ropData, ropIx, kind, anchor, today]);
@@ -46,7 +74,7 @@ export default function ReportsPage() {
   const company = data.settings.companyName || "LEADUP CRM";
 
   const scope = report && groupId ? `_${report.scope.replace(/\s+/g, "-")}` : "";
-  const fileName = `otchet${rop ? "_rop" : ""}_${kind === "day" ? from : `${from}_${to}`}${scope}.png`;
+  const fileName = `otchet${rop ? "_rop" : ""}_${kind === "day" ? from : kind === "month" ? monthOf(from) : `${from}_${to}`}${scope}.png`;
 
   const copy = async () => {
     setBusy(true);
@@ -84,7 +112,7 @@ export default function ReportsPage() {
       <StickyHead title="Отчёты" />
       <PageHead
         title="Отчёты"
-        sub={access.isHead ? "Отчёт РОП и по операторам за день и неделю — картинкой или текстом для чата" : "Готовые отчёты за день и неделю — картинкой, чтобы отправить в чат"}
+        sub={access.isHead ? "Отчёт РОП за день и неделю, по операторам — ещё и за месяц: картинкой или текстом для чата" : "Готовые отчёты за день, неделю и месяц — картинкой, чтобы отправить в чат"}
         actions={
           <>
             <button className="btn" onClick={download}>
@@ -106,8 +134,8 @@ export default function ReportsPage() {
       <div className="toolbar rep-w">
         {access.isHead && (
           <Seg<View>
-            value={view}
-            onChange={setView}
+            value={rop ? "rop" : "ops"}
+            onChange={pickView}
             options={[
               { value: "rop", label: "Отчёт РОП" },
               { value: "ops", label: "По операторам" },
@@ -116,13 +144,23 @@ export default function ReportsPage() {
         )}
         <Seg<ReportKind>
           value={kind}
-          onChange={setKind}
+          onChange={pickKind}
           options={[
             { value: "day", label: "За день" },
             { value: "week", label: "За неделю" },
+            { value: "month", label: "За месяц" },
           ]}
         />
         {/* дата — забирает остаток строки (вместе с выбором группы), чтобы панель не обрывалась пустым местом */}
+        {kind === "month" ? (
+          <div className="row rep-date" style={{ gap: 4 }}>
+            <MonthSwitcher
+              value={monthOf(anchor)}
+              // будущий месяц пуст — дальше текущего не листаем
+              onChange={(m) => setAnchor(m >= monthOf(today) ? today : monthStart(m))}
+            />
+          </div>
+        ) : (
         <div className="row rep-date" style={{ gap: 4 }}>
           <button className="btn btn-icon" onClick={() => setAnchor(addDays(anchor, -step))} title={kind === "day" ? "Предыдущий день" : "Предыдущая неделя"}>
             <Icon name="chevL" size={14} />
@@ -142,6 +180,7 @@ export default function ReportsPage() {
             </button>
           )}
         </div>
+        )}
         {!rop && (
           <Select
             width={200}

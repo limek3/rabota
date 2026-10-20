@@ -438,6 +438,16 @@ export function DashboardV2() {
                 </button>
               </div>
             )}
+            {access.routes.has("/reports") && !empty && (
+              // тот же период и группа — готовой картинкой для чата
+              <Link
+                className="btn"
+                href={`/reports/?kind=${span === "range" ? "month" : span}&month=${month}&day=${span === "month" ? "" : anchor}&group=${picked ? encodeURIComponent(picked.key) : ""}`}
+                title="Отчёт картинкой за этот период: группы, операторы, лучшие — скопировать в чат или скачать PNG"
+              >
+                <Icon name="doc" size={14} /> Отчёт за {span === "day" ? "день" : span === "week" ? "неделю" : "месяц"}
+              </Link>
+            )}
             <div className="o2-seg d2-seg" role="group" aria-label="Период">
               {(["day", "week", "month"] as Span[]).map((k) => (
                 <button key={k} type="button" className={span === k ? "on" : ""} onClick={() => setMode(k)} aria-pressed={span === k}>

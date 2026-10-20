@@ -504,7 +504,21 @@ console.log("ALL OK");
     assert.ok(!d2.rows.some((r) => r.op.id === svId), "СВ без лидов не в строках отчёта");
     assert.equal(d2.total.leads, ix2.day.get("2026-09-17") ?? 0);
   }
-  console.log(`17 ok: отчёты — день ${day.total.leads} лидов из плана ${day.total.plan.toFixed(1)}, неделя ${week.total.leads}, Альфа ${g.total.leads}`);
+  // месяц: весь месяц по дням, факт = сумма по индексу, группы сходятся с итогом, прогноз — из модели месяца
+  const mon = buildReport(st, ix, "month", "2026-09-10", "", today);
+  assert.equal(mon.from, "2026-09-01");
+  assert.equal(mon.to, "2026-09-30");
+  assert.equal(mon.byDay.length, 30);
+  assert.equal(mon.total.leads, sumRange(ix.day, "2026-09-01", today), "месяц = сумма дней по сегодня");
+  assert.equal(mon.groups.reduce((a, x) => a + x.leads, 0), mon.total.leads, "группы складываются в итог");
+  assert.equal(mon.groups.reduce((a, x) => a + x.rows.length, 0), mon.rows.length, "каждый оператор — в одной группе");
+  assert.ok(mon.groups.every((x) => x.monthPlan >= x.plan - 1e-9), "план к дате не больше плана месяца");
+  assert.ok(mon.bestDay && mon.bestDay.leads === Math.max(...mon.byDay.map((d) => d.leads)), "лучший день");
+  assert.ok(mon.attention.noShift.length === 0, "«нет смены» — только в отчёте за день");
+  assert.ok(Math.abs(mon.month.rr - mon.rows.reduce((a, r) => a + r.rr, 0)) < mon.month.rr, "прогноз есть");
+  const monG = buildReport(st, ix, "month", "2026-09-10", "gr_alpha", today);
+  assert.equal(monG.groups.length, 1, "одна группа — одна секция");
+  console.log(`17 ok: отчёты — день ${day.total.leads} лидов из плана ${day.total.plan.toFixed(1)}, неделя ${week.total.leads}, Альфа ${g.total.leads}, месяц ${mon.total.leads} (${mon.groups.length} гр., прогноз ${Math.round(mon.month.rr)})`);
 }
 
 /* 18. Лиды по часам: клетки, «не доведён» отдельно, среднее за день, лучшее окно смены */
@@ -1066,4 +1080,32 @@ console.log("ALL OK");
   assert.strictEqual(T.leadSheetTab("2026-11-01", "Борис"), "Ноябрь Борис", "новый месяц — новый лист");
   assert.strictEqual(T.sheetPhone("+7 (930) 155-92-69"), "79301559269");
   console.log("28 ok: таблица ОКК — 8 столбцов, ссылка, «Доведен» и дальше пустые, по времени, лист «Октябрь Борис» / «Ноябрь Борис»");
+}
+
+/* 29. Карта городов: поиск, раскладка, наши города из настроек и проектов, ближайший, проекция туда-обратно */
+{
+  const assert = require("assert");
+  const g = R("geo/geo/cities");
+  const { DEFAULT_SETTINGS } = R("defaults");
+  assert.ok(g.CITIES.length > 1000, "справочник на месте");
+  assert.equal(g.searchCities("самар")[0].city.name, "Самара");
+  assert.equal(g.searchCities("vjcrdf")[0].city.name, "Москва", "английская раскладка");
+  assert.ok(g.searchCities("новгород").length >= 2, "по слову в названии");
+  assert.equal(g.geocode("Краснодарский край").name, "Краснодар", "регион → центр");
+  assert.equal(g.geocode("г. Екатеринбург").name, "Екатеринбург");
+  assert.equal(g.geocode("Нигдеград"), null);
+  const st = { settings: DEFAULT_SETTINGS, projects: [{ id: "p1", name: "100 up", active: true, regions: ["Самара", "Казань"], deletedAt: null }] };
+  const all = g.ourCities(st);
+  assert.ok(all.list.some((o) => o.city.name === "Самара" && o.projects.includes("100 up")), "города проекта");
+  assert.equal(all.unknown.length, 0, "все города настроек нашлись: " + all.unknown.join(", "));
+  const only = g.ourCities(st, "p1");
+  assert.deepEqual(only.list.map((o) => o.city.name).sort(), ["Казань", "Самара"], "фильтр по проекту");
+  const orsk = g.searchCities("Орск")[0].city;
+  const n = g.nearest(orsk, only.list, 2);
+  assert.equal(n[0].our.city.name, "Самара", "из Орска ближе Самара");
+  const [x, y] = g.project(orsk.lat, orsk.lon);
+  const back = g.unproject(x, y);
+  assert.ok(Math.abs(back.lat - orsk.lat) < 1e-6 && Math.abs(back.lon - orsk.lon) < 1e-6, "проекция обратима");
+  assert.equal(g.mskOffset(5), "МСК+2");
+  console.log(`29 ok: карта — ${g.CITIES.length} городов, наших ${all.list.length}, из Орска до Самары ${Math.round(n[0].km)} км`);
 }

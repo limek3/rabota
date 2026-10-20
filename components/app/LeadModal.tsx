@@ -15,6 +15,7 @@ import { fmtDate, fmtDay, fmtStamp, nowStamp } from "@/lib/crm/dates";
 import { hasLeadLinkColumn, hasLeadRegionColumn } from "@/lib/crm/remote";
 import { SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
 import { CallReview, mmss, useLeadDialog } from "./LeadDialog";
+import { openCityPeek } from "./CityPeek";
 
 /**
  * Лид в новом виде. Одна логика (useLeadDraft) — два места:
@@ -545,6 +546,19 @@ function LeadFields({ d, compact, projectInHead }: { d: Draft; compact?: boolean
               placeholder={d.ownCities ? "Город автосалона" : "Регион"}
               minPopWidth={240}
             />
+            {!d.readOnly && (
+              <button
+                type="button"
+                className="lf-city-map"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openCityPeek({ projectId: d.f.projectId || undefined, allowed: d.opts.region.map((o) => o.value), choose: d.set.region });
+                }}
+                title="Клиент из другого города — найти ближайший наш (клавиша G)"
+              >
+                <Icon name="map" size={12} /> Ближайший город на карте
+              </button>
+            )}
           </F>
         </div>
       </Sec>
