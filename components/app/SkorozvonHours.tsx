@@ -65,7 +65,7 @@ export function SkorozvonHours({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const changed = res?.updated.filter((u) => Math.abs(u.to - u.from) >= 0.01).length ?? 0;
+  const changed = res?.updated.filter((u) => u.created || Math.abs(u.to - u.from) >= 0.01).length ?? 0;
 
   return (
     <Modal
@@ -123,7 +123,7 @@ export function SkorozvonHours({ onClose }: { onClose: () => void }) {
                     <div key={u.name} className="skh-row">
                       <b>{shortName(u.name)}</b>
                       <span className="num skh-h">
-                        <s>{fmtNum(u.from)}</s> → <b>{fmtNum(u.to)} ч</b>
+                        {u.created ? <span className="o2-muted" title="Смены в графике не было — заведём рабочую">новая смена</span> : <s>{fmtNum(u.from)}</s>} → <b>{fmtNum(u.to)} ч</b>
                       </span>
                       <span className="o2-muted num skh-parts">
                         {PARTS.filter(([k]) => k !== "manual" || (u.parts[k] ?? 0) > 0)

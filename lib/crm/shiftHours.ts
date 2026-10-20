@@ -16,6 +16,8 @@ export interface ShiftHoursRow {
   parts: Record<string, number>;
   /** Остальные статусы Скорозвона (перерыв, «не беспокоить»…) — в часы не идут, только для просмотра. */
   other?: Record<string, number>;
+  /** Смены в графике не было — функция заводит рабочую (оператор отработал в Скорозвоне). */
+  created?: boolean;
 }
 
 export interface ShiftHoursResult {

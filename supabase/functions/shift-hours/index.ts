@@ -7,6 +7,9 @@
 // Перерывы, «не беспокоить» и офлайн не считаются. (Старые смены вида «ручной обзвон» — как рабочие.) Оператор CRM ↔ сотрудник Скорозвона —
 // по фамилии (и имени, если фамилия встречается дважды). Не нашёлся или нашлись двое —
 // смену не трогаем, а в ответе и в журнале пишем, кого не сопоставили.
+// Смену забыли поставить, а оператор в Скорозвоне отработал (от MIN_NEW_SEC) — заводим рабочую смену
+// с этими часами. Только оператору линии (не супервайзеру) и только если в графике на этот день
+// у него нет никакой записи: выходной, больничный, отпуск, платформу не перебиваем.
 // В комментарий смены дописывается строка «Скорозвон: …» с разбивкой по статусам;
 // то, что в комментарии написали руками, остаётся.
 //
@@ -61,6 +64,9 @@ function splitStatuses(st: Record<string, number> | undefined): { parts: Record<
 }
 const MARK = "Скорозвон:";
 const MSK = 3 * 3600_000;
+/** Сколько рабочего времени в Скорозвоне нужно, чтобы завести смену, которой нет в графике: 15 минут. */
+const MIN_NEW_SEC = 15 * 60;
+const HOURS_TYPES = new Set(["work", "manual", "training"]);
 
 class Fail extends Error {}
 
@@ -192,22 +198,39 @@ Deno.serve(async (req) => {
     const dry = body.dry === true;
 
     const admin = createClient(url, service, { auth: { persistSession: false } });
-    const [{ data: shifts, error: sErr }, { data: ops, error: oErr }] = await Promise.all([
-      admin.from("shifts").select("id, date, operator_id, hours, type, comment").eq("date", date).in("type", ["work", "manual", "training"]),
-      admin.from("operators").select("id, name, deleted_at, status, fire_date"),
+    const [{ data: dayShifts, error: sErr }, { data: ops, error: oErr }, { data: groups, error: gErr }] = await Promise.all([
+      admin.from("shifts").select("id, date, operator_id, hours, type, comment").eq("date", date),
+      admin.from("operators").select("id, name, deleted_at, status, fire_date, hire_date, role, pay_type, group_id"),
+      admin.from("groups").select("supervisor_id, deleted_at"),
     ]);
-    if (sErr || oErr) return json({ error: (sErr ?? oErr)!.message }, 500);
-    if (!shifts?.length) return json({ date, updated: [], skipped: [], note: "В графике на этот день нет смен" });
+    if (sErr || oErr || gErr) return json({ error: (sErr ?? oErr ?? gErr)!.message }, 500);
+    const shifts = (dayShifts ?? []).filter((s) => HOURS_TYPES.has(s.type));
 
     const rows = (await employment(date)).map((row) => ({ w: new Set(words(row.full_name)), row }));
     // уволенный после даты увольнения не работает: остаток смены в графике часами не заполняем
     const gone = (o: { status?: string; fire_date?: string | null }) => o.status === "fired" && (!o.fire_date || date > o.fire_date);
-    const opById = new Map((ops ?? []).filter((o) => !o.deleted_at && !gone(o)).map((o) => [o.id as string, o as Op]));
+    const live = (ops ?? []).filter((o) => !o.deleted_at && !gone(o));
+    const opById = new Map(live.map((o) => [o.id as string, o as Op]));
 
-    const updated: { name: string; from: number; to: number; parts: Record<string, number>; other: Record<string, number> }[] = [];
+    // кому можно завести смену, которой нет в графике: оператор линии, уже принят, на этот день — ни одной записи
+    const svIds = new Set<string>(live.filter((o) => o.role === "supervisor" || o.pay_type === "sv_volume").map((o) => o.id));
+    for (const g of groups ?? []) if (!g.deleted_at && g.supervisor_id) svIds.add(g.supervisor_id);
+    const hasRecord = new Set((dayShifts ?? []).map((s) => s.operator_id as string));
+    const noShift = live.filter((o) => !hasRecord.has(o.id) && !svIds.has(o.id) && (!o.hire_date || o.hire_date <= date));
+
+    const updated: { name: string; from: number; to: number; parts: Record<string, number>; other: Record<string, number>; created?: boolean }[] = [];
     const skipped: { name: string; why: string }[] = [];
     const recs: { id: string; hours: number; comment: string; updated_at: string }[] = [];
+    const news: { id: string; date: string; operator_id: string; group_id: string | null; type: string; hours: number; comment: string; updated_at: string }[] = [];
     const now = new Date().toISOString();
+
+    const tally = (row: EmpRow) => {
+      const { parts, other } = splitStatuses(row.statuses);
+      const sec = Object.values(parts).reduce((a, b) => a + b, 0);
+      const hours = Math.round((sec / 3600) * 100) / 100;
+      const line = `${MARK} ${(Object.keys(WORK) as WorkKey[]).map((k) => `${WORK[k]} ${hhmm(parts[k])}`).join(" · ")}${parts.manual ? ` · ${MANUAL_LABEL} ${hhmm(parts.manual)}` : ""}`;
+      return { parts, other, sec, hours, line };
+    };
 
     for (const s of shifts) {
       const op = opById.get(s.operator_id);
@@ -217,10 +240,7 @@ Deno.serve(async (req) => {
         skipped.push({ name: op.name, why: m.why ?? "" });
         continue;
       }
-      const { parts, other } = splitStatuses(m.row.statuses);
-      const sec = Object.values(parts).reduce((a, b) => a + b, 0);
-      const hours = Math.round((sec / 3600) * 100) / 100;
-      const line = `${MARK} ${(Object.keys(WORK) as WorkKey[]).map((k) => `${WORK[k]} ${hhmm(parts[k])}`).join(" · ")}${parts.manual ? ` · ${MANUAL_LABEL} ${hhmm(parts.manual)}` : ""}`;
+      const { parts, other, hours, line } = tally(m.row);
       updated.push({ name: op.name, from: Number(s.hours) || 0, to: hours, parts, other });
       const comment = withMark(String(s.comment ?? ""), line);
       // ничего не поменялось с прошлого часа — не пишем: лишние записи будят все открытые CRM
@@ -228,11 +248,28 @@ Deno.serve(async (req) => {
       recs.push({ id: s.id, hours, comment, updated_at: now });
     }
 
+    // смены нет, а в Скорозвоне работал: не нашёлся или работал меньше MIN_NEW_SEC — молча пропускаем,
+    // иначе в «не сопоставлены» попадал бы каждый, у кого выходной
+    for (const o of noShift) {
+      const m = matchOp(o as Op, rows);
+      if (!m.row) continue;
+      const { parts, other, sec, hours, line } = tally(m.row);
+      if (sec < MIN_NEW_SEC) continue;
+      updated.push({ name: o.name, from: 0, to: hours, parts, other, created: true });
+      news.push({ id: `${date}|${o.id}`, date, operator_id: o.id, group_id: o.group_id ?? null, type: "work", hours, comment: line, updated_at: now });
+    }
+    if (!updated.length && !skipped.length) return json({ date, updated: [], skipped: [], note: "В графике на этот день нет смен, в Скорозвоне — никого из операторов" });
+
     // только часы и комментарий: тип смены, группа и всё остальное не трогаем
     if (!dry) {
       for (const r of recs) {
         const { error } = await admin.from("shifts").update({ hours: r.hours, comment: r.comment, updated_at: r.updated_at }).eq("id", r.id);
         if (error) return json({ error: `Не сохранилась смена ${r.id}: ${error.message}`, updated, skipped }, 500);
+      }
+      // новые смены; если за это время в графике её уже поставили руками — ту не перезаписываем
+      if (news.length) {
+        const { error } = await admin.from("shifts").upsert(news, { onConflict: "id", ignoreDuplicates: true });
+        if (error) return json({ error: `Не завелись новые смены: ${error.message}`, updated, skipped }, 500);
       }
     }
     // расписание идёт каждый час: в журнал — только итог дня (прогон за вчера в 00:05) и запуски руками
@@ -245,8 +282,8 @@ Deno.serve(async (req) => {
         account_name: who,
         entity: "shift",
         entity_id: date,
-        summary: `Часы из Скорозвона за ${ru}: ${updated.length} смен${skipped.length ? `, не сопоставлено ${skipped.length}: ${skipped.map((x) => x.name).join(", ")}` : ""}`,
-        changes: updated.map((u) => ({ f: u.name, from: `${u.from} ч`, to: `${u.to} ч` })),
+        summary: `Часы из Скорозвона за ${ru}: ${updated.length} смен${news.length ? `, из них новых ${news.length}` : ""}${skipped.length ? `, не сопоставлено ${skipped.length}: ${skipped.map((x) => x.name).join(", ")}` : ""}`,
+        changes: updated.map((u) => ({ f: u.name, from: u.created ? "нет смены" : `${u.from} ч`, to: `${u.to} ч` })),
       });
     }
     return json({ date, dry, updated, skipped });
