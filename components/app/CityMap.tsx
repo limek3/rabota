@@ -141,7 +141,8 @@ export function CityMap({
   /** Подсвеченный наш город (наведён в списке). */
   focus: number | null;
   onPick: (t: Target) => void;
-  height: number | string;
+  /** Нет — карта тянется на высоту строки (быстрое окно: вровень с панелью слева). */
+  height?: number | string;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const tip = useRef<HTMLDivElement>(null);

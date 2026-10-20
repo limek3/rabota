@@ -273,7 +273,7 @@ export function CityFinder({
   return (
     <div className={`cf${compact ? " compact" : ""}`}>
       {panel}
-      <CityMap ours={ours.list} target={target} near={near} focus={focus} onPick={pick} height={compact ? 380 : "calc(100vh / var(--ui-scale, 1) - 200px)"} />
+      <CityMap ours={ours.list} target={target} near={near} focus={focus} onPick={pick} height={compact ? undefined : "calc(100vh / var(--ui-scale, 1) - 200px)"} />
     </div>
   );
 }
