@@ -28,6 +28,7 @@ import {
   weekStart,
 } from "@/lib/crm/dates";
 import type { DayKey, MonthKey } from "@/lib/crm/types";
+import { useMobile } from "@/lib/useMobile";
 
 /**
  * Выпадающие элементы вместо системных <select>, календаря и выбора месяца.
@@ -209,7 +210,10 @@ export function Select<V extends string = string>({
   const listId = useId();
 
   const close = useCallback(() => setOpen(false), []);
-  const { style: popStyle } = usePopover(open, btnRef, popRef, close);
+  // на телефоне список — шторкой снизу с крупными пунктами: не привязан к полю, поэтому
+  // клавиатура и прокрутка его не закрывают, закрывает фон или выбор
+  const sheet = useMobile();
+  const { style: popStyle } = usePopover(open && !sheet, btnRef, popRef, close);
 
   const withSearch = searchable ?? options.length >= SEARCH_FROM;
   const current = options.find((o) => o.value === value);
@@ -227,8 +231,9 @@ export function Select<V extends string = string>({
     setQ("");
     const idx = snap.current.options.findIndex((o) => o.value === snap.current.value);
     setHi(Math.max(0, idx));
-    window.setTimeout(() => (withSearch ? searchRef.current?.focus() : popRef.current?.focus()), 0);
-  }, [open, withSearch]);
+    // на телефоне в поиск не встаём: всплывшая клавиатура закрыла бы половину списка
+    window.setTimeout(() => (withSearch && !sheet ? searchRef.current?.focus() : popRef.current?.focus({ preventScroll: true })), 0);
+  }, [open, withSearch, sheet]);
 
   useEffect(() => {
     if (open) listRef.current?.querySelector<HTMLElement>(`[data-idx="${hi}"]`)?.scrollIntoView({ block: "nearest" });
@@ -326,14 +331,23 @@ export function Select<V extends string = string>({
       </button>
       {open && (
         <Layer>
+          {sheet && <div className="sel-back" onClick={close} aria-hidden />}
           <div
             ref={popRef}
-            className="sel-pop"
-            style={{ ...popStyle, minWidth: Math.max(Number(popStyle.minWidth) || 0, minPopWidth) }}
+            className={sheet ? "sel-pop sel-sheet" : "sel-pop"}
+            style={sheet ? undefined : { ...popStyle, minWidth: Math.max(Number(popStyle.minWidth) || 0, minPopWidth) }}
             tabIndex={-1}
             onKeyDown={onKey}
             role="presentation"
           >
+            {sheet && (
+              <div className="sel-sheet-h">
+                <b>{ariaLabel || placeholder}</b>
+                <button type="button" onClick={close} aria-label="Закрыть">
+                  <Icon name="close" size={18} />
+                </button>
+              </div>
+            )}
             {withSearch && (
               <div className="sel-search">
                 <Icon name="search" size={13} style={{ color: "var(--dim)" }} />

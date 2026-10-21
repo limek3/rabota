@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { TitleBar } from "@/components/TitleBar";
 import "./globals.css";
@@ -8,6 +8,8 @@ import "./ops2.css";
 import "./learn.css";
 import "./academy.css";
 import "./cities.css";
+// мобильная версия — последней: переопределяет раскладку на экранах до 760 px
+import "./mobile.css";
 
 // Шрифты лежат локально (./fonts): сборка не зависит от сети.
 // Весь текст — Inter.
@@ -27,6 +29,21 @@ const ui = localFont({
 export const metadata: Metadata = {
   title: { default: "LEADUP CRM", template: "%s · LEADUP" },
   description: "Операционная система руководителя отдела лидогенерации",
+  // на телефоне CRM ставится на главный экран и открывается без строки браузера
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "LEADUP", statusBarStyle: "default" },
+  icons: { apple: "/brand-logo.png" },
+};
+
+// viewportFit: cover — полоски сверху и снизу на телефоне сами отступают от «чёлки» и полосы жестов
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f1f0ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#121212" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

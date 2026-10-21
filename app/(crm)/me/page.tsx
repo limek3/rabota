@@ -17,6 +17,8 @@ import { TelegramCard } from "@/components/app/TelegramCard";
 import { PayoutHistory } from "@/components/app/PayoutHistory";
 import { PayslipModal } from "@/components/app/Payslip";
 import { StickyHead, planItems } from "@/components/app/StickyHead";
+import { LeadCards } from "@/components/app/LeadCards";
+import { useMobile } from "@/lib/useMobile";
 
 /**
  * «Мой кабинет» оператора (и супервайзера, который сам звонит) — про «сейчас» и деньги:
@@ -27,6 +29,8 @@ export default function MePage() {
   const { data, ix, access, me, month, setMonth, today, openLead, remote } = useCrm();
   const m = useMonthModel();
   const [slipOpen, setSlipOpen] = useState(false);
+  // телефон: сегодняшние лиды карточками вместо таблицы
+  const mobile = useMobile();
   const s = data.settings;
   const opId = access.opId;
   const row = useMemo(() => m.ops.find((r) => r.op.id === opId) ?? null, [m.ops, opId]);
@@ -134,7 +138,7 @@ export default function MePage() {
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
             {access.can.createLeads && (
-              <button className="btn btn-primary btn-lg" onClick={() => openLead()}>
+              <button className="btn btn-primary btn-lg lead-cta" onClick={() => openLead()}>
                 <Icon name="plus" size={16} stroke={2.2} /> Лид передан
                 <span className="kbd">N</span>
               </button>
@@ -244,7 +248,7 @@ export default function MePage() {
 
         {/* ── сегодня: сколько передал к дневной цели и ставка смены ─── */}
         {cur && (
-          <section className="card d2-pp">
+          <section className="card d2-pp me-today-card">
             <div className="d2-pp-h" style={{ justifyContent: "space-between" }}>
               <h3 className="d2-h">
                 <Icon name="bolt" size={15} className="title-ic" />
@@ -373,6 +377,10 @@ export default function MePage() {
                     ) : undefined
                   }
                 />
+              ) : mobile ? (
+                <div style={{ padding: "0 10px 10px" }}>
+                  <LeadCards leads={myLeadsToday} onOpen={(l) => openLead(l)} showOp={false} showDate={false} />
+                </div>
               ) : (
                 <table className="d2-tbl" style={{ marginBottom: 8 }}>
                   <tbody>

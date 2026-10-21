@@ -17,9 +17,9 @@ import { CityPeek } from "./CityPeek";
 import { AccountMenu } from "./AccountMenu";
 import { LAST_MAIN_KEY, LearnRail } from "./LearnRail";
 import { SheetsAutoSync } from "./SheetsSync";
+import { MobileMore, MobileTabs, MobileTop, useMonthStatus } from "./MobileNav";
 import { homeFor } from "@/lib/crm/access";
 import { signOut } from "@/lib/auth";
-import { monthModel } from "@/lib/crm/calc";
 import { currentMonth, fmtMonth } from "@/lib/crm/dates";
 import { fmtInt, fmtPct } from "@/lib/crm/format";
 import { NumberTween } from "@/components/app/NumberTween";
@@ -32,23 +32,11 @@ import { LENS_ROUTES, ProjectLens } from "@/components/app/ProjectLens";
  * плана на дату, красный — если отстаём (как везде: цвет — только по выполнению плана).
  */
 function RailStatus() {
-  const { data, ix, today, ready, access } = useCrm();
-  const m = useMemo(() => (ready ? monthModel(data, ix, currentMonth(), today) : null), [data, ix, today, ready]);
-  if (!m) return null;
-
-  const scoped = !access.isHead && access.ownGroups.size > 0;
-  const groups = m.groups.filter((g) => (g.plan > 0 || g.pace.fact > 0) && (!scoped || access.ownGroups.has(g.key)));
-  // у оператора срез данных — он сам, поэтому «команда» здесь = его личный план
-  const t = scoped
-    ? groups.reduce((a, g) => ({ fact: a.fact + g.pace.fact, plan: a.plan + g.plan, toDate: a.toDate + g.pace.planToDate, today: a.today + g.pace.today }), { fact: 0, plan: 0, toDate: 0, today: 0 })
-    : { fact: m.team.pace.fact, plan: m.team.plan, toDate: m.team.pace.planToDate, today: m.team.pace.today };
-  if (t.plan === 0 && t.fact === 0) return null;
-
-  const pct = t.plan > 0 ? t.fact / t.plan : 0;
-  const tone = (fact: number, toDate: number, plan: number) => (plan <= 0 ? undefined : fact >= toDate - 0.5 ? "ok" : "behind");
-  const who = access.isOp && !scoped ? "Мой план" : scoped ? (groups.length === 1 ? groups[0].name : "Мои группы") : "Отдел";
-  const href = access.routes.has("/dashboard") ? "/dashboard" : "/me";
-  const list = access.isHead && groups.length > 1 ? groups : [];
+  const st = useMonthStatus();
+  if (!st) return null;
+  const { who, href, pct, toneOf: tone } = st;
+  const t = st;
+  const list = st.groups;
   const MAX = 5;
 
   return (
@@ -375,6 +363,23 @@ function Hotkeys() {
   return null;
 }
 
+/** ?lead=1 в адресе (ярлык «Лид передан» на главном экране телефона) — сразу форма нового лида. */
+function LeadDeepLink() {
+  const { ready, access, openLead } = useCrm();
+  const done = useRef(false);
+  useEffect(() => {
+    if (!ready || done.current) return;
+    done.current = true;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("lead") !== "1") return;
+    q.delete("lead");
+    const rest = q.toString();
+    window.history.replaceState(window.history.state, "", window.location.pathname + (rest ? `?${rest}` : ""));
+    if (access.can.createLeads) openLead();
+  }, [ready, access, openLead]);
+  return null;
+}
+
 /** Страница не разрешена аккаунту (или аккаунт сменили) — на его стартовую. */
 function RouteGuard() {
   const { ready, access } = useCrm();
@@ -456,27 +461,20 @@ function Modals() {
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  // шторка «Ещё» мобильного меню
+  const [more, setMore] = useState(false);
+  const openMore = useCallback(() => setMore((v) => !v), []);
+  const closeMore = useCallback(() => setMore(false), []);
   return (
     <AuthGate fallback={<ShellSkeleton route={"/" + ((pathname || "").split("/")[1] || "")} />}>
       <CrmProvider>
         {/* clip, а не hidden: hidden-контейнер браузер может прокрутить сам (фокус, прокрутка
-            к элементу) — тогда при раскрытии меню всё съезжало влево и подписи обрезались */}
-        <div style={{ display: "flex", height: "calc(100vh / var(--ui-scale, 1) - var(--titlebar-h, 0px))", overflow: "clip", background: "var(--bg-sidebar)" }}>
+            к элементу) — тогда при раскрытии меню всё съезжало влево и подписи обрезались.
+            На телефоне боковое меню спрятано, вместо него — полоска сверху и меню снизу (app/mobile.css) */}
+        <div className="app-frame">
           <Rail />
-          <main
-            style={{
-              flex: 1,
-              minWidth: 0,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-              background: "var(--bg)",
-              border: "1px solid var(--ink-07)",
-              borderRadius: 10,
-              margin: 8,
-              marginLeft: 0,
-            }}
-          >
+          <main className="app-main">
+            <MobileTop onMore={openMore} />
             {/* место под полосу прокрутки держим всегда: иначе короткие и длинные страницы стоят по-разному и при переходе контент прыгает */}
             <div id="app-scroll" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", position: "relative", scrollbarGutter: "stable" }}>
               {/* слот липкой шапки страницы (StickyHead): высота 0, место в раскладке не занимает */}
@@ -485,8 +483,10 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Body>{children}</Body>
               </div>
             </div>
+            <MobileTabs onMore={openMore} moreOpen={more} />
           </main>
         </div>
+        <MobileMore open={more} onClose={closeMore} />
         <Modals />
         <CommandPalette />
         <CityPeek />
@@ -496,6 +496,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <Hotkeys />
         <NumberTween />
         <RouteGuard />
+        <LeadDeepLink />
         <SheetsAutoSync />
       </CrmProvider>
     </AuthGate>

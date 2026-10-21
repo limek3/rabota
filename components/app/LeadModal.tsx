@@ -10,7 +10,9 @@ import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select
 import { canCreateLeadFor, canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
-import { SKOROZVON_LINK_EXAMPLE, fmtPhone, isSkorozvonLink, normLink, normPhone, shortName, skorozvonLinkPhone } from "@/lib/crm/format";
+import { LEADS, SKOROZVON_LINK_EXAMPLE, fmtInt, fmtPhone, isSkorozvonLink, normLink, normPhone, plural, shortName, skorozvonLinkPhone } from "@/lib/crm/format";
+import { createPortal } from "react-dom";
+import { useBackClose, useMobile } from "@/lib/useMobile";
 import { fmtDate, fmtDay, fmtStamp, nowStamp } from "@/lib/crm/dates";
 import { hasLeadLinkColumn, hasLeadRegionColumn } from "@/lib/crm/remote";
 import { SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
@@ -30,6 +32,18 @@ const LAST_PR = "leadup.lastProject";
 const LAST_RG = "leadup.lastRegion";
 /** Последний город — свой у каждого проекта (у 100 up свой список городов); авто.ру — прежний ключ. */
 const rgKey = (projectId: string) => (projectId ? `${LAST_RG}.${projectId}` : LAST_RG);
+
+/** Последние города проекта — на телефоне кнопками над списком, чтобы не листать его каждый раз. */
+const RECENT_MAX = 4;
+const recentKey = (projectId: string) => `leadup.recentRegions.${projectId || "-"}`;
+function recentRegions(projectId: string): string[] {
+  try {
+    const v = JSON.parse(remembered(recentKey(projectId)) || "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 function remembered(key: string): string {
   try {
@@ -251,8 +265,11 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
   const readOnly = !!lead && !canEditLead(access, lead, full);
   const canDelete = !!lead && canEditLead(access, lead, full, true);
 
-  /** Сохранить поля. Новый лид: more — очистить форму под следующий. Возвращает, получилось ли. */
-  const save = async (more = false): Promise<boolean> => {
+  /**
+   * Сохранить поля. Новый лид: more — очистить форму под следующий; quiet — без всплывашки
+   * (на телефоне вместо неё экран «Лид записан»). Возвращает, получилось ли.
+   */
+  const save = async (more = false, quiet = false): Promise<boolean> => {
     setTried(true);
     if (busy || invalid || readOnly) return false;
     setBusy(true);
@@ -277,7 +294,10 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     if (!saved) return false;
     remember(LAST_OP, operatorId);
     if (projectId) remember(LAST_PR, projectId);
-    if (region) remember(rgKey(projectId), region);
+    if (region) {
+      remember(rgKey(projectId), region);
+      remember(recentKey(projectId), JSON.stringify([region, ...recentRegions(projectId).filter((r) => r !== region)].slice(0, RECENT_MAX)));
+    }
     if (lead) {
       toast("Лид изменён");
       setTried(false);
@@ -285,7 +305,7 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     }
     if (more) {
       setAdded((n) => n + 1);
-      toast(`Лид записан: ${shortName(ix.opById.get(operatorId)?.name ?? "")}`);
+      if (!quiet) toast(`Лид записан: ${shortName(ix.opById.get(operatorId)?.name ?? "")}`);
       setClient("");
       setPhone("");
       setComment("");
@@ -1144,13 +1164,300 @@ export function LeadModal({ lead, preset }: { lead: Lead | null; preset?: LeadPr
   const { closeModal, data } = useCrm();
   // лид могли поменять, пока окно открыто (статус) — показываем свежий
   const live = lead ? data.leads.find((l) => l.id === lead.id) ?? lead : null;
+  // окно открывается уже после загрузки, поэтому ширина экрана известна сразу
+  const mobile = useMobile();
   return live ? (
     <Modal onClose={closeModal} width={600}>
       <LeadCard lead={live} failIntent={preset?.status === "failed"} onClose={closeModal} variant="modal" />
     </Modal>
+  ) : mobile ? (
+    <LeadCreateMobile preset={preset} onClose={closeModal} />
   ) : (
     <LeadCreateModal preset={preset} onClose={closeModal} />
   );
+}
+
+/**
+ * Новый лид на телефоне — на весь экран, под большой палец. Порядок тот же, что на компьютере
+ * (ссылка → клиент → город → чек-лист → комментарий), но: ссылку вставляет одна кнопка, города —
+ * кнопками (последние сверху), кнопка «Записать» всегда внизу, а после записи — экран «Лид записан»
+ * с «Записать ещё». Системная «Назад» закрывает окно, а не уводит со страницы.
+ */
+function LeadCreateMobile({ preset, onClose }: { preset?: LeadPreset; onClose: () => void }) {
+  const { access, ix, data, today, toast } = useCrm();
+  const d = useLeadDraft(null, preset);
+  const [done, setDone] = useState<{ client: string; phone: string; region: string } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const linkRef = useRef<HTMLInputElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const op = ix.opById.get(d.f.operatorId);
+  const todayCount = useMemo(() => data.leads.filter((l) => l.operatorId === d.f.operatorId && l.at.slice(0, 10) === today).length, [data.leads, d.f.operatorId, today]);
+  const recent = useMemo(() => {
+    const allowed = new Set(d.opts.region.map((o) => o.value));
+    return recentRegions(d.f.projectId).filter((r) => allowed.has(r));
+    // added — после записи список обновился в браузере
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.f.projectId, d.opts.region, d.added]);
+  const canPaste = mounted && typeof navigator !== "undefined" && !!navigator.clipboard?.readText;
+
+  useEffect(() => setMounted(true), []);
+  useBackClose(true, onClose);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !e.defaultPrevented && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const paste = async () => {
+    try {
+      const t = (await navigator.clipboard.readText()).trim();
+      if (!t) {
+        toast("В буфере обмена пусто — скопируйте ссылку на лид в Скорозвоне");
+        return;
+      }
+      d.set.link(normLink(t) || t);
+      // номер подставится из ссылки — дальше вводят имя
+      if (!d.f.client.trim()) window.setTimeout(() => nameRef.current?.focus(), 60);
+    } catch {
+      toast("Не получилось прочитать буфер — нажмите на поле и выберите «Вставить»");
+      linkRef.current?.focus();
+    }
+  };
+
+  const submit = async () => {
+    const snap = { client: d.f.client.trim(), phone: d.phoneNorm, region: d.f.region };
+    const ok = await d.save(true, true);
+    if (ok) {
+      setDone(snap);
+      bodyRef.current?.scrollTo({ top: 0 });
+      return;
+    }
+    // чего-то не хватает — показываем первое поле с ошибкой
+    window.requestAnimationFrame(() => bodyRef.current?.querySelector(".field-err, [aria-invalid='true']")?.scrollIntoView({ block: "center", behavior: "smooth" }));
+  };
+
+  const regionField = d.opts.region.length > 0 && (
+    <div className="mlf-f">
+      <span className="mlf-l">
+        {d.ownCities ? "Город клиента" : "Регион"} <span className="req">*</span>
+      </span>
+      {d.opts.region.length <= 9 ? (
+        // городов немного — все кнопками, без списка
+        <div className="mlf-chips" role="radiogroup" aria-label={d.ownCities ? "Город клиента" : "Регион"}>
+          {d.opts.region.map((o) => (
+            <button key={o.value} type="button" role="radio" aria-checked={d.f.region === o.value} className={d.f.region === o.value ? "on" : ""} onClick={() => d.set.region(o.value)}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <>
+          {recent.length > 0 && (
+            <div className="mlf-chips" role="radiogroup" aria-label="Последние города">
+              {recent.map((r) => (
+                <button key={r} type="button" role="radio" aria-checked={d.f.region === r} className={d.f.region === r ? "on" : ""} onClick={() => d.set.region(r)}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
+          <Select
+            value={d.f.region}
+            options={d.opts.region}
+            onChange={d.set.region}
+            invalid={d.tried && !!d.err.region}
+            ariaLabel={d.ownCities ? "Город клиента" : "Регион"}
+            placeholder={recent.length ? "Другой город…" : d.ownCities ? "Город автосалона" : "Регион"}
+          />
+        </>
+      )}
+      {d.tried && d.err.region ? <span className="field-err">{d.err.region}</span> : regionHint(d, !access.isOp) ? <span className="field-hint">{regionHint(d, !access.isOp)}</span> : null}
+      <button
+        type="button"
+        className="lf-city-map"
+        onClick={() => openCityPeek({ projectId: d.f.projectId || undefined, allowed: d.opts.region.map((o) => o.value), choose: d.set.region })}
+      >
+        <Icon name="map" size={13} /> Клиент из другого города — ближайший наш на карте
+      </button>
+    </div>
+  );
+
+  const dh = dupHint(d, (id) => ix.opById.get(id)?.name ?? "");
+
+  return mounted
+    ? createPortal(
+        <div className="mlf" role="dialog" aria-modal aria-label={d.isForm ? "Отправлена форма" : "Передан лид"}>
+          <header className="mlf-head">
+            <button type="button" className="mlf-x" onClick={onClose} aria-label="Закрыть">
+              <Icon name="close" size={20} />
+            </button>
+            <div className="mlf-t">
+              <b>{done ? "Готово" : d.isForm ? "Отправлена форма" : "Передан лид"}</b>
+              {op && <span>{access.isOp ? "на вас" : shortName(op.name)} · сегодня {fmtInt(todayCount)} {plural(todayCount, LEADS)}</span>}
+            </div>
+          </header>
+
+          {done ? (
+            <div className="mlf-done" ref={bodyRef}>
+              <div className="mlf-done-ic">
+                <Icon name="check" size={34} stroke={2.6} />
+              </div>
+              <h2>Лид записан</h2>
+              <p>
+                {[done.client, fmtPhone(done.phone), done.region].filter(Boolean).join(" · ")}
+              </p>
+              <div className="mlf-done-n">
+                {access.isOp ? "Вы передали сегодня" : "Сегодня у оператора"} <b className="num">{fmtInt(todayCount)}</b> {plural(todayCount, LEADS)}
+              </div>
+              <span className="mlf-done-s">Статус «В работе» — доведён или нет, отметит супервайзер</span>
+            </div>
+          ) : d.noOps ? (
+            <div className="mlf-body" ref={bodyRef}>
+              <div className="mlf-empty">
+                {access.isOp
+                  ? "Ваш аккаунт не привязан к карточке оператора или запись лидов для операторов выключена. Обратитесь к руководителю."
+                  : "Сначала добавьте хотя бы одного активного оператора (в вашей зоне) — лид всегда привязан к оператору, который его передал."}
+              </div>
+            </div>
+          ) : (
+            <div className="mlf-body" ref={bodyRef}>
+              {(d.projectList.length > 1 || (d.tried && d.err.pr)) && (
+                <div className="mlf-f">
+                  <ProjectSwitch d={d} />
+                  {d.tried && d.err.pr && <span className="field-err">{d.err.pr}</span>}
+                </div>
+              )}
+
+              {!access.isOp && (
+                <div className="mlf-f">
+                  <span className="mlf-l">Оператор</span>
+                  <Select value={d.f.operatorId} options={d.opts.op} onChange={d.set.operatorId} invalid={d.tried && !!d.err.op} ariaLabel="Оператор" />
+                  {d.tried && d.err.op && <span className="field-err">{d.err.op}</span>}
+                </div>
+              )}
+
+              <div className="mlf-f">
+                <span className="mlf-l">
+                  Ссылка на лид в Скорозвоне <span className="req">*</span>
+                </span>
+                <div className="mlf-link">
+                  <input
+                    ref={linkRef}
+                    className="inp"
+                    value={d.f.link}
+                    onChange={(e) => d.set.link(e.target.value)}
+                    onBlur={() => d.linkNorm && d.set.link(d.linkNorm)}
+                    placeholder="app.skorozvon.ru/#/leads/…"
+                    inputMode="url"
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    aria-invalid={d.tried && !!d.err.link}
+                  />
+                  {canPaste && (
+                    <button type="button" className="mlf-paste" onClick={() => void paste()}>
+                      <Icon name="paste" size={16} /> Вставить
+                    </button>
+                  )}
+                </div>
+                {(d.tried || d.linkNorm) && d.err.link ? (
+                  <span className="field-err">{d.err.link}</span>
+                ) : d.linkPhone && d.linkNorm ? (
+                  <span className="field-hint mlf-ok">
+                    <Icon name="check" size={12} stroke={2.6} /> Ссылка из Скорозвона, номер подставлен
+                  </span>
+                ) : (
+                  <span className="field-hint">Скопируйте ссылку на лид в Скорозвоне и нажмите «Вставить» — номер подставится сам</span>
+                )}
+              </div>
+
+              <div className="mlf-f">
+                <span className="mlf-l">
+                  Имя клиента <span className="req">*</span>
+                </span>
+                <input
+                  ref={nameRef}
+                  className="inp"
+                  value={d.f.client}
+                  onChange={(e) => d.set.client(e.target.value)}
+                  placeholder="Как зовут клиента"
+                  autoComplete="off"
+                  autoCapitalize="words"
+                  enterKeyHint="next"
+                  aria-invalid={d.tried && !!d.err.client}
+                />
+                {d.tried && d.err.client && <span className="field-err">{d.err.client}</span>}
+              </div>
+
+              <div className="mlf-f">
+                <span className="mlf-l">
+                  Телефон <span className="req">*</span>
+                </span>
+                <input
+                  className="inp num"
+                  type="tel"
+                  value={d.f.phone}
+                  onChange={(e) => d.set.phone(e.target.value)}
+                  onBlur={() => d.phoneNorm.length === 11 && d.set.phone(fmtPhone(d.phoneNorm))}
+                  placeholder="+7 900 000-00-00"
+                  inputMode="tel"
+                  autoComplete="off"
+                  aria-invalid={d.tried && !!d.err.phone}
+                />
+                {d.tried && d.err.phone ? <span className="field-err">{d.err.phone}</span> : dh ? <span className="field-hint">{dh}</span> : null}
+              </div>
+
+              {regionField}
+
+              <ProjectBrief d={d} />
+
+              <div className="mlf-f">
+                <span className="mlf-l">Комментарий для менеджера</span>
+                <textarea
+                  className="inp lf-ta"
+                  value={d.f.comment}
+                  onChange={(e) => d.set.comment(e.target.value)}
+                  rows={3}
+                  placeholder={d.isForm ? "Критерии клиента — авто, бюджет, кредит / трейд-ин, сроки" : "Что важно знать менеджеру"}
+                />
+              </div>
+
+              <div className="mlf-src">Время ставится само — по Москве, в момент записи. Источник: {LEAD_SOURCE}.</div>
+            </div>
+          )}
+
+          <footer className="mlf-foot">
+            {done ? (
+              <>
+                <button type="button" className="mlf-go" onClick={() => setDone(null)}>
+                  <Icon name="plus" size={18} stroke={2.4} /> Записать ещё лид
+                </button>
+                <button type="button" className="mlf-sec" onClick={onClose}>
+                  Готово
+                </button>
+              </>
+            ) : d.noOps ? (
+              <button type="button" className="mlf-sec" onClick={onClose}>
+                Закрыть
+              </button>
+            ) : (
+              <>
+                {d.missing.length > 0 && (
+                  <div className="mlf-miss">
+                    <Icon name="alert" size={13} /> Осталось: {d.missing.join(", ")}
+                  </div>
+                )}
+                <button type="button" className="mlf-go" onClick={() => void submit()} disabled={d.busy} data-ready={d.missing.length === 0 || undefined} data-wait={d.missing.length > 0 || undefined}>
+                  <Icon name="check" size={18} stroke={2.4} /> {d.busy ? "Записываем…" : d.isForm ? "Форма отправлена — записать" : "Записать лид"}
+                </button>
+              </>
+            )}
+          </footer>
+        </div>,
+        document.body,
+      )
+    : null;
 }
 
 function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: () => void }) {

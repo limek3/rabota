@@ -8,7 +8,8 @@ import { HOME_ROUTE } from "@/lib/appMode";
 export default function RootPage() {
   const router = useRouter();
   useEffect(() => {
-    router.replace(HOME_ROUTE);
+    // ?lead=1 — ярлык «Лид передан» с главного экрана телефона: форму откроет Shell
+    router.replace(HOME_ROUTE + window.location.search);
   }, [router]);
   return null;
 }

@@ -86,6 +86,8 @@ export const ICONS = {
   /* закрепить / открепить боковое меню */
   pinOn: "M15 4.5 11 8.5 7 10l-1.5 1.5 7 7L14 17l1.5-4 4-4M9 15l-4.5 4.5M14.5 4 20 9.5",
   pinOff: "M15 4.5 11 8.5 7 10l-1.5 1.5 7 7L14 17l1.5-4 4-4M9 15l-4.5 4.5M14.5 4 20 9.5M3 3l18 18",
+  grid: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+  paste: "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 2h6v4H9zM9 12h6M9 16h4",
 } as const;
 
 export type IconName = keyof typeof ICONS;

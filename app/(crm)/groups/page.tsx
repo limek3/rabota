@@ -67,7 +67,7 @@ export default function GroupsPage() {
       ) : view === "cards" ? (
         <>
           {/* карточки — своей высоты: соседняя не тянется за раскрытой */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(380px, 1fr))", gap: 14, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(380px, 100%), 1fr))", gap: 14, alignItems: "start" }}>
             {m.groups.map((g) => (
               <GroupCard key={g.key} g={g} byOp={byOp} picked={g.key === picked} onPick={() => pickGroup(g.key, true)} />
             ))}

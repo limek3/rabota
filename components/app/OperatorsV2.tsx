@@ -15,6 +15,7 @@ import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components
 import { StickyHead } from "@/components/app/StickyHead";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
+import { useMobile } from "@/lib/useMobile";
 import { OperatorNotes, useOpNotes } from "@/components/app/OperatorCoach";
 
 /**
@@ -176,6 +177,8 @@ export function OperatorsV2() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [selId, setSelId] = useState<string | null>(null);
   const [drawerId, setDrawerId] = useState<string | null>(null);
+  // на телефоне панели справа нет: оператор открывается сразу полной карточкой на весь экран
+  const mobile = useMobile();
   const vis = useColumnVisibility("operators2", COLS, COLS);
   // свой порядок столбцов у каждого аккаунта; перетаскивание за заголовок — как на прежней странице
   const colOrder = useColumnOrder("operators2", COLS);
@@ -186,7 +189,8 @@ export function OperatorsV2() {
   // /operators?id=… — сразу выбрать оператора
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("id");
-    if (id) setSelId(id);
+    if (id) (mobile ? setDrawerId : setSelId)(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── строки за период ───────────────────────────────────────────── */
@@ -789,6 +793,39 @@ export function OperatorsV2() {
           <div className="card o2-card">
             {list.length === 0 ? (
               <div style={{ padding: 28, textAlign: "center", color: "var(--dim)", fontSize: 13 }}>Никого не нашли — поменяйте фильтры.</div>
+            ) : mobile ? (
+              // телефон: карточками — кто, как идёт к плану, сколько сделал; нажал — полная карточка
+              <div className="ocards">
+                {list.map((x) => {
+                  const hue = x.planToDate > 0 ? pctHue(x.pct) : "gray";
+                  return (
+                    <button key={x.op.id} type="button" className="ocard" onClick={() => setDrawerId(x.op.id)}>
+                      <Avatar name={x.op.name} id={x.op.id} size={36} />
+                      <span className="ocard-b">
+                        <span className="ocard-n">
+                          {shortName(x.op.name)}
+                          <EmploymentTag op={x.op} />
+                        </span>
+                        <span className="ocard-s">
+                          <i style={{ background: hueVar(x.groupColor) }} />
+                          {x.groupName}
+                          {worked(x.todayShift) && <span className="ocard-on"> · на смене</span>}
+                        </span>
+                        <span className="ocard-bar">
+                          <i style={{ width: `${Math.min(100, x.pct * 100)}%`, background: hueVar(hue) }} />
+                        </span>
+                      </span>
+                      <span className="ocard-r">
+                        <b style={{ color: x.planToDate > 0 ? hueVar(hue) : undefined }}>{x.planToDate > 0 ? fmtPct(x.pct) : "—"}</b>
+                        <span className="num">
+                          {fmtInt(x.fact)} из {fmtInt(Math.round(x.plan))}
+                        </span>
+                        <span className="num">конв. {x.lph == null ? "—" : fmtPct(x.lph)}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             ) : (
               <div className="o2-scroll" ref={wrapRef}>
                 <table className="o2-tbl">
@@ -818,7 +855,7 @@ export function OperatorsV2() {
                   <tbody>
                     {list.map((x) => {
                       return (
-                        <tr key={x.op.id} className={sel?.op.id === x.op.id ? "sel" : undefined} onClick={() => setSelId(sel?.op.id === x.op.id ? null : x.op.id)}>
+                        <tr key={x.op.id} className={sel?.op.id === x.op.id ? "sel" : undefined} onClick={() => (mobile ? setDrawerId(x.op.id) : setSelId(sel?.op.id === x.op.id ? null : x.op.id))}>
                           <td onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
@@ -886,7 +923,7 @@ export function OperatorsV2() {
         </div>
 
         {/* панель закреплена: пока никто не выбран — заглушка */}
-        {sel ? (
+        {mobile ? null : sel ? (
           <Side key={sel.op.id} x={sel} mode={mode} forLabel={forLabel} onClose={() => setSelId(null)} onOpenCard={() => setDrawerId(sel.op.id)} insight={ins.byOp.get(sel.op.id)} />
         ) : (
           <SideEmpty />

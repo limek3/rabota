@@ -1,0 +1,372 @@
+/* ════════════════════════════════════════════════════════════════════
+   Мобильная версия (телефон, до 760 px).
+   Боковое меню прячется, вместо него — полоска сверху (план месяца, аватар) и меню снизу
+   с большой кнопкой «Лид». Окна выезжают снизу, списки — шторкой, поля и кнопки — под палец,
+   в полях 16 px (меньше — iPhone увеличивает страницу при вводе).
+   Граница 760 px — та же, что у useMobile() в lib/useMobile.ts.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* на компьютере мобильных частей нет */
+.m-top, .m-tabs { display: none; }
+
+@keyframes mSheetUp { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes mFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mPop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+
+/* ── шторка снизу (меню «Ещё») — общая заготовка ── */
+.m-sheet-back { position: fixed; inset: 0; z-index: 480; background: rgba(15, 15, 15, 0.42); display: flex; align-items: flex-end; animation: mFadeIn 0.16s ease; }
+.m-sheet {
+  width: 100%; max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--bg-modal); border-radius: 18px 18px 0 0; box-shadow: var(--shadow-xl);
+  padding: 6px 14px calc(16px + env(safe-area-inset-bottom));
+  animation: mSheetUp 0.26s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.m-grab { width: 38px; height: 4px; border-radius: 2px; background: var(--ink-15); margin: 4px auto 8px; }
+.m-x { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border: 0; border-radius: 10px; background: var(--ink-05); color: var(--text-sub); cursor: pointer; }
+
+/* ── меню «Ещё» ── */
+.m-more-acc { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.m-more-acc .acc-btn { flex: 1; min-width: 0; height: auto; justify-content: flex-start; padding: 8px 10px; border-radius: 12px; background: var(--ink-04); }
+.m-more-month { display: block; padding: 12px 14px; margin-bottom: 14px; border-radius: 14px; border: 1px solid var(--ink-07); background: var(--bg-panel); color: inherit; text-decoration: none; }
+.m-more-month-t { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; font-size: 13px; font-weight: 600; }
+.m-more-month-t i { font-style: normal; font-weight: 400; color: var(--dim); }
+.m-more-month-t b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.m-more-month-t b[data-tone="ok"], .m-more-groups [data-tone="ok"] b { color: var(--c-green-fg); }
+.m-more-month-t b[data-tone="behind"], .m-more-groups [data-tone="behind"] b { color: var(--c-red-fg); }
+.m-more-month-s { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.m-more-month-s b { color: var(--text-sub); font-weight: 600; }
+.m-more-groups { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--ink-06); font-size: 12px; color: var(--text-sub); }
+.m-more-groups span { display: inline-flex; align-items: center; gap: 6px; }
+.m-more-groups i { width: 7px; height: 7px; border-radius: 2px; }
+.m-more-sec { margin-bottom: 14px; }
+.m-more-h { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dimmer); padding: 0 2px 8px; }
+.m-more-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.m-more-it { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; min-height: 78px; padding: 10px 6px; border-radius: 14px; border: 1px solid var(--ink-07); background: var(--bg-panel); color: var(--text-sub); text-decoration: none; text-align: center; font-size: 12px; font-weight: 500; line-height: 1.2; }
+.m-more-it .ic { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 11px; background: var(--ink-05); color: var(--text); }
+.m-more-it[aria-current="page"] { border-color: var(--brand); color: var(--text); font-weight: 600; }
+.m-more-it[aria-current="page"] .ic { background: var(--brand); color: var(--on-brand); }
+.m-more-it:active { transform: scale(0.97); }
+/* меню обучения внутри «Ещё»: то же, что в боковой колонке, но без анимаций колонки */
+.m-more-learn { margin: 0 -4px 14px; border: 1px solid var(--ink-07); border-radius: 14px; background: var(--bg-sidebar); overflow: hidden; }
+.m-more-learn .rail-pane { position: static; transform: none; opacity: 1; visibility: visible; pointer-events: auto; display: flex; flex-direction: column; }
+.m-more-learn .rail-pane nav { overflow: visible !important; }
+.m-more-learn .rail-fold, .m-more-learn .rail-search .kbd, .m-more-learn .rail-glider { display: none; }
+.m-more-learn .app-rail-item[aria-current="page"] { background: var(--brand-tint); }
+
+@media (max-width: 760px) {
+  :root {
+    --pad-t: 14px;
+    --pad-x: 14px;
+    --pad-b: 28px;
+    --ctl-h: 42px;
+    --m-top-h: 52px;
+    --m-tabs-h: 62px;
+  }
+
+  /* ── оболочка ── */
+  .app-rail { display: none !important; }
+  .app-frame { height: 100dvh; background: var(--bg); }
+  .app-main { margin: 0; border: 0; border-radius: 0; }
+  #app-scroll { scrollbar-gutter: auto !important; overscroll-behavior-y: contain; }
+  .app-content { max-width: none !important; }
+
+  .m-top {
+    display: flex; align-items: center; gap: 10px; flex: none;
+    height: calc(var(--m-top-h) + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 12px 0 14px;
+    background: var(--bg); border-bottom: 1px solid var(--ink-07); z-index: 41;
+  }
+  .m-brand { display: flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; flex: none; }
+  .m-brand img { border-radius: 7px; display: block; }
+  .m-brand b { font-size: 15px; font-weight: 800; letter-spacing: 0.02em; }
+  .m-stat { margin-left: auto; min-width: 0; display: flex; align-items: baseline; gap: 6px; height: 32px; padding: 0 11px; border-radius: 16px; background: var(--ink-05); color: var(--text-sub); text-decoration: none; font-size: 12px; line-height: 32px; white-space: nowrap; }
+  .m-stat b { font-size: 14px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .m-stat b[data-tone="ok"] { color: var(--c-green-fg); }
+  .m-stat b[data-tone="behind"] { color: var(--c-red-fg); }
+  .m-stat-w { overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
+  .m-stat-d { color: var(--dim); }
+  .m-ava { flex: none; width: 40px; height: 40px; display: grid; place-items: center; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer; }
+  .m-top:not(:has(.m-stat)) .m-ava { margin-left: auto; }
+
+  .m-tabs {
+    display: flex; align-items: stretch; flex: none;
+    height: calc(var(--m-tabs-h) + env(safe-area-inset-bottom)); padding: 0 4px env(safe-area-inset-bottom);
+    background: var(--bg-panel); border-top: 1px solid var(--ink-08); z-index: 41;
+  }
+  .m-tab {
+    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    border: 0; background: none; padding: 0 2px; font: inherit; font-size: 10.5px; font-weight: 500; color: var(--dim);
+    text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .m-tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m-tab[aria-current="page"] { color: var(--text); font-weight: 600; }
+  .m-tab:active { opacity: 0.6; }
+  .m-fab { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; padding: 0 0 6px; border: 0; background: none; font: inherit; font-size: 10.5px; font-weight: 700; color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .m-fab-i { width: 54px; height: 54px; margin-top: -22px; display: grid; place-items: center; border-radius: 18px; background: var(--brand); color: var(--on-brand); box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.35), 0 0 0 4px var(--bg-panel); transition: transform 0.12s var(--ease); }
+  .m-fab:active .m-fab-i { transform: scale(0.92); }
+
+  /* ── окна: выезжают снизу на всю ширину ── */
+  .modal-back { padding: 0; align-items: flex-end; overflow: hidden; }
+  .modal { max-width: none !important; margin: 0; border-radius: 18px 18px 0 0; border-bottom: 0; max-height: calc(100dvh - 24px); animation: mSheetUp 0.26s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .modal-head { padding: 14px 14px 8px; }
+  .modal-title { font-size: 17px; }
+  .modal-body { padding: 4px 14px 14px; overscroll-behavior: contain; }
+  .modal-foot { padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); }
+  .modal-foot > .btn, .modal-foot > .o2-btn, .modal-foot .lf-bar > .o2-btn { min-height: 44px; flex: 1 1 auto; justify-content: center; }
+  .modal-head .btn-icon { width: 36px; height: 36px; }
+  .lc-modal { height: calc(100dvh - 24px); }
+  .lc-decide { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .lc-decide .lf-st3 button { height: 46px; font-size: 13.5px; }
+  .lf-reasons button { height: 34px; padding: 0 12px; font-size: 13px; border-radius: 17px; }
+  .drawer { inset: 0; width: 100% !important; border-radius: 0; border: 0; padding-bottom: env(safe-area-inset-bottom); }
+  .sheet-back { padding: 0; }
+  .sheet { border-radius: 0; height: 100dvh; }
+
+  /* ── выпадающий список шторкой ── */
+  .sel-back { position: fixed; inset: 0; z-index: 940; background: rgba(15, 15, 15, 0.42); animation: mFadeIn 0.14s ease; }
+  .sel-pop.sel-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; max-width: none; width: 100%; max-height: min(72dvh, 560px);
+    border-radius: 18px 18px 0 0; border: 0; padding: 4px 10px calc(10px + env(safe-area-inset-bottom));
+    animation: mSheetUp 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .sel-sheet-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 6px 8px; }
+  .sel-sheet-h b { font-size: 16px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sel-sheet-h button { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border: 0; border-radius: 10px; background: var(--ink-05); color: var(--text-sub); }
+  .sel-sheet .sel-search { padding: 0 12px; height: 42px; margin: 0 0 6px; border: 1px solid var(--ctrl-border); border-radius: 10px; }
+  .sel-sheet .sel-opt { padding: 12px 10px 12px 6px; min-height: 48px; font-size: 15px; border-radius: 10px; }
+  .sel-sheet .sel-opt.is-hi:not(.is-on) { background: transparent; }
+  .sel-sheet .sel-opt:active { background: var(--ink-05); }
+  .sel-sheet .sel-hint { font-size: 12.5px; }
+  .sel-sheet .sel-group { padding: 12px 10px 4px; }
+  .sel-pop:not(.sel-sheet) { max-width: calc(100vw - 16px); }
+
+  /* ── поля и кнопки под палец ── */
+  input.inp:not(.inp-sm), textarea.inp, .o2-search input, .sel-search input, .acc-pop input { font-size: 16px !important; }
+  .inp:not(.inp-sm):not(textarea), .sel-trigger:not(.inp-sm) { min-height: 42px; }
+  .kbd { display: none !important; }
+  .toast-stack { left: 12px; right: 12px; bottom: calc(var(--m-tabs-h) + env(safe-area-inset-bottom) + 10px); align-items: stretch; }
+  .toast { max-width: none; }
+  body:has(.mlf) .toast-stack, body:has(.modal-back) .toast-stack { bottom: calc(96px + env(safe-area-inset-bottom)); }
+
+  /* ── шапки страниц ── */
+  .page-head { gap: 10px; margin-bottom: 12px; }
+  .page-head > :first-child { flex: 1 1 100%; }
+  .page-title { font-size: 23px; letter-spacing: -0.4px; }
+  .page-sub { font-size: 13px; line-height: 18px; margin-top: 4px; }
+  .page-head > .toolbar { margin-left: 0; width: 100%; flex-wrap: wrap; }
+  .page-head .toolbar > .btn-primary { flex: 1 1 auto; justify-content: center; }
+  .o2-head { gap: 10px; }
+  .o2-title { font-size: 25px; }
+  .o2-tools { width: 100%; gap: 8px; }
+  .o2-tools > .o2-seg { flex: 1 1 100%; }
+  .o2-seg button { flex: 1 1 0; height: 32px; padding: 0 8px; }
+  .o2-date { flex: 1 1 auto; }
+  .o2-date .lbl { flex: 1; min-width: 0 !important; justify-content: center; height: 40px; }
+  .o2-ib { width: 40px; height: 40px; flex: none; }
+  .o2-btn { height: 40px; }
+  .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .seg::-webkit-scrollbar { display: none; }
+
+  /* липкая шапка страницы не нужна: план месяца и так виден в полоске сверху */
+  .sh-host { display: none; }
+
+  /* ── таблицы и сетки ── */
+  .tbl-wrap, .o2-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .kpi-grid[data-n] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .o2-body.has-side { grid-template-columns: minmax(0, 1fr) !important; }
+  .card { border-radius: 14px; }
+
+  /* ── страница «Лиды» ── */
+  .l2-body > .o2-side { display: none; }
+  /* плитки показателей — по две в ряд, без значков: иначе подписи обрезаются до «Опер…» */
+  .o2-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .o2-kpi { padding: 12px 14px 10px; border-left: 1px solid var(--ink-06) !important; border-top: 1px solid var(--ink-06); }
+  .o2-kpi:nth-child(odd) { border-left: 0 !important; }
+  .o2-kpi:nth-child(-n + 2) { border-top: 0; }
+  .o2-kpi .ic { display: none; }
+  .o2-kpi .l, .o2-kpi .s { white-space: normal; }
+  .l2-row { grid-template-columns: minmax(0, 1fr) !important; }
+  .l2-days { display: none; }
+  .o2-filters .o2-frow { flex-wrap: wrap; }
+  .o2-filters .o2-search { flex: 1 1 100%; max-width: none; height: 42px; }
+  .o2-filters .o2-frow > .sel-trigger { flex: 1 1 calc(50% - 4px); width: auto !important; }
+  .o2-filters .o2-found { margin-left: 0; }
+  .l2-foot { flex-wrap: wrap; gap: 8px; }
+
+  /* ── «Мой кабинет» ── */
+  .me-money-top { padding: 14px 16px 12px; gap: 16px; }
+  .me-money-parts span { min-width: 45%; }
+
+  /* ── «Сводка»: полосы показателей по два в ряд ── */
+  .d2-strip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; row-gap: 14px; }
+  .d2-strip .d2-kpi { border-left: 0 !important; }
+  .d2-strip .d2-kpi:nth-child(2n) { border-left: 1px solid var(--ink-07) !important; }
+  .d2-kpi-l, .d2-kpi-u { white-space: normal; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Новый лид на телефоне (LeadCreateMobile в LeadModal.tsx)
+   ════════════════════════════════════════════════════════════════════ */
+.mlf { position: fixed; inset: 0; z-index: 520; display: flex; flex-direction: column; background: var(--bg); animation: mSheetUp 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.mlf-head { flex: none; display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--ink-07); background: var(--bg); }
+.mlf-x { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border: 0; border-radius: 12px; background: var(--ink-05); color: var(--text); cursor: pointer; }
+.mlf-t { display: flex; flex-direction: column; min-width: 0; }
+.mlf-t b { font-size: 18px; font-weight: 700; color: var(--text); }
+.mlf-t span { font-size: 12.5px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mlf-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 14px 24px; display: flex; flex-direction: column; gap: 18px; }
+.mlf-f { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.mlf-l { font-size: 13px; font-weight: 600; color: var(--text); }
+.mlf-l .req { color: var(--c-red-fg); }
+.mlf .inp { height: 48px; font-size: 16px; padding: 0 14px; border-radius: 12px; }
+.mlf textarea.inp { height: auto; min-height: 84px; padding: 12px 14px; }
+.mlf .sel-trigger { height: 48px !important; font-size: 15px; border-radius: 12px; padding: 0 14px; }
+.mlf .field-hint, .mlf .field-err { font-size: 12.5px; line-height: 1.4; }
+.mlf-ok { display: inline-flex; align-items: center; gap: 5px; color: var(--c-green-fg) !important; }
+.mlf-link { display: flex; gap: 8px; }
+.mlf-link .inp { flex: 1; min-width: 0; }
+.mlf-paste { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 48px; padding: 0 16px; border: 0; border-radius: 12px; background: var(--brand); color: var(--on-brand); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.mlf-paste:active { transform: scale(0.97); }
+.mlf-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mlf-chips button { min-height: 46px; padding: 6px 10px; border: 1.5px solid var(--ink-10); border-radius: 12px; background: var(--bg-panel); font: inherit; font-size: 14.5px; font-weight: 500; color: var(--text); cursor: pointer; text-align: center; line-height: 1.2; -webkit-tap-highlight-color: transparent; }
+.mlf-chips button.on { border-color: var(--brand); background: var(--brand); color: var(--on-brand); font-weight: 600; }
+.mlf-chips + .sel-trigger { margin-top: 2px; }
+.mlf .lf-city-map { font-size: 13px; padding: 6px 0; }
+/* проект — крупным переключателем во всю ширину */
+.mlf .lf-proj { display: flex; width: 100%; padding: 4px; gap: 4px; border-radius: 12px; }
+.mlf .lf-proj button { flex: 1 1 0; height: 42px; justify-content: center; font-size: 14.5px; border-radius: 9px; }
+/* условия и чек-лист проекта */
+.mlf .lf-sec { border-top: 0; padding-top: 0; gap: 10px; }
+.mlf .l2-sec-t { font-size: 13px; font-weight: 600; color: var(--text); flex-wrap: wrap; }
+.mlf .lf-check { min-height: 48px; padding: 10px 12px; font-size: 14.5px; border-radius: 12px; }
+.mlf .lf-check input { width: 20px; height: 20px; }
+.mlf .lf-checks-g { display: flex; flex-direction: column; gap: 8px; }
+.mlf .lf-brief-btn { height: 34px; padding: 0 12px; font-size: 13px; }
+.mlf-src { font-size: 12px; color: var(--dim); line-height: 1.45; }
+.mlf-empty { font-size: 15px; line-height: 1.5; color: var(--text-sub); padding: 20px 4px; }
+.mlf-foot { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--ink-07); background: var(--bg-panel); }
+.mlf-miss { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--c-amber-fg); }
+.mlf-go { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 54px; border: 0; border-radius: 14px; background: var(--brand); color: var(--on-brand); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; transition: transform 0.12s var(--ease), opacity 0.12s; -webkit-tap-highlight-color: transparent; }
+.mlf-go[data-wait]:not(:disabled) { opacity: 0.88; }
+.mlf-go[data-ready] { background: var(--c-green-fg); }
+.mlf-go:active { transform: scale(0.98); }
+.mlf-go:disabled { opacity: 0.6; }
+.mlf-sec { width: 100%; height: 48px; border: 1px solid var(--ctrl-border); border-radius: 14px; background: var(--bg-panel); font: inherit; font-size: 16px; font-weight: 600; color: var(--text); cursor: pointer; }
+.mlf-done { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px 22px; text-align: center; }
+.mlf-done-ic { width: 84px; height: 84px; display: grid; place-items: center; border-radius: 50%; background: var(--c-green-bg); color: var(--c-green-fg); border: 1px solid var(--c-green-bd); animation: mPop 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both; margin-bottom: 6px; }
+.mlf-done h2 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; color: var(--text); }
+.mlf-done p { margin: 0; font-size: 15px; color: var(--text-sub); }
+.mlf-done-n { margin-top: 14px; padding: 14px 18px; border-radius: 14px; background: var(--bg-panel); border: 1px solid var(--ink-07); font-size: 15px; color: var(--text-sub); }
+.mlf-done-n b { font-size: 22px; color: var(--text); margin: 0 3px; }
+.mlf-done-s { font-size: 12.5px; color: var(--dim); max-width: 280px; }
+@media (prefers-reduced-motion: reduce) {
+  .mlf, .m-sheet, .modal, .sel-pop.sel-sheet, .mlf-done-ic { animation: none !important; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Лиды карточками (LeadCards) и чипы статусов — на телефоне вместо таблиц и плиток
+   ════════════════════════════════════════════════════════════════════ */
+.lcards { display: flex; flex-direction: column; gap: 8px; }
+.lcard {
+  display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 12px 12px 10px; text-align: left;
+  border: 1px solid var(--ink-08); border-radius: 14px; background: var(--bg-panel); font: inherit; color: var(--text); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; transition: transform 0.1s var(--ease);
+}
+.lcard:active { transform: scale(0.985); background: var(--bg-panel-hover); }
+.lcard[data-st="failed"] { border-left: 3px solid var(--c-red-fg); }
+.lcard[data-st="work"] { border-left: 3px solid var(--c-amber-fg); }
+.lcard[data-st="done"] { border-left: 3px solid var(--c-green-fg); }
+.lcard-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.lcard-top b { font-size: 15.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.lcard-top .o2-st { flex: none; }
+.lcard-mid { font-size: 14px; color: var(--text-sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lcard-why { font-size: 12.5px; color: var(--c-red-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lcard-bot { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--dim); }
+.lcard-bot > span { display: inline-flex; align-items: center; gap: 5px; }
+.lcard-pr i { width: 7px; height: 7px; border-radius: 2px; }
+.lcard-go { margin-left: auto; color: var(--dimmer); }
+.lcards-more { width: 100%; justify-content: center; margin-top: 10px; height: 44px; }
+
+.m-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 calc(-1 * var(--pad-x)); padding: 2px var(--pad-x) 4px; }
+.m-chips::-webkit-scrollbar { display: none; }
+.m-chips button { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border-radius: 19px; border: 1px solid var(--ink-10); background: var(--bg-panel); font: inherit; font-size: 13.5px; font-weight: 500; color: var(--text-sub); cursor: pointer; white-space: nowrap; }
+.m-chips button b { font-weight: 700; color: var(--text); }
+.m-chips button.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.m-chips button.on b { color: var(--on-brand); }
+.m-chips button[data-hue="red"]:not(.on) b { color: var(--c-red-fg); }
+.m-chips button[data-hue="amber"]:not(.on) b { color: var(--c-amber-fg); }
+.m-chips button[data-hue="green"]:not(.on) b { color: var(--c-green-fg); }
+
+@media (max-width: 760px) {
+  /* кнопку «Лид передан» в шапках страниц заменяет «Лид» в нижнем меню */
+  .lead-cta { display: none !important; }
+  /* «Мой кабинет»: сначала «Сегодня» — сколько передал и сколько до цели, потом деньги */
+  .me-today-card { order: -1; }
+  .me-tier { grid-template-columns: minmax(0, 1fr) !important; }
+  /* таблица ступеней повторяет лестницу над ней — на телефоне хватает лестницы */
+  .me-tier > :not(:first-child) { display: none; }
+  .me-strip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  /* меню аккаунта во всю ширину */
+  .acc-pop { left: 12px !important; right: 12px; width: auto !important; max-width: none !important; }
+  .l2-body { margin-top: 10px; }
+  .o2-main { gap: 10px; }
+  .o2-card:has(.lcards) { background: none; border: 0; box-shadow: none; overflow: visible; }
+}
+/* hidden у блоков со своим display (плитки, строка фильтров) — иначе атрибут не прячет */
+.o2-kpis[hidden], .o2-frow[hidden] { display: none !important; }
+
+/* ── «Сводка» на телефоне: факт и «сегодня» одно под другим, показатели по три, широкие таблицы — вбок ── */
+@media (max-width: 760px) {
+  .d2-fact { grid-template-columns: minmax(0, 1fr) !important; padding: 14px 16px 12px; min-height: 0; row-gap: 12px; }
+  .d2-fact > .d2-alert, .d2-fact > .d2-alert:nth-child(2) { grid-column: auto !important; }
+  .d2-fact-n { font-size: 46px; }
+  .d2-now { padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--ink-07); }
+  .d2-now .d2-fact-n { font-size: 36px; }
+  .d2-now-s { white-space: normal; }
+  .d2-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; row-gap: 14px; }
+  .d2-kpis .d2-kpi { border-left: 1px solid var(--ink-07) !important; padding: 0 6px; }
+  .d2-kpis .d2-kpi:nth-child(3n + 1) { border-left: 0 !important; }
+  .d2-kpi-v { font-size: 19px; }
+  .d2-bar { margin: 14px 26px 0 16px; }
+  .d2-ops, .d2-hm { overflow-x: auto; }
+  .d2-hm-stats { flex-wrap: wrap; row-gap: 8px; margin-left: 0; }
+  .d2-hm-stats > div { padding: 0 12px; }
+  .d2-hm-wrap { overflow-x: auto; }
+  .d2-todo-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .d2-gk { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .lens-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+}
+@media (max-width: 760px) {
+  /* две колонки страницы (в т.ч. с шириной, заданной прямо в разметке) — одна под другой */
+  .cols-main, .grid2, .grid3, .op-sheet, .hero-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
+/* ── «График» на телефоне: страница не в высоту окна, а целиком; таблица листается вбок,
+   закреплена только колонка с именами (итоги справа — обычными колонками, иначе дни не видны) ── */
+@media (max-width: 760px) {
+  :root { --sch-name-w: 128px; }
+  .sched-page { height: auto !important; }
+  .sched-page > .tbl-wrap { max-height: calc(100dvh - var(--m-top-h) - var(--m-tabs-h) - 40px); }
+  .sched .sum { position: static !important; }
+  .sched .sticky-col { max-width: var(--sch-name-w); overflow: hidden; text-overflow: ellipsis; }
+  .sched .sch-legend, .stack:has(.sched) > .toolbar { flex-wrap: wrap; }
+}
+
+/* ── «Операторы» карточками (телефон) ── */
+.ocards { display: flex; flex-direction: column; }
+.ocard { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; border-top: 1px solid var(--ink-06); background: none; font: inherit; color: var(--text); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.ocard:first-child { border-top: 0; }
+.ocard:active { background: var(--ink-04); }
+.ocard-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ocard-n { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; }
+.ocard-s { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ocard-s > i { width: 7px; height: 7px; border-radius: 2px; flex: none; }
+.ocard-on { color: var(--c-green-fg); }
+.ocard-bar { height: 4px; border-radius: 2px; background: var(--ink-07); overflow: hidden; margin-top: 2px; }
+.ocard-bar i { display: block; height: 100%; border-radius: 2px; }
+.ocard-r { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-size: 11.5px; color: var(--text-sub); }
+.ocard-r b { font-size: 17px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+  /* большое окно (карточка оператора): крестик всегда сверху справа, а не под перенесённой шапкой */
+  .sheet-head { position: relative; padding: calc(12px + env(safe-area-inset-top)) 56px 12px 14px; gap: 10px; }
+  .sheet-close { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 10px; width: 38px; height: 38px; }
+  .sheet-body { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+}

@@ -16,6 +16,8 @@ import { regionSegment, type RegionSegment } from "@/lib/crm/regions";
 import { LeadSheetExport, PhonesExport } from "@/components/app/LeadsClassic";
 import { Popover } from "@/components/app/OperatorsV2";
 import { LeadPanel, LeadPanelEmpty } from "@/components/app/LeadModal";
+import { LeadCards } from "@/components/app/LeadCards";
+import { useMobile } from "@/lib/useMobile";
 
 /**
  * «Лиды» v2: карточки статусов, лиды по дням, что требует внимания, журнал и карточка лида
@@ -34,6 +36,7 @@ const SIZES = [25, 50, 75, 100];
 const SIZE_KEY = "leadup.leads.pageSize";
 const ST_ICON: Record<LeadStatus, IconName> = { done: "check", failed: "close", work: "clock" };
 const DOW = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const M_STEP = 30;
 
 function mergeVisible(full: string[], visibleNext: string[]): string[] {
   const vis = new Set(visibleNext);
@@ -70,6 +73,10 @@ export function LeadsV2() {
     setFailFor(fail ? id : null);
   };
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "at", dir: -1 });
+  // телефон: лиды карточками, «Показать ещё» вместо страниц, фильтры свёрнуты под кнопкой
+  const mobile = useMobile();
+  const [mCount, setMCount] = useState(M_STEP);
+  const [mFilters, setMFilters] = useState(false);
   // выгрузки (номера, таблица ОКК) — только РОП: супервайзер не должен случайно выгрузить или пометить номера
   const canExport = access.isHead;
 
@@ -106,7 +113,10 @@ export function LeadsV2() {
     if (qp.from && qp.to) setPeriod({ mode: "range", from: qp.from, to: qp.to });
     if (qp.id) setSelId(qp.id);
   }, []);
-  useEffect(() => setPage(1), [period, operatorId, groupId, projectId, q, status, region, size, notExported, sort]);
+  useEffect(() => {
+    setPage(1);
+    setMCount(M_STEP);
+  }, [period, operatorId, groupId, projectId, q, status, region, size, notExported, sort]);
 
   /* ── выборка ────────────────────────────────────────────────────── */
   const pick = useCallback(
@@ -142,6 +152,12 @@ export function LeadsV2() {
   const cur = Math.min(page, pageCount);
   const pageRows = list.slice((cur - 1) * size, cur * size);
   const sel = selId ? data.leads.find((l) => l.id === selId) ?? null : null;
+  // на телефоне панели справа нет: лид из ссылки (?id=…) открываем шторкой
+  useEffect(() => {
+    if (!mobile || !sel) return;
+    openLead(sel);
+    setSelId(null);
+  }, [mobile, sel, openLead]);
 
   /* ── лиды по дням ───────────────────────────────────────────────── */
   const lastDay = period.to > today ? today : period.to;
@@ -385,7 +401,7 @@ export function LeadsV2() {
             </button>
           )}
           {access.can.createLeads && (
-            <button className="o2-btn pri" onClick={() => openLead()}>
+            <button className="o2-btn pri lead-cta" onClick={() => openLead()}>
               <Icon name="plus" size={14} stroke={2.2} />
               Лид передан
             </button>
@@ -395,8 +411,24 @@ export function LeadsV2() {
 
       <div className="o2-body has-side l2-body">
         <div className="o2-main">
-          {/* ── показатели (как на «Операторах»): нажатие — фильтр по статусу ── */}
-          <div className="card o2-kpis l2-kpis" ref={kpiRef}>
+          {/* ── показатели (как на «Операторах»): нажатие — фильтр по статусу; на телефоне — чипами ── */}
+          {mobile && (
+            <div className="m-chips" role="radiogroup" aria-label="Статус">
+              {(
+                [
+                  ["", "Все", total],
+                  ["work", "В работе", byStatus.work],
+                  ["done", "Доведён", byStatus.done],
+                  ["failed", "Не доведён", byStatus.failed],
+                ] as [LeadStatus | "", string, number][]
+              ).map(([k, t, n]) => (
+                <button key={k || "all"} type="button" role="radio" aria-checked={status === k} className={status === k ? "on" : ""} data-hue={k ? LEAD_STATUS_HUE[k] : undefined} onClick={() => setStatus(k)}>
+                  {t} <b className="num">{fmtInt(n)}</b>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="card o2-kpis l2-kpis" ref={kpiRef} hidden={mobile || undefined}>
             <LKpi
               icon="leads"
               label="Всего лидов"
@@ -496,7 +528,13 @@ export function LeadsV2() {
                 <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по клиенту, номеру или комментарию…" />
               </label>
               <span className="o2-found">Найдено: {fmtInt(list.length)}</span>
-              <Popover
+              {mobile && (
+                <button type="button" className={`o2-btn${mFilters ? " pri" : ""}`} onClick={() => setMFilters((v) => !v)} aria-expanded={mFilters} style={{ marginLeft: "auto" }}>
+                  <Icon name="funnel" size={14} /> Фильтры
+                  {[operatorId, groupId, projectId, region].filter(Boolean).length > 0 && <b className="num">· {[operatorId, groupId, projectId, region].filter(Boolean).length}</b>}
+                </button>
+              )}
+              {!mobile && <Popover
                 align="right"
                 button={(open, toggle, ref) => (
                   <button ref={ref} className="o2-ib" onClick={toggle} aria-expanded={open} title="Столбцы">
@@ -523,9 +561,9 @@ export function LeadsV2() {
                     <Icon name="refresh" size={13} /> Вернуть порядок столбцов
                   </button>
                 )}
-              </Popover>
+              </Popover>}
             </div>
-            <div className="o2-frow">
+            <div className="o2-frow" hidden={(mobile && !mFilters) || undefined}>
               <Select width={160} value={operatorId} options={opOptions} onChange={setOperatorId} ariaLabel="Оператор" minPopWidth={280} />
               <Select
                 width={160}
@@ -580,6 +618,15 @@ export function LeadsV2() {
               <div style={{ padding: 28, textAlign: "center", color: "var(--dim)", fontSize: 13 }}>
                 {data.leads.length ? "Под фильтр ничего не попало — поменяйте период или сбросьте фильтры." : "Лидов пока нет — запишите первый: «Лид передан» или клавиша N."}
               </div>
+            ) : mobile ? (
+              <>
+                <LeadCards leads={list.slice(0, mCount)} onOpen={(l) => openLead(l)} />
+                {list.length > mCount && (
+                  <button type="button" className="o2-btn lcards-more" onClick={() => setMCount((n) => n + M_STEP)}>
+                    Показать ещё {fmtInt(Math.min(M_STEP, list.length - mCount))} · всего {fmtInt(list.length)}
+                  </button>
+                )}
+              </>
             ) : (
               <>
                 <div className="o2-scroll" ref={wrapRef}>
@@ -700,7 +747,7 @@ export function LeadsV2() {
           </div>
         </div>
 
-        {sel ? <LeadPanel key={sel.id + (failFor === sel.id ? ":fail" : "")} lead={sel} failIntent={failFor === sel.id} onClose={() => select(null)} /> : <LeadPanelEmpty />}
+        {!mobile && (sel ? <LeadPanel key={sel.id + (failFor === sel.id ? ":fail" : "")} lead={sel} failIntent={failFor === sel.id} onClose={() => select(null)} /> : <LeadPanelEmpty />)}
       </div>
 
       {phonesOpen && (

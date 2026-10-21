@@ -366,6 +366,10 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 .sched thead .sum.hl, .sched tfoot .sum.hl { background: color-mix(in srgb, var(--brand) 9%, var(--bg-strip)); }
 .sched tbody tr:hover .sum.hl { background: color-mix(in srgb, var(--brand) 9%, var(--bg-panel-hover)); }
 
+/* каркас: меню слева, справа — область страницы карточкой с отступом от края окна */
+.app-frame { display: flex; height: calc(100vh / var(--ui-scale, 1) - var(--titlebar-h, 0px)); overflow: clip; background: var(--bg-sidebar); }
+.app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); border: 1px solid var(--ink-07); border-radius: 10px; margin: 8px 8px 8px 0; }
+
 /* боковое меню: 236 px или свёрнутое до иконок 60 px.
    Иконки стоят на своих местах в обоих состояниях: у пунктов, кнопки «Лид передан»,
    подсветки и аватара левый край такой, что при 60 px их центр ровно посередине (x = 30).
