@@ -477,11 +477,8 @@ export function LeadsClassic() {
 /** «номер / номера / номеров» */
 const NUMBERS: [string, string, string] = ["номер", "номера", "номеров"];
 
-/** Номер для файла: +7XXXXXXXXXX — так его понимают и Excel, и звонилки. */
-const filePhone = (p: string) => {
-  const d = (p || "").replace(/\D+/g, "");
-  return d.length === 11 && d.startsWith("7") ? `+${d}` : (p || "").trim();
-};
+/** Номер для файла: голые цифры 7XXXXXXXXXX, без «+», пробелов и скобок (в ячейке — текстом). */
+const filePhone = (p: string) => (p || "").replace(/\D+/g, "");
 
 /**
  * Выгрузка номеров в Excel: имя, телефон и дата лида (без времени), за выбранные даты.
