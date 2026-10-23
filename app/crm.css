@@ -916,6 +916,9 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .lead-link > svg { position: absolute; left: 10px; color: var(--dim); pointer-events: none; }
 .lead-link > .inp { padding-left: 32px; flex: 1; min-width: 0; }
 .lead-link > a { flex: none; white-space: nowrap; }
+/* ссылка по номеру клиента: «Ищем звонок…», «Найти ссылку по номеру» */
+.lf-find { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.lf-find-btn { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--text); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .lead-time { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 6px; background: var(--ink-04, var(--ink-06)); color: var(--text-sub); font-size: 13px; font-variant-numeric: tabular-nums; }
 .lead-missing { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--c-amber-fg); }
 .req { margin-left: 3px; color: var(--c-red-fg); font-weight: 600; }

@@ -10,7 +10,8 @@ import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select
 import { canCreateLeadFor, canEditLead, canReviewLead } from "@/lib/crm/access";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { findDuplicate } from "@/lib/crm/calc";
-import { LEADS, SKOROZVON_LINK_EXAMPLE, fmtInt, fmtPhone, isSkorozvonLink, normLink, normPhone, plural, shortName, skorozvonLinkPhone } from "@/lib/crm/format";
+import { LEADS, SKOROZVON_LINK_EXAMPLE, fmtInt, fmtPhone, isSkorozvonLink, normLink, normPhone, phoneInsteadOfLink, plural, shortName, skorozvonLinkPhone } from "@/lib/crm/format";
+import { findSkorozvonLink } from "@/lib/crm/skorozvonLink";
 import { createPortal } from "react-dom";
 import { useBackClose, useMobile } from "@/lib/useMobile";
 import { fmtDate, fmtDay, fmtStamp, nowStamp } from "@/lib/crm/dates";
@@ -131,6 +132,10 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
   const [added, setAdded] = useState(0);
   // номер, который подставили из ссылки: новая ссылка его заменит, вписанный руками — нет
   const autoPhone = useRef("");
+  // поиск ссылки по номеру (вставили номер вместо ссылки): busy — ищем, fail — не нашли
+  const [linkFind, setLinkFind] = useState<{ state: "busy" | "fail"; phone: string; msg?: string } | null>(null);
+  // номер запроса: ответ на устаревший (ссылку уже вставили или ищут другой номер) не применяем
+  const findSeq = useRef(0);
 
   const reset = () => {
     if (!lead) return;
@@ -318,6 +323,51 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     return true;
   };
 
+  /** Ссылка в поле; номер из неё — в телефон, если тот пуст или тоже был подставлен. */
+  const takeLink = (v: string) => {
+    setLink(v);
+    const p = skorozvonLinkPhone(normLink(v));
+    if (!p) return;
+    setPhone((cur) => {
+      if (cur.trim() && normPhone(cur) !== autoPhone.current) return cur;
+      autoPhone.current = p;
+      return fmtPhone(p);
+    });
+  };
+
+  /** Ссылка Скорозвона по номеру клиента: последний звонок на него за 20 минут. */
+  const findLink = async (p: string) => {
+    const seq = ++findSeq.current;
+    if (!remote) {
+      setLinkFind({ state: "fail", phone: p, msg: "Поиск по номеру работает только с базой — скопируйте ссылку из Скорозвона" });
+      return;
+    }
+    setLinkFind({ state: "busy", phone: p });
+    try {
+      const url = await findSkorozvonLink(p);
+      if (seq !== findSeq.current) return;
+      setLinkFind(null);
+      takeLink(url);
+    } catch (e) {
+      if (seq !== findSeq.current) return;
+      setLinkFind({ state: "fail", phone: p, msg: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  /** В поле ссылки номер клиента: номер — в телефон, ссылку ищем в Скорозвоне. false — это не номер. */
+  const phoneByLink = (v: string): boolean => {
+    const p = phoneInsteadOfLink(v);
+    if (!p || readOnly) return false;
+    setLink("");
+    setPhone((cur) => {
+      if (cur.trim() && normPhone(cur) !== autoPhone.current) return cur;
+      autoPhone.current = p;
+      return fmtPhone(p);
+    });
+    void findLink(p);
+    return true;
+  };
+
   const remove = async (): Promise<boolean> => {
     if (!lead) return false;
     const ok = await confirm({ title: "Удалить лид?", text: "Удаляйте только ошибочно внесённые записи. Лид пропадёт из всех показателей.", ok: "Удалить", danger: true });
@@ -365,13 +415,18 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
       client: setClient,
       phone: setPhone,
       comment: setComment,
-      link: (v: string) => {
-        setLink(v);
-        const p = skorozvonLinkPhone(normLink(v));
-        if (p && (!phone.trim() || normPhone(phone) === autoPhone.current)) {
-          autoPhone.current = p;
-          setPhone(fmtPhone(p));
-        }
+      link: (v: string, pasted = false) => {
+        // вместо ссылки вставили номер клиента — ищем ссылку сразу. Набирают по цифре — ждём ухода
+        // с поля (linkDone): иначе поиск ушёл бы на десятой цифре одиннадцатизначного номера
+        if ((pasted || v.length - link.length > 1) && phoneByLink(v)) return;
+        findSeq.current++;
+        setLinkFind(null);
+        takeLink(v);
+      },
+      /** Ушли с поля ссылки: номер — ищем ссылку по нему, ссылка — приводим к виду без мусора. */
+      linkDone: () => {
+        if (phoneByLink(link)) return;
+        if (linkNorm) takeLink(linkNorm);
       },
       region: setRegion,
       groupId: setGroupId,
@@ -382,6 +437,8 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     phoneNorm,
     linkNorm,
     linkPhone,
+    linkFind,
+    findLink,
     dup,
     err,
     tried,
@@ -435,7 +492,7 @@ function LinkInput({ d }: { d: Draft }) {
         className="inp"
         value={d.f.link}
         onChange={(e) => d.set.link(e.target.value)}
-        onBlur={() => d.linkNorm && d.set.link(d.linkNorm)}
+        onBlur={d.set.linkDone}
         placeholder="https://app.skorozvon.ru/#/leads/…"
         inputMode="url"
         spellCheck={false}
@@ -449,6 +506,40 @@ function LinkInput({ d }: { d: Draft }) {
       )}
     </div>
   );
+}
+
+/**
+ * Ссылка по номеру: идёт поиск / не нашли / номер есть, а ссылки нет — «Найти ссылку по номеру».
+ * null — показывать нечего (тогда под полем обычная подсказка или ошибка).
+ */
+function linkFindNote(d: Draft): ReactNode {
+  const f = d.linkFind;
+  if (f?.state === "busy")
+    return (
+      <span className="field-hint lf-find">
+        <i className="lc-spin sm" /> Ищем звонок на {fmtPhone(f.phone)} в Скорозвоне…
+      </span>
+    );
+  if (f?.state === "fail")
+    return (
+      <span className="field-err lf-find">
+        {f.msg}{" "}
+        {d.remote && (
+          <button type="button" className="lf-find-btn" onClick={() => void d.findLink(f.phone)}>
+            Искать ещё раз
+          </button>
+        )}
+      </span>
+    );
+  if (d.isNew && d.remote && !d.readOnly && !d.f.link.trim() && d.phoneNorm.length === 11)
+    return (
+      <span className="field-hint lf-find">
+        <button type="button" className="lf-find-btn" onClick={() => void d.findLink(d.phoneNorm)}>
+          <Icon name="search" size={12} /> Найти ссылку по номеру {fmtPhone(d.phoneNorm)}
+        </button>
+      </span>
+    );
+  return null;
 }
 
 /** money=false — оператору цену и апрув не показываем: лишние вопросы. */
@@ -514,14 +605,14 @@ function LeadFields({ d, compact, projectInHead }: { d: Draft; compact?: boolean
         label="Ссылка на лид"
         req={d.isNew}
         wide
-        // не та ссылка (не Скорозвон, чужой номер) — видно сразу после вставки
-        error={d.tried || d.linkNorm ? d.err.link : null}
+        // не та ссылка (не Скорозвон, чужой номер) — видно сразу после вставки; пока ищем по номеру — не ругаемся
+        error={!d.linkFind && (d.tried || d.linkNorm) ? d.err.link : null}
         hint={
           linkNotStored ? (
             <span style={{ color: "var(--c-red-fg)" }}>Ссылка пока не сохраняется: руководителю нужно выполнить в Supabase файл 20260925000001_lead_link_time.sql</span>
-          ) : d.isNew ? (
-            "Скопируйте адрес лида из Скорозвона — номер подставится сам"
-          ) : undefined
+          ) : (
+            linkFindNote(d) ?? (d.isNew ? "Скопируйте адрес лида из Скорозвона — номер подставится сам. Есть только номер клиента — вставьте его, ссылку найдём" : undefined)
+          )
         }
       >
         <LinkInput d={d} />
@@ -1216,7 +1307,7 @@ function LeadCreateMobile({ preset, onClose }: { preset?: LeadPreset; onClose: (
         toast("В буфере обмена пусто — скопируйте ссылку на лид в Скорозвоне");
         return;
       }
-      d.set.link(normLink(t) || t);
+      d.set.link(normLink(t) || t, true);
       // номер подставится из ссылки — дальше вводят имя
       if (!d.f.client.trim()) window.setTimeout(() => nameRef.current?.focus(), 60);
     } catch {
@@ -1347,7 +1438,7 @@ function LeadCreateMobile({ preset, onClose }: { preset?: LeadPreset; onClose: (
                     className="inp"
                     value={d.f.link}
                     onChange={(e) => d.set.link(e.target.value)}
-                    onBlur={() => d.linkNorm && d.set.link(d.linkNorm)}
+                    onBlur={d.set.linkDone}
                     placeholder="app.skorozvon.ru/#/leads/…"
                     inputMode="url"
                     autoComplete="off"
@@ -1361,15 +1452,16 @@ function LeadCreateMobile({ preset, onClose }: { preset?: LeadPreset; onClose: (
                     </button>
                   )}
                 </div>
-                {(d.tried || d.linkNorm) && d.err.link ? (
-                  <span className="field-err">{d.err.link}</span>
-                ) : d.linkPhone && d.linkNorm ? (
-                  <span className="field-hint mlf-ok">
-                    <Icon name="check" size={12} stroke={2.6} /> Ссылка из Скорозвона, номер подставлен
-                  </span>
-                ) : (
-                  <span className="field-hint">Скопируйте ссылку на лид в Скорозвоне и нажмите «Вставить» — номер подставится сам</span>
-                )}
+                {linkFindNote(d) ??
+                  ((d.tried || d.linkNorm) && d.err.link ? (
+                    <span className="field-err">{d.err.link}</span>
+                  ) : d.linkPhone && d.linkNorm ? (
+                    <span className="field-hint mlf-ok">
+                      <Icon name="check" size={12} stroke={2.6} /> Ссылка из Скорозвона, номер подставлен
+                    </span>
+                  ) : (
+                    <span className="field-hint">Скопируйте ссылку на лид в Скорозвоне и нажмите «Вставить» — номер подставится сам. Есть только номер клиента — вставьте его, ссылку найдём</span>
+                  ))}
               </div>
 
               <div className="mlf-f">

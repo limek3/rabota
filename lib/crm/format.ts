@@ -130,6 +130,17 @@ export function skorozvonLinkPhone(norm: string): string {
   return d.length === 10 || d.length === 11 ? normPhone(d) : "";
 }
 
+/**
+ * В поле ссылки вставили номер клиента, а не ссылку («+7 (916) 123-45-67», «89161234567»): номер для
+ * поиска ссылки в Скорозвоне (11 цифр) или "" — это не номер.
+ */
+export function phoneInsteadOfLink(raw: string): string {
+  const t = (raw || "").trim();
+  if (!/^\+?[\d\s()-]+$/.test(t)) return "";
+  const d = t.replace(/\D+/g, "");
+  return d.length === 10 || (d.length === 11 && /^[78]/.test(d)) ? normPhone(d) : "";
+}
+
 /** +7 (912) 345-67-89 для 11-значных российских, иначе как есть. */
 export function fmtPhone(p: string): string {
   const d = (p || "").replace(/\D+/g, "");
