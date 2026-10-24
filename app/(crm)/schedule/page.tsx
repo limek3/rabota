@@ -41,6 +41,8 @@ const TYPES: DayType[] = ["work", "training", "platform", "off", "vacation", "si
 const REST_FROM_HOUR = 9;
 /** Понедельник (не первый столбец) — тонкий разделитель недели: другой сетки между днями нет. */
 const wk = (d: DayKey, i: number) => (i > 0 && weekStart(d) === d ? " wk" : "");
+/** Стажёр (роль «стажёр» в карточке), не уволен: в конце своей группы, строка с индиго-меткой. */
+const isTraineeRow = (r: OpRow) => r.op.role === "trainee" && !isGone(r.op);
 
 interface Sel {
   opId: string;
@@ -117,7 +119,17 @@ export default function SchedulePage() {
         .sort((a, b) => {
           const ga = a.groupKey === NO_GROUP ? "я" : ix.groupById.get(a.groupKey)?.name ?? "";
           const gb = b.groupKey === NO_GROUP ? "я" : ix.groupById.get(b.groupKey)?.name ?? "";
-          return Number(isSvRow(b)) - Number(isSvRow(a)) || ga.localeCompare(gb, "ru") || goneLast(a.op, b.op) || a.op.name.localeCompare(b.op.name, "ru");
+          // стажёры — в конце своей группы, по дате приёма (кто пришёл раньше — ближе к линии, выше)
+          const ta = isTraineeRow(a);
+          const tb = isTraineeRow(b);
+          return (
+            Number(isSvRow(b)) - Number(isSvRow(a)) ||
+            ga.localeCompare(gb, "ru") ||
+            goneLast(a.op, b.op) ||
+            Number(ta) - Number(tb) ||
+            (ta && tb ? (a.op.hireDate || "").localeCompare(b.op.hireDate || "") : 0) ||
+            a.op.name.localeCompare(b.op.name, "ru")
+          );
         }),
     [m.ops, group, ix, led, isSvRow, mine],
   );
@@ -663,16 +675,11 @@ function SchedRow({
   };
   const lanes = days.map(laneOf);
   const ddmm = (d: DayKey) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
-  const opSub =
-    fire
-      ? `уволен(а) ${ddmm(fire)}`
-      : leads
-        ? `ведёт ${leads}`
-        : hire && hire > days[0] && hire <= days[days.length - 1]
-          ? `с ${ddmm(hire)}`
-          : "";
+  const trainee = isTraineeRow(r);
+  const since = hire && hire > days[0] && hire <= days[days.length - 1] ? `с ${ddmm(hire)}` : "";
+  const opSub = fire ? `уволен(а) ${ddmm(fire)}` : leads ? `ведёт ${leads}` : since;
   return (
-    <tr className="sch-row">
+    <tr className={`sch-row${trainee ? " sch-trainee" : ""}`}>
       <td className="sticky-col">
         <span className="row" style={{ gap: 8, flexWrap: "nowrap" }}>
           <Avatar name={r.op.name} id={r.op.id} size={22} />
@@ -680,7 +687,14 @@ function SchedRow({
             <span className="op-n" title={r.op.name}>
               {shortName(r.op.name)}
             </span>
-            {opSub && <span className="op-sub">{opSub}</span>}
+            {trainee ? (
+              <span className="op-sub">
+                <b className="op-trainee">стажёр</b>
+                {since && ` · ${since}`}
+              </span>
+            ) : (
+              opSub && <span className="op-sub">{opSub}</span>
+            )}
           </span>
           {!fire && <StartChip op={r.op} />}
         </span>

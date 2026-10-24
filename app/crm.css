@@ -1120,6 +1120,17 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .sched tr.sch-row:hover .op-start.unset, .sched .op-start.unset.open { opacity: 1; }
 .sched .op-n { display: block; max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; line-height: 15px; font-weight: 600; color: var(--text); }
 .sched .op-sub { display: block; font-size: 10.5px; line-height: 12px; color: var(--text-sub); white-space: nowrap; }
+/* стажёры — в конце группы: индиго-полоска у имени, лёгкий тон строки (полосы смен поверх видны) и подпись «стажёр» */
+.sched .op-trainee { font-weight: 600; color: var(--c-indigo-fg); }
+.tbl.sched tbody tr.sch-trainee > td.sticky-col,
+.tbl.sched tbody tr.sch-trainee:hover > td.sticky-col { box-shadow: inset 3px 0 0 var(--c-indigo-fg); }
+.tbl.sched tbody tr.sch-trainee > td.sticky-col { background: color-mix(in srgb, var(--c-indigo-bg) 70%, var(--bg-panel)); }
+.tbl.sched tbody tr.sch-trainee:hover > td.sticky-col { background: color-mix(in srgb, var(--c-indigo-bg) 70%, var(--sch-hover)); }
+.sched tr.sch-trainee td.cell { background-color: color-mix(in srgb, var(--c-indigo-bg) 45%, var(--bg-panel)); }
+.sched tr.sch-trainee td.cell.off { background-color: color-mix(in srgb, var(--c-indigo-bg) 45%, var(--sch-weekend)); }
+.sched tr.sch-trainee td.cell.today { background-color: color-mix(in srgb, var(--c-indigo-bg) 45%, var(--sch-today-col)); }
+.sched tr.sch-trainee .sum,
+.tbl.sched tbody tr.sch-trainee:hover .sum { background: color-mix(in srgb, var(--c-indigo-bg) 45%, var(--bg-panel)); }
 /* строка: минимальный ховер — реагирует только имя */
 .tbl.sched tbody tr.sch-row:hover td:not(.cell):not(.sticky-col) { background: var(--bg-panel); }
 .tbl.sched tbody tr.sch-row:hover td.sticky-col { background: var(--sch-hover); }
