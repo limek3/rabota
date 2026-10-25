@@ -1026,8 +1026,10 @@
 
 /* «Отчёты»: переключатели не сжимаются в два этажа; остаток строки забирают дата и выбор группы */
 .toolbar.rep-w > .seg { flex: none; flex-wrap: nowrap; }
-.toolbar.rep-w > .rep-date { flex: 1 1 230px; min-width: 0; }
+/* дата не ужимается меньше своего содержимого: с кнопкой «Эта неделя» выбор группы уходит на вторую строку, а не наезжает */
+.toolbar.rep-w > .rep-date { flex: 1 1 230px; min-width: max-content; }
 .rep-date > .date-inp { flex: 1 1 130px; min-width: 130px; }
+.rep-date > .btn { flex: none; }
 
 /* выгрузка номеров: проект — переключателем во всю ширину (авто.ру и 100 up выгружают отдельно) */
 .exp-proj { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--ink-05); border: 1px solid var(--ink-07); }

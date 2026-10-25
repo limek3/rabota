@@ -90,46 +90,104 @@ async function skorozvonToken(): Promise<string> {
 }
 
 type EmpRow = { date: string; user_id: number; full_name: string; statuses: Record<string, number> };
+type EmpPage = { data?: EmpRow[]; total_pages?: number };
 
-/** «Занятость сотрудников» за московские сутки date — все страницы (Скорозвон отдаёт по 10). */
-async function employment(date: string): Promise<EmpRow[]> {
+/**
+ * Отчёт длинный: в нём все сотрудники аккаунта Скорозвона, больше 100 страниц по 10 строк, и порядок строк
+ * за идущий день меняется. Раньше читали только первые 100 страниц, и после обеда операторы
+ * уезжали за сотую: «нет в Скорозвоне». Теперь читаем до последней страницы, по PARALLEL сразу,
+ * но не дольше BUDGET_MS: функцию Supabase обрывает по времени, а недочитанный отчёт лучше
+ * честно показать в ответе (partial), чем молча потерять людей.
+ */
+const PARALLEL = 4;
+const MAX_PAGES = 1000;
+const BUDGET_MS = 110_000;
+
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+/** Одна страница отчёта. Под нагрузкой Скорозвон отвечает 429/5xx: ждём дольше с каждой попыткой
+ *  (1,5 → 3 → 6 → 10 с) и уважаем Retry-After; сетевой сбой — тоже повод повторить. */
+async function employmentPage(token: string, from: number, to: number, page: number): Promise<EmpPage> {
+  let last = "";
+  const waits = [1500, 3000, 6000, 10000];
+  for (let k = 0; k <= waits.length; k++) {
+    let r: Response;
+    try {
+      r = await fetch(`${SK}/api/reports/managers_employment.json`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        // length Скорозвон, похоже, не слушает (отдаёт по 10); per_page — на случай, если послушает этот
+        body: JSON.stringify({ start_time: Math.floor(from / 1000), end_time: Math.floor(to / 1000), length: 100, per_page: 100, page }),
+      });
+    } catch (e) {
+      last = `сеть: ${e instanceof Error ? e.message : String(e)}`;
+      if (k < waits.length) await sleep(waits[k]);
+      continue;
+    }
+    if (r.ok) return await r.json();
+    if (r.status < 500 && r.status !== 429) throw new Fail(`Скорозвон: отчёт «Занятость сотрудников» — HTTP ${r.status}`);
+    last = `HTTP ${r.status}`;
+    const ra = Number(r.headers.get("retry-after"));
+    if (k < waits.length) await sleep(ra > 0 && ra <= 20 ? ra * 1000 : waits[k]);
+  }
+  throw new Error(`Скорозвон не отдал отчёт «Занятость сотрудников» (${last}, страница ${page}) — попробуйте через пару минут`);
+}
+
+type Employment = { rows: EmpRow[]; pages: number; read: number; missed: number[]; why: string };
+
+/** «Занятость сотрудников» за московские сутки date — все страницы; сотрудник, попавший на две страницы, — один раз. */
+async function employment(date: string): Promise<Employment> {
+  const t0 = Date.now();
   const token = await skorozvonToken();
   const from = Date.parse(`${date}T00:00:00Z`) - MSK;
   const to = Math.min(from + 24 * 3600_000 - 1000, Date.now());
   const ru = `${date.slice(8, 10)}.${date.slice(5, 7)}.${date.slice(0, 4)}`;
-  const out: EmpRow[] = [];
-  for (let page = 1, pages = 1; page <= pages && page <= 100; page++) {
-    let j: { data?: EmpRow[]; total_pages?: number } | null = null;
-    // Скорозвон под нагрузкой отвечает 429/5xx: ждём дольше с каждой попыткой (1,5 → 3 → 6 → 10 с)
-    // и уважаем Retry-After; сетевой сбой — тоже повод повторить
-    let last = "";
-    const waits = [1500, 3000, 6000, 10000];
-    for (let k = 0; k <= waits.length && !j; k++) {
-      let r: Response;
+  const byUser = new Map<string, EmpRow>();
+  const take = (j: EmpPage) => {
+    for (const row of j.data ?? []) if (row.date === ru) byUser.set(String(row.user_id ?? row.full_name), row);
+  };
+  // первая страница говорит, сколько их всего; без неё считать нечего — её сбой роняет запуск
+  const first = await employmentPage(token, from, to, 1);
+  take(first);
+  const pages = Math.min(Number(first.total_pages) || 1, MAX_PAGES);
+  let next = 2;
+  let read = 1;
+  const failed: number[] = [];
+  let why = "";
+  const worker = async () => {
+    while (next <= pages && Date.now() - t0 < BUDGET_MS) {
+      const page = next++;
       try {
-        r = await fetch(`${SK}/api/reports/managers_employment.json`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ start_time: Math.floor(from / 1000), end_time: Math.floor(to / 1000), length: 100, page }),
-        });
+        take(await employmentPage(token, from, to, page));
+        read++;
       } catch (e) {
-        last = `сеть: ${e instanceof Error ? e.message : String(e)}`;
-        if (k < waits.length) await new Promise((res) => setTimeout(res, waits[k]));
-        continue;
-      }
-      if (r.ok) j = await r.json();
-      else if (r.status < 500 && r.status !== 429) throw new Fail(`Скорозвон: отчёт «Занятость сотрудников» — HTTP ${r.status}`);
-      else {
-        last = `HTTP ${r.status}`;
-        const ra = Number(r.headers.get("retry-after"));
-        if (k < waits.length) await new Promise((res) => setTimeout(res, ra > 0 && ra <= 20 ? ra * 1000 : waits[k]));
+        if (e instanceof Fail) throw e;
+        failed.push(page);
+        why = e instanceof Error ? e.message : String(e);
       }
     }
-    if (!j) throw new Error(`Скорозвон не отдал отчёт «Занятость сотрудников» (${last}, страница ${page}) — попробуйте через пару минут`);
-    pages = Number(j.total_pages) || 1;
-    for (const row of j.data ?? []) if (row.date === ru) out.push(row);
+  };
+  await Promise.all(Array.from({ length: PARALLEL }, worker));
+  // параллельно Скорозвон иногда так и не отдаёт пару страниц (429) — дозапрашиваем их по одной,
+  // после паузы; не пришла и так — отчёт недочитан: какие страницы и почему — в missed и why
+  const missed: number[] = [];
+  for (const page of failed.sort((a, b) => a - b)) {
+    if (Date.now() - t0 >= BUDGET_MS) {
+      missed.push(page);
+      continue;
+    }
+    await sleep(3000);
+    try {
+      take(await employmentPage(token, from, to, page));
+      read++;
+    } catch (e) {
+      if (e instanceof Fail) throw e;
+      missed.push(page);
+      why = e instanceof Error ? e.message : String(e);
+    }
   }
-  return out;
+  for (let page = next; page <= pages; page++) missed.push(page);
+  return { rows: [...byUser.values()], pages, read, missed, why };
 }
 
 /* ── сопоставление по ФИО ──────────────────────────────────────────────── */
@@ -144,13 +202,23 @@ const words = (s: string) =>
     .filter((w) => w.length >= 2);
 
 type Op = { id: string; name: string };
+type SkRow = { w: Set<string>; row: EmpRow; sec: number };
 
-/** Сотрудник Скорозвона для оператора CRM: фамилия совпала у одного; у нескольких — ещё и имя. */
-function matchOp(op: Op, rows: { w: Set<string>; row: EmpRow }[]): { row?: EmpRow; why?: string } {
+/**
+ * Сотрудник Скорозвона для оператора CRM: фамилия совпала у одного; у нескольких — ещё и имя.
+ * В отчёте весь аккаунт Скорозвона, и однофамилец мог в этот день не работать: если после имени
+ * осталось несколько, берём того, у кого есть рабочее время, — спорно, только если работали двое.
+ */
+function matchOp(op: Op, rows: SkRow[]): { row?: EmpRow; why?: string } {
   const [surname, first] = words(op.name);
   if (!surname) return { why: "пустое имя" };
   let hit = rows.filter((r) => r.w.has(surname));
   if (hit.length > 1 && first) hit = hit.filter((r) => r.w.has(first));
+  if (hit.length > 1) {
+    const busy = hit.filter((r) => r.sec > 0);
+    // никто из них не работал — у любого 0 часов, спорить не о чем
+    hit = busy.length ? busy : hit.slice(0, 1);
+  }
   if (hit.length === 1) return { row: hit[0].row };
   return { why: hit.length ? `в Скорозвоне ${hit.length} с такой фамилией` : "нет в Скорозвоне" };
 }
@@ -206,7 +274,13 @@ Deno.serve(async (req) => {
     if (sErr || oErr || gErr) return json({ error: (sErr ?? oErr ?? gErr)!.message }, 500);
     const shifts = (dayShifts ?? []).filter((s) => HOURS_TYPES.has(s.type));
 
-    const rows = (await employment(date)).map((row) => ({ w: new Set(words(row.full_name)), row }));
+    const emp = await employment(date);
+    const workSec = (row: EmpRow) => Object.values(splitStatuses(row.statuses).parts).reduce((a, b) => a + b, 0);
+    const rows: SkRow[] = emp.rows.map((row) => ({ w: new Set(words(row.full_name)), row, sec: workSec(row) }));
+    // отчёт недочитан (Скорозвон не отдал часть страниц): ненайденного могло просто не быть на этих страницах
+    const partial = emp.read < emp.pages;
+    // missed и why — какие страницы не пришли и что ответил Скорозвон
+    const sk = { pages: emp.pages, read: emp.read, rows: emp.rows.length, worked: rows.filter((r) => r.sec > 0).length, missed: emp.missed, why: emp.why };
     // уволенный после даты увольнения не работает: остаток смены в графике часами не заполняем
     const gone = (o: { status?: string; fire_date?: string | null }) => o.status === "fired" && (!o.fire_date || date > o.fire_date);
     const live = (ops ?? []).filter((o) => !o.deleted_at && !gone(o));
@@ -237,7 +311,7 @@ Deno.serve(async (req) => {
       if (!op) continue;
       const m = matchOp(op, rows);
       if (!m.row) {
-        skipped.push({ name: op.name, why: m.why ?? "" });
+        skipped.push({ name: op.name, why: partial && m.why === "нет в Скорозвоне" ? `Скорозвон отдал не весь отчёт (${emp.read} из ${emp.pages} стр.) — не нашёлся на прочитанных` : (m.why ?? "") });
         continue;
       }
       const { parts, other, hours, line } = tally(m.row);
@@ -258,7 +332,7 @@ Deno.serve(async (req) => {
       updated.push({ name: o.name, from: 0, to: hours, parts, other, created: true });
       news.push({ id: `${date}|${o.id}`, date, operator_id: o.id, group_id: o.group_id ?? null, type: "work", hours, comment: line, updated_at: now });
     }
-    if (!updated.length && !skipped.length) return json({ date, updated: [], skipped: [], note: "В графике на этот день нет смен, в Скорозвоне — никого из операторов" });
+    if (!updated.length && !skipped.length) return json({ date, updated: [], skipped: [], sk, note: "В графике на этот день нет смен, в Скорозвоне — никого из операторов" });
 
     // только часы и комментарий: тип смены, группа и всё остальное не трогаем
     if (!dry) {
@@ -286,7 +360,7 @@ Deno.serve(async (req) => {
         changes: updated.map((u) => ({ f: u.name, from: u.created ? "нет смены" : `${u.from} ч`, to: `${u.to} ч` })),
       });
     }
-    return json({ date, dry, updated, skipped });
+    return json({ date, dry, updated, skipped, sk });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, e instanceof Fail ? 400 : 500);
   }

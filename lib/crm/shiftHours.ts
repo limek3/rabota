@@ -26,6 +26,8 @@ export interface ShiftHoursResult {
   updated: ShiftHoursRow[];
   skipped: { name: string; why: string }[];
   note?: string;
+  /** Сколько отчёта Скорозвона прочитано: страниц всего / прочитано, сотрудников в отчёте / из них работали. */
+  sk?: { pages: number; read: number; rows: number; worked: number; missed?: number[]; why?: string };
 }
 
 export async function pullShiftHours(date: string, dry: boolean): Promise<ShiftHoursResult> {

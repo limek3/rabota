@@ -110,6 +110,13 @@ export function SkorozvonHours({ onClose }: { onClose: () => void }) {
       ) : res ? (
         <>
           {res.note && <div className="o2-muted">{res.note}</div>}
+          {res.sk && (
+            <div className={res.sk.read < res.sk.pages ? "skh-err" : "o2-muted"} style={{ fontSize: 12 }}>
+              {res.sk.read < res.sk.pages
+                ? `Скорозвон отдал не весь отчёт: ${res.sk.read} из ${res.sk.pages} стр. — кого нет на прочитанных, тех не трогаем. Попробуйте через пару минут.`
+                : `Отчёт Скорозвона прочитан целиком: ${res.sk.pages} стр., в этот день работали ${res.sk.worked} из ${res.sk.rows} сотрудников аккаунта.`}
+            </div>
+          )}
           {res.updated.length > 0 && (
             <>
               <div className="skh-cap">
