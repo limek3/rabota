@@ -1137,12 +1137,16 @@ console.log("ALL OK");
   assert.equal(v(up, "газель"), "no", "коммерческий");
   assert.equal(v(up, "хайлюкс"), "no", "пикап");
   assert.equal(v(up, "li l7"), "no", "только EREV — не берём");
-  assert.equal(v(up, "рав4"), "ask", "есть и бензин, и гибрид — уточнить");
+  assert.equal(v(up, "рав4"), "ok", "есть бензиновая версия — передаём");
   assert.equal(v(up, "тигго 7 про"), "ok");
-  assert.equal(v(au, "веста"), "ok/no", "Авто.ру: Москва/СПб — да, регионы — только китайцы");
+  assert.equal(v(au, "веста"), "no/no", "Авто.ру: Lada — нигде");
+  assert.equal(v(au, "солярис"), "ok/no", "Авто.ру: Москва/СПб — да, регионы — только китайцы");
+  assert.equal(v(au, "газель"), "no/no", "Авто.ру: грузовые и микроавтобусы — нет");
+  assert.equal(v(au, "jac sunray"), "no/no", "Авто.ру: китайский микроавтобус — тоже нет");
+  assert.ok(au.check(c.searchCars("кайи х3", 1)[0].model).every((z) => z.kind === "ok" && /наличие не обещаем/.test(z.reasons[0])), "Kaiyi — наличие не обещаем");
   assert.equal(v(au, "джолион"), "ok/ok");
   assert.equal(v(au, "tenet t7"), "ok/ask", "местная марка на китайской базе — уточнить");
-  console.log(`30 ok: марки авто — ${c.BRAND_LIST.length} марок, ${c.MODEL_LIST.length} моделей; «nfqjnf rfvhb» → Camry; 100 up: Camry нет, RAV4 уточнить`);
+  console.log(`30 ok: марки авто — ${c.BRAND_LIST.length} марок, ${c.MODEL_LIST.length} моделей; «nfqjnf rfvhb» → Camry; 100 up: Camry нет, RAV4 да; Авто.ру: Lada и Газель нет`);
 }
 
 /* 31. Машина в комментарии лида: падежи, народные названия, обычные слова не путаются; вердикт по городу */
@@ -1159,6 +1163,8 @@ console.log("ALL OK");
   assert.deepEqual(names("газель некст"), ["ГАЗ Газель"], "«некст» — не Nexia");
   assert.deepEqual(names("перезвонить после обеда, бонус не интересен"), [], "обычное слово — не машина");
   assert.deepEqual(names("клиент из москвы, 2015 год"), [], "«москвы» — не Москвич, год — не модель");
+  assert.deepEqual(names("клиент из Самары, хочет кредит"), [], "город Самара — не Lada Samara");
+  assert.deepEqual(names("Самара, бу ниссан жук"), ["Nissan Juke"], "город в начале строки не мешает");
   const up = rulesFor({ name: "100 up" });
   const au = rulesFor({ name: "Авто.ру" });
   const [prado] = c.detectCars("прадик");
@@ -1167,10 +1173,12 @@ console.log("ALL OK");
   assert.equal(mentionVerdict(up, merc, "")[0].kind, "no", "марка из списка — понятно и без модели");
   assert.equal(mentionVerdict(up, c.detectCars("хавал")[0], ""), null, "Haval без модели — не понять");
   const [vesta] = c.detectCars("весту");
-  assert.deepEqual(mentionVerdict(au, vesta, "Москва").map((v) => v.kind), ["ok"], "Авто.ру: Москва — любые марки");
-  assert.deepEqual(mentionVerdict(au, vesta, "Екатеринбург").map((v) => v.kind), ["no"], "Авто.ру: Екатеринбург — только китайцы");
-  assert.equal(mentionVerdict(au, vesta, "").length, 2, "без города — обе зоны");
-  console.log("31 ok: машина в комментарии — «прадик» → Prado (100 up: нет), «весту» в Екатеринбурге для Авто.ру — нет");
+  const [solaris] = c.detectCars("солярис");
+  assert.deepEqual(mentionVerdict(au, solaris, "Москва").map((v) => v.kind), ["ok"], "Авто.ру: Москва — любые марки");
+  assert.deepEqual(mentionVerdict(au, solaris, "Екатеринбург").map((v) => v.kind), ["no"], "Авто.ру: Екатеринбург — только китайцы");
+  assert.equal(mentionVerdict(au, solaris, "").length, 2, "без города — обе зоны");
+  assert.deepEqual(mentionVerdict(au, vesta, "Москва").map((v) => v.kind), ["no"], "Авто.ру: Lada — и в Москве нет");
+  console.log("31 ok: машина в комментарии — «прадик» → Prado (100 up: нет), «из Самары» — город, не Lada");
 }
 
 /* 32. Стажёр: учится и уже записывает свои лиды — «Лиды» (свои), запись и правка; график, деньги, показатели закрыты */

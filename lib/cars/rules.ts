@@ -5,9 +5,10 @@ import { BODY_LABEL, type Body, type Brand, type CarMention, type Model } from "
  * Передаём ли такое авто — по правилам проекта.
  *
  * 100 up — список «Не берём» от заказчика: премиум-марки, отдельные модели, коммерческий транспорт,
- * пикапы, минивэны, кабриолеты, спорткары «как Mustang», электро и гибриды. Есть и бензиновая,
- * и гибридная версия — «уточнить»: передаём только бензин/дизель.
- * Авто.ру — по городу клиента: Москва и Санкт-Петербург — любые марки, регионы и Екатеринбург — только китайские.
+ * пикапы, минивэны, кабриолеты, спорткары «как Mustang», машины только электро или только гибрид
+ * (есть и бензиновая версия — передаём).
+ * Авто.ру — по городу клиента: Москва и Санкт-Петербург — любые марки, регионы и Екатеринбург — только китайские;
+ * Lada — нигде; грузовые, микроавтобусы, спецтехника, фургоны — нет; Datsun, Zotye, Kaiyi — наличие не обещаем.
  *
  * Правила пока здесь, в коде; проект узнаём по названию. Потом — редактор в карточке проекта.
  */
@@ -78,25 +79,51 @@ function check100up(m: Model): ZoneVerdict[] {
   else if (banned.length)
     parts.push({ kind: "ask", reason: `бывает ${banned.map((b) => BODY_LABEL[b]).join(", ")} — его не берём, уточните кузов` });
   if (m.sport && !listed) parts.push({ kind: "no", reason: "спорткар — как Ford Mustang, не берём" });
-  // двигатель: только электро/гибрид — не берём; есть и бензин — уточнить
-  const green = m.power.filter((p) => p !== "g");
-  if (green.length && !m.power.includes("g")) parts.push({ kind: "no", reason: "электро и гибриды не принимают" });
-  else if (green.length) parts.push({ kind: "ask", reason: "есть гибрид / электро-версия — передаём только бензин или дизель, уточните у клиента" });
+  // двигатель: только электро/гибрид — не берём; есть бензиновая версия — передаём
+  if (!m.power.includes("g")) parts.push({ kind: "no", reason: "только электро или гибрид — не берём" });
   return [{ zone: null, ...combine(parts) }];
 }
 
 /* ── Авто.ру ────────────────────────────────────────────────────────────── */
 
-/** У Авто.ру всё решает марка: модель не важна. */
+/** Lada Авто.ру не берёт нигде. */
+const AU_BANNED_BRANDS = new Set(["lada"]);
+/** Наличие не обещаем — ориентируемся по актуальному справочнику цен. */
+const AU_NO_PROMISE = new Set(["datsun", "zotye", "kaiyi"]);
+const AU_BODIES: Partial<Record<Body, string>> = {
+  com: "грузовые, микроавтобусы и спецтехнику",
+  van: "фургоны",
+};
+
+/** Авто.ру по марке: Lada — нигде; Москва и СПб — любые; регионы и Екатеринбург — только китайские. */
 function checkAutoruBrand(b: Brand): ZoneVerdict[] {
+  if (AU_BANNED_BRANDS.has(b.id)) {
+    const why = [`${b.name} — Авто.ру не берёт`];
+    return [
+      { zone: AU_CAPITALS, kind: "no", reasons: why },
+      { zone: AU_REGIONS, kind: "no", reasons: why },
+    ];
+  }
+  const note = AU_NO_PROMISE.has(b.id) ? [`${b.name}: наличие не обещаем — ориентируемся по актуальному справочнику цен`] : [];
   const regions: ZoneVerdict = b.cn
-    ? { zone: AU_REGIONS, kind: "ok", reasons: [] }
+    ? { zone: AU_REGIONS, kind: "ok", reasons: note }
     : b.cnLocal
       ? { zone: AU_REGIONS, kind: "ask", reasons: [`${b.name} — местная марка на китайской базе: уточните у РОП`] }
       : { zone: AU_REGIONS, kind: "no", reasons: ["в регионах и Екатеринбурге — только китайские марки"] };
-  return [{ zone: AU_CAPITALS, kind: "ok", reasons: [] }, regions];
+  return [{ zone: AU_CAPITALS, kind: "ok", reasons: note }, regions];
 }
-const checkAutoru = (m: Model) => checkAutoruBrand(m.brand);
+
+/** Авто.ру по модели: марка (по городу) и кузов — грузовые, микроавтобусы, спецтехнику и фургоны не берём. */
+function checkAutoru(m: Model): ZoneVerdict[] {
+  const banned = m.bodies.filter((b) => AU_BODIES[b]);
+  if (!banned.length) return checkAutoruBrand(m.brand);
+  // все варианты кузова запрещены — не берём нигде; часть — уточнить кузов (если марка проходит)
+  const all = banned.length === m.bodies.length;
+  const why = all ? `${cap(AU_BODIES[banned[0]]!)} не берём` : `бывает ${banned.map((b) => BODY_LABEL[b]).join(", ")} — его не берём, уточните кузов`;
+  return checkAutoruBrand(m.brand).map((v) =>
+    v.kind === "no" ? v : all ? { zone: v.zone, kind: "no" as const, reasons: [why] } : { zone: v.zone, kind: "ask" as const, reasons: [why, ...v.reasons] },
+  );
+}
 
 /** 100 up по одной марке: ясно только про марки из списка и непонятный премиум. */
 function check100upBrand(b: Brand): ZoneVerdict[] | null {
@@ -121,14 +148,20 @@ const RULES: CarRules[] = [
       "кабриолеты, «Волга», Ford Mustang и подобные",
       "коммерческий транспорт, Газели, спецтехника",
       "пикапы, минивэны",
-      "электро и гибриды",
+      "машины только электро или только гибрид (есть бензиновая версия — передаём)",
     ],
     check: check100up,
     checkBrand: check100upBrand,
   },
   {
     key: "autoru",
-    list: ["Москва и Санкт-Петербург — любые марки", "регионы и Екатеринбург — только китайские марки"],
+    list: [
+      "Москва и Санкт-Петербург — любые марки, кроме Lada",
+      "регионы и Екатеринбург — только китайские марки",
+      "Lada не берём нигде",
+      "спецтехника, грузовые, микроавтобусы, фургоны — не берём",
+      "Datsun, Zotye, Kaiyi — наличие не обещаем, смотрим справочник цен",
+    ],
     check: checkAutoru,
     checkBrand: checkAutoruBrand,
   },
