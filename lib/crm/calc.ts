@@ -908,12 +908,16 @@ export interface MonthModel {
   statusCount: Record<PaceStatus, number>;
 }
 
+/**
+ * Не рабочий день оператора: выходной, отпуск, больничный, платформа — и день без смены в графике
+ * (пустая клетка в графике — тоже выходной, считается так же, как «В»).
+ */
 function absentOn(ix: Index, opId: ID, d: DayKey) {
   const sh = ix.shift.get(`${d}|${opId}`);
-  return !!sh && (sh.type === "vacation" || sh.type === "sick" || sh.type === "off" || sh.type === "platform");
+  return !sh || sh.type === "vacation" || sh.type === "sick" || sh.type === "off" || sh.type === "platform";
 }
 
-/** «Практически не работает»: N последних завершённых рабочих дней без лидов (отпуск/больничный не в счёт). */
+/** «Практически не работает»: N последних завершённых рабочих дней со сменой — и без лидов (выходные и отпуск не в счёт). */
 function isIdle(op: Operator, cal: MonthCal, ix: Index, s: Settings, win: Window | null): boolean {
   if (cal.phase !== "current" || op.status !== "active" || !win) return false;
   const counts = ix.opDay.get(op.id);
@@ -924,10 +928,9 @@ function isIdle(op: Operator, cal: MonthCal, ix: Index, s: Settings, win: Window
   while (got < s.idleDays && guard < 62) {
     guard++;
     if (d < win.from) return false; // данных меньше, чем порог — рано судить
-    if (isWorkday(d, s) && !absentOn(ix, op.id, d)) {
-      if ((counts?.get(d) ?? 0) > 0) return false;
-      got++;
-    }
+    // лиды в любой день (и без смены в графике) — человек работает
+    if ((counts?.get(d) ?? 0) > 0) return false;
+    if (isWorkday(d, s) && !absentOn(ix, op.id, d)) got++;
     d = addDays(d, -1);
   }
   return got >= s.idleDays;

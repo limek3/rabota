@@ -72,7 +72,7 @@ export interface Report {
   /** Лучший день периода по лидам. */
   bestDay: { day: DayKey; leads: number } | null;
   month: { month: string; fact: number; plan: number; rr: number; rrPct: number };
-  attention: { noShift: string[]; noLeads: string[]; lowConv: { name: string; conv: number }[]; lagging: { name: string; pct: number }[] };
+  attention: { noLeads: string[]; lowConv: { name: string; conv: number }[]; lagging: { name: string; pct: number }[] };
   /** Кадровые события периода — отдельно от цифр: приём, увольнение, закрытая стажировка. */
   events: ReportEvent[];
   convNorm: number;
@@ -130,10 +130,9 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
   for (const d of days) for (const r of model(d).ops) if (inGroup(r.op.groupId) && employmentWindow(r.op, monthOf(d)) && !(r.op.deletedAt && !byOpDay.has(r.op.id))) ids.add(r.op.id);
   for (const id of byOpDay.keys()) ids.add(id);
 
-  // план оператора на день: месячный план ÷ рабочие дни его окна работы в месяце.
-  // Смена в графике есть, но без отработанных часов (выходной, отпуск, больничный) — плана
-  // на этот день нет: иначе отдыхающий висит в отчёте с «0% плана» и тянет вниз итог дня.
-  // Смены нет вовсе — план остаётся: человек должен был работать (он в «Нет смены в графике»).
+  // план оператора на день: месячный план ÷ рабочие дни его окна работы в месяце — только в день
+  // рабочей смены с часами. Без смены (пустая клетка — в графике это тоже выходной), выходной,
+  // отпуск, больничный — плана нет: иначе отдыхающий висит в отчёте с «0% плана» и тянет вниз итог.
   const dayPlan = (op: Operator, d: DayKey): number => {
     const mm = model(d);
     const r = rowOf(d, op.id);
@@ -141,10 +140,7 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
     // у супервайзера личного плана на линии нет: его лиды идут в факт, но план дня не тянут
     if (!r || !win || d < win.from || d > win.to || !mm.cal.isWork(d) || ix.svIds.has(op.id)) return 0;
     const sh = ix.shift.get(`${d}|${op.id}`);
-    const worked = !!sh && WORKED_TYPES.has(sh.type) && sh.hours > 0;
-    if (sh && !worked) return 0;
-    // уволенный — план только за реально отработанные смены: в день увольнения без смены он уже не в строю
-    if (isGone(op) && !worked) return 0;
+    if (!sh || !WORKED_TYPES.has(sh.type) || !(sh.hours > 0)) return 0;
     const wd = mm.cal.workdays.filter((x) => x >= win.from && x <= win.to).length;
     return wd > 0 ? r.terms.plan / wd : 0;
   };
@@ -215,22 +211,21 @@ export function buildReport(st: DataState, ix: Index, kind: ReportKind, anchor: 
   const monthPlan = g ? g.plan : mm.team.plan;
 
   const convNorm = st.settings.convNormPct / 100;
-  const attention: Report["attention"] = { noShift: [], noLeads: [], lowConv: [], lagging: [] };
+  const attention: Report["attention"] = { noLeads: [], lowConv: [], lagging: [] };
   if (kind === "day" && anchor <= today) {
     for (const d of days) {
       if (!model(d).cal.isWork(d)) continue;
       for (const r of model(d).ops) {
         const op = r.op;
-        // супервайзер лиды не обязан передавать — в «нет смены / без лидов» его не ставим
+        // супервайзер лиды не обязан передавать — в «без лидов» его не ставим
         if (!inGroup(op.groupId) || op.deletedAt || op.status !== "active" || ix.svIds.has(op.id)) continue;
         const win = employmentWindow(op, monthOf(d));
         if (!win || d < win.from || d > win.to) continue;
-        const sh = ix.shift.get(`${d}|${op.id}`);
-        // смена по графику (не только закрытая): «на смене без лидов» видно ещё до конца дня
+        // смена по графику (не только закрытая): «на смене без лидов» видно ещё до конца дня;
+        // без смены — выходной, в отчёт не попадает
         const h = ix.plannedOpDay.get(op.id)?.get(d) ?? 0;
         const n = (byOpDay.get(op.id)?.get(d)?.done ?? 0) + (byOpDay.get(op.id)?.get(d)?.work ?? 0);
-        if (!sh) attention.noShift.push(op.name);
-        else if (h > 0 && n === 0) attention.noLeads.push(op.name);
+        if (h > 0 && n === 0) attention.noLeads.push(op.name);
       }
     }
   }

@@ -143,7 +143,6 @@ function draw(canvas: HTMLCanvasElement, r: Report, company: string, sans: strin
   const open = r.factTo < r.to;
   const rowH = 30;
   const attn = [
-    r.attention.noShift.length ? { title: "Нет смены в графике", tone: C.amber, bg: C.amberBg, items: r.attention.noShift.map(shortName) } : null,
     r.attention.noLeads.length ? { title: "На смене, но без лидов", tone: C.red, bg: C.redBg, items: r.attention.noLeads.map(shortName) } : null,
     r.attention.lagging.length
       ? { title: open ? "Отстают от плана на сегодня" : "Не выполнили план", tone: C.amber, bg: C.amberBg, items: r.attention.lagging.map((x) => `${shortName(x.name)} — ${Math.round(x.pct * 100)}%`) }

@@ -514,7 +514,6 @@ console.log("ALL OK");
   assert.equal(mon.groups.reduce((a, x) => a + x.rows.length, 0), mon.rows.length, "каждый оператор — в одной группе");
   assert.ok(mon.groups.every((x) => x.monthPlan >= x.plan - 1e-9), "план к дате не больше плана месяца");
   assert.ok(mon.bestDay && mon.bestDay.leads === Math.max(...mon.byDay.map((d) => d.leads)), "лучший день");
-  assert.ok(mon.attention.noShift.length === 0, "«нет смены» — только в отчёте за день");
   assert.ok(Math.abs(mon.month.rr - mon.rows.reduce((a, r) => a + r.rr, 0)) < mon.month.rr, "прогноз есть");
   const monG = buildReport(st, ix, "month", "2026-09-10", "gr_alpha", today);
   assert.equal(monG.groups.length, 1, "одна группа — одна секция");
@@ -726,8 +725,14 @@ console.log("ALL OK");
   const after = buildReport(st, buildIndex(st), "day", day, "", today);
   assert.ok(!after.rows.some((r) => r.op.id === victim.op.id), "отдыхающего нет в отчёте");
   assert.ok(Math.abs(after.total.plan - (before.total.plan - victim.plan)) < 1e-9, "план дня уменьшился ровно на его план");
-  assert.ok(!after.attention.noShift.includes(victim.op.name), "выходной — не «нет смены»");
-  console.log(`23 ok: выходной не тянет отчёт вниз — план дня ${before.total.plan.toFixed(1)} → ${after.total.plan.toFixed(1)}`);
+  assert.ok(!after.attention.noLeads.includes(victim.op.name), "выходной — не «на смене без лидов»");
+  // пустая клетка (смены нет вовсе) — то же, что выходной: ни строки, ни плана
+  st.shifts = st.shifts.filter((s) => s.id !== id);
+  const empty = buildReport(st, buildIndex(st), "day", day, "", today);
+  assert.ok(!empty.rows.some((r) => r.op.id === victim.op.id), "без смены — нет в отчёте");
+  assert.ok(Math.abs(empty.total.plan - after.total.plan) < 1e-9, "без смены план дня тот же, что с выходным");
+  assert.ok(empty.rows.every((r) => r.hours > 0 || r.leads > 0 || r.failed > 0 || r.plan > 0), "в отчёте только со сменой или лидами");
+  console.log(`23 ok: выходной и пустая клетка не тянут отчёт вниз — план дня ${before.total.plan.toFixed(1)} → ${after.total.plan.toFixed(1)}`);
 }
 
 /* 24. Уволенный в день отчёта без смены — не в таблице с «0%», а в событиях */
