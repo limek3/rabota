@@ -473,6 +473,10 @@
 .acad .doc .note-line{margin:14px 0;font-size:13px}
 .acad .doc .note-line .nt{display:block;color:var(--text);font-weight:600;margin-bottom:2px}
 .acad .note-line.tip{background:var(--brand-tint)}
+/* «Города и расстояния»: полоса с кнопкой «Открыть карту» — кнопка справа, на узком экране под текстом */
+.acad .note-line.citymap{align-items:center;flex-wrap:wrap}
+.acad .note-line.citymap>div{flex:1 1 260px}
+.acad .note-line.citymap .btn{flex:none;display:inline-flex;align-items:center;gap:6px}
 .acad .note-line.err{background:var(--c-red-bg);color:var(--c-red-fg)}
 .acad .note-line.err .nt{color:var(--c-red-fg)}
 .acad .note-line.ok .nt{color:var(--c-green-fg)}

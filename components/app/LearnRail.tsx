@@ -101,7 +101,7 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
     const ro = new ResizeObserver(place);
     ro.observe(nav);
     return () => ro.disconnect();
-  }, [active, off, notes, prog.done]);
+  }, [active, off, notes, prog.done, pathname]);
   useEffect(() => {
     if (!glide || anim) return;
     const id = requestAnimationFrame(() => setAnim(true));
@@ -163,6 +163,15 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
               <span className="rail-text">{g.g.toUpperCase()}</span>
             </div>
             {g.items.map((n) => item(n.r, n.t, n.i, n.hint, n.count?.(prog, notes)))}
+            {/* «Карта городов» CRM — в справочниках: у стажёра меню обучения единственное, иначе до карты не дойти */}
+            {g.g === "Справочники" && access.routes.has("/cities") && (
+              <Link className="app-rail-item" href="/cities" aria-current={pathname === "/cities" ? "page" : undefined} title="Город клиента → ближайшие города, где мы работаем (клавиша G)">
+                <span className="rail-icon" style={{ display: "flex" }}>
+                  <Icon name="map" size={16} />
+                </span>
+                <span className="rail-text lbl">Карта городов</span>
+              </Link>
+            )}
           </div>
         ))}
         {lead && (
