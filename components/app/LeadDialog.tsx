@@ -7,34 +7,27 @@ import { shortName } from "@/lib/crm/format";
 import { Layer, usePopover } from "@/components/ui/select";
 import { getVexaBridge } from "@/lib/electron";
 import { downloadBlob } from "@/lib/xlsx";
-import { DIALOG_BUSY, cachedDialog, dialogAvailable, dialogCallId, parseReport, readDialog, sameDialogCall, syncDialog, type LeadDialog as Dialog } from "@/lib/crm/dialog";
+import { DIALOG_BUSY, cachedDialog, dialogAvailable, dialogCallId, readDialog, sameDialogCall, syncDialog, type LeadDialog as Dialog } from "@/lib/crm/dialog";
 
 /**
- * Разговор лида для проверки: разбор от Memo AI (сводка, чек-лист), запись и расшифровка.
- * useLeadDialog — состояние и опрос (у Memo нет вебхуков: пока карточка открыта и что-то
- * не готово, она сама дёргает функцию lead-dialog); CallReview — блоки карточки.
+ * Разговор лида для проверки: запись из Скорозвона и плеер.
+ * useLeadDialog — состояние и опрос (запись Скорозвон готовит не сразу: пока карточка открыта и записи
+ * нет, она сама дёргает функцию lead-dialog); CallReview — плеер в карточке.
  * Готовый разговор берётся из кэша сразу, база только освежает — без «загрузки заново».
  */
 
-/** Пауза между шагами: запись в Скорозвоне готовится дольше, чем Memo расшифровывает. */
-/**
- * Разбор от Memo AI (сводка и чек-лист) — пока выключен: шаблон «Проверка лида» в Memo не заведён.
- * Включить — true здесь и секрет MEMO_REPORT у функции (supabase/README.md, пункт 12).
- */
-export const SHOW_REPORT = false;
-
-const PAUSE: Record<string, number> = { pending: 2000, waiting: 20000, processing: 6000, report: 8000 };
+/** Пауза между шагами: Скорозвон готовит запись — спрашиваем реже. */
+const PAUSE: Record<string, number> = { pending: 2000, waiting: 20000, processing: 2000 };
 /** Карточку могут держать открытой долго — дальше не опрашиваем, догонит следующее открытие. */
 const MAX_STEPS = 40;
 
 export const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 
-/** Нужно ли ещё что-то просить у функции: расшифровка не готова или разбор в пути. */
-const pending = (d: Dialog | null, callId: string) =>
-  !d || !sameDialogCall(d.callId, callId) || DIALOG_BUSY.includes(d.status) || (SHOW_REPORT && d.status === "done" && (d.reportStatus === "processing" || d.reportStatus === "none"));
+/** Нужно ли ещё что-то просить у функции: записи пока нет. */
+const pending = (d: Dialog | null, callId: string) => !d || !sameDialogCall(d.callId, callId) || DIALOG_BUSY.includes(d.status);
 
-/** Споткнулся о параллельную загрузку (409): файл у Memo есть — функция доведёт сама, достаточно позвать. */
-const stuck = (d: Dialog | null) => !!d && d.status === "failed" && /409|idempotency/i.test(d.error);
+/** Упал во времена Memo AI (минуты, 409 и т. п.) — функция теперь берёт запись из Скорозвона, достаточно позвать. */
+const stuck = (d: Dialog | null) => !!d && d.status === "failed" && /memo|409|idempotency/i.test(d.error);
 
 export function useLeadDialog(lead: Lead) {
   const callId = dialogCallId(lead.link);
@@ -58,7 +51,7 @@ export function useLeadDialog(lead: Lead) {
         setDlg(d);
         setLoading(false);
         for (let i = 0; i < MAX_STEPS && alive && (pending(d, callId) || (i === 0 && stuck(d))); i++) {
-          if (d && i > 0) await sleep(d.status === "done" ? PAUSE.report : PAUSE[d.status] ?? 6000);
+          if (d && i > 0) await sleep(PAUSE[d.status] ?? 6000);
           if (!alive) return;
           d = await syncDialog(lead.id);
           if (alive) setDlg(d);
@@ -76,7 +69,7 @@ export function useLeadDialog(lead: Lead) {
     };
   }, [lead.id, available, callId, run]);
 
-  const act = async (action: "retry" | "swap" | "report") => {
+  const act = async (action: "retry" | "swap") => {
     setBusy(true);
     setErr("");
     try {
@@ -117,6 +110,9 @@ type Seg = { s: number; e: number; who: string; t: string };
  */
 function waveBars(segs: Seg[], total: number, op: string | null, n = 64) {
   if (!total) return [];
+  // реплик нет (запись без расшифровки) — ровная условная волна одного цвета
+  if (!segs.length)
+    return Array.from({ length: n }, (_, k) => ({ at: ((k + 0.5) / n) * total, who: "rec", h: 30 + 50 * (0.5 + 0.3 * Math.sin(k * 0.9) + 0.2 * Math.sin(k * 2.3)) }));
   return Array.from({ length: n }, (_, k) => {
     const at = ((k + 0.5) / n) * total;
     const i = segs.findIndex((s, j) => at >= s.s && at < Math.max(s.e, segs[j + 1]?.s ?? s.e));
@@ -137,53 +133,19 @@ function waveBars(segs: Seg[], total: number, op: string | null, n = 64) {
 const BUSY_TEXT: Record<string, string> = {
   pending: "Берём запись разговора из Скорозвона…",
   waiting: "Скорозвон ещё готовит запись — проверим снова через 20 секунд",
-  processing: "Memo AI расшифровывает разговор — обычно 1–3 минуты",
+  processing: "Берём запись разговора из Скорозвона…",
 };
 
-/** Заглушка разбора: сводка, чек-лист, плеер — той же формы, что готовый блок. */
-function ReviewSkeleton({ caption, player = true }: { caption?: ReactNode; player?: boolean }) {
-  // без разбора: что происходит и плеер
-  if (!SHOW_REPORT)
-    return (
-      <>
-        {caption && (
-          <div className="rv-cap busy">
-            <span className="lc-spin sm" aria-hidden /> {caption}
-          </div>
-        )}
-        {player && <div className="sk" style={{ height: 92, borderRadius: 12 }} aria-hidden />}
-      </>
-    );
+/** Заглушка: что происходит и место под плеер. */
+function ReviewSkeleton({ caption }: { caption?: ReactNode }) {
   return (
     <>
-      <section className="rv-sum" aria-busy>
-        <div className={caption ? "rv-cap busy" : "rv-cap"}>
-          {caption ? (
-            <>
-              <span className="lc-spin sm" aria-hidden /> {caption}
-            </>
-          ) : (
-            <>
-              <Icon name="bulb" size={12} /> Кратко о разговоре
-            </>
-          )}
+      {caption && (
+        <div className="rv-cap busy">
+          <span className="lc-spin sm" aria-hidden /> {caption}
         </div>
-        <div className="sk" style={{ height: 11, width: "96%", borderRadius: 5 }} />
-        <div className="sk" style={{ height: 11, width: "88%", borderRadius: 5 }} />
-        <div className="sk" style={{ height: 11, width: "62%", borderRadius: 5 }} />
-      </section>
-      <div className="rv-checks" aria-hidden>
-        {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="rv-chk">
-            <span className="sk" style={{ width: 16, height: 16, borderRadius: 8, flex: "none" }} />
-            <span style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-              <span className="sk" style={{ height: 10, width: "55%", borderRadius: 5 }} />
-              <span className="sk" style={{ height: 10, width: "80%", borderRadius: 5 }} />
-            </span>
-          </div>
-        ))}
-      </div>
-      {player && <div className="sk" style={{ height: 92, borderRadius: 12 }} aria-hidden />}
+      )}
+      <div className="sk" style={{ height: 92, borderRadius: 12 }} aria-hidden />
     </>
   );
 }
@@ -236,7 +198,7 @@ async function downloadRecord(url: string, name: string) {
   }
 }
 
-/** Блоки проверки: разбор, чек-лист, запись. Плеер общий — пункты чек-листа в него «прыгают». */
+/** Запись разговора из Скорозвона: плеер, скачать, громкость, скорость. */
 export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -251,7 +213,6 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
   const { style: volStyle } = usePopover(volOpen, volBtn, volPop, () => setVolOpen(false));
   const dlg = d.dlg;
   const total = dur || dlg?.callSec || 0;
-  const report = useMemo(() => (dlg?.reportStatus === "done" ? parseReport(dlg.report, dlg.segments) : null), [dlg?.reportStatus, dlg?.report, dlg?.segments]);
   const bars = useMemo(() => (dlg ? waveBars(dlg.segments, total, dlg.operatorSpeaker) : []), [dlg, total]);
   useEffect(() => {
     if (audio.current) audio.current.volume = vol;
@@ -265,11 +226,11 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
   if (d.state === "none") {
     if (!d.callId)
       return (
-        <Notice icon="link" title="Разбора нет: ссылка не из Скорозвона">
-          Разбор и запись появляются, когда в лиде ссылка на лид или звонок в Скорозвоне — app.skorozvon.ru/#/leads/…
+        <Notice icon="link" title="Записи нет: ссылка не из Скорозвона">
+          Запись разговора появляется, когда в лиде ссылка на лид или звонок в Скорозвоне — app.skorozvon.ru/#/leads/…
         </Notice>
       );
-    return <Notice icon="database" title="Разбор работает только с базой">CRM сейчас без Supabase — запись и расшифровку взять неоткуда.</Notice>;
+    return <Notice icon="database" title="Запись работает только с базой">CRM сейчас без Supabase — запись взять неоткуда.</Notice>;
   }
   if (d.state === "loading") return <ReviewSkeleton />;
   if (d.state === "busy") return <ReviewSkeleton caption={BUSY_TEXT[dlg?.status ?? "pending"]} />;
@@ -277,12 +238,12 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
     return (
       <Notice
         icon="alert"
-        title="Не получилось взять разговор"
+        title="Не получилось взять запись"
         danger
         action={
           dlg && (
             <button type="button" className="o2-btn" onClick={() => void d.act("retry")} disabled={d.busy}>
-              <Icon name="refresh" size={13} /> Расшифровать заново
+              <Icon name="refresh" size={13} /> Взять запись заново
             </button>
           )
         }
@@ -299,7 +260,6 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
     setT(sec);
     void a.play().catch(() => {});
   };
-  const jump = seek;
   const toggle = () => {
     const a = audio.current;
     if (!a) return;
@@ -313,74 +273,10 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
   };
   const opName = dlg.callUser ? shortName(dlg.callUser) : "Оператор";
   const clName = lead.client || "Клиент";
-  const rs = dlg.reportStatus;
 
   return (
     <>
-      {/* разбор от Memo AI */}
-      {!SHOW_REPORT ? null : rs === "processing" || rs === "none" ? (
-        <ReviewSkeleton caption="Memo AI готовит разбор разговора…" player={false} />
-      ) : rs === "missing" ? (
-        <Notice
-          icon="bulb"
-          title="Разбора нет"
-          action={
-            <button type="button" className="o2-btn" onClick={() => void d.act("report")} disabled={d.busy}>
-              <Icon name="refresh" size={13} /> Запросить разбор
-            </button>
-          }
-        >
-          В Memo AI не найден шаблон отчёта «Проверка лида» (или в базе нет колонок для него). Как настроить — supabase/README.md, пункт 12.
-        </Notice>
-      ) : rs === "failed" ? (
-        <Notice
-          icon="alert"
-          title="Memo AI не смог сделать разбор"
-          danger
-          action={
-            <button type="button" className="o2-btn" onClick={() => void d.act("report")} disabled={d.busy}>
-              <Icon name="refresh" size={13} /> Попробовать ещё раз
-            </button>
-          }
-        />
-      ) : report ? (
-        <>
-          <section className="rv-sum">
-            <div className="rv-cap">
-              <Icon name="bulb" size={12} /> Кратко о разговоре
-            </div>
-            {report.summary && <p>{report.summary}</p>}
-            {report.verdict && (
-              <div className="rv-verdict" data-kind={report.verdict.kind}>
-                <b>{report.verdict.kind === "done" ? "Похоже на лид" : report.verdict.kind === "failed" ? "Похоже, не лид" : "Под вопросом"}</b>
-                {report.verdict.text && <span>{report.verdict.text}</span>}
-              </div>
-            )}
-          </section>
-          {report.checks.length > 0 && (
-            <div className="rv-checks">
-              {report.checks.map((c, i) => (
-                <div key={i} className="rv-chk">
-                  <span className={`rv-m ${c.ok ? "ok" : "no"}`} aria-label={c.ok ? "выяснили" : "не выяснили"}>
-                    {c.ok ? "✓" : "?"}
-                  </span>
-                  <div>
-                    <b>{c.label}</b>
-                    <span>{c.value}</span>
-                    {c.at != null && dlg.recordUrl && (
-                      <button type="button" className="rv-jump num" onClick={() => jump(c.at!)} title="Слушать это место">
-                        {mmss(c.at)}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      ) : null}
-
-      {/* запись: «волна» по расшифровке — цветом кто говорит, провалы — паузы; клик — перемотка */}
+      {/* запись: «волна» (у старых разговоров с расшифровкой — цветом кто говорит, провалы — паузы); клик — перемотка */}
       {dlg.recordUrl && (
         <div className="lw">
           <audio
@@ -444,10 +340,14 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
             <span className="lc-time num">
               {mmss(t)} / {mmss(total)}
             </span>
-            <span className="lw-legend">
-              <span className="lc-dot op" /> {opName}
-              <span className="lc-dot cl" style={{ marginLeft: 10 }} /> {clName}
-            </span>
+            {dlg.segments.length ? (
+              <span className="lw-legend">
+                <span className="lc-dot op" /> {opName}
+                <span className="lc-dot cl" style={{ marginLeft: 10 }} /> {clName}
+              </span>
+            ) : (
+              <span className="lw-legend">{opName}</span>
+            )}
             <button type="button" className="lw-ib" onClick={() => void downloadRecord(dlg.recordUrl, recordName(lead, dlg.recordUrl))} title="Скачать запись разговора" aria-label="Скачать запись">
               <Icon name="download" size={14} />
             </button>
