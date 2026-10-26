@@ -52,7 +52,7 @@ export function useMonthStatus() {
 function useTabs() {
   const { access } = useCrm();
   const order = access.isTrainee
-    ? ["/learn", "/cities", "/cars"]
+    ? ["/learn", "/leads", "/cities", "/cars"]
     : access.isOp
       ? ["/me", "/leads", "/schedule", "/stats", "/learn"]
       : ["/dashboard", "/leads", "/operators", "/schedule", "/groups"];

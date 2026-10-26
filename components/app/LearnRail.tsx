@@ -22,7 +22,7 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
   const router = useRouter();
   // адреса CRM со слешем на конце (/learn/) — сравниваем без него
   const pathname = (usePathname() || "").replace(/\/$/, "");
-  const { data, me, access } = useCrm();
+  const { data, me, access, openLead } = useCrm();
   const [hash, setHash] = useState("");
   const [tick, setTick] = useState(0);
 
@@ -143,6 +143,14 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
           <Icon name="play" size={14} stroke={2.2} />
           <span className="rail-text">Продолжить обучение</span>
         </button>
+        {/* стажёр уже звонит: записать переданный лид — отсюда же, основного меню у него нет */}
+        {access.isTrainee && access.can.createLeads && (
+          <button className="btn rail-lead" style={{ width: "100%", height: 34 }} onClick={() => openLead()} title="Передать лид (N)">
+            <Icon name="plus" size={15} stroke={2.2} />
+            <span className="rail-text">Лид передан</span>
+            <span className="kbd rail-text" style={{ marginLeft: "auto" }}>N</span>
+          </button>
+        )}
         <button type="button" className="rail-search" onClick={search} title="Поиск по обучению (Ctrl+K)">
           <Icon name="search" size={14} />
           <span className="rail-text">Поиск</span>
@@ -157,6 +165,19 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
           data-anim={anim ? "" : undefined}
           style={glide ? { transform: `translateY(${glide.top}px)`, height: glide.h } : { opacity: 0 }}
         />
+        {access.isTrainee && access.routes.has("/leads") && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <div className="rail-group">
+              <span className="rail-text">РАБОТА</span>
+            </div>
+            <Link className="app-rail-item" href="/leads" aria-current={pathname === "/leads" ? "page" : undefined} title="Лиды, которые вы записали">
+              <span className="rail-icon" style={{ display: "flex" }}>
+                <Icon name="leads" size={16} />
+              </span>
+              <span className="rail-text lbl">Мои лиды</span>
+            </Link>
+          </div>
+        )}
         {ACAD_NAV.map((g) => (
           <div key={g.g} style={{ display: "flex", flexDirection: "column", gap: 1 }}>
             <div className="rail-group">

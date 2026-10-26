@@ -143,7 +143,12 @@ export function computeAccess(acc: Account, st: DataState): Access {
     routes.add("/cities");
     // и марки авто: что передаём по проектам, а что нет
     routes.add("/cars");
+    // стажёр уже звонит: записывает свои лиды и правит их — по тем же настройкам, что и оператор;
+    // журнал «Лиды» — только свои. Остальное (график, деньги, показатели) — пока закрыто
+    const own = { createLeads: can.createLeads, editLeads: can.editLeads };
     (Object.keys(can) as (keyof Access["can"])[]).forEach((k) => (can[k] = false));
+    Object.assign(can, own);
+    if (can.createLeads) routes.add("/leads");
   }
 
   const groupNames = Array.from(ownGroups)

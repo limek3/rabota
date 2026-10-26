@@ -495,8 +495,8 @@ Corolla|королла,корола|1966|sed hat wag|g h|есть гибрид|T
 Corolla Cross|королла кросс|2020|suv|g h|есть гибрид|Toyota Corolla Cross
 RAV4|рав4,рав 4,рафик,раф,рав|1994|suv|g h p|есть гибрид и подзаряжаемый гибрид|Toyota RAV4
 Land Cruiser Prado|прадо,прадик,лк прадо,ленд крузер прадо,120,150,250,прадо 250|1996|off|g h|рамный|Toyota Land Cruiser Prado
-Land Cruiser 100|сотка,крузак 100,лк 100,ленд крузер 100,100-ка|1998-2007|off|g|рамный|Toyota Land Cruiser (J100)
-Land Cruiser 200|крузак,двухсотый,лк 200,ленд крузер 200,крузак 200|2007-2021|off|g|рамный|Toyota Land Cruiser (J200)
+Land Cruiser 100|сотка,крузак 100,лк 100,ленд крузер 100,100-ка|1998-2007|off|g|рамный|-
+Land Cruiser 200|крузак,двухсотый,лк 200,ленд крузер 200,крузак 200|2007-2021|off|g|рамный|-
 Land Cruiser 300|лк 300,трехсотый,крузак 300,ленд крузер 300|2021|off|g h|рамный|Toyota Land Cruiser (J300)
 Highlander|хайлендер,хайландер|2000|suv|g h|7 мест, есть гибрид|Toyota Highlander
 Fortuner|фортунер|2005|off|g|рамный, 7 мест|Toyota Fortuner

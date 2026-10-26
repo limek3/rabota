@@ -957,6 +957,8 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
               </span>
             </div>
           )}
+          {/* машина из комментария — как при записи лида: фото и передаём ли по проекту и городу */}
+          {lead.comment && <CarHint text={lead.comment} projectId={lead.projectId ?? ""} city={lead.region ?? ""} />}
 
           {proj && (proj.handoff === "form" || (proj.checklist?.length ?? 0) > 0) && <FormChecks lead={lead} project={proj} />}
 

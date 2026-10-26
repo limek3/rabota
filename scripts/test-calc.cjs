@@ -1172,3 +1172,26 @@ console.log("ALL OK");
   assert.equal(mentionVerdict(au, vesta, "").length, 2, "без города — обе зоны");
   console.log("31 ok: машина в комментарии — «прадик» → Prado (100 up: нет), «весту» в Екатеринбурге для Авто.ру — нет");
 }
+
+/* 32. Стажёр: учится и уже записывает свои лиды — «Лиды» (свои), запись и правка; график, деньги, показатели закрыты */
+{
+  const assert = require("assert");
+  const { buildDemo } = R("demo");
+  const { computeAccess, canCreateLeadFor } = R("access");
+  const st = buildDemo("2026-09-18");
+  const opAcc = st.accounts.find((a) => a.role === "operator" && a.operatorId);
+  const card = st.operators.find((o) => o.id === opAcc.operatorId);
+  card.role = "trainee";
+  const a = computeAccess(opAcc, st);
+  assert.ok(a.isTrainee, "это стажёр");
+  assert.ok(a.can.createLeads && canCreateLeadFor(a, card.id), "записывает свои лиды");
+  const other = st.operators.find((o) => o.id !== card.id && !o.deletedAt);
+  assert.ok(!canCreateLeadFor(a, other.id), "за другого — нет");
+  assert.ok(a.routes.has("/leads") && a.routes.has("/learn") && a.routes.has("/cars"), "лиды, обучение, марки");
+  assert.ok(!a.routes.has("/schedule") && !a.routes.has("/me") && !a.can.viewPayroll, "график, кабинет и деньги закрыты");
+  // запись лидов выключена для операторов в настройках — и у стажёра нет
+  st.settings.access.operator.createOwnLeads = false;
+  const b = computeAccess(opAcc, st);
+  assert.ok(!b.can.createLeads && !b.routes.has("/leads"), "настройка операторов действует и на стажёра");
+  console.log("32 ok: стажёр записывает свои лиды, «Лиды» открыты, график и деньги — нет");
+}
