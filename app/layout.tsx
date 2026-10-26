@@ -8,6 +8,7 @@ import "./ops2.css";
 import "./learn.css";
 import "./academy.css";
 import "./cities.css";
+import "./cars.css";
 // мобильная версия — последней: переопределяет раскладку на экранах до 760 px
 import "./mobile.css";
 

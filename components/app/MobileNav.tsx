@@ -52,7 +52,7 @@ export function useMonthStatus() {
 function useTabs() {
   const { access } = useCrm();
   const order = access.isTrainee
-    ? ["/learn", "/cities"]
+    ? ["/learn", "/cities", "/cars"]
     : access.isOp
       ? ["/me", "/leads", "/schedule", "/stats", "/learn"]
       : ["/dashboard", "/leads", "/operators", "/schedule", "/groups"];
@@ -62,7 +62,7 @@ function useTabs() {
     .filter((n): n is (typeof NAV)[number] => !!n);
 }
 
-const SHORT: Record<string, string> = { "/me": "Кабинет", "/stats": "Показатели", "/dashboard": "Сводка", "/cities": "Карта" };
+const SHORT: Record<string, string> = { "/me": "Кабинет", "/stats": "Показатели", "/dashboard": "Сводка", "/cities": "Карта", "/cars": "Авто" };
 
 function isActive(pathname: string, href: string) {
   const p = pathname.replace(/\/$/, "");

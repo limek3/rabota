@@ -1114,3 +1114,61 @@ console.log("ALL OK");
   assert.equal(g.mskOffset(5), "МСК+2");
   console.log(`29 ok: карта — ${g.CITIES.length} городов, наших ${all.list.length}, из Орска до Самары ${Math.round(n[0].km)} км`);
 }
+
+/* 30. Марки авто: поиск (русский, раскладка, опечатки, народные названия) и вердикты 100 up / Авто.ру */
+{
+  const assert = require("assert");
+  const c = R("cars/cars/catalog");
+  const { rulesFor } = R("cars/cars/rules");
+  const first = (q) => c.searchCars(q, 3)[0]?.model.full;
+  assert.ok(c.MODEL_LIST.length > 700 && c.MODEL_LIST.every((m) => /^[a-z0-9-]+$/.test(m.id)), "каталог на месте, id латиницей");
+  assert.equal(new Set(c.MODEL_LIST.map((m) => m.id)).size, c.MODEL_LIST.length, "id без повторов");
+  assert.equal(first("тайота камри"), "Toyota Camry");
+  assert.equal(first("nfqjnf rfvhb"), "Toyota Camry", "английская раскладка");
+  assert.equal(first("мицубиси аутлендр"), "Mitsubishi Outlander", "опечатка");
+  assert.equal(first("лк 200"), "Toyota Land Cruiser 200", "народное название");
+  assert.equal(first("рафик"), "Toyota RAV4");
+  const up = rulesFor({ name: "100 up" });
+  const au = rulesFor({ name: "Авто.ру" });
+  assert.ok(up && au && !rulesFor({ name: "Другой" }), "правила по названию проекта");
+  const v = (r, q) => r.check(c.searchCars(q, 1)[0].model).map((x) => x.kind).join("/");
+  assert.equal(v(up, "камри"), "no", "Camry в списке");
+  assert.equal(v(up, "лексус рх"), "no", "Lexus в списке");
+  assert.equal(v(up, "газель"), "no", "коммерческий");
+  assert.equal(v(up, "хайлюкс"), "no", "пикап");
+  assert.equal(v(up, "li l7"), "no", "только EREV — не берём");
+  assert.equal(v(up, "рав4"), "ask", "есть и бензин, и гибрид — уточнить");
+  assert.equal(v(up, "тигго 7 про"), "ok");
+  assert.equal(v(au, "веста"), "ok/no", "Авто.ру: Москва/СПб — да, регионы — только китайцы");
+  assert.equal(v(au, "джолион"), "ok/ok");
+  assert.equal(v(au, "tenet t7"), "ok/ask", "местная марка на китайской базе — уточнить");
+  console.log(`30 ok: марки авто — ${c.BRAND_LIST.length} марок, ${c.MODEL_LIST.length} моделей; «nfqjnf rfvhb» → Camry; 100 up: Camry нет, RAV4 уточнить`);
+}
+
+/* 31. Машина в комментарии лида: падежи, народные названия, обычные слова не путаются; вердикт по городу */
+{
+  const assert = require("assert");
+  const c = R("cars/cars/catalog");
+  const { rulesFor, mentionVerdict } = R("cars/cars/rules");
+  const names = (t) => c.detectCars(t).map((m) => (m.model ? m.model.full : m.brand.name));
+  assert.deepEqual(names("Хочет продать свой прадик 2012 года, торг"), ["Toyota Land Cruiser Prado"]);
+  assert.deepEqual(names("продаёт весту 2019"), ["Lada Vesta"], "падеж");
+  assert.deepEqual(names("гранту и приору"), ["Lada Granta", "Lada Priora"], "две машины");
+  assert.deepEqual(names("кашкай или икстрейл"), ["Nissan Qashqai", "Nissan X-Trail"], "две одной марки");
+  assert.deepEqual(names("мерседеса"), ["Mercedes-Benz"], "только марка");
+  assert.deepEqual(names("газель некст"), ["ГАЗ Газель"], "«некст» — не Nexia");
+  assert.deepEqual(names("перезвонить после обеда, бонус не интересен"), [], "обычное слово — не машина");
+  assert.deepEqual(names("клиент из москвы, 2015 год"), [], "«москвы» — не Москвич, год — не модель");
+  const up = rulesFor({ name: "100 up" });
+  const au = rulesFor({ name: "Авто.ру" });
+  const [prado] = c.detectCars("прадик");
+  assert.equal(mentionVerdict(up, prado, "Самара")[0].kind, "no");
+  const [merc] = c.detectCars("мерседес");
+  assert.equal(mentionVerdict(up, merc, "")[0].kind, "no", "марка из списка — понятно и без модели");
+  assert.equal(mentionVerdict(up, c.detectCars("хавал")[0], ""), null, "Haval без модели — не понять");
+  const [vesta] = c.detectCars("весту");
+  assert.deepEqual(mentionVerdict(au, vesta, "Москва").map((v) => v.kind), ["ok"], "Авто.ру: Москва — любые марки");
+  assert.deepEqual(mentionVerdict(au, vesta, "Екатеринбург").map((v) => v.kind), ["no"], "Авто.ру: Екатеринбург — только китайцы");
+  assert.equal(mentionVerdict(au, vesta, "").length, 2, "без города — обе зоны");
+  console.log("31 ok: машина в комментарии — «прадик» → Prado (100 up: нет), «весту» в Екатеринбурге для Авто.ру — нет");
+}

@@ -172,6 +172,14 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
                 <span className="rail-text lbl">Карта городов</span>
               </Link>
             )}
+            {g.g === "Справочники" && access.routes.has("/cars") && (
+              <Link className="app-rail-item" href="/cars" aria-current={pathname === "/cars" ? "page" : undefined} title="Машина клиента → передаём её по проекту или нет">
+                <span className="rail-icon" style={{ display: "flex" }}>
+                  <Icon name="car" size={16} />
+                </span>
+                <span className="rail-text lbl">Марки авто</span>
+              </Link>
+            )}
           </div>
         ))}
         {lead && (

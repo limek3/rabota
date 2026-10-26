@@ -7,7 +7,7 @@
 // Native features: custom title bar, window-state memory, application menu,
 // system tray (minimize-to-tray), native lead notifications, launch-at-login.
 
-import { app, BrowserWindow, ipcMain, shell, Menu, Tray, Notification, nativeImage } from "electron";
+import { app, BrowserWindow, ipcMain, shell, Menu, Tray, Notification, nativeImage, globalShortcut } from "electron";
 import path from "path";
 import http from "http";
 import fs from "fs";
@@ -39,6 +39,55 @@ const TRAY_ICON = path.join(__dirname, IS_MAC ? "trayTemplate.png" : "tray.png")
 
 let win = null;
 let tray = null;
+/** Адрес, с которого грузится CRM (сервер out/ или dev) — для мини-окна «Марок авто». */
+let appBase = "";
+/** Мини-окно «Марок авто» поверх всех окон (страница /mini/cars). */
+let carsMini = null;
+
+/**
+ * Показать или спрятать мини-окно «Марок авто»: маленькое, поверх всех окон (рядом со Скорозвоном),
+ * не в панели задач. Закрытие только прячет — следующий Ctrl+Shift+A показывает то же окно мгновенно.
+ */
+function toggleCarsMini() {
+  if (!appBase) return;
+  if (carsMini && !carsMini.isDestroyed()) {
+    if (carsMini.isVisible() && carsMini.isFocused()) carsMini.hide();
+    else {
+      carsMini.show();
+      carsMini.focus();
+    }
+    return;
+  }
+  carsMini = new BrowserWindow({
+    width: 380,
+    height: 420,
+    minWidth: 320,
+    minHeight: 300,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    autoHideMenuBar: true,
+    title: "Марки авто",
+    backgroundColor: "#f3f4f6",
+    icon: APP_ICON,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  // над окнами на весь экран тоже
+  carsMini.setAlwaysOnTop(true, "floating");
+  carsMini.on("close", (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      carsMini.hide();
+    }
+  });
+  carsMini.loadURL(appBase.replace(/\/+$/, "") + "/mini/cars/");
+}
 app.isQuitting = false;
 
 const MIME = {
@@ -380,6 +429,7 @@ async function createWindow() {
   // the title bar close button hides to tray instead of quitting
   ipcMain.on("vexa:close", () => win && win.close());
   ipcMain.on("vexa:notify", (_e, payload) => showLeadNotification(payload));
+  ipcMain.on("vexa:cars-mini", () => toggleCarsMini());
   // скачать файл по ссылке (запись разговора из Скорозвона): у хранилища нет CORS, из страницы его
   // не скачать — качает сам Electron, имя подставляется в окно «Сохранить как»
   ipcMain.on("vexa:download", (_e, payload) => {
@@ -423,6 +473,13 @@ async function createWindow() {
 
   // Desktop app always boots into its own flow: splash → login → dashboard.
   const base = DEV ? await waitForDev(DEV_URL) : await serveOut();
+  appBase = base;
+  // Ctrl+Shift+A из любого окна (и из Скорозвона) — мини-окно «Марок авто»; занята другой программой — живём без неё
+  try {
+    globalShortcut.register("CommandOrControl+Shift+A", toggleCarsMini);
+  } catch {
+    /* сочетание недоступно */
+  }
   const entry = base.replace(/\/+$/, "") + "/desktop/";
   await win.loadURL(entry);
 }
@@ -454,6 +511,8 @@ if (!gotLock) {
     app.isQuitting = true;
     saveWindowState();
   });
+
+  app.on("will-quit", () => globalShortcut.unregisterAll());
 
   // keep running in the tray when all windows are closed
   app.on("window-all-closed", () => {

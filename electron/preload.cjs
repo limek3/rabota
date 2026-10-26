@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld("vexaElectron", {
   notify: (payload) => ipcRenderer.send("vexa:notify", payload),
   // скачать файл по ссылке с окном «Сохранить как» (запись разговора: из страницы не скачать — нет CORS)
   download: (url, name) => ipcRenderer.send("vexa:download", { url, name }),
+  // мини-окно «Марок авто» поверх всех окон — то же, что Ctrl+Shift+A
+  carsMini: () => ipcRenderer.send("vexa:cars-mini"),
   // main → renderer: "open this route" (e.g. clicking a notification)
   onNavigate: (cb) => {
     const handler = (_e, path) => cb(path);

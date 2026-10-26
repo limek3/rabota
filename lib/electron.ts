@@ -27,6 +27,8 @@ export interface VexaBridge {
   notify: (payload: { title: string; body: string; matchId?: string }) => void;
   /** Скачать файл по ссылке через Electron (окно «Сохранить как»). Старые сборки — без него. */
   download?: (url: string, name: string) => void;
+  /** Мини-окно «Марок авто» поверх всех окон (Ctrl+Shift+A). Старые сборки — без него. */
+  carsMini?: () => void;
   onNavigate: (cb: (path: string) => void) => () => void;
   onUpdate?: (cb: (s: VexaUpdate) => void) => () => void;
   getUpdateState?: () => Promise<VexaUpdate>;

@@ -23,6 +23,7 @@ export const NAV: NavItem[] = [
   { href: "/operators", label: "Операторы", icon: "users", hint: "Показатели и карточки сотрудников", group: "Работа" },
   { href: "/groups", label: "Группы", icon: "groups", hint: "Состав и выполнение планов групп", group: "Работа" },
   { href: "/cities", label: "Карта городов", icon: "map", hint: "Город клиента → ближайшие города, где мы работаем (клавиша G)", group: "Работа" },
+  { href: "/cars", label: "Марки авто", icon: "car", hint: "Машина клиента → передаём её по проекту или нет", group: "Работа" },
   { href: "/hiring", label: "Найм", icon: "userPlus", hint: "Кандидаты, воронка найма, стажировка и текучесть", group: "Работа" },
   { href: "/schedule", label: "График", icon: "calendar", hint: "Смены и отработанные часы", group: "Время и деньги" },
   { href: "/payroll", label: "Зарплата", icon: "wallet", hint: "Ведомость, начисления и выплаты", group: "Время и деньги" },

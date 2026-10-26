@@ -19,6 +19,7 @@ import { hasLeadLinkColumn, hasLeadRegionColumn } from "@/lib/crm/remote";
 import { SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
 import { CallReview, mmss, useLeadDialog } from "./LeadDialog";
 import { openCityPeek } from "./CityPeek";
+import { CarHint } from "./CarHint";
 
 /**
  * Лид в новом виде. Одна логика (useLeadDraft) — два места:
@@ -687,6 +688,7 @@ function LeadFields({ d, compact, projectInHead }: { d: Draft; compact?: boolean
           placeholder={d.isForm ? "Критерии клиента — то же, что в комментарии формы: авто, бюджет, кредит / трейд-ин, сроки" : "Что важно знать менеджеру"}
           readOnly={d.readOnly}
         />
+        {!d.readOnly && <CarHint text={d.f.comment} projectId={d.f.projectId} city={d.f.region} />}
       </Sec>
 
       <Sec icon="user" title={d.lead ? "Оператор и группа" : "Оператор"}>
@@ -1513,6 +1515,7 @@ function LeadCreateMobile({ preset, onClose }: { preset?: LeadPreset; onClose: (
                   rows={3}
                   placeholder={d.isForm ? "Критерии клиента — авто, бюджет, кредит / трейд-ин, сроки" : "Что важно знать менеджеру"}
                 />
+                <CarHint text={d.f.comment} projectId={d.f.projectId} city={d.f.region} />
               </div>
 
               <div className="mlf-src">Время ставится само — по Москве, в момент записи. Источник: {LEAD_SOURCE}.</div>
