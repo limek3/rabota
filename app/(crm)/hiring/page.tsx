@@ -8,11 +8,12 @@ import { EARLY_DAYS, daysBetween, fmtTenure, hiresIn, hiringFunnel, isOpenCandid
 import { hasCandidatesTable } from "@/lib/crm/remote";
 import { addMonths, fmtDate, fmtMonth, fmtMonthShort, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { Chip, Empty, Kpi, MonthSwitcher, PageHead, Progress, Seg } from "@/components/ui/kit";
+import { Chip, Empty, Kpi, MonthSwitcher, Progress, Seg } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { CandidateModal } from "@/components/app/CandidateModal";
 import { StickyHead } from "@/components/app/StickyHead";
+import { HeroAlarm, HeroBars, HeroBig, HeroSplit, PageHero, heroDelta } from "@/components/app/PageHero";
 
 /**
  * Найм и текучесть.
@@ -136,10 +137,11 @@ export default function HiringPage() {
           { l: "В работе", v: fmtInt(openCount) },
         ]}
       />
-      <PageHead
+      <PageHero
+        accent="rose"
         title="Найм"
         sub={`${periodLabel} · в работе ${fmtInt(openCount)} ${plural(openCount, CANDS)} · в штате ${fmtInt(staff.staff.length)} ${plural(staff.staff.length, PEOPLE)}`}
-        actions={
+        tools={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
             <button className="btn btn-primary" onClick={() => setOpen("new")} disabled={missing || !access.can.manageHiring}>
@@ -147,7 +149,78 @@ export default function HiringPage() {
             </button>
           </>
         }
-      />
+      >
+        <HeroBig
+          label="В штате сейчас"
+          value={fmtInt(staff.staff.length)}
+          unit={plural(staff.staff.length, PEOPLE)}
+          delta={heroDelta(hires.length - leavers.length, (x) => `${fmtInt(x)} за период`, true, 0.5, "Пришли минус ушли за выбранный период")}
+          vs={`${periodLabel}: пришли ${fmtInt(hires.length)} · ушли ${fmtInt(leavers.length)}`}
+          facts={[
+            <>
+              средний стаж <b>{fmtTenure(staff.avgTenure)}</b>
+            </>,
+            staff.retention90.pct != null ? (
+              <>
+                остаются дольше 90 дней <b className="num">{fmtPct(staff.retention90.pct)}</b>
+              </>
+            ) : null,
+          ]}
+        />
+        <HeroSplit
+          cols={4}
+          parts={(
+            [
+              ["open", "В работе", funnel.open, "blue", "open"],
+              ["hired", "Приняты", funnel.steps[3].count, "green", "hired"],
+              ["rejected", "Отклонены", funnel.rejected, "red", "closed"],
+              ["declined", "Отказались", funnel.declined, "gray", "closed"],
+            ] as [string, string, number, string, ListFilter][]
+          ).map(([key, label, value, hue, lf]) => ({
+            key,
+            label,
+            value,
+            pct: funnel.steps[0].count ? fmtPct(safeDiv(value, funnel.steps[0].count)) : undefined,
+            note: "от откликов",
+            hue,
+            on: tab === "list" && filter === lf && key !== "declined",
+            onClick: () => {
+              setTab("list");
+              setFilter(lf);
+            },
+            title: "Показать кандидатов",
+          }))}
+          after={
+            openCount > 0 ? (
+              <HeroAlarm tone="blue" icon="users" onClick={() => { setTab("list"); setFilter("open"); }} title="Кандидаты, по которым ещё нет решения">
+                <b className="num">{fmtInt(openCount)}</b> {plural(openCount, CANDS)} ждут решения
+              </HeroAlarm>
+            ) : (
+              <HeroAlarm tone="green">Все кандидаты разобраны</HeroAlarm>
+            )
+          }
+        />
+        <HeroBars
+          from={fmtMonthShort(churn[0].month)}
+          to={fmtMonthShort(churn[churn.length - 1].month)}
+          caption="приняли и ушли по месяцам"
+          legend={[
+            { hue: "green", label: "приняли" },
+            { hue: "red", label: "ушли" },
+          ]}
+          cols={churn.map((r) => ({
+            key: r.month,
+            title: `${fmtMonth(r.month)}: приняли ${r.hired}, ушли ${r.fired}, в штате на конец ${r.end}`,
+            parts: [
+              { hue: "green", n: r.hired },
+              { hue: "red", n: r.fired },
+            ],
+            on: r.month === month,
+            today: false,
+            onClick: () => setMonth(r.month),
+          }))}
+        />
+      </PageHero>
 
       {missing && (
         <div className="card card-pad note-line warn" style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>

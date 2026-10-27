@@ -8,7 +8,7 @@ import { dayConv, goneLast, isGone, sumRange, svWorkday, type OpRow } from "@/li
 import { DAY_LABEL, DAY_SHORT, HOURS_DAY_TYPES, NO_GROUP, NO_GROUP_LABEL, startTimeLabel, type DayKey, type DayType, type Operator, type Shift } from "@/lib/crm/types";
 import { addMonths, fmtDay, fmtMonth, fmtRange, fmtWeekday, isWorkday, monthEnd, monthStart, rangeDays, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Conv, Empty, Field, LeadN, Modal, MonthSwitcher, NumInput, PageHead, Seg } from "@/components/ui/kit";
+import { Avatar, Conv, Empty, Field, LeadN, Modal, MonthSwitcher, NumInput, Seg } from "@/components/ui/kit";
 import { DateInput, Layer, Select, dot, uiZoom, usePopover, type Opt } from "@/components/ui/select";
 import { canEditShift, canManageOperator } from "@/lib/crm/access";
 import { startTimeOpts } from "@/components/app/OperatorModal";
@@ -16,6 +16,7 @@ import { hasStartTimeColumn } from "@/lib/crm/remote";
 import { Icon } from "@/components/ui/icons";
 import { SkorozvonHours } from "@/components/app/SkorozvonHours";
 import { supabaseReady } from "@/lib/supabase";
+import { HeroBars, HeroBig, HeroStats, PageHero } from "@/components/app/PageHero";
 
 const TYPE_HUE: Record<DayType, string> = { work: "blue", manual: "blue", off: "gray", training: "indigo", platform: "purple", vacation: "amber", sick: "red" };
 
@@ -228,6 +229,21 @@ export default function SchedulePage() {
     return { hours, leads, planToDate, plan, convLeads };
   }, [rows, ix]);
 
+  // хиро: кто на смене сегодня и сколько часов в среднем за смену (по прошедшим дням)
+  const todayIdx = days.indexOf(today);
+  // на смене сегодня: по графику (часы из Скорозвона за сегодня приходят позже)
+  const onShiftToday = rows.filter((r) => !ix.svIds.has(r.op.id) && ((ix.plannedOpDay.get(r.op.id)?.get(today) ?? 0) > 0 || (ix.hoursOpDay.get(r.op.id)?.get(today) ?? 0) > 0)).length;
+  const avgShift = useMemo(() => {
+    let h = 0;
+    let n = 0;
+    days.forEach((d, i) => {
+      if (d > today) return;
+      h += dayTotals[i].h;
+      n += dayTotals[i].people;
+    });
+    return n ? h / n : 0;
+  }, [days, dayTotals, today]);
+
   // план дня: план месяца строк на экране ÷ рабочие дни месяца; в выходные плана нет
   const dayPlan = tot.plan > 0 ? tot.plan / m.cal.W : 0;
   const planOf = (d: DayKey) => (dayPlan > 0 && m.cal.isWork(d) ? dayPlan : 0);
@@ -394,10 +410,13 @@ export default function SchedulePage() {
     // Высота = окно минус рамка main (8+8 отступ, 1+1 граница = 18px) и отступы .app-content
     <div className="stack sched-page" style={{ height: "calc(100vh / var(--ui-scale, 1) - var(--titlebar-h, 0px) - 18px - var(--pad-t) - var(--pad-b))" }}>
       <style>{crossCss}</style>
-      <PageHead
+      <PageHero
+        compact
+        accent="teal"
+        style={{ ["--ph-cols" as string]: "minmax(170px, 0.5fr) minmax(360px, 1.3fr) minmax(0, 1.7fr)", ["--ph-cols-md" as string]: "minmax(160px, 0.6fr) minmax(0, 1.4fr)" }}
         title="График"
         sub={`${fmtMonth(month)}${access.can.editShifts ? " · клик по клетке — записать смену, протяните — выделить несколько" : ""}`}
-        actions={
+        tools={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
             {access.isHead && supabaseReady && (
@@ -412,7 +431,43 @@ export default function SchedulePage() {
             )}
           </>
         }
-      />
+      >
+        <HeroBig
+          label={`Часы за ${fmtMonth(month).toLowerCase()}`}
+          value={fmtNum(tot.hours, 0)}
+          unit="ч"
+          facts={[
+            <>
+              лидов <b className="num">{fmtInt(tot.leads)}</b>
+              {tot.hours > 0 && (
+                <>
+                  {" "}
+                  · конверсия <b className="num">{fmtPct(safeDiv(tot.convLeads, tot.hours))}</b>
+                </>
+              )}
+            </>,
+          ]}
+        />
+        <HeroStats
+          items={[
+            { label: "На смене сегодня", value: todayIdx >= 0 ? fmtInt(onShiftToday) : "—", note: todayIdx >= 0 ? "по графику смен" : "не этот месяц" },
+            { label: "Часов в смену", value: avgShift > 0 ? fmtNum(avgShift) : "—", note: "в среднем на человека" },
+            { label: "План к дате", value: tot.plan > 0 ? `${fmtPct(safeDiv(tot.leads, tot.planToDate))}` : "—", note: tot.plan > 0 ? `${fmtInt(tot.leads)} из ${fmtInt(Math.round(tot.planToDate))}` : "план не задан", hue: tot.plan > 0 ? (tot.leads >= tot.planToDate - 0.5 ? "green" : "red") : undefined },
+          ]}
+        />
+        <HeroBars
+          height={52}
+          caption="часы по дням · светлые — запланированные смены"
+          from={fmtDay(days[0])}
+          to={fmtDay(days[days.length - 1])}
+          cols={days.map((d, i) => ({
+            key: d,
+            title: `${fmtDay(d)}: ${fmtNum(dayTotals[i].h)} ч${d > today ? " в графике" : `, лидов ${dayTotals[i].n}`}, на смене ${dayTotals[i].people}`,
+            parts: [{ hue: d > today ? "gray" : "teal", n: dayTotals[i].h }],
+            today: d === today,
+          }))}
+        />
+      </PageHero>
 
       <div className="toolbar">
         <Select

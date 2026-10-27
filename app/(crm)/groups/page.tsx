@@ -12,10 +12,12 @@ import { fundStat, payroll } from "@/lib/crm/payroll";
 import { NO_GROUP } from "@/lib/crm/types";
 import { fmtMonth, monthEnd, monthStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Conv, Empty, LeadN, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
+import { Avatar, Chip, Conv, Empty, LeadN, MonthSwitcher, Progress, Seg, StatusChip, Swatch } from "@/components/ui/kit";
 import { Select, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { StickyHead, planItems } from "@/components/app/StickyHead";
+import { PageHero } from "@/components/app/PageHero";
+import { TeamHero } from "@/components/app/HeroParts";
 
 export default function GroupsPage() {
   const { data, month, setMonth, openGroup, access } = useCrm();
@@ -34,10 +36,11 @@ export default function GroupsPage() {
   return (
     <div className="stack">
       <StickyHead title="Группы" ctx={fmtMonth(month)} items={planItems(m.team.pace, m.team.lph, data.settings.convNormPct / 100)} />
-      <PageHead
+      <PageHero
+        accent="indigo"
         title="Группы"
         sub={`${fmtMonth(month)} · факт считается по группе оператора на момент передачи лида`}
-        actions={
+        tools={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
             <Seg value={view} onChange={setView} options={[{ value: "cards", label: "Карточки" }, { value: "table", label: "Таблица" }]} />
@@ -48,7 +51,9 @@ export default function GroupsPage() {
             )}
           </>
         }
-      />
+      >
+        {m.groups.length > 0 && <TeamHero m={m} picked={picked} onPick={(k) => pickGroup(k, true)} />}
+      </PageHero>
       {m.groups.length === 0 ? (
         <div className="card">
           <Empty

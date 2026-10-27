@@ -7,11 +7,13 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import { buildIndex, monthModel, PACE_HUE } from "@/lib/crm/calc";
 import { NO_GROUP_LABEL } from "@/lib/crm/types";
 import { fmtMonth, monthEnd, monthStart } from "@/lib/crm/dates";
-import { fmtInt, fmtPct, safeDiv } from "@/lib/crm/format";
-import { Empty, MonthSwitcher, PageHead, Progress, StatusChip } from "@/components/ui/kit";
+import { fmtInt, fmtNum, fmtPct, safeDiv } from "@/lib/crm/format";
+import { Empty, MonthSwitcher, Progress, StatusChip } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 import { OperatorStats } from "@/components/app/OperatorDrawer";
 import { StickyHead, planItems } from "@/components/app/StickyHead";
+import { PageHero } from "@/components/app/PageHero";
+import { PaceHero } from "@/components/app/HeroParts";
 
 /**
  * «Мои показатели» — как идёт месяц: то, что супервайзер видит в карточке оператора, но на всю
@@ -46,10 +48,11 @@ export default function StatsPage() {
   return (
     <div className="stack">
       {row && <StickyHead title="Мои показатели" ctx={fmtMonth(month)} items={planItems(row.pace, row.lph, data.settings.convNormPct / 100)} />}
-      <PageHead
+      <PageHero
+        accent="violet"
         title="Мои показатели"
         sub={`${me.name} · ${group ? group.name : NO_GROUP_LABEL} · ${fmtMonth(month)}`}
-        actions={
+        tools={
           <>
             {row && <StatusChip status={row.status} />}
             <Link className="btn btn-ghost" href={`/leads?op=${encodeURIComponent(opId)}&from=${monthStart(month)}&to=${monthEnd(month)}`}>
@@ -59,7 +62,22 @@ export default function StatsPage() {
             {!row && <MonthSwitcher value={month} onChange={setMonth} />}
           </>
         }
-      />
+      >
+        {row && (
+          <PaceHero
+            cal={m.cal}
+            p={row.pace}
+            plan={row.terms.plan}
+            label={`Мой факт за ${fmtMonth(month).toLowerCase()}`}
+            counts={ix.opDay.get(row.op.id)}
+            extra={[
+              <>
+                конверсия <b className="num">{row.lph == null ? "—" : fmtPct(row.lph)}</b> · часов <b className="num">{fmtNum(row.hours)}</b>
+              </>,
+            ]}
+          />
+        )}
+      </PageHero>
       {row ? (
         <>
           <OperatorStats row={row} wide />

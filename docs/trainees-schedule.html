@@ -1,0 +1,289 @@
+<title>Стажёры в графике</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Макет: страница-разбор в стиле самой CRM — вкладки вариантов сверху, под ними кусок графика и что меняется. */
+:root {
+  --bg: #f1f0ee; --panel: #fdfdfc; --head: #fafafa; --line: #e2e1dd; --grid: #ececec; --grid-strong: #dcdbd7;
+  --text: #2b2b29; --sub: #5f5e5a; --dim: #8d8c88; --brand: #2b2b29; --on-brand: #fdfdfc; --today: #f6f5f2; --we: #f7f7f5;
+  --work-bg: #eaf3ee; --work-fg: #3f7357; --train-bg: #4f6593; --train-fg: #fdfdfc; --sick-bg: #f8ecec; --sick-fg: #9f4f52;
+  --pre-a: #f3f2ef; --pre-b: #e9e8e4; --grp: #f3f3f1;
+  /* метка стажёра — меняется переключателем цвета */
+  --tr-fg: #a8517c; --tr-bg: #f8eaf1; --tr-bd: #efcfe0;
+  --ok: #3f7357; --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121212; --panel: #1b1b1b; --head: #1e1e1e; --line: #2b2b2a; --grid: #2b2b2a; --grid-strong: #363634;
+  --text: #e8e8e6; --sub: #a3a3a0; --dim: #6e6e6c; --brand: #e8e8e6; --on-brand: #1b1b1b; --today: #202020; --we: #191919;
+  --work-bg: #1f3128; --work-fg: #95c9aa; --train-bg: #4f6593; --train-fg: #eef1f8; --sick-bg: #3a2729; --sick-fg: #e0a1a3;
+  --pre-a: #1d1d1d; --pre-b: #252525; --grp: #222221; --ok: #95c9aa; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #121212; --panel: #1b1b1b; --head: #1e1e1e; --line: #2b2b2a; --grid: #2b2b2a; --grid-strong: #363634;
+  --text: #e8e8e6; --sub: #a3a3a0; --dim: #6e6e6c; --brand: #e8e8e6; --on-brand: #1b1b1b; --today: #202020; --we: #191919;
+  --work-bg: #1f3128; --work-fg: #95c9aa; --train-bg: #4f6593; --train-fg: #eef1f8; --sick-bg: #3a2729; --sick-fg: #e0a1a3;
+  --pre-a: #1d1d1d; --pre-b: #252525; --grp: #222221; --ok: #95c9aa; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.lead { margin: 0; color: var(--sub); max-width: 70ch; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--grid); border-radius: 10px; }
+.tabs button { border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--sub); padding: 7px 12px; border-radius: 7px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.tabs button[aria-selected="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.tabs button:focus-visible, .swatch:focus-visible, .sec-btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.rec { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ok); }
+.colors { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--sub); }
+.swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; display: grid; place-items: center; background: none; }
+.swatch i { width: 18px; height: 18px; border-radius: 50%; display: block; }
+.swatch[aria-pressed="true"] { border-color: var(--text); }
+.warn { font-size: 12px; color: var(--sub); min-height: 1.2em; }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: separate; border-spacing: 0; font-size: 12px; width: max-content; min-width: 100%; font-variant-numeric: tabular-nums; }
+th, td { border-bottom: 1px solid var(--grid); padding: 0; }
+thead th { background: var(--head); color: var(--sub); font-weight: 600; height: 44px; border-bottom: 1px solid var(--line); }
+.name { position: sticky; left: 0; z-index: 2; background: var(--panel); border-right: 1px solid var(--grid-strong); min-width: 230px; width: 230px; padding: 0 10px 0 14px; text-align: left; height: 40px; }
+thead .name { background: var(--head); z-index: 3; }
+th.day { width: 38px; min-width: 38px; text-align: center; font-size: 11px; line-height: 1.15; }
+th.day b { display: block; font-size: 12px; color: var(--text); font-weight: 600; }
+th.day.off b { color: var(--dim); }
+th.day.today b { display: inline-block; background: var(--brand); color: var(--on-brand); border-radius: 6px; padding: 1px 5px; }
+td.cell { width: 38px; min-width: 38px; height: 40px; text-align: center; padding: 4px 0; position: relative; }
+td.cell.off { background: var(--we); }
+td.cell.today { background: var(--today); }
+.sum { width: 58px; min-width: 58px; text-align: center; border-left: 1px solid var(--grid-strong); font-weight: 600; }
+thead .sum { font-size: 11px; }
+.band { display: flex; flex-direction: column; justify-content: center; height: 32px; font-size: 11.5px; font-weight: 600; line-height: 1.1; }
+.band small { font-size: 10px; font-weight: 500; opacity: .8; }
+.b-work { background: var(--work-bg); color: var(--work-fg); }
+.b-train { background: var(--train-bg); color: var(--train-fg); }
+.b-sick { background: var(--sick-bg); color: var(--sick-fg); }
+.b-pre { background: repeating-linear-gradient(135deg, var(--pre-a) 0 5px, var(--pre-b) 5px 7px); height: 32px; }
+.l { border-top-left-radius: 7px; border-bottom-left-radius: 7px; margin-left: 2px; }
+.r { border-top-right-radius: 7px; border-bottom-right-radius: 7px; margin-right: 2px; }
+.dot { color: var(--dim); font-size: 14px; }
+
+.op { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ava { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 8.5px; font-weight: 700; background: var(--grid); color: var(--sub); }
+.op-t { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.op-n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.op-s { font-size: 10.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.start { flex: none; font-size: 10.5px; font-weight: 600; color: var(--sub); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.chip { flex: none; font-size: 10.5px; font-weight: 600; color: var(--tr-fg); background: var(--tr-bg); border: 1px solid var(--tr-bd); border-radius: 6px; padding: 1px 6px; }
+.prog { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--tr-fg); white-space: nowrap; }
+.prog i { width: 38px; height: 4px; border-radius: 2px; background: var(--grid); overflow: hidden; display: inline-block; }
+.prog i b { display: block; height: 100%; background: var(--tr-fg); }
+/* стажёр: полоска слева у имени (A, B, D) / полоска и тон всей строки (C) */
+tr.tr .name { box-shadow: inset 3px 0 0 var(--tr-fg); }
+tr.tr .ava { background: var(--tr-bg); color: var(--tr-fg); }
+tr.tr.tint td { background-color: color-mix(in srgb, var(--tr-bg) 55%, var(--panel)); }
+tr.tr.tint td.off { background-color: color-mix(in srgb, var(--tr-bg) 55%, var(--we)); }
+
+tr.grp td { background: var(--grp); height: 34px; font-weight: 600; }
+tr.grp .name { background: var(--grp); }
+tr.sub td { background: var(--tr-bg); height: 32px; font-weight: 600; color: var(--tr-fg); border-bottom-color: var(--tr-bd); }
+tr.sub .name { background: var(--tr-bg); box-shadow: inset 3px 0 0 var(--tr-fg); }
+.sec-btn { display: inline-flex; align-items: center; gap: 7px; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; padding: 0; white-space: nowrap; }
+.sec-btn svg { transition: transform .15s; }
+.sec-btn[aria-expanded="false"] svg { transform: rotate(-90deg); }
+@media (prefers-reduced-motion: reduce) { .sec-btn svg { transition: none; } }
+
+.about { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; padding: 16px 18px; }
+.about h2 { margin: 0 0 6px; font-size: 16px; }
+.about p, .about li { margin: 0; color: var(--sub); }
+.about ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.about h3 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); }
+.pc { display: flex; flex-direction: column; gap: 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--sub); padding: 0 2px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 16px; height: 10px; border-radius: 3px; display: inline-block; }
+@media (max-width: 760px) { .about { grid-template-columns: minmax(0, 1fr); } h1 { font-size: 22px; } .name { min-width: 190px; width: 190px; } }
+</style>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:8px">
+    <h1>Стажёры в графике</h1>
+    <p class="lead">Сейчас в графике стажёры стоят вперемешку с операторами по алфавиту, и их видно только по «с 24.10» под именем. Ниже четыре варианта, как их выделить цветом и упорядочить. Данные на примере вымышленные: две недели октября, сегодня суббота, 24-е.</p>
+  </header>
+
+  <div class="bar">
+    <div class="tabs" role="tablist" aria-label="Вариант">
+      <button role="tab" id="t-now" aria-selected="false" data-v="now">Сейчас</button>
+      <button role="tab" id="t-a" aria-selected="true" data-v="a">A · Подблок в группе <span class="rec">совет</span></button>
+      <button role="tab" id="t-b" aria-selected="false" data-v="b">B · Общий блок</button>
+      <button role="tab" id="t-c" aria-selected="false" data-v="c">C · Только метка</button>
+      <button role="tab" id="t-d" aria-selected="false" data-v="d">D · С этапом обучения</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+      <div class="colors" role="group" aria-label="Цвет метки стажёра">Цвет метки
+        <button class="swatch" id="c-pink" aria-pressed="true" data-c="pink" title="Розовый"><i style="background:#a8517c"></i></button>
+        <button class="swatch" id="c-teal" aria-pressed="false" data-c="teal" title="Бирюзовый"><i style="background:#2f7f6c"></i></button>
+        <button class="swatch" id="c-indigo" aria-pressed="false" data-c="indigo" title="Индиго"><i style="background:#5358a3"></i></button>
+        <button class="swatch" id="c-amber" aria-pressed="false" data-c="amber" title="Янтарный"><i style="background:#85602f"></i></button>
+      </div>
+      <div class="warn" id="warn"></div>
+    </div>
+  </div>
+
+  <div class="card tbl-wrap"><table id="grid"></table></div>
+  <div class="legend">
+    <span><i style="background:var(--work-bg);border:1px solid var(--work-fg)"></i>смена: часы и лиды</span>
+    <span><i style="background:var(--train-bg)"></i>обучение</span>
+    <span><i style="background:var(--sick-bg)"></i>больничный</span>
+    <span><i style="background:repeating-linear-gradient(135deg,var(--pre-a) 0 3px,var(--pre-b) 3px 5px)"></i>до приёма</span>
+    <span><i style="background:var(--tr-fg)"></i>метка стажёра</span>
+  </div>
+
+  <section class="card about" id="about"></section>
+</div>
+
+<script>
+const DAYS = []; // 13–26 октября 2026
+const WD = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+for (let d = 13; d <= 26; d++) { const w = new Date(2026, 9, d).getDay(); DAYS.push({ d, w: WD[w], off: w === 0 || w === 6, today: d === 24 }); }
+
+// s: { день: [часы, лиды] | "T" (обучение) | "S" (больничный) }
+const W = (h, n) => [h, n];
+const PEOPLE = [
+  { g: "Группа 1", n: "Гаврилова А.", hire: 0, start: "14:00", s: { 13: W(4.4, 6), 14: W(5.8, 1), 16: W(6.1, 4), 19: W(5.2, 3), 20: W(6.0, 5), 21: W(5.4, 8), 22: W(4.8, 2), 23: W(5.1, 4) } },
+  { g: "Группа 1", n: "Дьяченко А.", hire: 0, start: "10:00", s: { 13: W(11.6, 5), 14: W(11.5, 12), 15: W(11.7, 4), 16: W(11.7, 12), 20: W(11.1, 19), 21: W(10.9, 23), 23: W(11.4, 7), 26: W(11.3, 0) } },
+  { g: "Группа 1", n: "Ким З.", hire: 0, start: "9:00", s: { 13: W(1.2, 0), 14: W(4.1, 3), 15: W(0.7, 1), 16: W(3.8, 2), 19: W(4.2, 1), 22: W(3.6, 0) } },
+  { g: "Группа 1", n: "Тарасов Р.", hire: 20, tr: true, stage: ["Аттестация", 60], s: { 20: "T", 21: "T", 22: W(2.9, 1), 23: W(7.3, 4) } },
+  { g: "Группа 2", n: "Ковалёва Л.", hire: 12, start: "10:00", s: { 15: W(6.4, 3), 16: W(6.2, 2), 21: W(4.8, 3), 22: W(5.5, 4), 23: W(6.1, 5) } },
+  { g: "Группа 2", n: "Усов Д.", hire: 13, start: "9:00", s: { 14: W(0, 3), 15: W(7.5, 4), 16: W(8.1, 8), 19: W(6.7, 4), 20: W(6.7, 4), 22: "S", 23: W(3.1, 3), 26: W(3.8, 0) } },
+  { g: "Группа 2", n: "Агапов Ю.", hire: 24, tr: true, stage: ["Теория", 10], s: { 24: "T", 26: "T" } },
+  { g: "Группа 2", n: "Баринов А.", hire: 24, tr: true, stage: ["Не начинал", 0], s: {} },
+  { g: "Группа 2", n: "Белова А.", hire: 21, tr: true, stage: ["Практика", 80], s: { 21: "T", 22: "T", 23: W(0.4, 0), 26: "T" } },
+  { g: "Группа 2", n: "Гуреев Б.", hire: 22, tr: true, stage: ["Теория", 70], s: { 22: "T", 23: "T", 26: "T" } },
+  { g: "Группа 2", n: "Жарков Б.", hire: 24, tr: true, stage: ["Теория", 5], s: { 24: "T" } },
+  { g: "Группа 2", n: "Морозкина Е.", hire: 22, tr: true, stage: ["Теория", 40], s: { 22: "T", 23: "T" } },
+  { g: "Группа 2", n: "Нечаева Е.", hire: 21, tr: true, stage: ["Практика", 90], s: { 21: "T", 22: W(0.6, 1), 23: W(2.4, 1), 26: W(4, 0) } },
+];
+
+const COLORS = {
+  pink: ["#a8517c", "#f8eaf1", "#efcfe0", "#d98eaf", "#3b2933", "#583847"],
+  teal: ["#2f7f6c", "#e5f4f0", "#c9e9e0", "#72bfae", "#213934", "#31554c"],
+  indigo: ["#5358a3", "#eceaf8", "#dad6ef", "#9a9fd8", "#2a2d46", "#3f4368"],
+  amber: ["#85602f", "#f8f1e7", "#eadcc6", "#ddc093", "#352d21", "#4f4331"],
+};
+const WARN = { amber: "Янтарный в графике уже означает «отпуск» — стажёров будут путать с отпускниками.", indigo: "Индиго близок к синему «обучению» — на полосах обучения метка почти сливается." };
+
+const ABOUT = {
+  now: { h: "Как сейчас", p: "Группа целиком по алфавиту. Стажёра отличает только подпись «с 24.10» под именем, а она же стоит у всех, кого приняли в этом месяце.", how: ["Порядок: по алфавиту внутри группы"], plus: [], minus: ["Восемь стажёров второй группы вперемешку с двумя операторами", "Не видно, кто уже на линии, а кто учится"] },
+  a: { h: "A · Подблок «Стажёры» внутри группы", p: "Сначала операторы группы по алфавиту, под ними сворачиваемый подзаголовок «Стажёры · N» и стажёры этой группы. У каждого цветная полоска у имени, чип «день 4» вместо времени смены. Так же устроены «Уволены» внутри группы, поэтому схема знакомая.", how: ["Порядок стажёров: по дате приёма, кто пришёл раньше, тот выше (ближе к выходу на линию)", "Подзаголовок показывает их часы и лиды отдельно; в итог группы они тоже входят, как сейчас"], plus: ["Группа остаётся целой: супервайзер видит своих стажёров рядом со своими операторами", "Блок сворачивается, когда стажёры не нужны"], minus: ["Ещё одна строка-заголовок в каждой группе со стажёрами"] },
+  b: { h: "B · Общий блок «Стажёры» над группами", p: "Все стажёры отдела в одном блоке сразу под «Супервайзерами», как в «Сводке». Под именем группа и дата приёма. Группы ниже содержат только тех, кто уже на линии.", how: ["Порядок: по дате приёма, затем по группе"], plus: ["Совпадает со «Сводкой», где стажёры уже отдельным блоком", "Удобно тому, кто ведёт обучение всех новичков"], minus: ["Супервайзер видит своих стажёров отдельно от группы", "Итоги группы без стажёров: цифры разойдутся с нынешними"] },
+  c: { h: "C · Только метка, без новых заголовков", p: "Стажёры уезжают в конец своей группы, их строки чуть тонированы и с цветной полосой, вместо времени смены чип «стажёр». Новых блоков и заголовков нет.", how: ["Порядок: операторы по алфавиту, затем стажёры по дате приёма"], plus: ["Самое маленькое изменение", "Ничего не сворачивается и не прячется"], minus: ["Тонированные строки спорят с цветами смен на полосах", "Когда стажёров много, группа всё равно длинная"] },
+  d: { h: "D · Подблок с этапом обучения", p: "Как вариант A, но под именем этап из «Обучения команды»: теория с процентом, аттестация, практика. Видно, кто скоро выйдет на линию.", how: ["Порядок: по этапу, дальше продвинулся, тот выше; внутри этапа по дате приёма"], plus: ["Супервайзер сразу видит, кого ставить на практику в Скорозвоне", "Те же данные, что в «Обучении команды», ничего вводить не надо"], minus: ["Подпись длиннее, на телефоне обрежется до этапа без процента"] },
+};
+
+let V = "a", C = "pink";
+const shut = new Set();
+const ini = (n) => n.split(/\s+/).map((x) => x[0]).join("").slice(0, 2).toUpperCase();
+const STAGE_ORDER = { "Готов к линии": 0, "Практика": 1, "Аттестация": 2, "Теория": 3, "Не начинал": 4 };
+const tot = (p) => Object.values(p.s).reduce((a, v) => (Array.isArray(v) ? [a[0] + v[0], a[1] + v[1]] : a), [0, 0]);
+const fmt = (x) => (Math.round(x * 10) / 10).toString().replace(".", ",");
+const chev = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+
+function kind(p, d) {
+  const v = p.s[d];
+  if (Array.isArray(v)) return "work";
+  if (v === "T") return "train";
+  if (v === "S") return "sick";
+  if (p.hire && d < p.hire) return "pre";
+  return null;
+}
+
+function cells(p) {
+  return DAYS.map((day, i) => {
+    const k = kind(p, day.d);
+    const cls = ["cell", day.off && "off", day.today && "today"].filter(Boolean).join(" ");
+    if (!k) return `<td class="${cls}"><span class="dot">·</span></td>`;
+    const prev = i > 0 && kind(p, DAYS[i - 1].d) === k;
+    const next = i < DAYS.length - 1 && kind(p, DAYS[i + 1].d) === k;
+    const edge = `${prev ? "" : " l"}${next ? "" : " r"}`;
+    const v = p.s[day.d];
+    const inner = k === "work" ? `${fmt(v[0])}<small>${v[1]}</small>` : k === "sick" && !prev ? "Б" : "";
+    return `<td class="${cls}"><div class="band b-${k === "pre" ? "pre" : k}${edge}">${inner}</div></td>`;
+  }).join("");
+}
+
+function row(p, opts = {}) {
+  const [h, n] = tot(p);
+  const mark = p.tr && V !== "now";
+  const dayN = p.hire ? 24 - p.hire + 1 : 0;
+  let sub = "";
+  if (opts.groupSub) sub = `${p.g} · с ${p.hire}.10`;
+  else if (V === "d" && p.tr) sub = `<span class="prog">${p.stage[0]}${p.stage[0] === "Теория" ? " " + p.stage[1] + "%" : ""} <i><b style="width:${p.stage[1]}%"></b></i></span>`;
+  else if (p.hire) sub = `с ${p.hire}.10`;
+  const right = mark ? (V === "c" ? `<span class="chip">стажёр</span>` : `<span class="chip">день ${dayN}</span>`) : p.start ? `<span class="start">${p.start}</span>` : "";
+  return `<tr class="${mark ? "tr" : ""}${mark && V === "c" ? " tint" : ""}"><td class="name"><span class="op"><span class="ava">${ini(p.n)}</span><span class="op-t"><span class="op-n">${p.n}</span>${sub ? `<span class="op-s">${sub}</span>` : ""}</span>${right}</span></td>${cells(p)}<td class="sum">${fmt(h)}</td><td class="sum">${n}</td></tr>`;
+}
+
+function head(key, title, list, cls = "grp") {
+  const [h, n] = list.reduce((a, p) => { const t = tot(p); return [a[0] + t[0], a[1] + t[1]]; }, [0, 0]);
+  const open = !shut.has(key);
+  return `<tr class="${cls}"><td class="name"><button class="sec-btn" id="s-${key}" aria-expanded="${open}" data-k="${key}">${chev} ${title} · ${list.length} чел.</button></td><td colspan="${DAYS.length}"></td><td class="sum">${fmt(h)}</td><td class="sum">${n}</td></tr>`;
+}
+
+const byName = (a, b) => a.n.localeCompare(b.n, "ru");
+const byHire = (a, b) => a.hire - b.hire || byName(a, b);
+const byStage = (a, b) => STAGE_ORDER[a.stage[0]] - STAGE_ORDER[b.stage[0]] || b.stage[1] - a.stage[1] || byHire(a, b);
+
+function render() {
+  const groups = [...new Set(PEOPLE.map((p) => p.g))];
+  let body = "";
+  const block = (key, title, list, rows, cls) => { body += head(key, title, list, cls); if (!shut.has(key)) body += rows; };
+  if (V === "b") {
+    const tr = PEOPLE.filter((p) => p.tr).sort((a, b) => byHire(a, b) || a.g.localeCompare(b.g));
+    block("tr", "Стажёры", tr, tr.map((p) => row(p, { groupSub: true })).join(""), "sub");
+  }
+  for (const g of groups) {
+    const all = PEOPLE.filter((p) => p.g === g);
+    const ops = all.filter((p) => !p.tr).sort(byName);
+    const tr = all.filter((p) => p.tr);
+    if (V === "now") block(g, g, all, all.slice().sort(byName).map((p) => row(p)).join(""));
+    else if (V === "b") block(g, g, ops, ops.map((p) => row(p)).join(""));
+    else if (V === "c") block(g, g, all, [...ops, ...tr.sort(byHire)].map((p) => row(p)).join(""));
+    else {
+      const sorted = tr.sort(V === "d" ? byStage : byHire);
+      let rows = ops.map((p) => row(p)).join("");
+      if (sorted.length) {
+        const k = g + "-tr";
+        rows += head(k, "Стажёры", sorted, "sub");
+        if (!shut.has(k)) rows += sorted.map((p) => row(p)).join("");
+      }
+      block(g, g, all, rows);
+    }
+  }
+  const th = DAYS.map((d) => `<th class="day${d.off ? " off" : ""}${d.today ? " today" : ""}"><b>${d.d}</b>${d.w}</th>`).join("");
+  document.getElementById("grid").innerHTML = `<thead><tr><th class="name">Оператор</th>${th}<th class="sum">Часы</th><th class="sum">Лиды</th></tr></thead><tbody>${body}</tbody>`;
+
+  const a = ABOUT[V];
+  const li = (xs) => xs.map((x) => `<li>${x}</li>`).join("");
+  document.getElementById("about").innerHTML = `<div><h2>${a.h}</h2><p>${a.p}</p><div style="margin-top:12px"><h3>Порядок</h3><ul>${li(a.how)}</ul></div></div><div class="pc">${a.plus.length ? `<div><h3>Плюсы</h3><ul>${li(a.plus)}</ul></div>` : ""}<div><h3>Минусы</h3><ul>${li(a.minus)}</ul></div></div>`;
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.v === V)));
+}
+
+function paint() {
+  const [fg, bg, bd, dfg, dbg, dbd] = COLORS[C];
+  const dark = document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  const r = document.documentElement.style;
+  r.setProperty("--tr-fg", dark ? dfg : fg); r.setProperty("--tr-bg", dark ? dbg : bg); r.setProperty("--tr-bd", dark ? dbd : bd);
+  document.getElementById("warn").textContent = WARN[C] || "";
+  document.querySelectorAll(".swatch").forEach((s) => s.setAttribute("aria-pressed", String(s.dataset.c === C)));
+}
+
+document.querySelector(".tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; V = b.dataset.v; shut.clear(); render(); });
+document.querySelector(".colors").addEventListener("click", (e) => { const b = e.target.closest(".swatch"); if (!b) return; C = b.dataset.c; paint(); });
+document.getElementById("grid").addEventListener("click", (e) => { const b = e.target.closest(".sec-btn"); if (!b) return; const k = b.dataset.k; shut.has(k) ? shut.delete(k) : shut.add(k); render(); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", paint);
+new MutationObserver(paint).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+paint();
+render();
+</script>

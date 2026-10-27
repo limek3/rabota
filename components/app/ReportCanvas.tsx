@@ -20,39 +20,40 @@ const W = 960; // ширина картинки, CSS-пикселей
 const P = 36; // поля
 const SCALE = 2; // чёткость для экранов с плотными пикселями
 
+/** Светлая — поверхности и акценты светлой темы CRM (app/theme.css). */
 export const LIGHT = {
-  bg: "#fdfdfc",
-  text: "#2b2b29",
-  sub: "#5f5e5a",
-  dim: "#8d8c88",
-  line: "#e6e5e1",
-  strip: "#f5f4f1",
-  brand: "#333331",
-  brandSoft: "#e8e7e4",
-  green: "#3f7357",
-  greenBg: "#eaf3ee",
-  red: "#9f4f52",
-  redBg: "#f8ecec",
-  amber: "#85602f",
-  amberBg: "#f8f1e7",
+  bg: "#ffffff",
+  text: "#17152b",
+  sub: "#5e5b74",
+  dim: "#8c89a0",
+  line: "#e7e6ef",
+  strip: "#f8f8fb",
+  brand: "#6a45f5",
+  brandSoft: "#f1edff",
+  green: "#0f7a48",
+  greenBg: "#e7f6ee",
+  red: "#cc2f47",
+  redBg: "#fdecef",
+  amber: "#9c5800",
+  amberBg: "#fff4e2",
 };
 
-/** Тёмная — те же поверхности и акценты, что у тёмной темы CRM (globals.css). */
+/** Тёмная — те же поверхности и акценты, что у тёмной темы CRM (app/theme.css). */
 export const DARK: typeof LIGHT = {
-  bg: "#1b1b1b",
-  text: "#e8e8e6",
-  sub: "#a3a3a0",
-  dim: "#6e6e6c",
-  line: "#2d2d2c",
-  strip: "#212121",
-  brand: "#e6e6e4",
-  brandSoft: "#3a3a39",
-  green: "#95c9aa",
-  greenBg: "#1f3128",
-  red: "#e0a1a3",
-  redBg: "#3a2729",
-  amber: "#ddc093",
-  amberBg: "#352d21",
+  bg: "#191823",
+  text: "#edecf4",
+  sub: "#a3a1b6",
+  dim: "#737188",
+  line: "#282736",
+  strip: "#1e1d2a",
+  brand: "#a993ff",
+  brandSoft: "#251d44",
+  green: "#4ccf8c",
+  greenBg: "#122e1f",
+  red: "#ff7184",
+  redBg: "#3a1820",
+  amber: "#f2b146",
+  amberBg: "#33270f",
 };
 
 export type Palette = typeof LIGHT;

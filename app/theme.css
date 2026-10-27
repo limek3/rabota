@@ -1,0 +1,579 @@
+/* ════════════════════════════════════════════════════════════════════
+   LEADUP · тема «Витрина» — единая дизайн-система CRM.
+
+   Идея: тёмная рамка приложения и меню (в обеих темах) — «оправа», внутри
+   спокойная рабочая область. Акцент один — фиолетовый, им отмечено только
+   действие и выбор. Статусы — ясные, но не кричащие, каждый проходит контраст AA
+   и на своей плашке, и на карточке. Нейтрали — холодные, с лёгким фиолетовым
+   подтоном, чтобы рабочая область была в одной семье с рамкой.
+
+   Слои: 1) токены (светлая / тёмная) → 2) оправа и меню → 3) элементы
+   (кнопки, поля, списки, переключатели, галочки, чипы) → 4) блоки (карточки,
+   плитки, таблицы, прогресс, пейджер) → 5) окна, всплывашки, тосты, липкая шапка.
+   Файл подключается последним перед mobile.css и заменяет прежние палитры.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ══════════════ 1. ТОКЕНЫ ══════════════
+   Прозрачности («ink») и тени считаются от --ink-rgb — основного цвета текста темы. */
+
+/* ── светлая тема ── */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ink-rgb: 23 21 43;
+  --bg: #f4f4f8;
+  --bg-sidebar: #eeeef4;
+  --bg-panel: #ffffff;
+  --bg-panel-hover: #f7f7fb;
+  --bg-strip: #f8f8fb;
+  --bg-modal: #ffffff;
+  --bg-sunken: #f0f0f6;
+  --line: #e7e6ef;
+  --line-soft: #efeef5;
+  --ctrl-border: #dcdbe6;
+  --ctrl-border-hover: #c4c2d3;
+
+  --text: #17152b;
+  --text-soft: #24213a;
+  --text-quote: #2e2b45;
+  --text-sub: #5e5b74;
+  --text-sub2: #56536c;
+  --text-sub3: #78758c;
+  --dim: #8c89a0;
+  --dimmer: #b7b5c7;
+
+  --brand: #6a45f5;
+  --brand-soft: #5b37e6;
+  --brand-strong: #5629dc;
+  --on-brand: #ffffff;
+  --green: #0f7a48;
+  --green-soft: #2fb27a;
+  --green-hover: #0c6a3e;
+  --on-green: #ffffff;
+  --red: #cc2f47;
+  --amber: #9c5800;
+  --amber-soft: #e0a03a;
+
+  --seg-on: #ffffff;
+  --seg-on-shadow: 0 1px 2px rgb(var(--ink-rgb) / 0.08), 0 0 0 0.5px rgb(var(--ink-rgb) / 0.06);
+  --shadow-xs: 0 1px 1px rgb(var(--ink-rgb) / 0.04);
+  --shadow-sm: 0 1px 2px rgb(var(--ink-rgb) / 0.07);
+  --shadow-md: 0 0 0 1px rgb(var(--ink-rgb) / 0.05), 0 4px 12px -3px rgb(var(--ink-rgb) / 0.1);
+  --shadow-lg: 0 0 0 1px rgb(var(--ink-rgb) / 0.05), 0 12px 28px -8px rgb(var(--ink-rgb) / 0.16);
+  --shadow-xl: 0 0 0 1px rgb(var(--ink-rgb) / 0.06), 0 24px 56px -16px rgb(var(--ink-rgb) / 0.28);
+  --main-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 24px 60px -26px rgba(0, 0, 0, 0.6);
+  --sw-knob: #ffffff;
+  --tip-bg: #1f1d30;
+  --tip-fg: #f4f3fa;
+
+  /* статусы и цвета групп / проектов: текст · плашка · рамка (AA на плашке и на белом) */
+  --c-gray-fg: #5e5b74;   --c-gray-bg: #f1f1f6;   --c-gray-bd: #e0dfe9;
+  --c-slate-fg: #46506a;  --c-slate-bg: #eef0f5;  --c-slate-bd: #dbdfe9;
+  --c-blue-fg: #2160d4;   --c-blue-bg: #ecf3ff;   --c-blue-bd: #cadbfb;
+  --c-sky-fg: #0a6ea4;    --c-sky-bg: #e8f5fc;    --c-sky-bd: #c3e3f4;
+  --c-teal-fg: #097267;   --c-teal-bg: #e4f5f2;   --c-teal-bd: #bde5de;
+  --c-green-fg: #0f7a48;  --c-green-bg: #e7f6ee;  --c-green-bd: #c0e6d0;
+  --c-amber-fg: #9c5800;  --c-amber-bg: #fff4e2;  --c-amber-bd: #f6dcae;
+  --c-peach-fg: #ad4820;  --c-peach-bg: #fff0e8;  --c-peach-bd: #f6d1c0;
+  --c-red-fg: #cc2f47;    --c-red-bg: #fdecef;    --c-red-bd: #f6c9d1;
+  --c-pink-fg: #b82d7b;   --c-pink-bg: #fcedf6;   --c-pink-bd: #f2c7df;
+  --c-purple-fg: #6a45f5; --c-purple-bg: #f1edff; --c-purple-bd: #d9cffd;
+  --c-indigo-fg: #3d4dd4; --c-indigo-bg: #eef0ff; --c-indigo-bd: #cfd5fb;
+
+  /* «График» смен: смены, обучение, отпуск — свои цвета; сетка и выходные — от поверхностей */
+  --sch-work: #e7f6ee;
+  --sch-work-fg: #0f7a48;
+  --sch-work-today: #179a62;
+  --sch-work-today-fg: #ffffff;
+  --sch-plan-bd: #8ed0ad;
+  --sch-plan-fg: #13844f;
+  --sch-manual: #2f74ee;
+  --sch-manual-fg: #ffffff;
+  --sch-train: #4a5fd6;
+  --sch-train-fg: #ffffff;
+  --sch-plat: #7650f2;
+  --sch-plat-fg: #ffffff;
+  --sch-sick: #fdecef;
+  --sch-sick-fg: #cc2f47;
+  --sch-vac: #e3a03c;
+  --sch-gone-bg: #fcf7f9;
+  --sch-gone-line: rgba(204, 47, 71, 0.13);
+  --sch-gone-fg: #c2899a;
+  --sch-cross: rgb(var(--ink-rgb) / 0.035);
+  --sch-pre-line: rgb(var(--ink-rgb) / 0.06);
+  --sch-group: var(--bg-sunken);
+  --sch-grid: color-mix(in srgb, var(--line) 80%, var(--bg-panel));
+  --sch-grid-strong: var(--line);
+  --sch-weekend: color-mix(in srgb, var(--bg-sunken) 55%, var(--bg-panel));
+  --sch-we-hover: var(--bg-sunken);
+  --sch-today-col: color-mix(in srgb, var(--brand) 5%, transparent);
+  --sch-sel: var(--brand);
+  --sch-foot-border: var(--line);
+  --brand-tint: color-mix(in srgb, var(--brand) 8%, transparent);
+}
+
+/* ── тёмная тема (она же по умолчанию) ── */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink-rgb: 237 236 244;
+  --bg: #111019;
+  --bg-sidebar: #0d0c14;
+  --bg-panel: #191823;
+  --bg-panel-hover: #201f2c;
+  --bg-strip: #16151f;
+  --bg-modal: #1d1c29;
+  --bg-sunken: #14131d;
+  --line: #282736;
+  --line-soft: #22212e;
+  --ctrl-border: #32313f;
+  --ctrl-border-hover: #474559;
+
+  --text: #edecf4;
+  --text-soft: #dfdeea;
+  --text-quote: #d4d2e2;
+  --text-sub: #a3a1b6;
+  --text-sub2: #afadc1;
+  --text-sub3: #8a889d;
+  --dim: #737188;
+  --dimmer: #535166;
+
+  --brand: #8466ff;
+  --brand-soft: #a58dff;
+  --brand-strong: #9479ff;
+  --on-brand: #ffffff;
+  --green: #4ccf8c;
+  --green-soft: #4ccf8c;
+  --green-hover: #63dba0;
+  --on-green: #0b2417;
+  --red: #ff7184;
+  --amber: #f2b146;
+  --amber-soft: #f2b146;
+
+  --seg-on: #2d2c3d;
+  --seg-on-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.25);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 6px 16px -4px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 14px 32px -8px rgba(0, 0, 0, 0.65);
+  --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 26px 60px -16px rgba(0, 0, 0, 0.75);
+  --main-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 24px 60px -24px rgba(0, 0, 0, 0.9);
+  --sw-knob: #ffffff;
+  --tip-bg: #2d2c3d;
+  --tip-fg: #f4f3fa;
+
+  --c-gray-fg: #a3a1b6;   --c-gray-bg: #23222f;   --c-gray-bd: #33323f;
+  --c-slate-fg: #a8b1c8;  --c-slate-bg: #20232f;  --c-slate-bd: #313546;
+  --c-blue-fg: #6ea6ff;   --c-blue-bg: #172340;   --c-blue-bd: #23375e;
+  --c-sky-fg: #5bc2f0;    --c-sky-bg: #122b39;    --c-sky-bd: #1d4357;
+  --c-teal-fg: #45cdbd;   --c-teal-bg: #112e2b;   --c-teal-bd: #1b4641;
+  --c-green-fg: #4ccf8c;  --c-green-bg: #122e1f;  --c-green-bd: #1d4831;
+  --c-amber-fg: #f2b146;  --c-amber-bg: #33270f;  --c-amber-bd: #4d3b17;
+  --c-peach-fg: #ff9a72;  --c-peach-bg: #382016;  --c-peach-bd: #553223;
+  --c-red-fg: #ff7184;    --c-red-bg: #3a1820;    --c-red-bd: #592532;
+  --c-pink-fg: #f27cbc;   --c-pink-bg: #37172e;   --c-pink-bd: #532445;
+  --c-purple-fg: #a993ff; --c-purple-bg: #251d44; --c-purple-bd: #392d66;
+  --c-indigo-fg: #8b9bff; --c-indigo-bg: #1c2145; --c-indigo-bd: #2b3367;
+
+  --sch-work: #13301f;
+  --sch-work-fg: #6edba3;
+  --sch-work-today: #1f9e63;
+  --sch-work-today-fg: #ffffff;
+  --sch-plan-bd: #2c6a49;
+  --sch-plan-fg: #5ac78d;
+  --sch-manual: #2c66d6;
+  --sch-manual-fg: #eef4ff;
+  --sch-train: #3f53c2;
+  --sch-train-fg: #eef0ff;
+  --sch-plat: #6748de;
+  --sch-plat-fg: #f4f0ff;
+  --sch-sick: #3a1820;
+  --sch-sick-fg: #ff8a99;
+  --sch-vac: #c4892e;
+  --sch-gone-bg: color-mix(in srgb, var(--bg-panel) 92%, #ff5070);
+  --sch-gone-line: rgba(255, 113, 132, 0.13);
+  --sch-gone-fg: #a07786;
+  --sch-cross: rgba(255, 255, 255, 0.04);
+  --sch-pre-line: rgba(255, 255, 255, 0.035);
+  --sch-group: color-mix(in srgb, var(--bg-panel) 94%, #ffffff);
+  --sch-grid: var(--line);
+  --sch-grid-strong: color-mix(in srgb, var(--line) 88%, #ffffff);
+  --sch-weekend: var(--bg-sunken);
+  --sch-we-hover: var(--bg-strip);
+  --sch-today-col: color-mix(in srgb, var(--brand) 9%, transparent);
+  --sch-sel: var(--brand-soft);
+  --sch-foot-border: var(--sch-grid-strong);
+  --brand-tint: color-mix(in srgb, var(--brand) 15%, transparent);
+}
+
+/* производные — одинаково для всех оформлений и тем */
+:root {
+  --ink-015: rgb(var(--ink-rgb) / 0.02);
+  --ink-03: rgb(var(--ink-rgb) / 0.03);
+  --ink-035: rgb(var(--ink-rgb) / 0.036);
+  --ink-04: rgb(var(--ink-rgb) / 0.042);
+  --ink-05: rgb(var(--ink-rgb) / 0.052);
+  --ink-06: rgb(var(--ink-rgb) / 0.064);
+  --ink-07: rgb(var(--ink-rgb) / 0.076);
+  --ink-08: rgb(var(--ink-rgb) / 0.09);
+  --ink-09: rgb(var(--ink-rgb) / 0.105);
+  --ink-10: rgb(var(--ink-rgb) / 0.12);
+  --ink-12: rgb(var(--ink-rgb) / 0.14);
+  --ink-15: rgb(var(--ink-rgb) / 0.18);
+  --ink-20: rgb(var(--ink-rgb) / 0.24);
+  --ink-25: rgb(var(--ink-rgb) / 0.3);
+  --ink-35: rgb(var(--ink-rgb) / 0.42);
+  --brand-glow: color-mix(in srgb, var(--brand) 24%, transparent);
+  --brand-border: color-mix(in srgb, var(--brand) 45%, transparent);
+  --blue: var(--brand);
+  --action-dark: var(--brand);
+  --action-dark-hover: var(--brand-strong);
+  --brand-ink: var(--brand);
+  --card-shadow: none;
+  --card-shadow-hover: var(--shadow-md);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--brand) 26%, transparent);
+  --glass-core: var(--bg-panel);
+  --glass-edge: transparent;
+  --glass-bar-bg: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+  --glass-bar-border: var(--line);
+  --pill-amber-bg: var(--c-amber-bg);
+  --pill-amber-fg: var(--c-amber-fg);
+  --pill-amber-border: var(--c-amber-bd);
+  --pill-red-bg: var(--c-red-bg);
+  --pill-red-fg: var(--c-red-fg);
+  --pill-red-border: var(--c-red-bd);
+  --sch-head: var(--bg-strip);
+  --sch-we-label: var(--text-sub3);
+  --sch-hover: var(--bg-panel-hover);
+  --sch-foot: var(--bg-strip);
+  --sch-foot-we: var(--bg-sunken);
+  --sch-plan: transparent;
+  --sch-block-fg: #ffffff;
+  --sch-off: var(--dimmer);
+  --sch-pre-bg: transparent;
+
+  /* форма */
+  --card-r: 14px;
+  --ctl-r: 9px;
+  --chip-r: 999px;
+  --main-r: 18px;
+  --modal-r: 18px;
+  --title-w: 800;
+
+  /* оправа: рамка приложения и меню */
+  --frame-bg:
+    radial-gradient(70% 55% at 0% 0%, rgba(139, 104, 250, 0.32) 0%, transparent 60%),
+    radial-gradient(60% 50% at 0% 100%, rgba(52, 211, 153, 0.12) 0%, transparent 60%),
+    linear-gradient(180deg, #13102a 0%, #19143a 55%, #1d1645 100%);
+  --frame-gap: 10px;
+  --rail-ink: 255 255 255;
+  --rail-text: #ffffff;
+  --rail-fg: rgba(236, 232, 255, 0.64);
+  --rail-dim: rgba(236, 232, 255, 0.4);
+  --rail-hover-bg: rgba(255, 255, 255, 0.07);
+  --rail-active-bg: linear-gradient(90deg, rgba(139, 104, 250, 0.42), rgba(139, 104, 250, 0.16));
+  --rail-active-ring: inset 0 0 0 1px rgba(180, 156, 255, 0.28);
+  --rail-active-bar: #ffffff;
+  --rail-brand: #8b68fa;
+  --rail-cta: linear-gradient(135deg, #9a7bff 0%, #7350f2 55%, #5f3be0 100%);
+  --rail-cta-fg: #ffffff;
+  --rail-cta-shadow: 0 6px 18px -8px rgba(139, 104, 250, 0.75);
+}
+
+::selection { background: color-mix(in srgb, var(--brand) 22%, transparent); color: inherit; }
+
+/* ══════════════ 2. ОПРАВА И МЕНЮ ══════════════ */
+
+.app-frame { background: var(--frame-bg); }
+.app-main { border: 0; border-radius: var(--main-r); margin: var(--frame-gap) var(--frame-gap) var(--frame-gap) 0; box-shadow: var(--main-shadow); }
+
+/* меню: свои токены — от цвета оправы */
+.app-rail {
+  --bg: transparent; --bg-sidebar: transparent;
+  --bg-panel: rgb(var(--rail-ink) / 0.06); --bg-panel-hover: rgb(var(--rail-ink) / 0.1); --bg-strip: rgb(var(--rail-ink) / 0.04);
+  --bg-sunken: rgb(var(--rail-ink) / 0.07);
+  --text: var(--rail-text); --text-soft: var(--rail-text); --text-sub: var(--rail-fg); --text-sub2: var(--rail-fg); --text-sub3: var(--rail-dim);
+  --dim: var(--rail-dim); --dimmer: var(--rail-dim);
+  --line: rgb(var(--rail-ink) / 0.1); --line-soft: rgb(var(--rail-ink) / 0.07);
+  --ctrl-border: rgb(var(--rail-ink) / 0.14); --ctrl-border-hover: rgb(var(--rail-ink) / 0.26);
+  --ink-rgb: var(--rail-ink);
+  --ink-015: rgb(var(--rail-ink) / 0.02); --ink-03: rgb(var(--rail-ink) / 0.03); --ink-04: rgb(var(--rail-ink) / 0.042); --ink-05: rgb(var(--rail-ink) / 0.052);
+  --ink-06: rgb(var(--rail-ink) / 0.064); --ink-07: rgb(var(--rail-ink) / 0.076); --ink-08: rgb(var(--rail-ink) / 0.09); --ink-10: rgb(var(--rail-ink) / 0.12);
+  --ink-12: rgb(var(--rail-ink) / 0.14); --ink-15: rgb(var(--rail-ink) / 0.18); --ink-25: rgb(var(--rail-ink) / 0.3); --ink-35: rgb(var(--rail-ink) / 0.42);
+  --brand: var(--rail-brand); --brand-strong: var(--rail-brand); --brand-soft: var(--rail-brand); --on-brand: #ffffff;
+  --brand-tint: rgb(var(--rail-ink) / 0.1); --brand-border: rgb(var(--rail-ink) / 0.3);
+  --shadow-xs: none; --shadow-sm: none;
+  color: var(--text);
+}
+/* тёмная оправа: статусные цвета — светлые (кружки групп, проценты отдела) */
+:root:not([data-rail="light"]) .app-rail {
+  --c-gray-fg: #b9b6cc; --c-blue-fg: #7cb8ff; --c-green-fg: #6fd39a; --c-amber-fg: #f3c45c; --c-red-fg: #ff8a84; --c-purple-fg: #b49cff;
+  --c-pink-fg: #f58fc0; --c-teal-fg: #5fd4c4; --c-indigo-fg: #93a2ff; --c-sky-fg: #6fcaf2; --c-peach-fg: #ffa97f; --c-slate-fg: #b4bcd2;
+  --c-red-bg: rgba(255, 138, 132, 0.15); --c-red-bd: rgba(255, 138, 132, 0.32);
+}
+.app-rail-item { border-radius: var(--ctl-r); color: var(--rail-fg); padding: 8px 12px; }
+.app-rail-item:hover { background: var(--rail-hover-bg); color: var(--rail-text); }
+.app-rail-item[aria-current="page"], .app-rail-item[aria-current="page"]:hover { color: var(--rail-text); }
+.app-rail-item[aria-current="page"] .rail-icon { color: var(--rail-text); }
+.rail-glider { border-radius: var(--ctl-r); background: var(--rail-active-bg); box-shadow: var(--rail-active-ring); }
+.rail-glider::before { background: var(--rail-active-bar); }
+.rail-group { color: var(--rail-dim); }
+/* главная кнопка меню («Лид передан», «Продолжить обучение») — одинаково в покое и при наведении */
+.app-rail .btn.rail-lead,
+.app-rail .btn.rail-lead:hover:not(:disabled),
+.app-rail .btn.rail-lead:active:not(:disabled) { border-radius: calc(var(--ctl-r) + 2px); background: var(--rail-cta); border-color: transparent; color: var(--rail-cta-fg); box-shadow: var(--rail-cta-shadow); }
+.app-rail .btn.rail-lead:hover:not(:disabled) { filter: brightness(1.07); }
+.app-rail .btn.rail-lead svg { color: currentColor; }
+.app-rail .rail-lead .kbd { background: color-mix(in srgb, var(--rail-cta-fg) 16%, transparent); border-color: color-mix(in srgb, var(--rail-cta-fg) 24%, transparent); color: var(--rail-cta-fg); }
+.app-rail .kbd { background: rgb(var(--rail-ink) / 0.08); border-color: rgb(var(--rail-ink) / 0.14); color: var(--rail-fg); }
+
+/* скролл рабочей области */
+#app-scroll { scrollbar-width: thin; scrollbar-color: var(--ink-15) transparent; }
+
+/* ══════════════ 3. ЭЛЕМЕНТЫ ══════════════ */
+
+/* ── фокус с клавиатуры: одно кольцо на всё ── */
+:is(.btn, .o2-btn, .o2-ib, .o2-kebab, .chip, .seg > button, .o2-seg button, .pager-pages button, .sh-up):focus-visible { outline: none; box-shadow: var(--ring); }
+
+/* ── кнопки: вторичная (по умолчанию), главная, призрачная, опасная ── */
+.btn, .o2-btn {
+  border-radius: var(--ctl-r);
+  border: 1px solid var(--ctrl-border);
+  background: var(--bg-panel);
+  color: var(--text-soft);
+  font-weight: 600;
+  box-shadow: none;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), filter var(--dur-1) var(--ease);
+}
+.btn:hover:not(:disabled), .o2-btn:hover:not(:disabled) { background: var(--bg-panel-hover); border-color: var(--ctrl-border-hover); color: var(--text); }
+.btn:active:not(:disabled), .o2-btn:active:not(:disabled) { background: var(--bg-sunken); }
+.btn svg, .o2-btn svg { color: var(--text-sub); }
+.btn:hover:not(:disabled) svg, .o2-btn:hover:not(:disabled) svg { color: var(--text); }
+.btn-sm { border-radius: 7px; }
+/* главная — сплошной акцент с лёгким светом сверху; одна на экран */
+.btn-primary, .o2-btn.pri {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+  box-shadow: none;
+}
+.btn-primary svg, .o2-btn.pri svg, .btn-primary:hover:not(:disabled) svg, .o2-btn.pri:hover:not(:disabled) svg { color: currentColor; }
+.btn-primary:hover:not(:disabled), .o2-btn.pri:hover:not(:disabled) { background-color: var(--brand-strong); border-color: var(--brand-strong); color: var(--on-brand); }
+.btn-primary:active:not(:disabled), .o2-btn.pri:active:not(:disabled) { background-color: var(--brand-soft); }
+.btn-primary .kbd { background: rgba(255, 255, 255, 0.18); border-color: rgba(255, 255, 255, 0.25); color: #fff; }
+.btn-ghost, .o2-btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--text-sub); }
+.btn-ghost:hover:not(:disabled), .o2-btn.ghost:hover:not(:disabled) { background: var(--ink-05); border-color: transparent; color: var(--text); }
+.btn-danger { color: var(--c-red-fg); border-color: var(--c-red-bd); background: var(--bg-panel); box-shadow: none; }
+.btn-danger svg { color: currentColor; }
+.btn-danger:hover:not(:disabled) { background: var(--c-red-bg); border-color: var(--c-red-bd); color: var(--c-red-fg); }
+.btn-danger-solid { background: var(--red); border-color: var(--red); color: #fff; box-shadow: none; }
+.btn:disabled, .o2-btn:disabled { opacity: 0.5; box-shadow: none; }
+
+/* квадратная кнопка с иконкой (стрелки периода, меню строки) */
+.o2-ib { border-radius: var(--ctl-r); border-color: var(--ctrl-border); background: var(--bg-panel); color: var(--text-sub); box-shadow: none; }
+.o2-ib:hover { background: var(--bg-panel-hover); border-color: var(--ctrl-border-hover); color: var(--text); }
+.o2-kebab { border-radius: 8px; }
+.o2-kebab:hover { background: var(--ink-06); color: var(--text); }
+
+/* ── сегментированный переключатель: светлая «таблетка» на утопленной дорожке ── */
+.seg, .o2-seg { display: inline-flex; align-items: center; background: var(--bg-sunken); border: 0; border-radius: 10px; padding: 3px; gap: 2px; }
+.seg > button, .o2-seg button { border: 0; border-radius: 7px; background: transparent; color: var(--text-sub); font-weight: 500; box-shadow: none; transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease); }
+.seg > button:hover, .o2-seg button:hover { color: var(--text); }
+.seg > button[aria-pressed="true"], .o2-seg button.on {
+  background: var(--seg-on);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--seg-on-shadow);
+}
+
+/* ── поля ввода, поиск, выбор даты и списка ── */
+.inp, .o2-search, .o2-date .lbl, .sel-trigger, .date-inp {
+  border-radius: var(--ctl-r) !important;
+  border-color: var(--ctrl-border);
+  background: var(--bg-panel);
+  color: var(--text);
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.inp:hover, .o2-search:hover, .sel-trigger:hover { border-color: var(--ctrl-border-hover); }
+.inp:focus, .o2-search:focus-within, .sel-trigger[aria-expanded="true"], .sel-trigger:focus-visible, .date-inp:focus-within, .date-inp[data-open] {
+  border-color: var(--brand-border) !important;
+  box-shadow: var(--ring);
+  outline: none;
+}
+.inp::placeholder, .o2-search input::placeholder { color: var(--dim); }
+.o2-search { color: var(--dim); }
+.o2-search input { color: var(--text); }
+textarea.inp { line-height: 1.5; }
+.inp:disabled, .inp[readonly] { background: var(--bg-sunken); color: var(--text-sub); }
+.field-label { color: var(--text-sub); font-weight: 600; font-size: 12px; }
+.field-hint { color: var(--dim); }
+
+/* ── выпадающие списки и всплывающие меню ── */
+.sel-pop, .o2-pop {
+  background: var(--bg-modal);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-xl);
+  padding: 5px;
+}
+.sel-opt { border-radius: 7px; color: var(--text-soft); }
+.sel-opt.is-hi { background: var(--ink-05); color: var(--text); }
+.sel-opt.is-on { color: var(--text); }
+.sel-opt.is-on.is-hi { background: var(--brand-tint); }
+.sel-check { color: var(--brand); }
+.sel-group { color: var(--dim); letter-spacing: 0.07em; }
+.sel-search { border-bottom-color: var(--line-soft); }
+.o2-pop .it { border-radius: 7px; }
+.o2-pop .it:hover { background: var(--ink-05); }
+.o2-pop .tt { color: var(--dim); }
+.o2-pop .sep { background: var(--line-soft); }
+
+/* ── галочки и переключатели ── */
+input[type="checkbox"]:not(.sw input) { border-radius: 5px; border-color: var(--ctrl-border-hover); background: var(--bg-panel); }
+input[type="checkbox"]:not(.sw input):hover:not(:disabled) { border-color: var(--brand-border); }
+input[type="checkbox"]:not(.sw input):checked,
+input[type="checkbox"]:not(.sw input):indeterminate { background: var(--brand); border-color: var(--brand); }
+input[type="checkbox"]:not(.sw input)::after { background: #fff; }
+input[type="radio"] { accent-color: var(--brand); }
+.sw-track { background: var(--ink-15); }
+.sw:hover .sw-track { background: var(--ink-20); }
+.sw-track::after { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.06); }
+.sw input:checked + .sw-track { background: var(--brand); }
+.sw:hover input:checked + .sw-track { background: var(--brand-strong); }
+.sw input:focus-visible + .sw-track { box-shadow: var(--ring); }
+
+/* ── чипы, статусы, теги — капсулы ── */
+.chip { border-radius: var(--chip-r); padding: 0 9px; box-shadow: none; font-weight: 600; letter-spacing: 0.005em; }
+.o2-st { border-radius: var(--chip-r); padding: 3px 10px 3px 8px; }
+.l2-tag { border-radius: var(--chip-r); padding: 2px 9px; }
+.l2-tag.pr { background: var(--pr-bg, var(--ink-05)); border-color: var(--pr-bd, var(--line)); color: var(--pr-fg, var(--text-sub)); font-weight: 600; }
+.kbd { border-radius: 6px; background: var(--bg-sunken); border-color: var(--line); color: var(--text-sub); }
+
+/* ══════════════ 4. БЛОКИ ══════════════ */
+
+/* ── карточки ── */
+.card { background: var(--bg-panel); border: 1px solid var(--line); border-radius: var(--card-r); box-shadow: var(--card-shadow); }
+.card-pad { padding: 18px 20px; }
+.card-title { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+.card-title > .title-ic { color: var(--brand); }
+.card-sub { color: var(--text-sub3); }
+.page-title { font-size: 26px; font-weight: var(--title-w); letter-spacing: -0.03em; }
+.empty-title { font-size: 15px; font-weight: 700; }
+
+/* ── плитки показателей ── */
+.kpi-value { font-weight: 700; letter-spacing: -0.02em; }
+.kpi-label { color: var(--text-sub); font-weight: 500; }
+.o2-kpis { border-radius: var(--card-r); }
+.o2-kpi .ic { border-radius: 10px; background: var(--brand-tint); color: var(--brand); }
+.o2-kpi[data-hue="green"] .ic { background: var(--c-green-bg); color: var(--c-green-fg); }
+.o2-kpi[data-hue="amber"] .ic { background: var(--c-amber-bg); color: var(--c-amber-fg); }
+.o2-kpi[data-hue="red"] .ic { background: var(--c-red-bg); color: var(--c-red-fg); }
+.o2-kpi .l { color: var(--text-sub); font-weight: 500; }
+.o2-kpi .v { font-weight: 750; letter-spacing: -0.025em; color: var(--text); }
+.o2-kpi.click:hover { background: var(--bg-panel-hover); }
+.o2-kpi.on { background: var(--brand-tint); box-shadow: none; }
+
+/* ── таблицы ── */
+.tbl-wrap { border: 1px solid var(--line); border-radius: var(--card-r); background: var(--bg-panel); box-shadow: var(--card-shadow); }
+.tbl th, .o2-tbl th { background: var(--bg-strip); color: var(--text-sub3); font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; border-bottom: 1px solid var(--line); }
+.tbl th.sortable:hover, .o2-tbl th.s:hover { color: var(--text); }
+.tbl td { border-bottom-color: var(--line-soft); }
+.o2-tbl td { border-bottom-color: var(--line-soft); }
+.tbl tbody tr:hover td, .o2-tbl tbody tr:hover td { background: var(--bg-panel-hover); }
+.o2-tbl tbody tr.sel td { background: var(--brand-tint); }
+.o2-tbl tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--brand); }
+.tbl tfoot td { background: var(--bg-strip); border-top-color: var(--line); }
+.tbl .sticky-col { background: var(--bg-panel); }
+.tbl th.sticky-col, .tbl tfoot td.sticky-col { background: var(--bg-strip); }
+.tbl tbody tr:hover td.sticky-col { background: var(--bg-panel-hover); }
+/* «не доведён» в журнале лидов — спокойная красная подложка, а не пятно */
+.o2-tbl tbody tr.l2-failed td { background: color-mix(in srgb, var(--c-red-bg) 45%, var(--bg-panel)); }
+.o2-tbl tbody tr.l2-failed:hover td { background: color-mix(in srgb, var(--c-red-bg) 75%, var(--bg-panel)); }
+
+/* ── прогресс ── */
+.bar-track { background: var(--ink-07); border-radius: 999px; }
+.bar-fill { border-radius: 999px; }
+
+/* ── пейджер ── */
+.pager-pages button { border-radius: 8px; }
+.pager-pages button[aria-current="page"] { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+
+/* ── заметки и плашки внимания ── */
+.note-line { border-radius: 12px; }
+
+/* ── фильтр «Проект» над страницами ── */
+.lens-chip { border-radius: 999px; border-color: var(--ctrl-border); background: var(--bg-panel); }
+.lens-chip:hover { background: var(--bg-panel-hover); border-color: var(--ctrl-border-hover); }
+.lens-chip.on { background: var(--text); color: var(--bg-panel); border-color: var(--text); }
+
+/* ══════════════ 5. ОКНА, ВСПЛЫВАШКИ, ТОСТЫ, ЛИПКАЯ ШАПКА ══════════════ */
+
+.modal { background: var(--bg-modal); border: 1px solid var(--line); border-radius: var(--modal-r); box-shadow: var(--shadow-xl); }
+.modal-head { padding: 18px 20px 10px; }
+.modal-title { font-size: 17px; font-weight: 750; letter-spacing: -0.015em; }
+.modal-body { padding: 4px 20px 18px; }
+.modal-foot { padding: 12px 20px 16px; border-top-color: var(--line-soft); background: var(--bg-strip); border-radius: 0 0 var(--modal-r) var(--modal-r); }
+.modal-back, .drawer-back { background: rgb(var(--ink-rgb) / 0.32); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+:root:not([data-theme="light"]) :is(.modal-back, .drawer-back) { background: rgba(0, 0, 0, 0.55); }
+.drawer { background: var(--bg-modal); border-color: var(--line); box-shadow: var(--shadow-xl); }
+
+.toast { background: var(--bg-modal); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg); color: var(--text); }
+
+/* липкая шапка при прокрутке — стекло в цвет рабочей области */
+.sh { background: color-mix(in srgb, var(--bg) 94%, transparent); border-bottom: 1px solid var(--line); box-shadow: none; }
+.sh-up { border-radius: 8px; border-color: var(--ctrl-border); }
+
+/* правая панель (карточка лида / оператора) — как карточка, но чуть приподнята */
+.o2-side { border-radius: var(--card-r); }
+
+/* ── заливки полос прогресса в светлой теме ──
+   Статусные «текстовые» цвета (--c-*-fg) подобраны под контраст букв и на полосах выглядят
+   тяжело. Внутри полос подменяем их на сочные заливки той же семьи. В тёмной теме
+   текстовые цвета и так светлые — подмена не нужна. */
+:root[data-theme="light"] :is(.bar-track, .d2-prog .t, .d2-tasks-row .t, .o2-pct .t, .o2-big .t, .ps-hero .t, .funnel-track, .ocard-bar, .me-money-bar, .ins-bar, .ins-spread, .lens-bar i, .ca-vdot, .rs-gb) {
+  --c-green-fg: #1fa36a;
+  --c-red-fg: #e5485f;
+  --c-amber-fg: #efa22c;
+  --c-blue-fg: #3b7bf0;
+  --c-sky-fg: #1ea2dc;
+  --c-teal-fg: #17ab9c;
+  --c-purple-fg: #7a58f8;
+  --c-indigo-fg: #5a69ee;
+  --c-pink-fg: #dc4a93;
+  --c-peach-fg: #ef7b4b;
+  --c-slate-fg: #6b7591;
+  --c-gray-fg: #a19eb5;
+}
+
+/* ── телефон: верхняя полоса — та же тёмная оправа, что меню на компьютере ── */
+@media (max-width: 760px) {
+  header.m-top {
+    background: var(--frame-bg);
+    border-bottom: 0;
+  }
+  header.m-top .m-brand { color: var(--rail-text); }
+  header.m-top .m-stat { background: rgb(var(--rail-ink) / 0.09); color: var(--rail-fg); }
+  header.m-top .m-stat b { color: var(--rail-text); }
+  header.m-top .m-stat-d { color: var(--rail-dim); }
+  nav.m-tabs { background: color-mix(in srgb, var(--bg-panel) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top-color: var(--line); }
+  nav.m-tabs .m-tab[aria-current="page"] { color: var(--brand); }
+  nav.m-tabs .m-fab-i { background: var(--rail-cta); color: var(--rail-cta-fg); box-shadow: var(--rail-cta-shadow), 0 0 0 4px var(--bg-panel); }
+}
+
+/* ── подсказки (обрезанный текст, кнопки-иконки, графики): компактная тёмная плашка ── */
+.clip-tip { padding: 6px 10px; border-radius: 8px; font-size: 12px; line-height: 1.45; color: var(--tip-fg); background: var(--tip-bg); border: 0; box-shadow: var(--shadow-lg); }
+
+/* ── остальные переключатели — тот же вид, что «День / Неделя / Месяц» ── */
+.grp-tabs, .mw-tabs { background: var(--bg-sunken); border: 0; border-radius: 10px; padding: 3px; gap: 2px; }
+.grp-tabs button, .mw-tabs button { border-radius: 7px; color: var(--text-sub); }
+.grp-tabs button:hover, .mw-tabs button:hover { color: var(--text); }
+.grp-tabs button.on, .mw-tabs button.on { background: var(--seg-on); color: var(--text); font-weight: 600; box-shadow: var(--seg-on-shadow); }
+/* вкладки-подчёркивания в карточке оператора — акцентом */
+.o2-tabs { border-bottom-color: var(--line); }
+.o2-tabs button.on { border-color: var(--brand); color: var(--text); }
+
+/* ── плашки предупреждений на страницах (операторы и др.): спокойный фон, цвет — в заголовке и значке ── */
+.o2-alert { border-radius: var(--card-r); border-color: var(--c-red-bd); background: color-mix(in srgb, var(--c-red-bg) 55%, var(--bg-panel)); }
+.o2-alert .go { border-width: 1px; border-color: var(--c-red-bd); }
+.o2-alert .go:hover { background: var(--c-red-bg); }
+.d2-alert { border-radius: 12px; }
+

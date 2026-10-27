@@ -13,6 +13,7 @@ import { Avatar, EmploymentTag, StartTag } from "@/components/ui/kit";
 import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { StickyHead } from "@/components/app/StickyHead";
+import { PageHero } from "@/components/app/PageHero";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { OperatorDrawer } from "@/components/app/OperatorDrawer";
 import { useMobile } from "@/lib/useMobile";
@@ -373,7 +374,7 @@ export function OperatorsV2() {
     return { total: agg(scope), groups: groupsOut };
   }, [rows, onlyTrainees, last, ix]);
 
-  const kpiRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
   const sel = selId ? rows.find((x) => x.op.id === selId) ?? null : null;
   const drawerRow = drawerId ? m.ops.find((r) => r.op.id === drawerId) ?? null : null;
   const groups = data.groups.filter((g) => !g.deletedAt);
@@ -451,7 +452,7 @@ export function OperatorsV2() {
       <StickyHead
         title="Операторы"
         ctx={`${periodLabel}${group ? ` · ${group === NO_GROUP ? NO_GROUP_LABEL : ix.groupById.get(group)?.name ?? ""}` : ""}`}
-        anchor={kpiRef}
+        anchor={heroRef}
         items={[
           { l: "В плане", v: kpi.meetOf ? `${fmtInt(kpi.meet)} из ${fmtInt(kpi.meetOf)}` : "—" },
           { l: "Лидов", v: fmtInt(kpi.leads) },
@@ -459,18 +460,22 @@ export function OperatorsV2() {
           ...(kpi.crit.length ? [{ l: "Отстают", v: fmtInt(kpi.crit.length), tone: "red" as const }] : []),
         ]}
       />
-      {/* ── заголовок ─────────────────────────────────────────────── */}
-      <div className="o2-head">
-        <div>
-          <h1 className="o2-title">Операторы</h1>
-          <div className="o2-sub">
+      {/* ── хиро: заголовок, период и показатели команды ───────────────── */}
+      <PageHero
+        heroRef={heroRef}
+        accent="blue"
+        style={{ ["--ph-cols" as string]: "minmax(0, 1fr)", ["--ph-cols-md" as string]: "minmax(0, 1fr)" }}
+        title="Операторы"
+        sub={
+          <>
             {access.isHead ? "Команда" : access.scopeLabel}
             <i>·</i>
             {fmtMonth(month)}
             <i>·</i>к плану {mode === "day" && anchor === today ? "на сегодня" : "на дату"}
-          </div>
-        </div>
-        <div className="o2-tools">
+          </>
+        }
+        tools={
+          <>
           <div className="o2-date">
             <button className="o2-ib" onClick={() => shift(-1)} aria-label="Назад">
               <Icon name="chevL" size={15} />
@@ -509,13 +514,10 @@ export function OperatorsV2() {
               Оператор
             </button>
           )}
-        </div>
-      </div>
-
-      <div className="o2-body has-side">
-        <div className="o2-main">
-          {/* ── показатели ───────────────────────────────────────── */}
-          <div className="card o2-kpis" ref={kpiRef}>
+          </>
+        }
+      >
+          <div className="card o2-kpis">
             <Kpi icon="users" label="Операторов" value={fmtInt(kpi.head)} delta={kpi.headDelta === 0 ? null : { text: `${kpi.headDelta > 0 ? "+" : "−"}${Math.abs(kpi.headDelta)}`, up: kpi.headDelta > 0, good: kpi.headDelta > 0 }} sub={vsLabel} />
             <Kpi icon="check" label="Выполняют план" value={fmtInt(kpi.meet)} line={kpi.meetOf ? fmtPct(kpi.meet / kpi.meetOf) : "—"} sub={`из ${kpi.meetOf} ${plural(kpi.meetOf, OPS)}`} />
             <Kpi icon="clock" label="Средние часы" value={kpi.avgH > 0 ? fmtNum(kpi.avgH) : "—"} delta={kpi.avgHDelta == null || Math.abs(kpi.avgHDelta) < 0.05 ? null : { text: `${kpi.avgHDelta > 0 ? "+" : "−"}${fmtNum(Math.abs(kpi.avgHDelta))}`, up: kpi.avgHDelta > 0, good: kpi.avgHDelta > 0 }} sub={kpi.avgH > 0 ? vsLabel : "смены не закрыты"} title="Средние часы за смену" />
@@ -534,6 +536,10 @@ export function OperatorsV2() {
             </div>
           </div>
 
+      </PageHero>
+
+      <div className="o2-body has-side">
+        <div className="o2-main">
           {/* ── по группам: отдел целиком и каждая группа; клик — показать группу в таблице ── */}
           {byGroup.groups.length > 0 && (
             <div className="card o2-grp">
@@ -981,8 +987,7 @@ function Spark({ values, days, open, hue }: { values: number[]; days: DayKey[]; 
   const H = 22;
   if (!values.length)
     return (
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
-        <title>Смен не было</title>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }} data-tip="Смен не было">
         <line x1={3} x2={W - 3} y1={H - 4} y2={H - 4} stroke="var(--ink-15)" strokeDasharray="2 3" />
       </svg>
     );
@@ -994,8 +999,7 @@ function Spark({ values, days, open, hue }: { values: number[]; days: DayKey[]; 
   const c = hue === "gray" ? "var(--dim)" : hueVar(hue);
   const tip = days.map((d, i) => `${dShort(d)}, ${DOW[isoWeekday(d) - 1]}: ${values[i]}${open && i === days.length - 1 ? " — смена идёт" : ""}`).join("\n");
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
-      <title>{`Лиды за последние ${values.length} ${plural(values.length, ["смену", "смены", "смен"])} (без выходных)\n${tip}`}</title>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }} data-tip={`Лиды за последние ${values.length} ${plural(values.length, ["смену", "смены", "смен"])} (без выходных)\n${tip}`}>
       {pts.length > 1 && <polyline points={pts.map((p) => p.join(",")).join(" ")} fill="none" stroke={c} strokeWidth="1.3" />}
       {pts.map((p, i) =>
         open && i === pts.length - 1 ? (
@@ -1224,8 +1228,7 @@ function Side({ x, mode, forLabel, onClose, onOpenCard, insight }: { x: PRow; mo
                 const td = b.d === today;
                 const txt = metric === "conv" ? (b.v > 0 ? fmtPct(b.v) : "—") : metric === "hours" ? fmtNum(b.v) : String(b.v);
                 return (
-                  <g key={b.d}>
-                    <title>{b.mark ? `${dShort(b.d)}: ${b.why}` : `${dShort(b.d)}: ${txt}`}</title>
+                  <g key={b.d} data-tip={b.mark ? `${dShort(b.d)}: ${b.why}` : `${dShort(b.d)}: ${txt}`}>
                     {b.mark ? (
                       <>
                         <rect x={cx - 7} y={83} width={14} height={3} rx={1.5} fill="var(--ink-15)" />

@@ -7,10 +7,12 @@ import { filterLeads, pivot } from "@/lib/crm/calc";
 import { HUES } from "@/lib/crm/defaults";
 import { DEFAULT_FORM_CHECKLIST, HANDOFF_LABEL, NO_GROUP, NO_GROUP_LABEL, type Project, type ProjectHandoff } from "@/lib/crm/types";
 import { hasLeadChecksColumn, hasProjectCitiesColumn, hasProjectFormColumns, hasProjectPriceColumns } from "@/lib/crm/remote";
-import { fmtInt, fmtPct, safeDiv, shortName } from "@/lib/crm/format";
-import { Chip, Collapse, Empty, HuePicker, NumInput, PageHead, PeriodPicker, Progress, Seg, Swatch, hueFg, periodFor, periodLabel, type Period } from "@/components/ui/kit";
+import { LEADS, fmtInt, fmtPct, plural, safeDiv, shortName } from "@/lib/crm/format";
+import { fmtDate, rangeDays } from "@/lib/crm/dates";
+import { Chip, Collapse, Empty, HuePicker, NumInput, PeriodPicker, Progress, Seg, Swatch, hueFg, periodFor, periodLabel, type Period } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 import { StickyHead } from "@/components/app/StickyHead";
+import { HeroBars, HeroBig, HeroSplit, PageHero } from "@/components/app/PageHero";
 
 export default function ProjectsPage() {
   const { data, ix, today } = useCrm();
@@ -31,6 +33,16 @@ export default function ProjectsPage() {
     return ids;
   }, [projects, byProject]);
 
+  // хиро: лиды по дням и проектам (не больше 62 дней)
+  const heroDays = useMemo(() => rangeDays(period.from, period.to).slice(0, 62), [period]);
+  const byDay = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of leads) {
+      const k = `${l.at.slice(0, 10)}|${l.projectId || "__none__"}`;
+      m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return m;
+  }, [leads]);
   const table = useMemo(() => {
     const pv = pivot(leads, (l) => (by === "operator" ? l.operatorId : l.groupId || NO_GROUP));
     return Array.from(pv.entries())
@@ -47,38 +59,45 @@ export default function ProjectsPage() {
   return (
     <div className="stack">
       <StickyHead title="Проекты" />
-      <PageHead title="Проекты" sub="Справочник направлений, по которым передаются лиды, и количество лидов по ним за любой период" />
+      <PageHero
+        accent="pink"
+        title="Проекты"
+        sub="Справочник направлений, по которым передаются лиды, и количество лидов по ним за любой период"
+        bar={<PeriodPicker value={period} onChange={setPeriod} today={today} />}
+      >
+        <HeroBig
+          label={`Засчитано · ${periodLabel(period)}`}
+          value={fmtInt(leads.length)}
+          unit={plural(leads.length, LEADS)}
+          facts={[
+            <>
+              проектов в работе <b className="num">{fmtInt(projects.filter((p) => !p.deletedAt && p.active).length)}</b> из {fmtInt(projects.filter((p) => !p.deletedAt).length)}
+            </>,
+          ]}
+        />
+        <HeroSplit
+          parts={cols.map((c) => {
+            const p = ix.projectById.get(c);
+            const n = byProject.get(c) ?? 0;
+            return { key: c, label: p?.name ?? "Без проекта", value: n, pct: leads.length ? fmtPct(safeDiv(n, leads.length)) : undefined, note: p ? HANDOFF_LABEL[p.handoff ?? "transfer"].toLowerCase() : "проект не указан", hue: p?.color ?? "gray" };
+          })}
+        />
+        <HeroBars
+          from={fmtDate(heroDays[0]).slice(0, 5)}
+          to={fmtDate(heroDays[heroDays.length - 1]).slice(0, 5)}
+          caption="лиды по дням и проектам"
+          cols={heroDays.map((d) => ({
+            key: d,
+            title: `${fmtDate(d).slice(0, 5)}: ${cols.map((c) => `${ix.projectById.get(c)?.name ?? "без проекта"} ${byDay.get(`${d}|${c}`) ?? 0}`).join(", ")}`,
+            parts: cols.map((c) => ({ hue: ix.projectById.get(c)?.color ?? "gray", n: byDay.get(`${d}|${c}`) ?? 0 })),
+            today: d === today,
+            ghost: d > today,
+          }))}
+        />
+      </PageHero>
 
       <div className="cols-main" style={{ gridTemplateColumns: "minmax(0, 1.6fr) minmax(360px, 1fr)" }}>
         <div className="stack">
-          <div className="card card-pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <PeriodPicker value={period} onChange={setPeriod} today={today} />
-            <div style={{ fontSize: 13 }}>
-              <b className="num">{fmtInt(leads.length)}</b> лидов · {periodLabel(period)}
-            </div>
-            {leads.length === 0 ? (
-              <div style={{ fontSize: 13, color: "var(--dim)" }}>За период лидов нет.</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {cols.map((c) => {
-                  const p = ix.projectById.get(c);
-                  const n = byProject.get(c) ?? 0;
-                  return (
-                    <div key={c} className="row" style={{ gap: 10 }}>
-                      <span className="row" style={{ gap: 8, width: 170, minWidth: 0 }}>
-                        <Swatch hue={p?.color ?? "gray"} />
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p?.name ?? "Без проекта"}</span>
-                      </span>
-                      <Progress value={safeDiv(n, leads.length)} hue={p?.color ?? "gray"} style={{ flex: 1 }} />
-                      <span className="num" style={{ width: 50, textAlign: "right", fontWeight: 600 }}>{fmtInt(n)}</span>
-                      <span className="num" style={{ width: 44, textAlign: "right", color: "var(--dim)", fontSize: 12 }}>{fmtPct(safeDiv(n, leads.length))}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           <div className="card card-tbl" style={{ overflow: "hidden" }}>
             <div className="card-head" style={{ padding: "14px 18px 0" }}>
               <Seg className="seg-fill" value={by} onChange={setBy} options={[{ value: "operator", label: "По операторам" }, { value: "group", label: "По группам" }]} />

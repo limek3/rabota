@@ -10,12 +10,13 @@ import { dailyRows, dayConv, pace, pendingIn, sumRange, workedDays, WORKED_TYPES
 import { addDays, fmtDay, fmtMonth, fmtRange, isoWeekday, isWorkday, monthOf, monthStart, nowHour, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { DAYS, fmtInt, fmtNum, fmtPct, fmtSigned, LEADS, OPS, plural, safeDiv, shortName } from "@/lib/crm/format";
 import { NO_GROUP, NO_GROUP_LABEL, type DayKey, type DayType, type Settings } from "@/lib/crm/types";
-import { Avatar, Collapse, Conv, MonthSwitcher, PageHead, StartTag, StatusChip, foldRow, useConvNorm, useFoldGroups } from "@/components/ui/kit";
+import { Avatar, Collapse, Conv, MonthSwitcher, StartTag, StatusChip, foldRow, useConvNorm, useFoldGroups } from "@/components/ui/kit";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { dot, Select, uiZoom, type Opt } from "@/components/ui/select";
 import { ColumnPicker, useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { Onboarding } from "@/components/app/DashboardClassic";
 import { StickyHead } from "@/components/app/StickyHead";
+import { PageHero } from "@/components/app/PageHero";
 import { buildInsights, LAG_HINT, LAG_LABEL } from "@/lib/crm/insights";
 
 /**
@@ -362,7 +363,7 @@ export function DashboardV2() {
   const showPicker = access.isHead ? choices.length > 0 : choices.length > 1;
 
   // липкая шапка: главный блок ушёл вверх — сверху остаются период, группа и три главных числа
-  const heroRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
   const stickGap = span === "day" || cal.phase === "past" ? p.fact - p.plan : p.deviation;
   // задачи на сегодня — про людей и группы месяца, от выбранного периода не зависят
   const tasks = useTasks(mm, msc.line, msc.groups);
@@ -405,7 +406,10 @@ export function DashboardV2() {
           ]}
         />
       )}
-      <PageHead
+      <PageHero
+        heroRef={heroRef}
+        accent="violet"
+        style={{ ["--ph-cols" as string]: "minmax(0, 1fr)", ["--ph-cols-md" as string]: "minmax(0, 1fr)" }}
         title={
           <span className="row" style={{ gap: 12, flexWrap: "nowrap" }}>
             {title}
@@ -413,7 +417,7 @@ export function DashboardV2() {
           </span>
         }
         sub={sub}
-        actions={
+        tools={
           <>
             {showPicker && (
               <Select
@@ -457,14 +461,13 @@ export function DashboardV2() {
             </div>
           </>
         }
-      />
+      >
+        {!empty && <Hero cal={cal} plan={sc.plan} p={p} today={todayInfo} span={span} conv={sc.lph} hours={sc.hours} onShift={onShift} />}
+      </PageHero>
       {empty ? (
         <Onboarding />
       ) : (
         <div className="d2">
-          <div ref={heroRef}>
-            <Hero cal={cal} plan={sc.plan} p={p} today={todayInfo} span={span} conv={sc.lph} hours={sc.hours} onShift={onShift} />
-          </div>
           <PeopleCard m={m} line={sc.line} span={span} />
           <div className="d2-charts">
             {span === "day" ? <HourCard day={anchor} keys={keys} plan={p.plan} /> : <GapCard rows={rows} cal={cal} p={p} span={span} />}
@@ -2144,8 +2147,7 @@ function Spark({ values, days, good, open }: { values: number[]; days: DayKey[];
   const H = 22;
   if (!values.length)
     return (
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
-        <title>Смен не было</title>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }} data-tip="Смен не было">
         <line x1={3} x2={W - 3} y1={H - 3} y2={H - 3} stroke="var(--ink-15)" strokeDasharray="2 3" />
       </svg>
     );
@@ -2157,8 +2159,7 @@ function Spark({ values, days, good, open }: { values: number[]; days: DayKey[];
   const line = pts.map((p) => p.join(",")).join(" ");
   const c = good ? "var(--c-green-fg)" : "var(--c-red-fg)";
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }}>
-      <title>{`Лиды за последние ${values.length} ${plural(values.length, ["смену", "смены", "смен"])} (без выходных)\n${days.map((d, i) => `${dayNum(d)} ${dow(d)}: ${values[i]}${open && i === days.length - 1 ? " — смена идёт" : ""}`).join("\n")}`}</title>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: "block" }} data-tip={`Лиды за последние ${values.length} ${plural(values.length, ["смену", "смены", "смен"])} (без выходных)\n${days.map((d, i) => `${dayNum(d)} ${dow(d)}: ${values[i]}${open && i === days.length - 1 ? " — смена идёт" : ""}`).join("\n")}`}>
       {pts.length > 1 && <polygon points={`${pts[0][0]},${H - 2} ${line} ${pts[pts.length - 1][0]},${H - 2}`} fill={good ? "var(--c-green-bg)" : "var(--c-red-bg)"} />}
       {pts.length > 1 && <polyline points={line} fill="none" stroke={c} strokeWidth="1.2" />}
       {pts.map((p, i) =>

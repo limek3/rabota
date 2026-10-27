@@ -1,0 +1,190 @@
+/* ════════════════════════════════════════════════════════════════════
+   Хиро страницы (components/app/PageHero.tsx) — ph-*
+   Чистая карточка в цвет темы: белая в светлой, тёмная в тёмной — без теней,
+   подсветок и фактуры. Внутри — обычные токены темы,
+   поэтому кнопки, переключатели и плитки выглядят так же, как на всей странице.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── хиро: карточка в цвет темы ── */
+.ph {
+  --ph-text: var(--text);
+  --ph-sub: var(--text-sub);
+  /* заливки частей (полосы, столбики, точки) — в тёмной теме это яркие статусные цвета */
+  --ph-green: var(--c-green-fg); --ph-amber: var(--c-amber-fg); --ph-red: var(--c-red-fg); --ph-blue: var(--c-blue-fg);
+  --ph-purple: var(--c-purple-fg); --ph-teal: var(--c-teal-fg); --ph-pink: var(--c-pink-fg); --ph-indigo: var(--c-indigo-fg);
+  --ph-orange: var(--c-peach-fg); --ph-sky: var(--c-sky-fg); --ph-slate: var(--c-slate-fg); --ph-gray: var(--dim);
+
+  position: relative;
+  border-radius: 16px; padding: 20px 22px 18px; color: var(--text);
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+}
+/* светлая тема: сочные заливки (текстовые статусные цвета тут темнее — под контраст букв) */
+:root[data-theme="light"] .ph {
+  --ph-green: #1fa36a; --ph-amber: #efa22c; --ph-red: #e5485f; --ph-blue: #3b7bf0; --ph-purple: #7a58f8;
+  --ph-teal: #17ab9c; --ph-pink: #dc4a93; --ph-indigo: #5a69ee; --ph-orange: #ef7b4b; --ph-sky: #1ea2dc; --ph-slate: #6b7591; --ph-gray: #b3b0c4;
+}
+
+/* части красятся по data-hue: --c — заливка, --ct — цвет текста (контрастный) */
+.ph [data-hue] { --c: var(--ph-gray); --ct: var(--text-sub); }
+.ph [data-hue="green"] { --c: var(--ph-green); --ct: var(--c-green-fg); }
+.ph [data-hue="amber"] { --c: var(--ph-amber); --ct: var(--c-amber-fg); }
+.ph [data-hue="red"] { --c: var(--ph-red); --ct: var(--c-red-fg); }
+.ph [data-hue="blue"] { --c: var(--ph-blue); --ct: var(--c-blue-fg); }
+.ph [data-hue="purple"] { --c: var(--ph-purple); --ct: var(--c-purple-fg); }
+.ph [data-hue="brand"] { --c: var(--brand); --ct: var(--brand); }
+.ph [data-hue="teal"] { --c: var(--ph-teal); --ct: var(--c-teal-fg); }
+.ph [data-hue="pink"] { --c: var(--ph-pink); --ct: var(--c-pink-fg); }
+.ph [data-hue="indigo"] { --c: var(--ph-indigo); --ct: var(--c-indigo-fg); }
+.ph [data-hue="orange"], .ph [data-hue="peach"] { --c: var(--ph-orange); --ct: var(--c-peach-fg); }
+.ph [data-hue="sky"] { --c: var(--ph-sky); --ct: var(--c-sky-fg); }
+.ph [data-hue="slate"] { --c: var(--ph-slate); --ct: var(--c-slate-fg); }
+
+/* ── шапка ── */
+.ph-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.ph-head { min-width: 0; }
+.ph-title { margin: 0; font-size: 30px; font-weight: var(--title-w); letter-spacing: -0.03em; line-height: 1.05; color: var(--text); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ph-sub { margin-top: 6px; font-size: 12.5px; color: var(--text-sub); max-width: 640px; }
+.ph-sub i { font-style: normal; margin: 0 6px; opacity: 0.6; }
+.ph-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+/* строка управления страницы — под заголовком, отделена тонкой линией от показателей */
+.ph-ctrl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.ph-ctrl .rep-date { flex: 0 1 auto; }
+
+/* ── тело ── */
+.ph-body { display: grid; grid-template-columns: var(--ph-cols, minmax(180px, 0.8fr) minmax(360px, 1.5fr) minmax(220px, 1.15fr)); gap: 26px; margin-top: 20px; align-items: end; }
+.ph-body > * { min-width: 0; }
+
+.ph-big { display: flex; flex-direction: column; gap: 6px; }
+.ph-big-l { font-size: 12px; font-weight: 500; color: var(--text-sub); }
+.ph-num { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; border: 0; padding: 0; background: none; color: var(--text); font: inherit; text-align: left; }
+button.ph-num { cursor: pointer; }
+button.ph-num:focus-visible { outline: none; box-shadow: var(--ring); border-radius: 8px; }
+.ph-num > span { font-size: 54px; font-weight: 800; letter-spacing: -0.045em; line-height: 0.95; }
+.ph-num small { font-size: 15px; color: var(--text-sub); font-weight: 500; }
+.ph-num[data-tone="red"] > span { color: var(--c-red-fg); }
+.ph-num[data-tone="green"] > span { color: var(--c-green-fg); }
+.ph-vs { font-size: 12px; color: var(--text-sub); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ph-vs .up, .ph-vs .down { padding: 1px 8px; border-radius: 999px; font-weight: 700; font-size: 11.5px; white-space: nowrap; border: 1px solid; }
+.ph-vs .up { background: var(--c-green-bg); border-color: var(--c-green-bd); color: var(--c-green-fg); }
+.ph-vs .down { background: var(--c-red-bg); border-color: var(--c-red-bd); color: var(--c-red-fg); }
+.ph-facts { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; font-size: 12px; color: var(--text-sub); }
+.ph-facts b { color: var(--text); font-weight: 700; }
+
+.ph-split { display: flex; flex-direction: column; gap: 10px; }
+.ph-bar { display: flex; gap: 3px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--ink-06); }
+.ph-bar i { flex: 0 1 0; min-width: 0; background: var(--c); cursor: pointer; transition: filter 0.12s; }
+.ph-bar i:first-child { border-radius: 999px 0 0 999px; }
+.ph-bar i:last-child { border-radius: 0 999px 999px 0; }
+.ph-bar i:hover { filter: brightness(1.08) saturate(1.1); }
+.ph-bar i.empty { flex: 1; background: none; cursor: default; }
+.ph-parts { display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 8px; }
+.ph-part { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; padding: 9px 11px; border-radius: 12px; border: 1px solid var(--line-soft); background: var(--bg-strip); font: inherit; color: var(--text); text-align: left; min-width: 0; transition: background 0.12s, border-color 0.12s, box-shadow 0.12s; }
+.ph-part.click { cursor: pointer; }
+.ph-part.click:hover { background: var(--bg-panel-hover); border-color: var(--line); }
+.ph-part.click:focus-visible { outline: none; box-shadow: var(--ring); }
+.ph-part.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 9%, var(--bg-panel)); }
+.ph-part .k { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 500; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ph-part .k::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 3px; background: var(--c); }
+.ph-part .v { display: flex; align-items: baseline; gap: 6px; font-size: 20px; font-weight: 750; letter-spacing: -0.02em; white-space: nowrap; color: var(--text); }
+.ph-part .v small { font-size: 11.5px; font-weight: 650; color: var(--ct); letter-spacing: 0; }
+.ph-part .d { font-size: 11px; color: var(--text-sub3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.ph-part .d.good { color: var(--c-green-fg); }
+.ph-part .d.bad { color: var(--c-red-fg); }
+
+/* плашка внимания: статусная капсула; красная и жёлтая — с пульсом */
+.ph-alarm { --at: var(--c-red-fg); --ab: var(--c-red-bg); --ad: var(--c-red-bd); --ap: var(--ph-red);
+  display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 32px; padding: 4px 12px 4px 10px; border-radius: 999px;
+  border: 1px solid var(--ad); background: var(--ab); font: inherit; font-size: 12.5px; font-weight: 500; color: var(--at); text-align: left; }
+.ph-alarm[data-tone="amber"] { --at: var(--c-amber-fg); --ab: var(--c-amber-bg); --ad: var(--c-amber-bd); --ap: var(--ph-amber); }
+.ph-alarm[data-tone="green"] { --at: var(--c-green-fg); --ab: var(--c-green-bg); --ad: var(--c-green-bd); --ap: var(--ph-green); }
+.ph-alarm[data-tone="blue"] { --at: var(--c-blue-fg); --ab: var(--c-blue-bg); --ad: var(--c-blue-bd); --ap: var(--ph-blue); }
+.ph-alarm b { color: inherit; font-size: 13.5px; font-weight: 750; }
+.ph-alarm > svg { color: var(--at); flex: none; }
+.ph-alarm .t { color: var(--text-soft); }
+.ph-alarm .t b { color: var(--at); }
+.ph-alarm.click { cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.ph-alarm.click:hover, .ph-alarm.on { background: color-mix(in srgb, var(--ap) 18%, var(--bg-panel)); border-color: var(--ap); }
+.ph-alarm.click:focus-visible { outline: none; box-shadow: var(--ring); }
+.ph-alarm .pulse { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ap); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ap) 55%, transparent); animation: phPulse 1.8s infinite; }
+@keyframes phPulse { 70%, 100% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ap) 0%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .ph-alarm .pulse { animation: none; } }
+
+.ph-chart { display: flex; flex-direction: column; gap: 6px; }
+.ph-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text-sub); }
+.ph-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.ph-legend span::before { content: ""; width: 8px; height: 8px; border-radius: 3px; background: var(--c); }
+.ph-bars { display: flex; align-items: flex-end; gap: 3px; height: 112px; }
+.ph-col { position: relative; flex: 1; min-width: 3px; max-width: 16px; height: 100%; display: flex; align-items: flex-end; }
+.ph-stack { width: 100%; display: flex; flex-direction: column-reverse; gap: 1px; padding: 0; border: 0; border-radius: 3px 3px 1px 1px; overflow: hidden; background: var(--ink-07); font: inherit; transition: transform 0.12s, opacity 0.12s; }
+button.ph-stack { cursor: pointer; }
+button.ph-stack:hover { filter: brightness(1.08); opacity: 1; }
+button.ph-stack:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.ph-stack.ghost { background: var(--ink-04); }
+.ph-stack i { flex: 0 1 0; min-height: 1px; background: var(--c); }
+.ph-stack { transition: opacity 0.15s, filter 0.12s; }
+/* выбранный отрезок — остальные столбики приглушены; сегодня — точка под столбиком */
+.ph-bars:has(.ph-stack.on) .ph-stack:not(.on):not(.ghost) { opacity: 0.32; }
+.ph-col:has(> .ph-stack.td)::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--text-sub); }
+.ph-mark { position: absolute; left: -1px; right: -1px; height: 2px; border-radius: 1px; background: var(--text); opacity: 0.75; box-shadow: 0 0 0 1px var(--bg-panel); pointer-events: none; }
+.ph-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 10.5px; color: var(--text-sub3); }
+.ph-axis > span:nth-child(2) { text-align: center; }
+
+.ph-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.ph-stat { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line-soft); background: var(--bg-strip); font: inherit; color: var(--text); text-align: left; min-width: 0; }
+.ph-stat.click { cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+.ph-stat.click:hover { background: var(--bg-panel-hover); border-color: var(--line); }
+.ph-stat .k { font-size: 11.5px; font-weight: 500; color: var(--text-sub); line-height: 1.25; }
+.ph-stat .v { font-size: 22px; font-weight: 750; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-stat[data-hue] .v { color: var(--ct); }
+.ph-stat .d { font-size: 11px; color: var(--text-sub3); }
+.ph-stat .d [data-tone="up"] { color: var(--c-green-fg); }
+.ph-stat .d [data-tone="down"] { color: var(--c-red-fg); }
+
+/* карточки страниц, перенесённые внутрь хиро (операторы, мой кабинет) — утоплены, без своей тени */
+.ph .card { background: var(--bg-strip); border-color: var(--line-soft); box-shadow: none; }
+
+/* ── плотная: под хиро нужна высота ── */
+.ph-compact { padding: 14px 18px 12px; border-radius: 16px; }
+.ph-compact .ph-title { font-size: 24px; }
+.ph-compact .ph-body { margin-top: 12px; gap: 20px; }
+.ph-compact .ph-num > span { font-size: 36px; }
+.ph-compact .ph-bars { height: 52px; }
+.ph-compact .ph-facts { flex-direction: row; flex-wrap: wrap; gap: 2px 14px; margin-top: 2px; }
+.ph-compact .ph-stat { padding: 8px 11px; }
+.ph-compact .ph-stat .v { font-size: 19px; }
+
+/* ── узкие экраны ── */
+@media (max-width: 1400px) {
+  .ph-body { grid-template-columns: var(--ph-cols-md, minmax(160px, 0.8fr) minmax(0, 1.4fr)); }
+  .ph-body > .ph-chart:last-child:nth-child(3) { grid-column: 1 / -1; }
+  .ph-body > .ph-chart:last-child:nth-child(3) .ph-bars { height: 70px; }
+  .ph-col { max-width: none; }
+}
+@media (max-width: 760px) {
+  .ph { border-radius: 16px; padding: 16px; }
+  .ph-title { font-size: 26px; }
+  .ph-tools { width: 100%; justify-content: stretch; }
+  .ph-tools > * { flex: 1 1 auto; }
+  .ph-body { grid-template-columns: minmax(0, 1fr) !important; gap: 14px; margin-top: 14px; }
+  .ph-num > span { font-size: 44px; }
+  .ph-facts { flex-direction: row; flex-wrap: wrap; gap: 4px 14px; }
+  /* на телефоне хиро короче: до содержимого страницы — один жест */
+  .ph-chart { display: none; }
+  .ph-part .d { display: none; }
+  .ph-part .v { font-size: 17px; }
+  .ph-parts { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+}
+
+/* «Сводка»: её блок плана (d2-hero) — прямо в хиро, без своей карточки */
+.ph .d2-hero { background: none; border: 0; box-shadow: none; padding: 0; border-radius: 0; overflow: visible; }
+
+/* рейтинг: марки, города — «название · полоска · число» */
+.ph-rank { display: flex; flex-direction: column; gap: 7px; }
+.ph-rank-t { font-size: 11.5px; font-weight: 500; color: var(--text-sub); margin-bottom: 2px; }
+.ph-rank-r { display: grid; grid-template-columns: minmax(70px, 0.9fr) minmax(60px, 1.4fr) auto; align-items: center; gap: 10px; font-size: 12.5px; }
+.ph-rank-r .l { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-rank-r .b { height: 6px; border-radius: 999px; background: var(--ink-06); overflow: hidden; }
+.ph-rank-r .b i { display: block; height: 100%; border-radius: 999px; background: var(--c); }
+.ph-rank-r .v { font-weight: 650; color: var(--text); min-width: 28px; text-align: right; }
+.ph-rank-more { font-size: 11px; color: var(--text-sub3); }

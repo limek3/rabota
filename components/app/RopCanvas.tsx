@@ -153,7 +153,7 @@ function render(ctx: CanvasRenderingContext2D, r: RopReport, company: string, sa
   const strong = C.text;
   const muted = C.sub;
   const faint = C.dim;
-  const pillBg = dark ? "#2c2c2c" : "#efefef";
+  const pillBg = dark ? "#23222f" : "#f1f1f6";
   let y = P;
 
   const section = (ic: string, title: Part[]) => {

@@ -5,19 +5,20 @@ import { useCrm } from "@/lib/crm/store";
 import { filterLeads } from "@/lib/crm/calc";
 import { canReviewLead } from "@/lib/crm/access";
 import { addDays, addMonths, fmtDate, fmtMonth, fmtStamp, isoWeekday, monthOf, monthStart, rangeDays } from "@/lib/crm/dates";
-import { LEADS, fmtInt, fmtNum, fmtPct, fmtPhone, plural, shortName } from "@/lib/crm/format";
+import { LEADS, OPS, fmtInt, fmtNum, fmtPct, fmtPhone, plural, shortName } from "@/lib/crm/format";
 import { LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP, NO_GROUP_LABEL, type DayKey, type Lead, type LeadStatus } from "@/lib/crm/types";
 import { ClipText, Pager, RegionTag, periodFor, type Period, type PeriodMode } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { useColumnDrag, useColumnOrder, useColumnVisibility } from "@/components/ui/ColumnOrder";
 import { StickyHead } from "@/components/app/StickyHead";
-import { Icon, type IconName } from "@/components/ui/icons";
+import { Icon } from "@/components/ui/icons";
 import { regionSegment, type RegionSegment } from "@/lib/crm/regions";
 import { LeadSheetExport, PhonesExport } from "@/components/app/LeadsClassic";
 import { Popover } from "@/components/app/OperatorsV2";
 import { LeadPanel, LeadPanelEmpty } from "@/components/app/LeadModal";
 import { LeadCards } from "@/components/app/LeadCards";
 import { useMobile } from "@/lib/useMobile";
+import { HeroAlarm, HeroBars, HeroBig, HeroSplit, PageHero, heroDelta } from "@/components/app/PageHero";
 
 /**
  * «Лиды» v2: карточки статусов, лиды по дням, что требует внимания, журнал и карточка лида
@@ -34,7 +35,6 @@ const COL_SORT: Partial<Record<Col, SortKey>> = { at: "at", client: "client", st
 
 const SIZES = [25, 50, 75, 100];
 const SIZE_KEY = "leadup.leads.pageSize";
-const ST_ICON: Record<LeadStatus, IconName> = { done: "check", failed: "close", work: "clock" };
 const DOW = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const M_STEP = 30;
 
@@ -162,11 +162,18 @@ export function LeadsV2() {
   /* ── лиды по дням ───────────────────────────────────────────────── */
   const lastDay = period.to > today ? today : period.to;
   const dayList = useMemo(() => rangeDays(period.from, period.to).slice(0, 62), [period]);
-  const perDay = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const l of list) m.set(l.at.slice(0, 10), (m.get(l.at.slice(0, 10)) ?? 0) + 1);
+  // по всем статусам: столбики хиро делятся на доведён / в работе / не доведён
+  const baseDay = useMemo(() => {
+    const m = new Map<string, Record<LeadStatus, number> & { n: number }>();
+    for (const l of base) {
+      const d = l.at.slice(0, 10);
+      const x = m.get(d) ?? { n: 0, done: 0, failed: 0, work: 0 };
+      x.n++;
+      x[l.status]++;
+      m.set(d, x);
+    }
     return m;
-  }, [list]);
+  }, [base]);
   const daysDone = period.from > today ? 0 : rangeDays(period.from, lastDay).length;
 
   /* ── что требует внимания ───────────────────────────────────────── */
@@ -246,7 +253,7 @@ export function LeadsV2() {
   const someChecked = pageRows.some((l) => checked.has(l.id));
 
   const total = base.length;
-  const kpiRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
 
   /* ── сравнение с прошлым периодом: столько же прошедших дней ───────── */
   const prev = useMemo(() => {
@@ -347,7 +354,7 @@ export function LeadsV2() {
       <StickyHead
         title="Лиды"
         ctx={`${pLabel}${filtered ? " · с фильтром" : ""}`}
-        anchor={kpiRef}
+        anchor={heroRef}
         items={[
           { l: "Всего", v: fmtInt(total) },
           { l: "Доведён", v: `${fmtInt(byStatus.done)}${total ? ` · ${fmtPct(share(byStatus.done, total))}` : ""}` },
@@ -355,13 +362,13 @@ export function LeadsV2() {
           { l: "В работе", v: fmtInt(byStatus.work), tone: stale.length > 0 ? "amber" : undefined, hint: stale.length ? `${stale.length} ждут проверки дольше суток` : undefined },
         ]}
       />
-      {/* ── заголовок ─────────────────────────────────────────────── */}
-      <div className="o2-head">
-        <div>
-          <h1 className="o2-title">Лиды</h1>
-          <div className="o2-sub" title="Журнал лидов, переданных менеджеру. Источник — Скорозвон.">Переданные менеджеру · Скорозвон</div>
-        </div>
-        <div className="o2-tools">
+      {/* ── хиро: заголовок и управление, итог, доли статусов, «ждут проверки», лиды по дням ── */}
+      <PageHero
+        heroRef={heroRef}
+        title="Лиды"
+        sub="Переданные менеджеру · Скорозвон"
+        tools={
+          <>
           {period.mode !== "range" ? (
             <div className="o2-date">
               <button className="o2-ib" onClick={() => shift(-1)} aria-label="Назад">
@@ -406,8 +413,72 @@ export function LeadsV2() {
               Лид передан
             </button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      >
+        <HeroBig
+          value={fmtInt(total)}
+          unit={plural(total, LEADS)}
+          onClick={() => setStatus("")}
+          title={prev ? `За тот же отрезок прошлого периода: ${fmtInt(prev.total)}` : undefined}
+          delta={heroDelta(totalDelta, (x) => fmtPct(x))}
+          vs={prev ? `${vsLabel} · было ${fmtInt(prev.total)}` : "период не начался"}
+          facts={[
+            <>
+              <b className="num">{fmtInt(opsWithLeads)}</b> {plural(opsWithLeads, OPS)} передавали{opsWithLeads > 0 && <> · {fmtNum(total / opsWithLeads)} на чел.</>}
+            </>,
+            <>
+              <b className="num">{daysDone ? fmtNum(total / daysDone) : "—"}</b> в среднем в день
+            </>,
+          ]}
+        />
+        <HeroSplit
+          parts={(
+            [
+              ["done", true, "Подтвердил менеджер. Изменение — доли доведённых, в п.п."],
+              ["work", false, "Менеджер ещё не подтвердил и не отклонил"],
+              ["failed", false, "Сорвались — в факте и конверсии остаются, в оплату не идут. Изменение — доли, в п.п."],
+            ] as [LeadStatus, boolean, string][]
+          ).map(([st, goodUp, hint]) => ({
+            key: st,
+            label: LEAD_STATUS_LABEL[st],
+            value: byStatus[st],
+            pct: total ? fmtPct(share(byStatus[st], total)) : undefined,
+            delta: st === "work" ? null : ppDelta(st, goodUp),
+            note: st === "work" ? "ждут решения" : undefined,
+            hue: LEAD_STATUS_HUE[st],
+            on: status === st,
+            onClick: () => setStatus(status === st ? "" : st),
+            title: hint,
+          }))}
+          after={
+            stale.length > 0 ? (
+              <HeroAlarm tone="red" on={status === "work"} onClick={() => setStatus(status === "work" ? "" : "work")} title="«В работе» дольше суток — отметьте доведён или нет">
+                <b className="num">{fmtInt(stale.length)}</b> {stale.length === 1 ? "ждёт" : "ждут"} проверки дольше суток
+              </HeroAlarm>
+            ) : (
+              <HeroAlarm tone="green">Все лиды проверены</HeroAlarm>
+            )
+          }
+        />
+        <HeroBars
+          from={fmtDate(dayList[0]).slice(0, 5)}
+          to={fmtDate(dayList[dayList.length - 1]).slice(0, 5)}
+          caption="лиды по дням · нажмите на день"
+          cols={dayList.map((d) => {
+            const x = baseDay.get(d);
+            return {
+              key: d,
+              title: `${fmtDate(d).slice(0, 5)}, ${DOW[isoWeekday(d) - 1]}: ${x?.n ?? 0} ${plural(x?.n ?? 0, LEADS)}${x ? ` — доведено ${x.done}, в работе ${x.work}, не доведено ${x.failed}` : ""}`,
+              parts: x ? [{ hue: "green", n: x.done }, { hue: "amber", n: x.work }, { hue: "red", n: x.failed }] : [],
+              today: d === today,
+              on: period.mode === "day" && period.from === d,
+              ghost: d > today,
+              onClick: () => setPeriod(periodFor("day", d)),
+            };
+          })}
+        />
+      </PageHero>
 
       <div className="o2-body has-side l2-body">
         <div className="o2-main">
@@ -428,97 +499,6 @@ export function LeadsV2() {
               ))}
             </div>
           )}
-          <div className="card o2-kpis l2-kpis" ref={kpiRef} hidden={mobile || undefined}>
-            <LKpi
-              icon="leads"
-              label="Всего лидов"
-              value={fmtInt(total)}
-              onClick={() => setStatus("")}
-              delta={totalDelta == null ? null : { text: `${totalDelta >= 0 ? "+" : "−"}${fmtPct(Math.abs(totalDelta))}`, up: totalDelta >= 0, good: totalDelta >= 0 }}
-              sub={prev ? vsLabel : "период не начался"}
-              title={prev ? `За тот же отрезок прошлого периода: ${fmtInt(prev.total)}` : undefined}
-            />
-            <LKpi icon="check" hue="green" label="Доведён" value={fmtInt(byStatus.done)} pct={total ? fmtPct(share(byStatus.done, total)) : undefined} delta={ppDelta("done", true)} sub="доля к прошлому" title="Подтвердил менеджер. Изменение — доли доведённых, в п.п." on={status === "done"} onClick={() => setStatus(status === "done" ? "" : "done")} />
-            <LKpi icon="close" hue="red" label="Не доведён" value={fmtInt(byStatus.failed)} pct={total ? fmtPct(share(byStatus.failed, total)) : undefined} delta={ppDelta("failed", false)} sub="доля к прошлому" title="Сорвались — в факте и конверсии остаются, в оплату не идут. Изменение — доли, в п.п." on={status === "failed"} onClick={() => setStatus(status === "failed" ? "" : "failed")} />
-            <LKpi icon="clock" hue="amber" label="В работе" value={fmtInt(byStatus.work)} pct={total ? fmtPct(share(byStatus.work, total)) : undefined} line="ждут решения" sub="от всех лидов" title="Менеджер ещё не подтвердил и не отклонил" on={status === "work"} onClick={() => setStatus(status === "work" ? "" : "work")} />
-            <LKpi icon="users" label="Операторов" value={fmtInt(opsWithLeads)} line={opsWithLeads ? `${fmtNum(total / opsWithLeads)} на чел.` : undefined} sub="передавали лиды" title="Сколько операторов передали хотя бы один лид, и сколько в среднем на одного" />
-            <div className={`o2-kpi crit${stale.length ? "" : " calm"}`} onClick={() => stale.length && setStatus(status === "work" ? "" : "work")} title="«В работе» дольше суток — отметьте доведён или нет">
-              <span className="ic">
-                <Icon name="alert" size={18} />
-              </span>
-              <div className="o2-kpi-b">
-                <div className="l">Ждут проверки</div>
-                <div className="v">{fmtInt(stale.length)}</div>
-                <div className="d">{stale.length ? "дольше суток" : "никого"}</div>
-                <div className="s">{stale.length > 0 ? <>показать <Icon name="arrowR" size={12} /></> : "всё проверено"}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── лиды по дням + внимание ────────────────────────── */}
-          <div className="l2-row">
-            <div className="card l2-days">
-              <div className="l2-days-t">
-                <Icon name="chart" size={13} className="mi" />
-                Лиды по дням
-              </div>
-              <div className="l2-bars">
-                {dayList.map((d) => {
-                  const n = perDay.get(d) ?? 0;
-                  const max = Math.max(1, ...Array.from(perDay.values()));
-                  const fut = d > today;
-                  return (
-                    <span
-                      key={d}
-                      title={`${fmtDate(d).slice(0, 5)}, ${DOW[isoWeekday(d) - 1]}: ${n} ${plural(n, LEADS)}`}
-                      className={d === today ? "td" : fut ? "fut" : undefined}
-                      style={{ height: `${fut ? 8 : Math.max(8, (n / max) * 100)}%` }}
-                    />
-                  );
-                })}
-              </div>
-              <div className="l2-avg">
-                <b>{daysDone ? fmtNum(list.length / daysDone) : "—"}</b>
-                <span>в среднем в день</span>
-              </div>
-            </div>
-            {stale.length > 0 ? (
-              <div className="card l2-att" data-hue="red">
-                <Icon name="alert" size={20} />
-                <div>
-                  <b>
-                    {fmtInt(stale.length)} {plural(stale.length, LEADS)} {stale.length === 1 ? "ждёт" : "ждут"} проверки
-                  </b>
-                  <span>«В работе» дольше суток — отметьте доведён или нет</span>
-                </div>
-                <button className="o2-btn" onClick={() => setStatus("work")}>
-                  Показать
-                </button>
-              </div>
-            ) : byStatus.failed > 0 ? (
-              <div className="card l2-att" data-hue="amber">
-                <Icon name="alert" size={20} />
-                <div>
-                  <b>
-                    {fmtInt(byStatus.failed)} не {byStatus.failed === 1 ? "доведён" : "доведено"} за период
-                  </b>
-                  <span>Посмотрите причины — что мешает довести</span>
-                </div>
-                <button className="o2-btn" onClick={() => setStatus("failed")}>
-                  Показать
-                </button>
-              </div>
-            ) : (
-              <div className="card l2-att" data-hue="green">
-                <Icon name="check" size={20} />
-                <div>
-                  <b>Все лиды проверены</b>
-                  <span>Нет лидов, которые ждут решения</span>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* ── фильтры ──────────────────────────────────────────── */}
           <div className="card o2-filters o2-2r">
             {/* строка 1: поиск во всю ширину, сколько найдено, столбцы; строка 2: фильтры и действия */}
@@ -773,58 +753,6 @@ export function LeadsV2() {
 }
 
 /* ── мелкие части ───────────────────────────────────────────────────── */
-
-function LKpi({
-  icon,
-  label,
-  value,
-  pct,
-  delta,
-  line,
-  sub,
-  hue,
-  on,
-  onClick,
-  title,
-}: {
-  icon: IconName;
-  label: string;
-  value: string;
-  /** Доля от всех — мелко рядом с числом. */
-  pct?: string;
-  delta?: { text: string; up: boolean; good: boolean } | null;
-  line?: string;
-  sub: string;
-  hue?: string;
-  on?: boolean;
-  onClick?: () => void;
-  title?: string;
-}) {
-  return (
-    <div className={`o2-kpi${onClick ? " click" : ""}${on ? " on" : ""}`} data-hue={hue} onClick={onClick} title={title}>
-      <span className="ic">
-        <Icon name={icon} size={18} />
-      </span>
-      <div className="o2-kpi-b">
-        <div className="l">{label}</div>
-        <div className="v">
-          {value}
-          {pct && <span className="pc">{pct}</span>}
-        </div>
-        {delta ? (
-          <div className={`d ${delta.good ? "o2-up" : "o2-down"}`}>
-            {delta.up ? "▲" : "▼"} {delta.text}
-          </div>
-        ) : (
-          <div className="d" style={{ color: "var(--text)" }}>
-            {line ?? <span className="o2-muted">—</span>}
-          </div>
-        )}
-        <div className="s">{sub}</div>
-      </div>
-    </div>
-  );
-}
 
 function LeadPill({ st }: { st: LeadStatus }) {
   return (

@@ -24,6 +24,8 @@ import { Popover } from "@/components/app/OperatorsV2";
 import { REGISTRY_DAYS } from "@/lib/crm/payperiod";
 import { TaxSum } from "@/components/app/TaxSum";
 import { StickyHead } from "@/components/app/StickyHead";
+import { PageHero } from "@/components/app/PageHero";
+import { PayHero } from "@/components/app/HeroParts";
 
 const ADJ_TYPES: AdjustmentType[] = ["accrual", "bonus", "compensation", "correction", "deduction", "advance", "payout"];
 const ADJ_HUE: Record<AdjustmentType, string> = {
@@ -129,6 +131,7 @@ export default function PayrollPage() {
   const colOrder = useColumnOrder("payroll-month", MCOLS);
   const shown = useMemo(() => colOrder.order.filter((k) => vis.shown.has(k)) as MCol[], [colOrder.order, vis.shown]);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
   const colDrag = useColumnDrag({ wrapRef, order: shown, onChange: (next) => colOrder.save(mergeVisible(colOrder.order, next)) });
   const fold = useFoldGroups(wrapRef);
 
@@ -346,7 +349,7 @@ export default function PayrollPage() {
       {/* ── заголовок ─────────────────────────────────────────────── */}
       <StickyHead
         title="Зарплата"
-        offset={240}
+        anchor={heroRef}
         ctx={view === "periods" ? periodLabel(pp.period) : fmtMonth(month)}
         items={
           view === "periods"
@@ -362,21 +365,24 @@ export default function PayrollPage() {
               ]
         }
       />
-      <div className="o2-head">
-        <div className="o2-head-l">
-          <h1 className="o2-title">Зарплата</h1>
-          <div className="o2-sub" title={view === "periods" ? `${pp.status.text} · ${sub}` : sub}>
-            {view === "periods" ? (
-              <>
-                <i className="o2-sub-dot" data-hue={stHue} />
-                {pp.status.text}
-              </>
-            ) : (
-              sub
-            )}
-          </div>
-        </div>
-        <div className="o2-tools">
+      {/* ── хиро: деньги месяца или периода — начислено, выплачено, остаток, кто сколько ── */}
+      <PageHero
+        heroRef={heroRef}
+        accent="emerald"
+        title="Зарплата"
+        sub={
+          view === "periods" ? (
+            <>
+              <i className="o2-sub-dot" data-hue={stHue} />
+              {pp.status.text}
+            </>
+          ) : (
+            sub
+          )
+        }
+        style={view === "periods" ? { ["--ph-cols" as string]: "minmax(200px, 0.8fr) minmax(0, 1.6fr)" } : undefined}
+        tools={
+          <>
           {view === "periods" ? <PeriodNav pp={pp} /> : <MonthNav month={month} onChange={setMonth} />}
           <div className="o2-seg" role="group">
             {VIEWS.map((v) => (
@@ -390,8 +396,11 @@ export default function PayrollPage() {
               <Icon name="plus" size={14} stroke={2.2} /> Начисление
             </button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      >
+        <PayHero t={view === "periods" ? pp.t : t} rows={view === "periods" ? null : pr.rows} fund={view === "periods" ? null : fund} capPct={data.settings.payrollCapPct} label={view === "periods" ? `К выплате · ${periodLabel(pp.period)}` : `К выплате · ${fmtMonth(month).toLowerCase()}`} onRow={(id) => setSelId(id)} />
+      </PageHero>
 
       {view === "periods" ? (
         <PeriodPayroll pp={pp} onAdj={access.can.editPayroll ? (opId, adj) => setAdjFor({ opId, adj }) : undefined} />

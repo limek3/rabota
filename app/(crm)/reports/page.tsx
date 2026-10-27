@@ -5,13 +5,15 @@ import { useCrm } from "@/lib/crm/store";
 import { buildReport, reportRange, type ReportKind } from "@/lib/crm/report";
 import { buildRopReport, groupTrack, ropText } from "@/lib/crm/rop";
 import { NO_GROUP, NO_GROUP_LABEL, type RopSettings, type Track } from "@/lib/crm/types";
-import { addDays, isDayKey, isMonthKey, monthOf, monthStart } from "@/lib/crm/dates";
-import { Collapse, Field, MonthSwitcher, NumInput, PageHead, SaveBar, Seg, useDraft } from "@/components/ui/kit";
+import { addDays, fmtDate, isDayKey, isMonthKey, monthOf, monthStart, rangeDays } from "@/lib/crm/dates";
+import { Collapse, Field, MonthSwitcher, NumInput, SaveBar, Seg, useDraft } from "@/components/ui/kit";
 import { DateInput, Select, dot, type Opt } from "@/components/ui/select";
 import { Icon } from "@/components/ui/icons";
 import { ReportCanvas, type ReportCanvasHandle } from "@/components/app/ReportCanvas";
 import { RopCanvas } from "@/components/app/RopCanvas";
 import { StickyHead } from "@/components/app/StickyHead";
+import { PageHero } from "@/components/app/PageHero";
+import { OpsReportHero, RopReportHero, dayCols } from "@/components/app/HeroParts";
 
 /**
  * Готовые отчёты за день, неделю и месяц — картинкой (скопировать PNG в буфер или скачать).
@@ -69,6 +71,33 @@ export default function ReportsPage() {
   const ropReport = useMemo(() => (rop ? buildRopReport(ropData, ropIx, kind, anchor, today) : null), [rop, ropData, ropIx, kind, anchor, today]);
   const { from, to } = reportRange(kind, anchor);
   const step = kind === "day" ? 1 : 7;
+  // хиро: дни вокруг отчёта — месяц целиком или три недели до конца отрезка
+  const heroDays = useMemo(() => (kind === "month" ? rangeDays(monthStart(monthOf(from)), to) : rangeDays(addDays(to, -20), to > today ? to : addDays(to, Math.min(6, Math.max(0, rangeDays(to, today).length - 1))))), [kind, from, to, today]);
+  const heroLeads = useMemo(() => {
+    const a = heroDays[0];
+    const z = heroDays[heroDays.length - 1];
+    return data.leads.filter((l) => {
+      const d = l.at.slice(0, 10);
+      return d >= a && d <= z && (!groupId || (l.groupId || NO_GROUP) === groupId);
+    });
+  }, [data.leads, heroDays, groupId]);
+  const heroCols = useMemo(() => {
+    const cnt = new Map<string, number>();
+    for (const l of heroLeads) cnt.set(l.at.slice(0, 10), (cnt.get(l.at.slice(0, 10)) ?? 0) + 1);
+    const plan = new Map((report?.byDay ?? []).map((b) => [b.day, b.plan]));
+    return dayCols(
+      heroDays,
+      (d) => cnt.get(d) ?? 0,
+      today,
+      (d) => d >= from && d <= to,
+      (d) => {
+        setAnchor(d);
+        pickKind("day");
+      },
+      report ? (d) => plan.get(d) ?? 0 : undefined,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heroLeads, heroDays, today, from, to, report]);
   const groups = data.groups.filter((g) => !g.deletedAt);
   const hasNoGroup = data.operators.some((o) => !o.deletedAt && !o.groupId);
   const company = data.settings.companyName || "LEADUP CRM";
@@ -110,10 +139,12 @@ export default function ReportsPage() {
   return (
     <div className="stack">
       <StickyHead title="Отчёты" />
-      <PageHead
+      <PageHero
+        accent="slate"
+        style={{ ["--ph-cols" as string]: "minmax(200px, 0.85fr) minmax(400px, 1.55fr) minmax(220px, 1fr)", ["--ph-cols-md" as string]: "minmax(190px, 0.8fr) minmax(0, 1.6fr)" }}
         title="Отчёты"
         sub={access.isHead ? "Отчёт РОП за день и неделю, по операторам — ещё и за месяц: картинкой или текстом для чата" : "Готовые отчёты за день, неделю и месяц — картинкой, чтобы отправить в чат"}
-        actions={
+        tools={
           <>
             <button className="btn" onClick={download}>
               <Icon name="download" size={14} /> Скачать PNG
@@ -128,10 +159,8 @@ export default function ReportsPage() {
             </button>
           </>
         }
-      />
-
-      {/* управление — шириной с картинку отчёта (960px), чтобы края совпадали */}
-      <div className="toolbar rep-w">
+        bar={
+          <>
         {access.isHead && (
           <Seg<View>
             value={rop ? "rop" : "ops"}
@@ -200,7 +229,16 @@ export default function ReportsPage() {
             <Icon name="settings" size={14} /> Параметры
           </button>
         )}
-      </div>
+          </>
+        }
+      >
+        {ropReport ? (
+          <RopReportHero r={ropReport} cols={heroCols} onParams={() => setParams(true)} />
+        ) : (
+          report && <OpsReportHero r={report} cols={heroCols} />
+        )}
+      </PageHero>
+
 
       {rop && (
         <Collapse open={params} className="rep-w">

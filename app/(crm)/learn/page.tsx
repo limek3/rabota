@@ -2,9 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import { useCrm, type LearnPatch } from "@/lib/crm/store";
-import { ACAD_COURSE } from "@/lib/academy/course";
+import { ACAD_COURSE, SIM_CHAPTERS, acadProgress } from "@/lib/academy/course";
 import { mountAcademy } from "@/lib/academy/engine";
 import { StickyHead } from "@/components/app/StickyHead";
+import { HeroStats, PageHero } from "@/components/app/PageHero";
+import { fmtPct } from "@/lib/crm/format";
 
 /**
  * «Обучение» — курс «Авто», тренажёр Скорозвона, справочники и тренажёры.

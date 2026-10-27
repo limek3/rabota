@@ -9,7 +9,7 @@ import { fmtInt, fmtMoney, fmtNum } from "@/lib/crm/format";
 import { checkIntegrity, type Issue } from "@/lib/crm/validate";
 import * as db from "@/lib/crm/db";
 import { AUTH_ENABLED } from "@/lib/appMode";
-import { Chip, Field, NumInput, PageHead, SaveBar, Seg, Switch, downloadText, hueVars } from "@/components/ui/kit";
+import { Chip, Field, NumInput, SaveBar, Seg, Switch, downloadText, hueVars } from "@/components/ui/kit";
 import { DateInput, MonthPicker, Select, dot } from "@/components/ui/select";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { AccountsTab, ProfileTab, RolesTab } from "@/components/app/AccountsSettings";
@@ -19,6 +19,7 @@ import { ApproveMonthEditor, ApproveRules } from "@/components/app/ApproveSettin
 import { AuditLog } from "@/components/app/AuditLog";
 import { LeadsSheetSection, RegistrySheetSection, SheetsSection } from "@/components/app/SheetsSync";
 import { StickyHead } from "@/components/app/StickyHead";
+import { HeroStats, PageHero } from "@/components/app/PageHero";
 
 type Tab = "profile" | "system" | "accounts" | "roles" | "data" | "audit";
 
@@ -41,7 +42,7 @@ function Section({ title, icon, sub, action, children }: { title: string; icon?:
 }
 
 export default function SettingsPage() {
-  const { data, saveSettings, toast, access, applyGridPay, confirm } = useCrm();
+  const { data, saveSettings, toast, access, applyGridPay, confirm, remote, me } = useCrm();
   const [tab, setTab] = useState<Tab>(() => {
     const q = typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("tab");
     const t = (q ?? "") as Tab;
@@ -128,10 +129,12 @@ export default function SettingsPage() {
   return (
     <div className="stack" style={{ maxWidth: 1100 }}>
       <StickyHead title="Настройки" ctx={tabs.find((x) => x.value === tab)?.label} />
-      <PageHead
+      <PageHero
+        accent="slate"
+        style={{ ["--ph-cols" as string]: "minmax(0, 1fr)", ["--ph-cols-md" as string]: "minmax(0, 1fr)" }}
         title="Настройки"
         sub={access.can.systemSettings ? "Все параметры расчётов редактируются здесь, без правки кода" : "Личные настройки вашего аккаунта"}
-        actions={
+        tools={
           systemTab ? (
             <>
               {dirty && (
@@ -145,7 +148,24 @@ export default function SettingsPage() {
             </>
           ) : undefined
         }
-      />
+      >
+        <HeroStats
+          items={
+            access.can.systemSettings
+              ? [
+                  { label: "Где данные", value: remote ? "Supabase" : "Этот браузер", note: remote ? "общая база для всех" : "IndexedDB — делайте выгрузку", hue: remote ? "green" : "amber" },
+                  { label: "Аккаунтов", value: fmtInt(data.accounts.length), note: "входят в CRM", onClick: access.can.manageAccounts ? () => setTab("accounts") : undefined },
+                  { label: "Операторов", value: fmtInt(data.operators.filter((o) => !o.deletedAt && o.status !== "fired").length), note: "в штате сейчас" },
+                  { label: "Лидов в базе", value: fmtInt(data.leads.length), note: "за всё время", onClick: access.can.manageData ? () => setTab("data") : undefined },
+                  { label: "Норма конверсии", value: `${fmtNum(data.settings.convNormPct)}%`, note: `ФОТ — до ${data.settings.payrollCapPct}% дохода` },
+                ]
+              : [
+                  { label: "Аккаунт", value: me.name, note: access.scopeLabel },
+                  { label: "Где данные", value: remote ? "Supabase" : "Этот браузер", note: remote ? "общая база" : "локально" },
+                ]
+          }
+        />
+      </PageHero>
 
       {shown.length > 1 && (
         <Seg<Tab>

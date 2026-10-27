@@ -10,13 +10,14 @@ import { TierTable, tierRange } from "@/components/app/RateGrids";
 import { NO_GROUP_LABEL, type RateTier } from "@/lib/crm/types";
 import { fmtDay, fmtMonth, fmtWeekday, monthEnd, monthStart, nowHour } from "@/lib/crm/dates";
 import { LEADS, fmtHours, fmtInt, fmtMoney, fmtNum, fmtPct, fmtPhone, fmtSigned, plural, safeDiv, surnameAndName } from "@/lib/crm/format";
-import { Avatar, Chip, Empty, LeadLinkButton, LeadStatusChip, MonthSwitcher, PageHead } from "@/components/ui/kit";
+import { Avatar, Chip, Empty, LeadLinkButton, LeadStatusChip, MonthSwitcher } from "@/components/ui/kit";
 import { LearnCard } from "@/components/learn/Progress";
 import { Icon } from "@/components/ui/icons";
 import { TelegramCard } from "@/components/app/TelegramCard";
 import { PayoutHistory } from "@/components/app/PayoutHistory";
 import { PayslipModal } from "@/components/app/Payslip";
 import { StickyHead, planItems } from "@/components/app/StickyHead";
+import { PageHero } from "@/components/app/PageHero";
 import { LeadCards } from "@/components/app/LeadCards";
 import { useMobile } from "@/lib/useMobile";
 
@@ -100,7 +101,7 @@ export default function MePage() {
   if (!row) {
     return (
       <div className="stack">
-        <PageHead title={me.name} sub={`${fmtMonth(month)} · данных за этот месяц нет`} actions={<MonthSwitcher value={month} onChange={setMonth} />} />
+        <PageHero accent="violet" title={me.name} sub={`${fmtMonth(month)} · данных за этот месяц нет`} tools={<MonthSwitcher value={month} onChange={setMonth} />} />
         <div className="card">
           <Empty icon="calendar" title="В этом месяце вы не работали" text="Выберите другой месяц." />
         </div>
@@ -131,10 +132,12 @@ export default function MePage() {
           ...(dayPlan > 0 && cur ? [{ l: "Сегодня", v: `${fmtInt(doneToday)} из ${fmtInt(Math.ceil(dayPlan))}`, tone: doneToday >= dayPlan ? ("green" as const) : undefined }] : []),
         ]}
       />
-      <PageHead
+      <PageHero
+        accent="violet"
+        style={{ ["--ph-cols" as string]: "minmax(0, 1fr)", ["--ph-cols-md" as string]: "minmax(0, 1fr)" }}
         title={`${greet}, ${surnameAndName(me.name) || me.name}`}
         sub={`${fmtDay(today)}, ${fmtWeekday(today)} · ${group ? group.name : NO_GROUP_LABEL} · ${fmtMonth(month)}`}
-        actions={
+        tools={
           <>
             <MonthSwitcher value={month} onChange={setMonth} />
             {access.can.createLeads && (
@@ -145,10 +148,8 @@ export default function MePage() {
             )}
           </>
         }
-      />
-
-      <div className="d2">
-        {/* ── мой заработок: главный блок, наверху ─────────────────── */}
+      >
+        {/* ── мой заработок: главный блок — в хиро ─────────────────── */}
         {pay && (
           <section className="card me-money">
             <div className="me-money-top">
@@ -245,6 +246,9 @@ export default function MePage() {
             </div>
           </section>
         )}
+      </PageHero>
+
+      <div className="d2">
 
         {/* ── сегодня: сколько передал к дневной цели и ставка смены ─── */}
         {cur && (

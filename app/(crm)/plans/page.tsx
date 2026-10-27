@@ -7,11 +7,13 @@ import { employmentShare, goneLast, isGone, type GroupRow, type OpRow, type Pace
 import { planId } from "@/lib/crm/ids";
 import { fmtMonth, fmtRange, isWorkday, rangeDays, weekEnd, weekStart } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, safeDiv, shortName } from "@/lib/crm/format";
-import { Avatar, Chip, Empty, GoneSepRow, GoneTag, Kpi, MonthSwitcher, PageHead, Progress, Seg, StatusChip, Swatch, foldRow, useFoldGroups } from "@/components/ui/kit";
+import { Avatar, Chip, Empty, GoneSepRow, GoneTag, Kpi, MonthSwitcher, Progress, Seg, StatusChip, Swatch, foldRow, useFoldGroups } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { canEditPlan } from "@/lib/crm/access";
 import { Icon } from "@/components/ui/icons";
 import { StickyHead, planItems } from "@/components/app/StickyHead";
+import { PageHero } from "@/components/app/PageHero";
+import { PlanHero } from "@/components/app/HeroParts";
 
 type Pace = "all" | "behind" | "ok";
 const BEHIND: PaceStatus[] = ["lagging", "critical", "idle"];
@@ -198,15 +200,18 @@ export default function PlansPage() {
   return (
     <div className="stack">
       <StickyHead title="Планы" ctx={fmtMonth(month)} items={planItems(team.pace)} />
-      <PageHead
+      <PageHero
+        accent="amber"
         title="Планы"
         sub={
           head
             ? `${fmtMonth(month)} · план отдела — сумма планов групп, план группы делится между операторами`
             : `${fmtMonth(month)} · планы ${many ? "ваших групп" : "вашей группы"} и операторов`
         }
-        actions={<MonthSwitcher value={month} onChange={setMonth} />}
-      />
+        tools={<MonthSwitcher value={month} onChange={setMonth} />}
+      >
+        <PlanHero m={m} label={head ? "План отдела" : many ? "План ваших групп" : "План группы"} pace={pace} onPace={setPace} />
+      </PageHero>
 
       <div className="kpi-grid" data-n={cal.phase === "current" ? 6 : 4}>
         <Kpi label={head ? "План отдела" : many ? "План ваших групп" : "План группы"} icon="target" value={fmtInt(team.plan)} sub={many ? `сумма ${m.groups.length} групп` : `${cal.W} раб. дней`} />

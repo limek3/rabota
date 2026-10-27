@@ -6,13 +6,15 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import { dailyRows, weeklyRows } from "@/lib/crm/calc";
 import { fmtDay, fmtDayShort, fmtMonth, fmtRange, fmtWeekday } from "@/lib/crm/dates";
 import { fmtInt, fmtNum, fmtPct, fmtSigned, fmtSignedPct, shortName } from "@/lib/crm/format";
-import { Conv, LeadN, MonthSwitcher, PageHead, Seg } from "@/components/ui/kit";
+import { Conv, LeadN, MonthSwitcher, Seg } from "@/components/ui/kit";
 import { Select, dot, type Opt } from "@/components/ui/select";
 import { CumulativeChart, DailyBars, Legend } from "@/components/ui/charts";
 import { Icon } from "@/components/ui/icons";
 import { LeadsByHour } from "@/components/app/LeadsByHour";
 import { NO_GROUP } from "@/lib/crm/types";
 import { StickyHead, planItems } from "@/components/app/StickyHead";
+import { PageHero } from "@/components/app/PageHero";
+import { PaceHero } from "@/components/app/HeroParts";
 
 export default function DynamicsPage() {
   const { data, ix, month, setMonth } = useCrm();
@@ -62,15 +64,14 @@ export default function DynamicsPage() {
           ...(m.team.pace.plan > 0 && m.team.pace.elapsedW > 0 ? [{ l: "Прогноз", v: `${fmtInt(Math.round(m.team.pace.rr))} · ${fmtPct(m.team.pace.rrPct)}` }] : []),
         ]}
       />
-      <PageHead
+      <PageHero
+        accent="cyan"
         title="Динамика"
         sub={`${fmtMonth(month)} · ${sel.label}: ${fmtInt(p.fact)} из ${fmtInt(sel.plan)} (${fmtPct(p.pct)}), прогноз ${fmtInt(p.rr)}`}
-        actions={
-          <>
-            <MonthSwitcher value={month} onChange={setMonth} />
-          </>
-        }
-      />
+        tools={<MonthSwitcher value={month} onChange={setMonth} />}
+      >
+        <PaceHero cal={m.cal} p={p} plan={sel.plan} label={`${sel.label} · ${fmtMonth(month).toLowerCase()}`} counts={sel.counts} />
+      </PageHero>
 
       <div className="toolbar">
         <Select

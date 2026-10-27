@@ -1,0 +1,351 @@
+<title>Доп. смены 28–31 октября</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: шапка со счётчиками → табель «оператор × день» (что есть / что добавить) → итоги по дням → сообщения людям */
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --soft:#e9eef2; --line:#d8e0e6;
+  --fg:#12202b; --muted:#566673; --accent:#1d5d86; --accent-soft:#dcebf4;
+  --good:#1c7a46; --good-bg:#e1f2e8; --warn:#9a6110; --warn-bg:#f8eedb; --bad:#b4372d; --bad-bg:#f8e3e0;
+  --display:"Unbounded","IBM Plex Sans",system-ui,sans-serif;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f161c; --surface:#161f27; --soft:#1d2831; --line:#2a3742;
+  --fg:#e6edf2; --muted:#93a3b0; --accent:#7cb8e0; --accent-soft:#1b3344;
+  --good:#5cc78c; --good-bg:#15291e; --warn:#e3a94f; --warn-bg:#2c2415; --bad:#f07a6f; --bad-bg:#2f1a18; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f161c; --surface:#161f27; --soft:#1d2831; --line:#2a3742;
+  --fg:#e6edf2; --muted:#93a3b0; --accent:#7cb8e0; --accent-soft:#1b3344;
+  --good:#5cc78c; --good-bg:#15291e; --warn:#e3a94f; --warn-bg:#2c2415; --bad:#f07a6f; --bad-bg:#2f1a18; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 72px;display:flex;flex-direction:column;gap:32px}
+section{display:flex;flex-direction:column;gap:12px;min-width:0}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(22px,4vw,32px);line-height:1.2}
+h2{font-size:19px;font-weight:600}
+p{margin:0;max-width:72ch}
+.eyebrow{font:500 11.5px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)} .small{font-size:13.5px}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+header{display:flex;flex-direction:column;gap:12px}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stat{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.stat b{font:500 24px/1.1 var(--mono);font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.stat .bar{height:6px;border-radius:3px;background:var(--soft);overflow:hidden;display:flex;margin-top:4px}
+.stat .bar i{display:block;height:100%}
+
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13px;color:var(--muted);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{width:22px;height:14px;border-radius:4px;display:inline-block}
+.sw.has{background:var(--soft);border:1px solid var(--line)}
+.sw.add{border:1.5px dashed var(--accent);background:var(--accent-soft)}
+.sw.ok{background:var(--good-bg);border:1.5px solid var(--good)}
+.sw.no{background:var(--bad-bg);border:1.5px solid var(--bad)}
+
+.grid{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:860px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+thead th{font:500 11.5px/1.3 var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:var(--soft);text-align:center;white-space:nowrap}
+thead th:first-child{text-align:left}
+thead th.today{color:var(--fg)}
+thead th small{display:block;font-size:10.5px;letter-spacing:.02em;text-transform:none;opacity:.8}
+tbody tr:last-child td{border-bottom:0}
+td.name{min-width:190px;padding-left:12px}
+td.name b{font-weight:600;display:block}
+td.name span{font-size:12.5px;color:var(--muted)}
+.conv{font:500 11.5px/1 var(--mono);padding:3px 6px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.c-good{background:var(--good-bg);color:var(--good)} .c-mid{background:var(--accent-soft);color:var(--accent)} .c-low{background:var(--warn-bg);color:var(--warn)} .c-bad{background:var(--bad-bg);color:var(--bad)}
+tr.grp td{background:var(--bg);font:600 12px/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:10px 12px}
+td.day{width:118px;text-align:center;padding:5px}
+.cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:50px;border-radius:7px;font-size:12.5px;line-height:1.25;width:100%}
+.cell .h{font:500 15px/1.1 var(--mono);font-variant-numeric:tabular-nums}
+.cell .t{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+.cell.has{background:var(--soft);border:1px solid var(--line)}
+.cell.past{opacity:.55}
+.cell.off{color:var(--muted);font-size:12px}
+.cell.sick{color:var(--warn);font-size:12px}
+button.cell{font:inherit;color:inherit;cursor:pointer;border:1.5px dashed var(--accent);background:var(--accent-soft)}
+button.cell .st{font:600 10.5px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--accent)}
+button.cell.ok{border:1.5px solid var(--good);background:var(--good-bg)} button.cell.ok .st{color:var(--good)}
+button.cell.no{border:1.5px solid var(--bad);background:var(--bad-bg)} button.cell.no .st{color:var(--bad)} button.cell.no .h{text-decoration:line-through;opacity:.6}
+button.cell.alt{border:1.5px dashed var(--line);background:transparent} button.cell.alt .st{color:var(--muted)} button.cell.alt .h{opacity:.6}
+button.cell:hover{filter:brightness(.97)}
+button.cell:focus-visible,.copy:focus-visible,.reset:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+td.sum{text-align:right;white-space:nowrap;padding-right:12px;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13.5px}
+td.sum b{font-weight:500;font-size:15px}
+td.sum .plus{color:var(--accent)}
+tfoot td{background:var(--soft);font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:center;font-size:13px;border-bottom:1px solid var(--line)}
+tfoot tr:last-child td{border-bottom:0}
+tfoot td:first-child{text-align:left;font-family:var(--sans);font-weight:600;padding-left:12px}
+tfoot .plus{color:var(--accent)}
+tfoot .big{font-size:15px;font-weight:500}
+
+.msgs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.msg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.msg header{flex-direction:row;justify-content:space-between;align-items:center;gap:10px}
+.msg h3{font-size:15px}
+.msg p{font-size:13.5px;white-space:pre-line;color:var(--fg)}
+.copy,.reset{font:500 12.5px/1 var(--sans);padding:7px 11px;border-radius:7px;border:1px solid var(--line);background:var(--soft);color:var(--fg);cursor:pointer;white-space:nowrap}
+.copy.done{background:var(--good-bg);border-color:var(--good);color:var(--good)}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+@media (max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.msgs{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){button.cell,.copy{transition:background-color .15s,border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">LEADUP · Октябрь 2026 · к плану «1 лид в час»</div>
+    <h1>Кому добавить смены 28–31 октября</h1>
+    <p>Серые клетки уже стоят в «Графике». Синие пунктирные — смены, которые нужно согласовать. Нажмите на синюю клетку, чтобы отметить ответ: <b>согласовано</b>, затем <b>отказ</b>, ещё раз — снова «спросить». У Комиссаровой одна смена на выбор, в среду или в субботу: нажмите на день, который она выбрала, второй станет «не нужно». Отметки сохраняются только в этом браузере.</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><b id="s-shifts">0 / 17</b><span>доп. смен согласовано</span><div class="bar"><i id="b-ok" style="background:var(--good)"></i><i id="b-no" style="background:var(--bad)"></i></div></div>
+    <div class="stat"><b id="s-hours">120 ч</b><span id="s-hours-sub">на линии 28–31 (было 120)</span></div>
+    <div class="stat"><b id="s-leads">≈ 801</b><span>лидов к 31.10 при 1 лиде в час</span></div>
+    <div class="stat"><b id="s-max">≈ 909</b><span id="s-max-sub">если согласуют все оставшиеся</span></div>
+  </div>
+
+  <section>
+    <div class="toolbar">
+      <div class="legend">
+        <span><i class="sw has"></i>уже в графике</span>
+        <span><i class="sw add"></i>добавить — спросить</span>
+        <span><i class="sw ok"></i>согласовано</span>
+        <span><i class="sw no"></i>отказ</span>
+      </div>
+      <button class="reset" id="reset" type="button">Сбросить отметки</button>
+    </div>
+    <div class="grid">
+      <table>
+        <thead><tr id="head"></tr></thead>
+        <tbody id="body"></tbody>
+        <tfoot id="foot"></tfoot>
+      </table>
+    </div>
+    <p class="small muted">Время — начало смены. Часы — длительность. Цель оператора на 28–31 — столько лидов, сколько часов; у Диникаева и Сапарова выше (лид в час они уже перекрывают). Вт 27 показан для справки, в итоги не входит.</p>
+  </section>
+
+  <section>
+    <h2>Сообщения для согласования</h2>
+    <p class="small muted">Суммы посчитаны по базовой сетке отдела, как в «Зарплате»: ставка часа и бонус за лид зависят от числа лидов в смене (до 5 — 200 ₽ + 70 ₽, 6–7 — 230 ₽ + 75 ₽, 8–10 — 240 ₽ + 80 ₽, от 11 — 260 ₽ + 90 ₽), при темпе лид в час. Смены 28–31 октября попадают в выплату 06.11. Текст подстраивается под отметки: смены с отказом из него пропадают, сумма пересчитывается.</p>
+    <div class="msgs" id="msgs"></div>
+  </section>
+</div>
+
+<script>
+const DAYS = [
+  {d:27, w:"Вт", today:true},
+  {d:28, w:"Ср"}, {d:29, w:"Чт"}, {d:30, w:"Пт"}, {d:31, w:"Сб", note:"сильный день"}
+];
+const WD = {28:"ср",29:"чт",30:"пт",31:"сб"};
+// s — начало, h — часы, add — доп. смена; off — выходные, sick — больничный
+const OPS = [
+  {grp:"Добавить смены"},
+  {id:"din", name:"Диникаев А.", g:"Группа 1", conv:121, k:1.11, why:"4 дня подряд по 12 ч — если тяжело, оставить сб", shifts:{28:{s:"10:00",h:12},29:{s:"10:00",h:12},30:{s:"10:00",h:12,add:1},31:{s:"10:00",h:12,add:1}}, off:[27]},
+  {id:"kom", name:"Комиссарова В.", g:"Группа 1", conv:84, why:"одна смена на выбор: ср или сб", shifts:{28:{s:"10:00",h:8,add:1,or:"kom"},29:{s:"10:00",h:8},30:{s:"10:00",h:8},31:{s:"10:00",h:8,add:1,or:"kom"}}, off:[27]},
+  {id:"sap", name:"Сапаров Ш.", g:"Группа 1", conv:112, k:1.1, shifts:{27:{s:"9:00",h:10},28:{s:"9:00",h:10},30:{s:"10:00",h:10,add:1},31:{s:"9:00",h:10}}, off:[29]},
+  {id:"shu", name:"Шумаков И.", g:"Группа 1", conv:87, shifts:{27:{s:"10:00",h:10},29:{s:"10:00",h:10,add:1},30:{s:"10:00",h:10},31:{s:"10:00",h:10}}, off:[28]},
+  {id:"usa", name:"Усанин Д.", g:"Группа 2", conv:62, shifts:{28:{s:"9:00",h:8},29:{s:"11:00",h:8,add:1},30:{s:"11:00",h:8,add:1}}, off:[]},
+  {id:"rah", name:"Рахимов А.", g:"Группа 1", conv:71, why:"работает каждый день, в графике пусто", shifts:{28:{s:"12:00",h:5,add:1},29:{s:"12:00",h:5,add:1},30:{s:"12:00",h:4,add:1},31:{s:"12:00",h:4,add:1}}, off:[]},
+  {id:"dev", name:"Девиченская А.", g:"Группа 2 · новичок", conv:122, shifts:{27:{s:"9:00",h:null},28:{s:"11:00",h:6,add:1},29:{s:"11:00",h:6,add:1},30:{s:"11:00",h:6,add:1}}, off:[]},
+  {id:"ars", name:"Арсамаков Ю.", g:"Группа 2 · новичок", conv:122, shifts:{28:{s:"11:00",h:6,add:1},29:{s:"11:00",h:6,add:1},30:{s:"11:00",h:6,add:1}}, off:[]},
+  {id:"dzh", name:"Джамбинов Б.", g:"Группа 2 · новичок", conv:118, shifts:{28:{s:"11:00",h:6,add:1},29:{s:"11:00",h:6,add:1},30:{s:"11:00",h:6,add:1}}, off:[]},
+  {grp:"Без изменений"},
+  {id:"gim", name:"Гимранова А.", g:"Группа 1", conv:63, shifts:{27:{s:"14:00",h:8},28:{s:"14:00",h:8},30:{s:"14:00",h:8},31:{s:"14:00",h:8}}, off:[29]},
+  {id:"had", name:"Хадаев Б.", g:"Группа 1", conv:44, why:"только рядом с супервайзером", shifts:{27:{s:"12:00",h:4},29:{s:"12:00",h:4},31:{s:"12:00",h:4}}, off:[28,30]},
+  {grp:"Не на линии"},
+  {id:"vin", name:"Виноградова Л.", g:"Группа 2", conv:52, sick:[27,28,29,30,31], shifts:{}},
+  {id:"tash", name:"Ташаев Р.", g:"Группа 1", conv:28, why:"смен нет с 16.10 — решить по плану", shifts:{}},
+  {id:"klo", name:"Клочко З.", g:"Группа 1", conv:40, why:"смен нет с 15.10 — решить по плану", shifts:{}},
+];
+// базовая сетка отдела: ставка часа и бонус за лид по числу лидов в смене (как в «Зарплате»)
+const GRID = [{from:11,rate:260,bonus:90},{from:8,rate:240,bonus:80},{from:6,rate:230,bonus:75},{from:0,rate:200,bonus:70}];
+const tierOf = leads => GRID.find(t => leads >= t.from);
+const shiftPay = (h, leads) => { const t = tierOf(leads); return h*t.rate + leads*t.bonus; };
+const rub = n => Math.round(n/10)*10 > 999 ? (Math.round(n/10)*10).toLocaleString("ru-RU").replace(/ /g," ") + " ₽" : Math.round(n) + " ₽";
+// чем выход выгоден лично человеку — по одному-два пункта сверх денег
+const PITCH = {
+  din: {pace:1.2, hi:"Сейчас у тебя лучшая конверсия в отделе — 121%, больше лида в час. При твоём темпе 12 часов — это 14–15 лидов, а с 11 лидов за смену включается верхняя ступень: 260 ₽ за час и 90 ₽ за лид.",
+        perks:["суббота — самый сильный день недели, лиды идут лучше всего","твои 14–15 лидов за смену — это почти половина дневного плана всего отдела (32)","понимаю, что 4 дня подряд по 12 часов — много: если тяжело, скажи, оставим одну субботу"]},
+  kom: {hi:"Нужна одна доп. смена — в среду или в субботу, выбирай, как тебе удобнее. 8 лидов за смену — это ступень 240 ₽ за час и 80 ₽ за лид, на твоём темпе вполне реально.",
+        perks:["суббота — самый сильный день недели, в среднем 32 лида у команды","с 10:00 захватываешь весь пик, он с 11 до 19"]},
+  sap: {pace:1.1, hi:"У тебя конверсия 112% — больше лида в час. При твоём темпе 10 часов — это 11 лидов, а с 11 лидов за смену включается верхняя ступень: 260 ₽ за час и 90 ₽ за лид.",
+        perks:["смена с 10:00 — захватываешь весь пик, он с 11 до 19","ты один из трёх, на ком держится результат отдела: твоя смена — плюс треть дневного плана"]},
+  shu: {hi:"До лида в час тебе совсем немного: 10 лидов за смену — это ступень 240 ₽ за час и 80 ₽ за лид.",
+        perks:["смена с 10:00 — захватываешь весь пик, он с 11 до 19","хороший разгон перед пятницей и субботой — три смены подряд в одном ритме"]},
+  usa: {hi:"Обе смены с 11:00 — ровно в окно, где приходит больше всего лидов (с 11 до 19 — 81% всех лидов отдела). 8 лидов за смену поднимут ставку до 240 ₽ за час вместо 200.",
+        perks:["хороший шанс подтянуть конверсию: в эти часы звонки идут легче","Караваева рядом, если захочешь разобрать звонки"]},
+  rah: {hi:"Ты и так на линии каждый день — давай просто зафиксируем смены в графике, чтобы часы и план к дате считались правильно. Если делать 6 лидов за смену, ставка становится 230 ₽ за час за всю смену, а не 200.",
+        perks:["смены в графике — значит, никаких вопросов по часам при расчёте","время то же, с 12:00"]},
+  dev: {hi:"На первых сменах у тебя конверсия больше лида в час — для новичка это очень круто. Три смены подряд — лучший способ закрепить результат, пока всё свежо.",
+        perks:["6 лидов за смену — ступень 230 ₽ за час и 75 ₽ за лид","супервайзер рядом, разберём звонки по ходу"]},
+  ars: {hi:"Первый выход показал, что у тебя получается: лид в первый же час. Три смены подряд — быстро набьёшь руку и выйдешь на нормальный заработок.",
+        perks:["6 лидов за смену — ступень 230 ₽ за час и 75 ₽ за лид","супервайзер рядом, разберём звонки по ходу"]},
+  dzh: {hi:"Первый выход показал, что у тебя получается: лид в первый же час. Три смены подряд — быстро набьёшь руку и выйдешь на нормальный заработок.",
+        perks:["6 лидов за смену — ступень 230 ₽ за час и 75 ₽ за лид","супервайзер рядом, разберём звонки по ходу"]},
+};
+const BASE = 681; // факт 656 + ожидаемое за сегодня
+const KEY = "leadup-smeny-2810";
+let state = {};
+try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { state = {}; }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+const ck = (id, d) => id + "-" + d;
+const convCls = c => c >= 100 ? "c-good" : c >= 80 ? "c-mid" : c >= 60 ? "c-low" : "c-bad";
+const stLabel = {ask:"спросить", ok:"согласовано", no:"отказ"};
+const next = {ask:"ok", ok:"no", no:"ask"};
+// смена идёт в часы, если она в графике или согласована; «ждём» — пока без ответа
+const counts = (sh, id, d) => !sh.add ? "base" : (state[ck(id,d)] || "ask");
+// смены «на выбор» (or): в часы идёт одна — согласованная, а пока ответа нет — поздняя из неотклонённых
+function orGroup(op, tag){
+  const opts = Object.keys(op.shifts).map(Number).filter(d => op.shifts[d].or === tag).sort((a,b) => a-b);
+  const st = d => state[ck(op.id,d)];
+  return { opts, first: opts[0], chosen: opts.find(d => st(d) === "ok"), active: [...opts].reverse().find(d => st(d) !== "no") };
+}
+
+function render(){
+  const head = document.getElementById("head");
+  head.innerHTML = "<th>Оператор</th>" + DAYS.map(x =>
+    `<th class="${x.today?"today":""}">${x.w} ${x.d}<small>${x.today?"сегодня":x.note||"&nbsp;"}</small></th>`).join("") + "<th>Часы 28–31</th><th>Цель</th>";
+
+  let rows = "";
+  const dayTot = {}; DAYS.forEach(x => dayTot[x.d] = {base:0, ok:0, ask:0});
+  let nOk=0, nNo=0, nAll=0, hOk=0, hAsk=0;
+  for (const op of OPS){
+    if (op.grp){ rows += `<tr class="grp"><td colspan="${DAYS.length+3}">${op.grp}</td></tr>`; continue; }
+    let cells = "", hBase=0, hAdd=0, hAddAsk=0;
+    for (const x of DAYS){
+      const sh = op.shifts[x.d];
+      let c;
+      if (sh){
+        let kind = counts(sh, op.id, x.d);
+        if (sh.add){
+          let label = stLabel[kind], counted = kind !== "no", sib = "";
+          if (sh.or){
+            const g = orGroup(op, sh.or);
+            sib = g.opts.filter(d => d !== x.d).map(d => ck(op.id,d)).join(",");
+            if (g.first === x.d){ nAll++; if (g.chosen) nOk++; else if (!g.active) nNo++; }
+            if (kind !== "no" && (g.chosen ? g.chosen !== x.d : g.active !== x.d)){
+              counted = false; label = g.chosen ? "не нужно" : "или " + WD[g.active]; kind = "alt";
+            } else if (kind === "ask"){
+              const o = g.opts.filter(d => d !== x.d && state[ck(op.id,d)] !== "no").map(d => WD[d]);
+              if (o.length) label = "спросить · или " + o.join("/");
+            }
+          } else { nAll++; if (kind==="ok") nOk++; else if (kind==="no") nNo++; }
+          if (counted){
+            if (kind==="ok"){ hOk+=sh.h; hAdd+=sh.h; dayTot[x.d].ok+=sh.h; }
+            else { hAsk+=sh.h; hAddAsk+=sh.h; dayTot[x.d].ask+=sh.h; }
+          }
+          c = `<button type="button" class="cell ${kind==="ask"?"":kind}" data-k="${ck(op.id,x.d)}" data-sib="${sib}" aria-label="${op.name}, ${x.w} ${x.d}: ${label}"><span class="h">${sh.h} ч</span><span class="t">с ${sh.s}</span><span class="st">${label}</span></button>`;
+        } else {
+          if (!x.today){ hBase+=sh.h; dayTot[x.d].base+=sh.h; }
+          c = `<div class="cell has ${x.today?"past":""}"><span class="h">${sh.h?sh.h+" ч":"смена"}</span><span class="t">с ${sh.s}</span></div>`;
+        }
+      } else if (op.sick && op.sick.includes(x.d)) c = `<div class="cell sick">больн.</div>`;
+      else if ((op.off||[]).includes(x.d)) c = `<div class="cell off">вых</div>`;
+      else c = `<div class="cell off">—</div>`;
+      cells += `<td class="day">${c}</td>`;
+    }
+    const hrs = hBase + hAdd, pot = hrs + hAddAsk;
+    const tgt = Math.round(hrs * (op.k||1)), tgtPot = Math.round(pot * (op.k||1));
+    const sum = pot ? `<b>${hrs}</b>${hAddAsk?` <span class="plus">+${hAddAsk}?</span>`:""}` : `<span class="muted">—</span>`;
+    const tg = pot ? `<b>${tgt}</b>${tgtPot>tgt?` <span class="plus">→ ${tgtPot}</span>`:""}` : `<span class="muted">—</span>`;
+    rows += `<tr><td class="name"><b>${op.name}<span class="conv ${convCls(op.conv)}">${op.conv}%</span></b><span>${op.g}${op.why?" · "+op.why:""}</span></td>${cells}<td class="sum">${sum}</td><td class="sum">${tg}</td></tr>`;
+  }
+  document.getElementById("body").innerHTML = rows;
+
+  const f = DAYS.map(x => {
+    if (x.today) return `<td class="muted">32 ч<br>по графику</td>`;
+    const t = dayTot[x.d]; return `<td>${t.base}${t.ok?` <span style="color:var(--good)">+${t.ok}</span>`:""}${t.ask?` <span class="plus">+${t.ask}?</span>`:""}</td>`; }).join("");
+  const tot = DAYS.filter(x=>!x.today).map(x => {
+    const t = dayTot[x.d]; return `<td class="big">${t.base+t.ok}${t.ask?` <span class="plus small">/ ${t.base+t.ok+t.ask}</span>`:""}</td>`; }).join("");
+  let cum = BASE;
+  const cumRow = DAYS.filter(x=>!x.today).map(x => { const t = dayTot[x.d]; cum += t.base+t.ok; return `<td>${cum}</td>`; }).join("");
+  const baseH = Object.values(dayTot).reduce((a,t)=>a+t.base,0);
+  document.getElementById("foot").innerHTML =
+    `<tr><td>Часы: график <span style="color:var(--good)">+ согласовано</span> <span class="plus">+ ждём</span></td>${f}<td colspan="2"></td></tr>`+
+    `<tr><td>Часов на линии = цель лидов</td><td class="muted">≥ 26</td>${tot}<td class="big" colspan="2">${baseH+hOk}${hAsk?` <span class="plus small">/ ${baseH+hOk+hAsk}</span>`:""}</td></tr>`+
+    `<tr><td>Лидов к концу дня (накопительно)</td><td class="muted">≈ ${BASE}</td>${cumRow}<td colspan="2" class="muted small">при 1 лиде в час</td></tr>`;
+
+  document.getElementById("s-shifts").textContent = `${nOk} / ${nAll}`;
+  document.getElementById("b-ok").style.width = (nOk/nAll*100)+"%";
+  document.getElementById("b-no").style.width = (nNo/nAll*100)+"%";
+  document.getElementById("s-hours").textContent = `${baseH+hOk} ч`;
+  document.getElementById("s-hours-sub").textContent = `на линии 28–31: ${baseH} в графике + ${hOk} согласовано`;
+  document.getElementById("s-leads").textContent = `≈ ${BASE+baseH+hOk}`;
+  document.getElementById("s-max").textContent = `≈ ${BASE+baseH+hOk+hAsk}`;
+  document.getElementById("s-max-sub").textContent = hAsk ? `если согласуют оставшиеся ${hAsk} ч` : (nNo ? `больше не добрать: ${nNo} отказ.` : "все доп. смены согласованы");
+
+  renderMsgs();
+}
+
+function renderMsgs(){
+  const out = [];
+  for (const op of OPS){
+    if (op.grp) continue;
+    // одна строка на смену; смены «на выбор» — одной строкой «ср или сб», пока не выбрана
+    const items = [], seen = new Set(), day = d => `${WD[d]} ${d}.10`;
+    for (const [ds, sh] of Object.entries(op.shifts)){
+      if (!sh.add) continue;
+      const d = +ds, st = state[ck(op.id,d)];
+      if (sh.or){
+        if (seen.has(sh.or)) continue; seen.add(sh.or);
+        const g = orGroup(op, sh.or);
+        if (g.chosen){ items.push({line:`• ${day(g.chosen)} — с ${sh.s}, ${sh.h} ч`, h:sh.h, ok:true}); continue; }
+        const left = g.opts.filter(x => state[ck(op.id,x)] !== "no");
+        if (!left.length) continue;
+        items.push({line:`• ${left.map(day).join(" или ")} — с ${sh.s}, ${sh.h} ч${left.length > 1 ? ", как тебе удобнее" : ""}`, h:sh.h, ok:false});
+      } else if (st !== "no") items.push({line:`• ${day(d)} — с ${sh.s}, ${sh.h} ч`, h:sh.h, ok:st === "ok"});
+    }
+    if (!items.length) continue;
+    const allOk = items.every(x => x.ok);
+    const p = PITCH[op.id] || {perks:[]};
+    const lines = items.map(x => x.line).join("\n");
+    const hrs = items.reduce((a,x) => a + x.h, 0);
+    const pay = items.reduce((a,x) => a + shiftPay(x.h, Math.round(x.h*(p.pace||1))), 0);
+    const one = items.length === 1;
+    const text =
+`Привет! Добиваем октябрь всей командой, и очень пригодится твоя помощь. Сможешь выйти ${one?"на смену":"на эти смены"}?
+${lines}
+
+${p.hi}
+
+Что тебе это даст:
+• примерно +${rub(pay)} к выплате 06.11 (${hrs} ч ${p.pace ? "при твоём темпе" : "при лиде в час"} по сетке)
+${p.perks.map(x=>"• "+x).join("\n")}
+
+И для команды это важно: неделю 19–25 октября мы уже прошли на 104% — лид в час, — и сейчас каждый час на линии реально двигает итог месяца.
+
+Напиши, пожалуйста, сегодня, получится или нет, — сразу внесу в график. Спасибо!`;
+    out.push(`<div class="msg"><header><h3>${op.name}${allOk?' <span class="conv c-good">согласовано</span>':""}</h3><button class="copy" type="button" data-t="${encodeURIComponent(text)}">Скопировать</button></header><p>${text}</p></div>`);
+  }
+  document.getElementById("msgs").innerHTML = out.join("") || `<p class="muted">Все доп. смены отмечены отказом.</p>`;
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("button.cell");
+  if (b){
+    const k = b.dataset.k;
+    // клик по «или …» / «не нужно» сразу выбирает этот день
+    const nx = b.classList.contains("alt") ? "ok" : next[state[k]||"ask"];
+    if (nx === "ask") delete state[k]; else state[k] = nx;
+    if (nx === "ok" && b.dataset.sib) b.dataset.sib.split(",").forEach(s => delete state[s]);
+    save(); render(); document.querySelector(`[data-k="${k}"]`)?.focus(); return; }
+  const c = e.target.closest(".copy");
+  if (c){
+    const t = decodeURIComponent(c.dataset.t);
+    const done = () => { c.textContent = "Скопировано"; c.classList.add("done"); setTimeout(()=>{ c.textContent="Скопировать"; c.classList.remove("done"); }, 1600); };
+    const fallback = () => { const p = c.closest(".msg").querySelector("p"); const r = document.createRange(); r.selectNodeContents(p); const s = getSelection(); s.removeAllRanges(); s.addRange(r); c.textContent = "Выделено — Ctrl+C"; };
+    try { navigator.clipboard.writeText(t).then(done, fallback); } catch (err) { fallback(); }
+    return;
+  }
+  if (e.target.id === "reset"){ state = {}; save(); render(); }
+});
+render();
+</script>
