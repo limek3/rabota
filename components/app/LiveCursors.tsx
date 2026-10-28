@@ -5,7 +5,9 @@ import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { gradeLevel } from "@/lib/crm/telegram";
-import { LIVE_HIDE_EVENT, liveColor, liveHidden, liveOthersOff, openLive, type LiveLink, type LiveMsg } from "@/lib/live";
+import { LIVE_HIDE_EVENT, liveColor, liveHidden, liveOthersOff, markParty, openLive, partySeen, type LiveLink, type LiveMsg } from "@/lib/live";
+import { useMonthModel } from "@/lib/crm/hooks";
+import type { MonthKey } from "@/lib/crm/types";
 import { plural, shortName } from "@/lib/crm/format";
 import { uiZoom } from "@/components/ui/select";
 
@@ -68,6 +70,29 @@ const msgTtl = (p: Peer) => (p.role === "head" ? MSG_MS * 2 : MSG_MS);
 
 const sidOf = () => Math.random().toString(36).slice(2, 10);
 
+/** Точка экрана → координаты содержимого страницы; мышь не над содержимым — null. */
+function posIn(host: HTMLElement, m: { x: number; y: number; rail: boolean }): { x: number; y: number; w: number } | null {
+  if (m.rail) return null;
+  const z = uiZoom();
+  const r = host.getBoundingClientRect();
+  if (m.x < r.left || m.x > r.right || m.y < r.top || m.y > r.bottom) return null;
+  return { x: (m.x - r.left) / z, y: (m.y - r.top) / z, w: r.width / z };
+}
+
+/** Быстрые смайлики в поле сообщения. */
+const EMOJI = ["👍", "🔥", "😂", "❤️", "👀", "🎉", "✅", "🙏", "💪", "😎"];
+/** Сообщение только из смайликов — показываем крупно, без пузыря. */
+const EMOJI_ONLY = new RegExp("^(?:\\p{Extended_Pictographic}|\\uFE0F|\\u200D|\\s){1,12}$", "u");
+const isEmoji = (s: string) => EMOJI_ONLY.test(s) && /\S/.test(s);
+
+/** Мини-чат страницы: последние сообщения — чтобы не пропустить, если отошёл. Только в памяти вкладки. */
+const NOTES_MAX = 10;
+type Note = { k: string; id: string; name: string; text: string; at: number; mine?: boolean };
+
+type Party = { key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number; mine?: boolean };
+const PARTY_MS = 5200;
+const hhmm = (t: number) => new Date(t).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+
 export function LiveCursors() {
   const { me, data, access, today } = useCrm();
   // свой грейд дня — по своим доведённым лидам за сегодня; без карточки оператора (РОП) грейда нет
@@ -86,6 +111,10 @@ export function LiveCursors() {
     return { gids, team: names.length === 1 ? names[0] : names.length > 1 ? `${names.length} ${plural(names.length, ["группа", "группы", "групп"])}` : undefined };
   }, [gidsKey, data.groups]);
   const myGroup = access.opId ? data.operators.find((o) => o.id === access.opId)?.groupId ?? null : null;
+  // план отдела на сегодня — видит только тот, кому виден весь отдел (РОП); он и объявляет праздник
+  const mm = useMonthModel(today.slice(0, 7) as MonthKey);
+  const tp = mm.team.pace;
+  const planMet = access.viewAll && mm.cal.phase === "current" && mm.cal.isWork(today) && tp.dailyPlan > 0 && tp.today >= tp.dailyPlan;
   // «/leads/» и «/leads» — одна страница (сборка со слешем на конце)
   const path = (usePathname() || "/").replace(/(.)\/$/, "$1");
   const [peers, setPeers] = useState<Record<string, Peer>>({});
@@ -97,16 +126,62 @@ export function LiveCursors() {
   const [cur, setCur] = useState<{ x: number; y: number } | null>(null);
   const [open, setOpen] = useState(false);
   const hereRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const follow = useRef(false);
   const [, tick] = useState(0);
   const link = useRef<LiveLink | null>(null);
   const sid = useRef(sidOf());
   const pos = useRef<{ x: number; y: number; w: number } | null>(null);
+  // где мышь на экране (последнее движение); над меню слева — rail
+  const mouse = useRef<{ x: number; y: number; rail: boolean } | null>(null);
   const ready = me.id !== "__boot__";
 
   // чужие курсоры выключены в настройках — не принимаем и не рисуем их
   const [othersOff, setOthersOff] = useState(false);
   const othersOffRef = useRef(false);
+
+  // мини-чат: сообщения по страницам и когда список последний раз смотрели (непрочитанные — на плашке)
+  const [notes, setNotes] = useState<Record<string, Note[]>>({});
+  const [readAt, setReadAt] = useState<Record<string, number>>({});
+  const peersRef = useRef(peers);
+  peersRef.current = peers;
+  const addNote = (pg: string, n: Note) => setNotes((h) => ({ ...h, [pg]: [...(h[pg] ?? []), n].slice(-NOTES_MAX) }));
+
+  // праздник: один раз за день на каждый повод (в этом браузере)
+  const [party, setParty] = useState<Party | null>(null);
+  const celebrate = (p: Party) => {
+    if (partySeen(p.key)) return;
+    markParty(p.key, today);
+    setParty(p);
+  };
+  const celebrateRef = useRef(celebrate);
+  celebrateRef.current = celebrate;
+  useEffect(() => {
+    if (!party) return;
+    const t = window.setTimeout(() => setParty(null), PARTY_MS);
+    return () => window.clearTimeout(t);
+  }, [party]);
+  const announce = (p: Omit<Party, "mine">) => {
+    if (partySeen(p.key)) return;
+    celebrate({ ...p, mine: p.kind === "g4" });
+    link.current?.send({ t: "party", sid: sid.current, ...p });
+  };
+  // свой Грейд IV — когда дорос до него за сессию (при открытии уже IV — не празднуем задним числом)
+  const prevGrade = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevGrade.current;
+    prevGrade.current = myGrade;
+    if (prev != null && prev < 4 && myGrade === 4) announce({ key: `g4:${me.id}:${today}`, kind: "g4", name: me.name });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myGrade]);
+  // план отдела на день — так же, только в момент выполнения
+  const prevPlan = useRef<boolean | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevPlan.current;
+    prevPlan.current = planMet;
+    if (prev === false && planMet) announce({ key: `plan:${today}`, kind: "plan", n: tp.today, plan: Math.round(tp.dailyPlan) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planMet]);
 
   useEffect(() => {
     const on = () => {
@@ -133,7 +208,13 @@ export function LiveCursors() {
   useEffect(() => {
     if (!ready) return;
     const l = openLive((m: LiveMsg) => {
+      // праздник показываем всем, даже если чужие курсоры выключены
+      if (m.t === "party") return celebrateRef.current({ key: m.key, kind: m.kind, name: m.name, n: m.n, plan: m.plan });
       if (othersOffRef.current) return;
+      if (m.t === "msg") {
+        const p = peersRef.current[m.sid];
+        if (p) addNote(m.path, { k: `${m.sid}:${Date.now()}`, id: p.id, name: p.name, text: m.text.slice(0, MSG_MAX), at: Date.now() });
+      }
       setPeers((prev) => {
         const p = prev[m.sid];
         const now = Date.now();
@@ -213,15 +294,11 @@ export function LiveCursors() {
     };
     // мышь шлёт сотни событий в секунду — размеры страницы читаем не чаще раза за кадр:
     // чтение на каждое событие заставляло браузер пересчитывать большие таблицы снова и снова
-    let raw: { x: number; y: number; rail: boolean } | null = null;
     const measure = () => {
       frame = 0;
-      const m = raw;
-      if (!m) return;
-      const z = uiZoom();
-      const r = host.getBoundingClientRect();
-      const inside = !m.rail && m.x >= r.left && m.x <= r.right && m.y >= r.top && m.y <= r.bottom;
-      pos.current = inside ? { x: (m.x - r.left) / z, y: (m.y - r.top) / z, w: r.width / z } : null;
+      if (!mouse.current) return;
+      pos.current = posIn(host, mouse.current);
+      const inside = !!pos.current;
       if (follow.current && pos.current) setCur({ x: pos.current.x, y: pos.current.y });
       if (!inside && !wasIn) return;
       wasIn = inside;
@@ -231,11 +308,11 @@ export function LiveCursors() {
     };
     const move = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;
-      raw = { x: e.clientX, y: e.clientY, rail: e.target instanceof Element && !!e.target.closest(".app-rail") };
+      mouse.current = { x: e.clientX, y: e.clientY, rail: e.target instanceof Element && !!e.target.closest(".app-rail") };
       if (!frame) frame = window.requestAnimationFrame(measure);
     };
     const leave = () => {
-      raw = null;
+      mouse.current = null;
       pos.current = null;
       wasIn = false;
       send();
@@ -253,48 +330,54 @@ export function LiveCursors() {
     };
   }, [host, hidden, path, ready]);
 
-  // Enter — написать сообщение у своего курсора (не в поле, не на кнопке, не в открытом окне)
+  // Enter — написать сообщение у своего курсора (не в поле ввода и не в открытом окне)
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !host) return;
+    // ходят по кнопкам с клавиатуры (Tab, стрелки) — Enter нажимает кнопку; мышью — Enter наш.
+    // Раньше смотрели «по этой ли кнопке щёлкнули»: после закрытия окна фокус сам возвращается
+    // на кнопку, которая его открыла, — и Enter молча уходил ей.
+    let kbNav = false;
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Tab" || e.key.startsWith("Arrow")) kbNav = true;
       if (e.key !== "Enter" || e.repeat || e.defaultPrevented || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || hidden || typing) return;
       const t = e.target instanceof Element ? e.target : null;
       if (t?.closest("input, textarea, select, [contenteditable=true]")) return;
-      // кнопка в фокусе после щелчка мышью — Enter не её; пришли на неё Tab'ом — её
-      const ctl = t?.closest(CONTROLS);
-      if (ctl && ctl !== clicked) return;
-      if (document.querySelector(".modal, [role=dialog], [role=menu], [role=listbox]")) return;
-      const p = pos.current;
+      if (kbNav && t?.closest(CONTROLS)) return;
+      // открытое окно или меню — только видимое: спрятанные списки в разметке не мешают
+      if (Array.from(document.querySelectorAll(".modal, [role=dialog], [role=menu], [role=listbox]")).some((el) => el.getClientRects().length > 0)) return;
+      // где мышь — считаем прямо сейчас: после перехода на другую страницу прежней позиции уже нет
+      const p = mouse.current ? posIn(host, mouse.current) : null;
       if (!p) return;
+      pos.current = p;
       e.preventDefault();
       setCur({ x: p.x, y: p.y });
       setTyping(true);
     };
-    let clicked: Element | null = null;
-    const onDown = (e: PointerEvent) => {
-      clicked = e.target instanceof Element ? e.target.closest(CONTROLS) : null;
-    };
-    const onTab = (e: KeyboardEvent) => {
-      if (e.key === "Tab") clicked = null;
+    const onDown = () => {
+      kbNav = false;
     };
     window.addEventListener("pointerdown", onDown, true);
-    window.addEventListener("keydown", onTab, true);
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("pointerdown", onDown, true);
-      window.removeEventListener("keydown", onTab, true);
       window.removeEventListener("keydown", onKey);
     };
-  }, [hidden, ready, typing]);
+  }, [hidden, ready, typing, host]);
 
   const sendMsg = (text: string) => {
     const v = text.trim().slice(0, MSG_MAX);
     if (v && link.current) {
       link.current.send({ t: "msg", sid: sid.current, path, text: v });
       setMine({ text: v, at: Date.now() });
+      addNote(path, { k: `me:${Date.now()}`, id: me.id, name: me.name, text: v, at: Date.now(), mine: true });
     }
     setTyping(false);
   };
+
+  // открыли список — сообщения этой страницы прочитаны
+  useEffect(() => {
+    if (open) setReadAt((r) => ({ ...r, [path]: Date.now() }));
+  }, [open, path, notes]);
 
   // список «кто на странице»: закрываем щелчком мимо и Esc
   useEffect(() => {
@@ -335,6 +418,9 @@ export function LiveCursors() {
   if (!ready || !host) return null;
   const now = Date.now();
   const here = Object.values(peers).filter((p) => p.path === path);
+  const pageNotes = notes[path] ?? [];
+  // непрочитанные — чужие сообщения после последнего открытия списка
+  const unread = open ? 0 : pageNotes.filter((n) => !n.mine && n.at > (readAt[path] ?? 0)).length;
   // кто на странице — по аккаунтам (у человека может быть две вкладки)
   const people = Array.from(new Map(here.map((p) => [p.id, p])).values()).sort((a, b) => rankWeight(b) - rankWeight(a));
   const w = host.clientWidth;
@@ -368,13 +454,13 @@ export function LiveCursors() {
                   {shortName(p.name) || "Коллега"}
                   {p.role === "supervisor" && p.team && <em>· {p.team}</em>}
                 </span>
-                {talking && <span className="lv-msg">{p.msg}</span>}
+                {talking && <span className={`lv-msg${isEmoji(p.msg ?? "") ? " emo" : ""}`}>{p.msg}</span>}
               </div>
             );
           })}
           {talkingMe && !typing && cur && (
             <div className={`lv-cur me${me.role === "head" ? " r-head" : ""}`} style={{ ["--lv" as string]: "var(--brand)", transform: `translate3d(${cur.x}px, ${cur.y}px, 0)` }}>
-              <span key={mine.at} className="lv-msg">
+              <span key={mine.at} className={`lv-msg${isEmoji(mine.text) ? " emo" : ""}`}>
                 {mine.text}
               </span>
             </div>
@@ -387,6 +473,7 @@ export function LiveCursors() {
         createPortal(
           <div className="lv-type" style={{ transform: `translate3d(${cur.x}px, ${cur.y}px, 0)` }}>
             <input
+              ref={inputRef}
               autoFocus
               maxLength={MSG_MAX}
               placeholder="Сообщение всем на странице…"
@@ -396,16 +483,57 @@ export function LiveCursors() {
               }}
               onBlur={() => setTyping(false)}
             />
-            <span>Enter — отправить · Esc — отмена</span>
+            {/* смайлик: поле пустое — сразу отправляем его; есть текст — вставляем в текст.
+                mousedown без фокуса — иначе поле теряет фокус и закрывается */}
+            <div className="lv-emo" onMouseDown={(e) => e.preventDefault()}>
+              {EMOJI.map((em) => (
+                <button
+                  key={em}
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => {
+                    const inp = inputRef.current;
+                    if (!inp || !inp.value.trim()) return sendMsg(em);
+                    const at = inp.selectionStart ?? inp.value.length;
+                    inp.setRangeText(em, at, inp.selectionEnd ?? at, "end");
+                    inp.focus();
+                  }}
+                >
+                  {em}
+                </button>
+              ))}
+            </div>
+            <span>Enter — отправить · Esc — отмена · смайлик без текста — сразу</span>
           </div>,
           host,
         )}
-      {people.length > 0 &&
+      {(people.length > 0 || pageNotes.length > 0) &&
         createPortal(
           <div ref={hereRef} className={`lv-here${open ? " open" : ""}`}>
             <div className="lv-here-list" aria-hidden={!open}>
               <div className="lv-here-in">
-                <div className="lv-here-h">Сейчас на этой странице</div>
+                {pageNotes.length > 0 && (
+                  <>
+                    <div className="lv-here-h">Сообщения на странице</div>
+                    <div className="lv-notes" ref={(el) => {
+                        if (el) el.scrollTop = el.scrollHeight;
+                      }}>
+                      {pageNotes.map((n) => (
+                        <div key={n.k} className={`lv-note${n.mine ? " mine" : ""}`}>
+                          <i style={{ background: n.mine ? "var(--brand)" : liveColor(n.id) }} />
+                          <div>
+                            <b>
+                              {n.mine ? "Вы" : shortName(n.name) || "Коллега"}
+                              <time>{hhmm(n.at)}</time>
+                            </b>
+                            <p className={isEmoji(n.text) ? "emo" : undefined}>{n.text}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {people.length > 0 && <div className="lv-here-h">Сейчас на этой странице</div>}
                 {people.map((p) => {
                   const active = p.x != null && now - (p.moved ?? 0) < IDLE_MS;
                   const r = rankOf(p);
@@ -440,9 +568,10 @@ export function LiveCursors() {
                 ))}
               </span>
               <span className="lv-here-t">
-                {people.length === 1 ? shortName(people[0].name) : `${people.length} на странице`}
+                {people.length === 0 ? "Сообщения" : people.length === 1 ? shortName(people[0].name) : `${people.length} на странице`}
                 {!hidden && <em> · Enter — написать</em>}
               </span>
+              {unread > 0 && <span className="lv-unread">{unread}</span>}
               <svg className="lv-here-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden>
                 <path d="M2 6.5 5 3.5 8 6.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -450,7 +579,55 @@ export function LiveCursors() {
           </div>,
           document.documentElement,
         )}
+      {party && createPortal(<Confetti key={party.key} party={party} />, document.documentElement)}
     </>
+  );
+}
+
+/** Конфетти на весь экран и подпись: кто взял Грейд IV или что отдел выполнил план дня. */
+const CONFETTI = ["#ffc83d", "#f97316", "#ef4444", "#ec4899", "#a855f7", "#3b82f6", "#06b6d4", "#10b981"];
+function Confetti({ party }: { party: Party }) {
+  const bits = useMemo(
+    () =>
+      Array.from({ length: 90 }, (_, i) => ({
+        left: Math.random() * 100,
+        delay: Math.random() * 0.7,
+        dur: 2.4 + Math.random() * 1.6,
+        drift: (Math.random() - 0.5) * 160,
+        spin: (Math.random() < 0.5 ? -1 : 1) * (360 + Math.random() * 720),
+        w: 6 + Math.random() * 6,
+        round: i % 4 === 0,
+        color: CONFETTI[i % CONFETTI.length],
+      })),
+    [],
+  );
+  const g4 = party.kind === "g4";
+  return (
+    <div className="lv-party" aria-live="polite">
+      {bits.map((b, i) => (
+        <i
+          key={i}
+          style={{
+            left: `${b.left}%`,
+            width: b.w,
+            height: b.round ? b.w : b.w * 0.45,
+            borderRadius: b.round ? "50%" : 2,
+            background: b.color,
+            animationDelay: `${b.delay}s`,
+            animationDuration: `${b.dur}s`,
+            ["--dx" as string]: `${b.drift}px`,
+            ["--rot" as string]: `${b.spin}deg`,
+          }}
+        />
+      ))}
+      <div className={`lv-party-cap ${party.kind}`}>
+        <span className="lv-party-ico">{g4 ? "👑" : "🎉"}</span>
+        <div>
+          <b>{g4 ? (party.mine ? "Вы взяли Грейд IV!" : `${shortName(party.name ?? "") || "Коллега"} — Грейд IV!`) : "Отдел выполнил план дня!"}</b>
+          <span>{g4 ? "11 доведённых за день — так держать" : party.n != null && party.plan ? `${party.n} лидов при плане ${party.plan} — и день ещё не кончился` : "Спасибо всем, кто на смене"}</span>
+        </div>
+      </div>
+    </div>
   );
 }
 

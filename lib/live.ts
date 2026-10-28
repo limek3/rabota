@@ -13,7 +13,8 @@ import { supabase, supabaseReady } from "@/lib/supabase";
  *   cur   — положение мыши в координатах содержимого страницы (x — доля ширины, y — пиксели от верха);
  *   out   — мышь ушла со страницы (на меню, из окна, вкладка свернута);
  *   msg   — короткое сообщение у курсора;
- *   bye   — закрыл вкладку или скрыл свой курсор.
+ *   bye   — закрыл вкладку или скрыл свой курсор;
+ *   party — праздник у всех: кто-то взял Грейд IV или отдел выполнил план дня (конфетти).
  * sid — вкладка (у одного аккаунта их может быть несколько).
  */
 export type LiveMsg =
@@ -23,7 +24,30 @@ export type LiveMsg =
   | { t: "cur"; sid: string; path: string; x: number; y: number }
   | { t: "out"; sid: string }
   | { t: "msg"; sid: string; path: string; text: string }
-  | { t: "bye"; sid: string };
+  | { t: "bye"; sid: string }
+  // праздник у всех: g4 — человек взял Грейд IV, plan — отдел выполнил план дня; key — один раз за день
+  | { t: "party"; sid: string; key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number };
+
+/* ── праздники: какие уже показали сегодня (в этом браузере), чтобы не повторять ── */
+const PARTY_KEY = "leadup.live.party";
+
+export function partySeen(key: string): boolean {
+  try {
+    return (JSON.parse(localStorage.getItem(PARTY_KEY) || "[]") as string[]).includes(key);
+  } catch {
+    return false;
+  }
+}
+
+/** Отметить показанным; ключи держим только за последние дни. */
+export function markParty(key: string, today: string) {
+  try {
+    const keep = (JSON.parse(localStorage.getItem(PARTY_KEY) || "[]") as string[]).filter((k) => k.endsWith(today)).slice(-50);
+    localStorage.setItem(PARTY_KEY, JSON.stringify([...keep, key]));
+  } catch {
+    /* не запомнили — в худшем случае покажем ещё раз */
+  }
+}
 
 export interface LiveLink {
   send: (m: LiveMsg) => void;
