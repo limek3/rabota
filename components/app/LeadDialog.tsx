@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Lead } from "@/lib/crm/types";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { shortName } from "@/lib/crm/format";
 import { Layer, usePopover } from "@/components/ui/select";
 import { getVexaBridge } from "@/lib/electron";
+import { player, usePlayer } from "@/lib/player";
 import { downloadBlob } from "@/lib/xlsx";
 import { DIALOG_BUSY, cachedDialog, dialogAvailable, dialogCallId, readDialog, sameDialogCall, syncDialog, type LeadDialog as Dialog } from "@/lib/crm/dialog";
 
@@ -165,16 +166,6 @@ function Notice({ icon, title, danger, children, action }: { icon: IconName; tit
   );
 }
 
-const VOL_KEY = "leadup.playerVolume";
-function savedVolume(): number {
-  try {
-    const v = Number(localStorage.getItem(VOL_KEY));
-    return localStorage.getItem(VOL_KEY) != null && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1;
-  } catch {
-    return 1;
-  }
-}
-
 /** Имя файла записи: «Разговор Светлана +79375634685 17.10.2026 16-11.mp3». */
 function recordName(lead: Lead, url: string): string {
   const ext = url.split("?")[0].match(/\.(mp3|wav|ogg|m4a)$/i)?.[1]?.toLowerCase() ?? "mp3";
@@ -198,15 +189,25 @@ async function downloadRecord(url: string, name: string) {
   }
 }
 
-/** Запись разговора из Скорозвона: плеер, скачать, громкость, скорость. */
+/**
+ * Запись разговора из Скорозвона: плеер, скачать, громкость, скорость.
+ * Звук — в общем плеере (lib/player.ts): ушли на другую страницу — запись играет дальше в мини-плеере.
+ */
 export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
-  const audio = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [t, setT] = useState(0);
-  const [dur, setDur] = useState(0);
-  const [speed, setSpeed] = useState(1);
+  const pl = usePlayer();
+  const src = d.dlg?.recordUrl ?? "";
+  // эта карточка показывает свою запись — мини-плеер для неё не нужен
+  // layout-эффект: при закрытии карточки плеер ещё на экране — запоминаем, где он стоял (мини-плеер прилетит оттуда)
+  const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => (src ? player.view(src, () => box.current?.getBoundingClientRect() ?? null) : undefined), [src]);
+  const on = !!src && pl.src === src;
+  const playing = on && pl.playing;
+  const t = on ? pl.t : 0;
+  const dur = on ? pl.dur : 0;
+  const speed = pl.speed;
   // громкость — общая для всех записей, запоминается
-  const [vol, setVol] = useState(savedVolume);
+  const vol = pl.vol;
+  const setVol = (f: (v: number) => number) => player.setVol(f(pl.vol));
   const [volOpen, setVolOpen] = useState(false);
   const volBtn = useRef<HTMLButtonElement>(null);
   const volPop = useRef<HTMLDivElement>(null);
@@ -214,14 +215,6 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
   const dlg = d.dlg;
   const total = dur || dlg?.callSec || 0;
   const bars = useMemo(() => (dlg ? waveBars(dlg.segments, total, dlg.operatorSpeaker) : []), [dlg, total]);
-  useEffect(() => {
-    if (audio.current) audio.current.volume = vol;
-    try {
-      localStorage.setItem(VOL_KEY, String(vol));
-    } catch {
-      /* ignore */
-    }
-  }, [vol]);
 
   if (d.state === "none") {
     if (!d.callId)
@@ -253,46 +246,19 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
     );
   if (!dlg) return null;
 
-  const seek = (sec: number) => {
-    const a = audio.current;
-    if (!a) return;
-    a.currentTime = sec;
-    setT(sec);
-    void a.play().catch(() => {});
-  };
-  const toggle = () => {
-    const a = audio.current;
-    if (!a) return;
-    if (a.paused) void a.play().catch(() => {});
-    else a.pause();
-  };
-  const nextSpeed = () => {
-    const v = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
-    setSpeed(v);
-    if (audio.current) audio.current.playbackRate = v;
-  };
   const opName = dlg.callUser ? shortName(dlg.callUser) : "Оператор";
   const clName = lead.client || "Клиент";
+  // для мини-плеера: кто на записи и когда
+  const meta = { leadId: lead.id, title: clName, sub: `${opName} · ${lead.at.slice(8, 10)}.${lead.at.slice(5, 7)} ${lead.at.slice(11, 16)}` };
+  const seek = (sec: number) => player.seek(dlg.recordUrl, meta, sec);
+  const toggle = () => (on ? player.toggle() : player.play(dlg.recordUrl, meta));
+  const nextSpeed = () => player.setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length]);
 
   return (
     <>
       {/* запись: «волна» (у старых разговоров с расшифровкой — цветом кто говорит, провалы — паузы); клик — перемотка */}
       {dlg.recordUrl && (
-        <div className="lw">
-          <audio
-            ref={audio}
-            src={dlg.recordUrl}
-            preload="metadata"
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onEnded={() => setPlaying(false)}
-            onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
-            onLoadedMetadata={(e) => {
-              if (Number.isFinite(e.currentTarget.duration)) setDur(e.currentTarget.duration);
-              e.currentTarget.playbackRate = speed;
-              e.currentTarget.volume = vol;
-            }}
-          />
+        <div className="lw" ref={box}>
           <div className="lw-row">
             <button type="button" className="lw-play" onClick={toggle} aria-label={playing ? "Пауза" : "Слушать"}>
               {/* залитые фигуры 12×12 по центру круга. Треугольник стоит так, что середина между центром его
@@ -373,7 +339,7 @@ export function CallReview({ lead, d }: { lead: Lead; d: DialogState }) {
                 <button type="button" className="lw-ib" onClick={() => setVol((v) => (v > 0 ? 0 : 1))} title={vol > 0 ? "Выключить звук" : "Включить звук"}>
                   <VolumeIcon v={vol} />
                 </button>
-                <input type="range" min={0} max={100} step={5} value={Math.round(vol * 100)} onChange={(e) => setVol(Number(e.target.value) / 100)} aria-label="Громкость" />
+                <input type="range" min={0} max={100} step={5} value={Math.round(vol * 100)} onChange={(e) => player.setVol(Number(e.target.value) / 100)} aria-label="Громкость" />
                 <span className="num">{Math.round(vol * 100)}%</span>
               </div>
             </Layer>

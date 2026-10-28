@@ -10,6 +10,7 @@ import { ConfirmHost, Progress, ToastHost, isTyping } from "@/components/ui/kit"
 import { TitleTips } from "@/components/ui/TitleTips";
 import { CursorFx } from "@/components/ui/CursorFx";
 import { LiveCursors } from "./LiveCursors";
+import { MiniPlayer } from "./MiniPlayer";
 import { AuthGate } from "./AuthGate";
 import { LeadModal } from "./LeadModal";
 import { OperatorModal } from "./OperatorModal";
@@ -497,6 +498,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <TitleTips />
         <CursorFx />
         <LiveCursors />
+        <MiniPlayer />
         <Hotkeys />
         <NumberTween />
         <RouteGuard />

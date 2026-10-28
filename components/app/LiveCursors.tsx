@@ -11,6 +11,7 @@ import type { MonthKey } from "@/lib/crm/types";
 import { plural, shortName } from "@/lib/crm/format";
 import { uiZoom } from "@/components/ui/select";
 import { useRps } from "./LiveRps";
+import { GoldTrail } from "./GoldTrail";
 
 /**
  * Живые курсоры коллег на той же странице (lib/live.ts — канал).
@@ -107,54 +108,9 @@ const REACTS = ["👍", "❤️", "😂", "🔥", "👀", "🙏"];
 const POP_MS = 3500;
 /** Облачко с рукой над курсором игрока. */
 const CLOUD_MS = 2600;
-/** Искры золотого следа Грейда IV — каждая следующая отстаёт сильнее, мельче и тусклее. */
-const TRAIL = [1, 2, 3, 4, 5, 6, 7];
-
-/**
- * Свой золотой след, когда у вас Грейд IV: искры у вашей мыши (свою точку рисует CursorFx).
- * Прямо в DOM и раз за кадр — без перерисовки React на каждое движение.
- */
-function useOwnTrail(on: boolean) {
-  useEffect(() => {
-    if (!on || !window.matchMedia("(pointer: fine)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const root = document.documentElement;
-    const dots = TRAIL.map((i) => {
-      const d = document.createElement("i");
-      d.className = "lv-trail own";
-      d.style.setProperty("--i", String(i));
-      d.style.transitionDuration = `${60 + i * 65}ms`;
-      d.style.opacity = "0";
-      root.append(d);
-      return d;
-    });
-    let frame = 0;
-    let x = 0;
-    let y = 0;
-    const move = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse") return;
-      x = e.clientX;
-      y = e.clientY;
-      if (!frame)
-        frame = requestAnimationFrame(() => {
-          frame = 0;
-          for (const d of dots) {
-            d.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-            d.style.opacity = "";
-          }
-        });
-    };
-    window.addEventListener("pointermove", move, { passive: true });
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("pointermove", move);
-      dots.forEach((d) => d.remove());
-    };
-  }, [on]);
-}
-
 /** op — карточка оператора, взявшего Грейд IV: ему самому подпись «Вы взяли Грейд IV!». */
 type Party = { key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number; op?: string };
-const PARTY_MS = 5200;
+const PARTY_MS = 8500;
 const hhmm = (t: number) => new Date(t).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
 export function LiveCursors() {
@@ -166,8 +122,6 @@ export function LiveCursors() {
     for (const l of data.leads) if (l.operatorId === access.opId && l.status === "done" && l.at.slice(0, 10) === today) done++;
     return gradeLevel(done);
   }, [data.leads, access.opId, today]);
-  // Грейд IV — за вашей мышью тянется золотой след (коллеги видят его за вашим курсором)
-  useOwnTrail(myGrade === 4);
   // СВ рассылает свои группы: их операторы видят его курсор крупнее
   const gidsKey = me.role === "supervisor" ? Array.from(access.ownGroups).sort().join(",") : "";
   const myTeam = useMemo(() => {
@@ -605,8 +559,6 @@ export function LiveCursors() {
             const at = `translate3d(${p.x * w}px, ${p.y}px, 0)`;
             return (
               <Fragment key={p.sid}>
-              {/* Грейд IV — золотой след: те же координаты, но каждая искра догоняет дольше — хвост тянется сам */}
-              {r?.cls === "g4" && live && TRAIL.map((i) => <i key={i} className="lv-trail" style={{ transform: at, transitionDuration: `${80 + i * 70}ms`, ["--i" as string]: i }} />)}
               <div
                 data-sid={p.sid}
                 className={`lv-cur${live ? "" : " idle"}${r ? ` ${r.cls}` : ""}${near ? " near" : ""}`}
@@ -821,6 +773,8 @@ export function LiveCursors() {
           document.documentElement,
         )}
       {rps.card && createPortal(<div className={`rps-wrap${people.length > 0 || pageNotes.length > 0 ? " up" : ""}`}>{rps.card}</div>, document.documentElement)}
+      {/* Грейд IV — золотая комета: за своей мышью и за курсорами коллег с IV */}
+      <GoldTrail own={myGrade === 4} peers={here.some((p) => p.grade === 4 && p.role === "operator" && p.x != null && now - (p.moved ?? 0) < IDLE_MS)} />
       {party && createPortal(<Confetti key={party.key} party={party} mine={!!party.op && party.op === access.opId} />, document.documentElement)}
     </>
   );
@@ -831,10 +785,11 @@ const CONFETTI = ["#ffc83d", "#f97316", "#ef4444", "#ec4899", "#a855f7", "#3b82f
 function Confetti({ party, mine }: { party: Party; mine: boolean }) {
   const bits = useMemo(
     () =>
-      Array.from({ length: 90 }, (_, i) => ({
+      // дождь секунд на семь: кусочки падают медленнее и не все сразу
+      Array.from({ length: 130 }, (_, i) => ({
         left: Math.random() * 100,
-        delay: Math.random() * 0.7,
-        dur: 2.4 + Math.random() * 1.6,
+        delay: Math.random() * 2.8,
+        dur: 3.6 + Math.random() * 2.2,
         drift: (Math.random() - 0.5) * 160,
         spin: (Math.random() < 0.5 ? -1 : 1) * (360 + Math.random() * 720),
         w: 6 + Math.random() * 6,
