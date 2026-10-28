@@ -36,7 +36,12 @@ export interface TgCode {
 
 /** Грейд дня по числу доведённых лидов — те же пороги, что у Vexi (telegram-bot/leadup_bot/grades.py). */
 export function gradeTag(doneToday: number): string {
-  return doneToday >= 11 ? "Грейд IV" : doneToday >= 8 ? "Грейд III" : doneToday >= 6 ? "Грейд II" : "Грейд I";
+  return `Грейд ${["I", "II", "III", "IV"][gradeLevel(doneToday) - 1]}`;
+}
+
+/** Тот же грейд дня числом: 1–4. */
+export function gradeLevel(doneToday: number): 1 | 2 | 3 | 4 {
+  return doneToday >= 11 ? 4 : doneToday >= 8 ? 3 : doneToday >= 6 ? 2 : 1;
 }
 
 /** Имя бота: из базы (его пишет сам Vexi при старте), запасной вариант — переменная сборки. */

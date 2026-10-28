@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCrm, type AccountInput } from "@/lib/crm/store";
 import { NAV } from "@/lib/crm/nav";
 import { canManageAccount, canManageOperator, canTouchOp, computeAccess, supervisorGroups } from "@/lib/crm/access";
@@ -28,6 +28,7 @@ import { operatorDraft } from "@/lib/crm/defaults";
 import { duplicateGroups, sameNameOps } from "@/lib/crm/dupes";
 import { LoginFields } from "./LoginFields";
 import { fileToAvatar } from "@/lib/avatar";
+import { LIVE_HIDE_EVENT, liveHidden, liveOthersOff, setLiveHidden, setLiveOthersOff } from "@/lib/live";
 
 function Section({ title, icon, sub, children, action }: { title: string; icon?: IconName; sub?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -91,6 +92,14 @@ export function ProfileTab() {
   const pages = NAV.filter((n) => access.routes.has(n.href));
   const projects = data.projects.filter((p) => !p.deletedAt && p.active).sort((a, b) => a.sort - b.sort);
   const dirty = name !== me.name || login !== me.login;
+  // живые курсоры: настройки этого браузера (lib/live.ts), меняются и из меню аккаунта
+  const [live, setLive] = useState({ others: false, mine: false });
+  useEffect(() => {
+    const read = () => setLive({ others: liveOthersOff(), mine: liveHidden() });
+    read();
+    window.addEventListener(LIVE_HIDE_EVENT, read);
+    return () => window.removeEventListener(LIVE_HIDE_EVENT, read);
+  }, []);
   // своя аватарка: выбрали файл → обрезали в квадрат и сжали в браузере → сохранили в настройках аккаунта
   const fileRef = useRef<HTMLInputElement>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -221,6 +230,28 @@ export function ProfileTab() {
               ]}
               onChange={(v) => void saveMyProfile({ compact: v === "1" })}
               ariaLabel="Плотность таблиц"
+            />
+          </Field>
+          <Field label="Курсоры коллег" hint="Чужие курсоры и сообщения на страницах. Запоминается в этом браузере">
+            <Select
+              value={live.others ? "0" : "1"}
+              options={[
+                { value: "1", label: "Показывать" },
+                { value: "0", label: "Не показывать", hint: "ваш курсор коллеги по-прежнему видят" },
+              ]}
+              onChange={(v) => setLiveOthersOff(v === "0")}
+              ariaLabel="Курсоры коллег"
+            />
+          </Field>
+          <Field label="Мой курсор" hint="Видят ли коллеги ваш курсор. То же — в меню аккаунта">
+            <Select
+              value={live.mine ? "0" : "1"}
+              options={[
+                { value: "1", label: "Виден коллегам" },
+                { value: "0", label: "Скрыт" },
+              ]}
+              onChange={(v) => setLiveHidden(v === "0")}
+              ariaLabel="Мой курсор"
             />
           </Field>
         </div>

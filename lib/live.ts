@@ -17,7 +17,9 @@ import { supabase, supabaseReady } from "@/lib/supabase";
  * sid — вкладка (у одного аккаунта их может быть несколько).
  */
 export type LiveMsg =
-  | { t: "hello"; sid: string; id: string; name: string; path: string }
+  // grade — грейд дня оператора (1–4, как тег Vexi): считает сам отправитель по своим доведённым лидам;
+  // role — роль аккаунта; у СВ ещё gids — его группы и team — как их подписать («Группа 1», «2 группы»)
+  | { t: "hello"; sid: string; id: string; name: string; path: string; grade?: number; role?: "head" | "supervisor" | "operator"; gids?: string[]; team?: string }
   | { t: "cur"; sid: string; path: string; x: number; y: number }
   | { t: "out"; sid: string }
   | { t: "msg"; sid: string; path: string; text: string }
@@ -70,6 +72,26 @@ export function liveHidden(): boolean {
 export function setLiveHidden(v: boolean) {
   try {
     localStorage.setItem(HIDE_KEY, v ? "1" : "0");
+  } catch {
+    /* не запомнили — до перезагрузки */
+  }
+  window.dispatchEvent(new Event(LIVE_HIDE_EVENT));
+}
+
+/* ── «не показывать курсоры коллег»: в этом браузере; свой курсор при этом коллеги видят ── */
+const OTHERS_KEY = "leadup.live.others-off";
+
+export function liveOthersOff(): boolean {
+  try {
+    return localStorage.getItem(OTHERS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setLiveOthersOff(v: boolean) {
+  try {
+    localStorage.setItem(OTHERS_KEY, v ? "1" : "0");
   } catch {
     /* не запомнили — до перезагрузки */
   }

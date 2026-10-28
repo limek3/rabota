@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
-import { LIVE_HIDE_EVENT, liveColor, liveHidden, openLive, type LiveLink, type LiveMsg } from "@/lib/live";
-import { shortName } from "@/lib/crm/format";
+import { gradeLevel } from "@/lib/crm/telegram";
+import { LIVE_HIDE_EVENT, liveColor, liveHidden, liveOthersOff, openLive, type LiveLink, type LiveMsg } from "@/lib/live";
+import { plural, shortName } from "@/lib/crm/format";
 import { uiZoom } from "@/components/ui/select";
 
 /**
@@ -16,6 +17,8 @@ import { uiZoom } from "@/components/ui/select";
  *    за вашим курсором, у коллег — за вашей точкой.
  *  • Внизу справа — кто сейчас на этой странице; по нажатию список плавно раскрывается вверх.
  *  • «Скрывать мой курсор» — в меню аккаунта: тогда вас не видно, а вы видите остальных.
+ *  • «Курсоры коллег» — в настройках профиля: можно не показывать чужие курсоры (вас при этом видно).
+ *  • Грейд дня IV (11+ доведённых сегодня, как тег Vexi) — корона с бликом на подписи курсора.
  * Координаты — в пикселях содержимого страницы (.app-content): x — доля ширины, y — от верха,
  * поэтому курсор стоит над тем же местом у людей с разной шириной окна и прокруткой.
  */
@@ -27,12 +30,62 @@ const MSG_MS = 6000;
 const MSG_MAX = 140;
 const CONTROLS = "button, a, summary, [role=button], [role=menuitem], [role=option], [tabindex]:not([tabindex='-1'])";
 
-type Peer = { sid: string; id: string; name: string; path: string; seen: number; x?: number; y?: number; moved?: number; msg?: string; msgAt?: number };
+type Peer = {
+  sid: string;
+  id: string;
+  name: string;
+  path: string;
+  seen: number;
+  grade?: number;
+  role?: "head" | "supervisor" | "operator";
+  gids?: string[];
+  team?: string;
+  /** Когда РОП пришёл на страницу — от его точки один раз расходится волна. */
+  arrive?: number;
+  x?: number;
+  y?: number;
+  moved?: number;
+  msg?: string;
+  msgAt?: number;
+};
+
+/**
+ * Отличие на подписи курсора: РОП — тёмная с золотом и звездой, СВ — щит и его группа,
+ * операторы — по грейду дня: II серебро, III бронза с искрой, IV золото с короной.
+ */
+type Rank = { cls: string; chip: string; icon: "star" | "shield" | "spark" | "crown" | null };
+function rankOf(p: Peer): Rank | null {
+  if (p.role === "head") return { cls: "r-head", chip: "РОП", icon: "star" };
+  if (p.role === "supervisor") return { cls: "r-sv", chip: p.team ? `СВ · ${p.team}` : "СВ", icon: "shield" };
+  if (p.grade === 4) return { cls: "g4", chip: "Грейд IV", icon: "crown" };
+  if (p.grade === 3) return { cls: "g3", chip: "Грейд III", icon: "spark" };
+  if (p.grade === 2) return { cls: "g2", chip: "Грейд II", icon: null };
+  return null;
+}
+const rankWeight = (p: Peer) => (p.role === "head" ? 9 : p.role === "supervisor" ? 8 : p.grade ?? 0);
+/** РОПу — сообщения заметнее и висят дольше. */
+const msgTtl = (p: Peer) => (p.role === "head" ? MSG_MS * 2 : MSG_MS);
 
 const sidOf = () => Math.random().toString(36).slice(2, 10);
 
 export function LiveCursors() {
-  const { me } = useCrm();
+  const { me, data, access, today } = useCrm();
+  // свой грейд дня — по своим доведённым лидам за сегодня; без карточки оператора (РОП) грейда нет
+  const myGrade = useMemo(() => {
+    if (!access.opId) return undefined;
+    let done = 0;
+    for (const l of data.leads) if (l.operatorId === access.opId && l.status === "done" && l.at.slice(0, 10) === today) done++;
+    return gradeLevel(done);
+  }, [data.leads, access.opId, today]);
+  // СВ рассылает свои группы: их операторы видят его курсор крупнее
+  const gidsKey = me.role === "supervisor" ? Array.from(access.ownGroups).sort().join(",") : "";
+  const myTeam = useMemo(() => {
+    if (!gidsKey) return { gids: undefined, team: undefined };
+    const gids = gidsKey.split(",");
+    const names = data.groups.filter((g) => gids.includes(g.id)).map((g) => g.name);
+    return { gids, team: names.length === 1 ? names[0] : names.length > 1 ? `${names.length} ${plural(names.length, ["группа", "группы", "групп"])}` : undefined };
+  }, [gidsKey, data.groups]);
+  const myGroup = access.opId ? data.operators.find((o) => o.id === access.opId)?.groupId ?? null : null;
   // «/leads/» и «/leads» — одна страница (сборка со слешем на конце)
   const path = (usePathname() || "/").replace(/(.)\/$/, "$1");
   const [peers, setPeers] = useState<Record<string, Peer>>({});
@@ -51,9 +104,22 @@ export function LiveCursors() {
   const pos = useRef<{ x: number; y: number; w: number } | null>(null);
   const ready = me.id !== "__boot__";
 
+  // чужие курсоры выключены в настройках — не принимаем и не рисуем их
+  const [othersOff, setOthersOff] = useState(false);
+  const othersOffRef = useRef(false);
+
   useEffect(() => {
-    setHidden(liveHidden());
-    const on = () => setHidden(liveHidden());
+    const on = () => {
+      setHidden(liveHidden());
+      const off = liveOthersOff();
+      othersOffRef.current = off;
+      setOthersOff(off);
+      if (off) {
+        setPeers({});
+        setOpen(false);
+      }
+    };
+    on();
     window.addEventListener(LIVE_HIDE_EVENT, on);
     return () => window.removeEventListener(LIVE_HIDE_EVENT, on);
   }, []);
@@ -67,12 +133,29 @@ export function LiveCursors() {
   useEffect(() => {
     if (!ready) return;
     const l = openLive((m: LiveMsg) => {
+      if (othersOffRef.current) return;
       setPeers((prev) => {
         const p = prev[m.sid];
         const now = Date.now();
         if (m.t === "hello") {
           if (m.id === me.id) return prev;
-          return { ...prev, [m.sid]: { ...(p ?? { sid: m.sid }), id: m.id, name: m.name, path: m.path, seen: now, ...(p && p.path !== m.path ? { x: undefined, y: undefined } : null) } };
+          const moved = !p || p.path !== m.path;
+          return {
+            ...prev,
+            [m.sid]: {
+              ...(p ?? { sid: m.sid }),
+              id: m.id,
+              name: m.name,
+              path: m.path,
+              grade: m.grade,
+              role: m.role,
+              gids: m.gids,
+              team: m.team,
+              seen: now,
+              ...(m.role === "head" && moved ? { arrive: now } : null),
+              ...(p && p.path !== m.path ? { x: undefined, y: undefined } : null),
+            },
+          };
         }
         if (!p) return prev;
         if (m.t === "cur") return { ...prev, [m.sid]: { ...p, path: m.path, x: m.x, y: m.y, moved: now, seen: now } };
@@ -102,7 +185,7 @@ export function LiveCursors() {
       l.send({ t: "bye", sid: sid.current });
       return;
     }
-    const hello = () => l.send({ t: "hello", sid: sid.current, id: me.id, name: me.name, path });
+    const hello = () => l.send({ t: "hello", sid: sid.current, id: me.id, name: me.name, path, grade: myGrade, role: me.role, gids: myTeam.gids, team: myTeam.team });
     hello();
     const iv = window.setInterval(hello, HELLO_MS);
     const bye = () => l.send({ t: "bye", sid: sid.current });
@@ -111,7 +194,7 @@ export function LiveCursors() {
       window.clearInterval(iv);
       window.removeEventListener("pagehide", bye);
     };
-  }, [hidden, path, me.id, me.name, ready]);
+  }, [hidden, path, me.id, me.name, me.role, myGrade, myTeam, ready]);
 
   // своя мышь → координаты содержимого страницы; не чаще SEND_MS
   useEffect(() => {
@@ -253,9 +336,9 @@ export function LiveCursors() {
   const now = Date.now();
   const here = Object.values(peers).filter((p) => p.path === path);
   // кто на странице — по аккаунтам (у человека может быть две вкладки)
-  const people = Array.from(new Map(here.map((p) => [p.id, p])).values());
+  const people = Array.from(new Map(here.map((p) => [p.id, p])).values()).sort((a, b) => rankWeight(b) - rankWeight(a));
   const w = host.clientWidth;
-  const talkingMe = !!mine && now - mine.at < MSG_MS;
+  const talkingMe = !!mine && now - mine.at < (me.role === "head" ? MSG_MS * 2 : MSG_MS);
   follow.current = typing || talkingMe;
   const show = (p: Peer) => host.querySelector(`[data-sid="${p.sid}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
 
@@ -265,19 +348,32 @@ export function LiveCursors() {
         <div className="lv-layer" aria-hidden>
           {here.map((p) => {
             const live = p.x != null && p.y != null && now - (p.moved ?? 0) < IDLE_MS;
-            const talking = p.msg && now - (p.msgAt ?? 0) < MSG_MS;
+            const talking = p.msg && now - (p.msgAt ?? 0) < msgTtl(p);
             if (!live && !talking) return null;
             if (p.x == null || p.y == null) return null;
+            const r = rankOf(p);
+            // СВ моей группы — курсор крупнее
+            const near = p.role === "supervisor" && !!myGroup && !!p.gids?.includes(myGroup);
             return (
-              <div key={p.sid} data-sid={p.sid} className={`lv-cur${live ? "" : " idle"}`} style={{ ["--lv" as string]: liveColor(p.id), transform: `translate3d(${p.x * w}px, ${p.y}px, 0)` }}>
+              <div
+                key={p.sid}
+                data-sid={p.sid}
+                className={`lv-cur${live ? "" : " idle"}${r ? ` ${r.cls}` : ""}${near ? " near" : ""}`}
+                style={{ ["--lv" as string]: liveColor(p.id), transform: `translate3d(${p.x * w}px, ${p.y}px, 0)` }}
+              >
+                {p.arrive && now - p.arrive < 3000 && <i key={p.arrive} className="lv-wave" />}
                 <i className="lv-dot" />
-                <span className="lv-name">{shortName(p.name) || "Коллега"}</span>
+                <span className="lv-name">
+                  {r?.icon && <RankIcon name={r.icon} />}
+                  {shortName(p.name) || "Коллега"}
+                  {p.role === "supervisor" && p.team && <em>· {p.team}</em>}
+                </span>
                 {talking && <span className="lv-msg">{p.msg}</span>}
               </div>
             );
           })}
           {talkingMe && !typing && cur && (
-            <div className="lv-cur me" style={{ ["--lv" as string]: "var(--brand)", transform: `translate3d(${cur.x}px, ${cur.y}px, 0)` }}>
+            <div className={`lv-cur me${me.role === "head" ? " r-head" : ""}`} style={{ ["--lv" as string]: "var(--brand)", transform: `translate3d(${cur.x}px, ${cur.y}px, 0)` }}>
               <span key={mine.at} className="lv-msg">
                 {mine.text}
               </span>
@@ -312,11 +408,20 @@ export function LiveCursors() {
                 <div className="lv-here-h">Сейчас на этой странице</div>
                 {people.map((p) => {
                   const active = p.x != null && now - (p.moved ?? 0) < IDLE_MS;
+                  const r = rankOf(p);
                   return (
                     <button key={p.id} type="button" tabIndex={open ? 0 : -1} className="lv-here-row" disabled={!active} onClick={() => show(p)}>
                       <i style={{ background: liveColor(p.id) }}>{initials(p.name)}</i>
                       <span>
-                        <b>{p.name || "Коллега"}</b>
+                        <b>
+                          {p.name || "Коллега"}
+                          {r && (
+                            <span className={`lv-rank ${r.cls}`}>
+                              {r.icon && <RankIcon name={r.icon} />}
+                              {r.chip}
+                            </span>
+                          )}
+                        </b>
                         <small>{active ? "водит курсором — показать" : "смотрит страницу"}</small>
                       </span>
                       <em className={active ? "on" : ""} />
@@ -346,6 +451,23 @@ export function LiveCursors() {
           document.documentElement,
         )}
     </>
+  );
+}
+
+/** Значок на подписи: звезда РОПа, щит СВ, искра грейда III, корона грейда IV — у каждого своя анимация (theme.css). */
+function RankIcon({ name }: { name: NonNullable<Rank["icon"]> }) {
+  return (
+    <svg className={`lv-ico lv-ico-${name}`} width="11" height="11" viewBox="0 0 24 24" aria-hidden>
+      {name === "crown" && (
+        <>
+          <path d="M3 8.5 7.5 12 12 5l4.5 7L21 8.5 19 18H5z" fill="currentColor" />
+          <path d="M5 20.5h14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        </>
+      )}
+      {name === "star" && <path d="m12 2.5 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill="currentColor" />}
+      {name === "shield" && <path d="M12 2.5 20 5.5v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10v-6z" fill="currentColor" />}
+      {name === "spark" && <path d="M12 2c.6 4.6 2.4 6.4 7 7-4.6.6-6.4 2.4-7 7-.6-4.6-2.4-6.4-7-7 4.6-.6 6.4-2.4 7-7zM19 15.5c.3 1.9 1 2.6 2.9 2.9-1.9.3-2.6 1-2.9 2.9-.3-1.9-1-2.6-2.9-2.9 1.9-.3 2.6-1 2.9-2.9z" fill="currentColor" />}
+    </svg>
   );
 }
 

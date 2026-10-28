@@ -638,6 +638,50 @@ html.cfx-down .cfx-dot { width: 10px; height: 10px; margin: -5px 0 0 -5px; }
 .lv-dot { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--lv); box-shadow: 0 0 0 1.5px #ffffff, 0 1px 3px rgba(0, 0, 0, 0.3); transition: opacity 0.3s; }
 .lv-name { position: absolute; left: 6px; top: 6px; padding: 1px 6px; border-radius: 2px 6px 6px 6px; background: var(--lv); color: #ffffff; font-size: 10.5px; font-weight: 600; line-height: 16px; white-space: nowrap; box-shadow: 0 2px 6px -2px rgba(0, 0, 0, 0.35); transition: opacity 0.3s; }
 .lv-cur.idle .lv-dot, .lv-cur.idle .lv-name { opacity: 0; }
+/* ── отличия на подписи курсора и в списке «на странице» ──
+   РОП — тёмная с золотом и звездой; СВ — щит и группа; грейд дня: II серебро, III бронза с искрой, IV золото с короной.
+   Блик пробегает по III, IV и РОПу — как по «лучший месяца» в сводке. */
+.lv-name { display: flex; align-items: center; gap: 3px; overflow: hidden; }
+.lv-name em { font-style: normal; font-weight: 500; opacity: 0.78; }
+.lv-ico { flex: none; }
+.lv-rank { position: relative; display: inline-flex; align-items: center; gap: 3px; height: 16px; margin-left: 6px; padding: 0 6px; border-radius: 5px; overflow: hidden; font-size: 10px; font-weight: 700; vertical-align: 1px; }
+/* РОП */
+.lv-cur.r-head .lv-name, .lv-rank.r-head { color: #ffd76a; background: linear-gradient(120deg, #24203f, #16142a); box-shadow: inset 0 0 0 1px rgba(255, 214, 92, 0.6), 0 2px 10px -2px rgba(0, 0, 0, 0.5); }
+.lv-cur.r-head .lv-dot { width: 8px; height: 8px; left: -4px; top: -4px; background: #ffc83d; box-shadow: 0 0 0 1.5px #16142a, 0 0 0 3px rgba(255, 200, 61, 0.45); }
+.lv-cur.r-head .lv-msg { max-width: 280px; padding: 7px 12px; color: #ffffff; background: #16142a; font-size: 13.5px; box-shadow: inset 0 0 0 1px rgba(255, 214, 92, 0.55), 0 10px 26px -8px rgba(0, 0, 0, 0.55); }
+.lv-cur.r-head .lv-name { top: 8px; }
+.lv-ico-star { color: #ffc83d; animation: lvStar 3.2s ease-in-out infinite; }
+/* пришёл РОП — от его точки расходится волна */
+.lv-wave { position: absolute; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid #ffc83d; opacity: 0; pointer-events: none; animation: lvWave 1.3s cubic-bezier(0.2, 0.7, 0.3, 1) 2; }
+/* СВ */
+.lv-cur.r-sv .lv-name { box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.55), 0 2px 6px -2px rgba(0, 0, 0, 0.35); }
+.lv-rank.r-sv { color: var(--text); background: var(--ink-05); box-shadow: inset 0 0 0 1px var(--line); }
+.lv-rank.r-sv .lv-ico-shield { color: var(--brand); }
+/* СВ моей группы — точка крупнее и с ореолом его цвета */
+.lv-cur.near .lv-dot { width: 10px; height: 10px; left: -5px; top: -5px; box-shadow: 0 0 0 2px #ffffff, 0 0 0 5px color-mix(in srgb, var(--lv) 30%, transparent), 0 1px 4px rgba(0, 0, 0, 0.3); }
+.lv-cur.near .lv-name { top: 9px; left: 8px; }
+/* грейд II — серебро */
+.lv-cur.g2 .lv-name { box-shadow: inset 0 0 0 1.5px #e3e8ef, 0 0 0 1px rgba(120, 132, 150, 0.45), 0 2px 6px -2px rgba(0, 0, 0, 0.35); }
+.lv-rank.g2 { color: #3c4656; background: linear-gradient(120deg, #f6f8fb, #d6dce5); box-shadow: inset 0 0 0 1px rgba(120, 132, 150, 0.45); }
+/* грейд III — бронза с искрой */
+.lv-cur.g3 .lv-name, .lv-rank.g3 { color: #4a2306; background: linear-gradient(120deg, #ffe4c9 0%, #f0b27a 50%, #d98a4a 100%); box-shadow: inset 0 0 0 1px rgba(166, 88, 30, 0.45), 0 2px 8px -2px rgba(190, 104, 40, 0.5); }
+.lv-ico-spark { color: #9a4a12; animation: lvSpark 2.4s ease-in-out infinite; }
+/* грейд IV — золото с короной */
+.lv-cur.g4 .lv-name, .lv-rank.g4 { color: #5b3a00; background: linear-gradient(120deg, #fff1b8 0%, #ffd65c 45%, #f5b52e 100%); box-shadow: inset 0 0 0 1px rgba(196, 132, 0, 0.45), 0 2px 8px -2px rgba(214, 150, 0, 0.55); }
+.lv-ico-crown { color: #b7791f; transform-origin: 50% 85%; animation: lvCrown 2.8s ease-in-out infinite; }
+/* блик */
+.lv-cur:is(.r-head, .g3, .g4) .lv-name::after, .lv-rank:is(.r-head, .g3, .g4)::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.85) 48%, rgba(255, 255, 255, 0.2) 55%, transparent 70%);
+  background-size: 260% 100%; background-repeat: no-repeat; animation: lvShine 2.8s ease-in-out infinite;
+}
+.lv-cur.r-head .lv-name::after, .lv-rank.r-head::after { opacity: 0.35; animation-duration: 3.6s; }
+@keyframes lvShine { 0% { background-position: 130% 0; } 55%, 100% { background-position: -130% 0; } }
+@keyframes lvCrown { 0%, 60%, 100% { transform: none; } 70% { transform: translateY(-1.5px) rotate(-10deg); } 80% { transform: translateY(-1px) rotate(8deg); } 90% { transform: rotate(-3deg); } }
+@keyframes lvStar { 0%, 70%, 100% { transform: none; } 82% { transform: rotate(72deg) scale(1.2); } 92% { transform: rotate(72deg) scale(1); } }
+@keyframes lvSpark { 0%, 100% { transform: scale(1); opacity: 1; } 45% { transform: scale(0.65) rotate(20deg); opacity: 0.55; } 60% { transform: scale(1.18); opacity: 1; } }
+@keyframes lvWave { 0% { transform: scale(0.05); opacity: 0.95; } 100% { transform: scale(1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .lv-name::after, .lv-rank::after, .lv-ico, .lv-wave { animation: none !important; } }
 .lv-msg { position: absolute; left: 6px; top: 26px; width: max-content; max-width: 240px; padding: 6px 10px; border-radius: 2px 12px 12px 12px; background: var(--lv); color: #ffffff; font-size: 12.5px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.45); animation: lvPop 0.2s var(--ease); }
 /* своё сообщение и поле плывут за курсором с лёгкой задержкой; отступ — чтобы не наезжать на кольцо курсора */
 .lv-cur.me, .lv-type { transition: transform 160ms cubic-bezier(0.22, 0.9, 0.3, 1); will-change: transform; }
@@ -663,7 +707,7 @@ html.cfx-down .cfx-dot { width: 10px; height: 10px; margin: -5px 0 0 -5px; }
 .lv-here-row:hover:not(:disabled) { background: var(--ink-05); }
 .lv-here-row:disabled { cursor: default; }
 .lv-here-row i { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 10px; font-weight: 700; color: #ffffff; }
-.lv-here-row span { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.lv-here-row > span { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .lv-here-row b { font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lv-here-row small { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lv-here-row em { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--ink-15, var(--line)); }
