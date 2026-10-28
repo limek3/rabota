@@ -1262,6 +1262,8 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 
 /* ── «График»: подсветка крестом — строка и столбец под курсором (столбец — правилами из страницы) ── */
 .sched tbody tr.sch-row:hover > td.cell:not(.sel):not(.rng) { box-shadow: inset 0 0 0 100px var(--sch-cross); }
+/* столбец под курсором — отметку ставит график (schedule/page.tsx, markCol) */
+.sched :is(td.cell, th.day, td.day-tot)[data-c][data-xh]:not(.sel):not(.rng) { box-shadow: inset 0 0 0 100px var(--sch-cross); }
 
 /* ── «Итого по дням»: факт к плану дня ── */
 .sched tfoot .day-tot-l.ok { color: var(--c-green-fg); }

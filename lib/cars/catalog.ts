@@ -231,6 +231,8 @@ function snd(w: string): string {
 function wordScore(q: string, w: string): number {
   if (!q || !w) return 0;
   if (w === q) return 10;
+  // код модели латиницей / кириллицей / с переставленными буквами: «сх5», «cx90» → XC90
+  if (sameCode(q, w)) return 9;
   if (w.startsWith(q)) return q.length >= 2 || /\d/.test(q) ? 8 : 3;
   const sq = snd(q);
   const sw = snd(w);
@@ -260,7 +262,8 @@ const words = (s: string) => norm(s).split(" ").filter(Boolean);
 const INDEX: Entry[] = MODEL_LIST.map((m) => ({
   car: m,
   brand: [words(m.brand.name), ...m.brand.ru.map(words)],
-  model: [words(m.name), ...m.aliases.map(words)],
+  // код из нескольких слов — ещё и слитно: «CX-5» ищется и как «cx5»
+  model: [words(m.name), ...m.aliases.map(words)].flatMap((v) => (v.length > 1 && /\d/.test(v.join("")) && /[a-zа-я]/.test(v.join("")) ? [v, [v.join("")]] : [v])),
 }));
 
 /** Оценка слов каталога для одного слова запроса — с памятью: одно и то же слово встречается у многих моделей. */
@@ -386,9 +389,32 @@ const isPlain = (w: string) => (plainSnd ??= new Set([...PLAIN].map(sound))).has
 /** Номер-название («2114», «31105») без марки — машина, если это не год. */
 const numberName = (w: string) => /^\d{4,5}$/.test(w) && !(+w >= 1950 && +w <= 2035);
 
+/** Похожие буквы кириллицы → латиница: в кодах моделей их путают («сх5» = «cx5», «х5» = «x5»). */
+const LOOK: Record<string, string> = { а: "a", в: "b", е: "e", к: "k", м: "m", н: "h", о: "o", р: "p", с: "c", т: "t", у: "y", х: "x" };
+const code = (s: string) =>
+  s
+    .split("")
+    .map((ch) => LOOK[ch] ?? RU_LAT[ch] ?? ch)
+    .join("");
+const digitsOf = (s: string) => s.replace(/\D/g, "");
+
+/**
+ * Код модели «буквы + цифры» («x5», «cx5», «xc90», «сх5»): то же самое латиницей; или те же цифры
+ * и переставлены две соседние буквы («cx90» → XC90). Другая цифра — другая модель («x5» ≠ «x6»).
+ */
+function sameCode(t: string, w: string): boolean {
+  if (!/\d/.test(w) || !/[a-zа-я]/.test(w) || !/\d/.test(t)) return false;
+  const a = code(t);
+  const b = code(w);
+  if (a === b) return true;
+  if (a.length < 3 || a.length !== b.length || digitsOf(a) !== digitsOf(b)) return false;
+  return [...a].sort().join("") === [...b].sort().join("") && dist(a, b, 1) === 1;
+}
+
 /** Слово текста — это слово названия: так же пишется, звучит или стоит в другом падеже («весту», «крузака»). */
 function sameWord(t: string, w: string): boolean {
   if (t === w) return true;
+  if (sameCode(t, w)) return true;
   if (/\d/.test(w) || /\d/.test(t)) return false;
   if (w.length < 4 || t.length < 4) return false;
   if (snd(t) === snd(w)) return true;
@@ -398,15 +424,35 @@ function sameWord(t: string, w: string): boolean {
   return /[аяоеиыуюэ]$/.test(w) && t.startsWith(w.slice(0, -1)) && t.length - w.length <= 1;
 }
 
-/** Где в тексте стоит вариант названия (слова подряд); -1 — нет. */
-function findSeq(text: string[], v: string[]): number {
-  if (!v.length) return -1;
+/** Где в тексте стоит вариант названия (слова подряд): начало и сколько слов текста занял; null — нет. */
+function findSeq(text: string[], v: string[]): { at: number; len: number } | null {
+  if (!v.length) return null;
   for (let i = 0; i + v.length <= text.length; i++) {
     let ok = true;
     for (let k = 0; k < v.length && ok; k++) ok = sameWord(text[i + k], v[k]);
-    if (ok) return i;
+    if (ok) return { at: i, len: v.length };
   }
-  return -1;
+  // код модели слитно или раздельно: «cx5» = «CX-5», «xc 90» = «XC90»
+  const joined = v.join("");
+  if (/\d/.test(joined) && /[a-zа-я]/.test(joined)) {
+    for (let i = 0; i < text.length; i++) {
+      if (v.length > 1 && sameCode(text[i], joined)) return { at: i, len: 1 };
+      if (i + 1 < text.length && /\d/.test(text[i + 1]) && !/\d/.test(text[i]) && sameCode(text[i] + text[i + 1], joined)) return { at: i, len: 2 };
+    }
+  }
+  return null;
+}
+
+/** Слова названий моделей марки — чтобы узнать марку с опечаткой рядом с её моделью («kio rio»). */
+const modelWordsByBrand = new Map<string, Set<string>>();
+function modelWordsOf(brandId: string): Set<string> {
+  let s = modelWordsByBrand.get(brandId);
+  if (!s) {
+    s = new Set<string>();
+    for (const m of MODEL_LIST) if (m.brand.id === brandId) for (const v of [words(m.name), ...m.aliases.map(words)]) v.forEach((w) => s!.add(w));
+    modelWordsByBrand.set(brandId, s);
+  }
+  return s;
 }
 
 export interface CarMention {
@@ -421,31 +467,65 @@ export interface CarMention {
  * Машины, о которых говорится в тексте: «хочет продать свой прадик 2012» → Toyota Land Cruiser Prado.
  * Модель без марки рядом засчитываем, только если её название ни с чем не спутать
  * (4+ буквы, не цифры, не обычное слово); иначе нужна марка рядом. Только марка — тоже находка.
+ * Опечатки: код модели слитно, раздельно и с переставленными буквами («cx5», «xc 90», «cx90»),
+ * короткая марка с одной ошибкой — если рядом её модель («kio rio» → Kia Rio).
  */
 export function detectCars(text: string, limit = 2): CarMention[] {
   const t = norm(text).split(" ").filter(Boolean);
   if (!t.length) return [];
-  const brandAt = new Map<string, { at: number; len: number }>();
+  // марки в тексте; exact — написано ровно как в каталоге (при споре за слово побеждает точное)
+  const brandAt = new Map<string, { at: number; len: number; exact: boolean }>();
   for (const b of BRAND_LIST)
     for (const v of [words(b.name), ...b.ru.map(words)]) {
-      const at = findSeq(t, v);
-      if (at >= 0 && !brandAt.has(b.id)) brandAt.set(b.id, { at, len: v.length });
+      const f = findSeq(t, v);
+      if (!f || brandAt.has(b.id)) continue;
+      brandAt.set(b.id, { ...f, exact: t.slice(f.at, f.at + f.len).join(" ") === v.join(" ") });
     }
-  const found: (CarMention & { at: number; score: number })[] = [];
+  // опечатка в короткой марке («kio», «hunday»): одна ошибка, та же первая буква, и рядом — модель этой марки
+  for (const b of BRAND_LIST) {
+    if (brandAt.has(b.id)) continue;
+    const names = [words(b.name), ...b.ru.map(words)].filter((v) => v.length === 1 && v[0].length >= 3).map((v) => v[0]);
+    for (let i = 0; i < t.length && names.length; i++) {
+      const w = t[i];
+      if (w.length < 3 || /\d/.test(w) || !names.some((n) => n[0] === w[0] && n !== w && dist(w, n, 1) <= 1)) continue;
+      const near = [t[i - 1], t[i + 1]].filter((x): x is string => !!x);
+      const mw = modelWordsOf(b.id);
+      if (near.some((x) => [...mw].some((m) => sameWord(x, m)))) {
+        brandAt.set(b.id, { at: i, len: 1, exact: false });
+        break;
+      }
+    }
+  }
+  const found: (CarMention & { at: number; len: number; score: number })[] = [];
   for (const m of MODEL_LIST) {
-    let best: { at: number; len: number; chars: number } | null = null;
+    let best: { at: number; len: number; words: number; chars: number } | null = null;
     for (const v of [words(m.name), ...m.aliases.map(words)]) {
-      const at = findSeq(t, v);
-      if (at < 0) continue;
+      const f = findSeq(t, v);
+      if (!f) continue;
       const joined = v.join("");
       const withBrand = brandAt.has(m.brand.id);
-      const distinct = numberName(joined) || (joined.length >= 4 && !/^\d+$/.test(joined) && !(v.length === 1 && (isPlain(v[0]) || isPlain(t[at]))));
+      const isCode = /\d/.test(joined) && /[a-zа-я]/.test(joined);
+      const distinct =
+        numberName(joined) ||
+        // код вроде «xc90», «cx5» без марки — машина, если он не короче трёх знаков («x5» без BMW — мало ли)
+        (isCode && joined.length >= 3 && !/^\d+$/.test(joined)) ||
+        (joined.length >= 4 && !/^\d+$/.test(joined) && !(v.length === 1 && (isPlain(v[0]) || isPlain(t[f.at]))));
       if (!withBrand && !distinct) continue;
-      if (!best || v.length > best.len || (v.length === best.len && joined.length > best.chars)) best = { at, len: v.length, chars: joined.length };
+      if (!best || v.length > best.words || (v.length === best.words && joined.length > best.chars)) best = { ...f, words: v.length, chars: joined.length };
     }
     if (!best) continue;
     const b = brandAt.get(m.brand.id);
-    found.push({ model: m, brand: m.brand, at: best.at, said: t.slice(best.at, best.at + best.len).join(" "), score: best.len + best.chars / 10 + (b ? 10 : 0) - (m.to ? 0.5 : 0) });
+    // марка вплотную к модели — и её в цитату: «volvo cx90», а не «cx90»
+    const from = b && b.at + b.len === best.at ? b.at : best.at;
+    const to = b && best.at + best.len === b.at ? b.at + b.len : best.at + best.len;
+    found.push({
+      model: m,
+      brand: m.brand,
+      at: best.at,
+      len: best.len,
+      said: t.slice(from, to).join(" "),
+      score: best.words + best.chars / 10 + (b ? 10 : 0) - (m.to ? 0.5 : 0),
+    });
   }
   // одно место текста — одна машина: из «лк 200» не нужны ещё Prado и 300, из «газель некст» — Nexia
   found.sort((a, b) => b.score - a.score);
@@ -453,14 +533,19 @@ export function detectCars(text: string, limit = 2): CarMention[] {
   const cells = (at: number, len: number) => Array.from({ length: len }, (_, k) => at + k);
   const out: (CarMention & { at: number })[] = [];
   for (const f of found) {
-    const own = cells(f.at, f.said.split(" ").length);
+    const own = cells(f.at, f.len);
     if (own.some((c) => taken.has(c))) continue;
     own.forEach((c) => taken.add(c));
+    // слово марки этой модели тоже занято: «hyundai solaris» — не ещё и Honda на «hyundai»
+    const b = brandAt.get(f.brand.id);
+    if (b) cells(b.at, b.len).forEach((c) => taken.add(c));
     out.push(f);
   }
-  // марка без модели (и не то же слово, что найденная модель: «солярис» — это Hyundai Solaris)
-  for (const [id, b] of brandAt) {
+  // марка без модели — сначала написанные точно; одно слово — одна марка
+  const brands = [...brandAt].sort((a, b) => Number(b[1].exact) - Number(a[1].exact) || a[1].at - b[1].at);
+  for (const [id, b] of brands) {
     if (out.some((o) => o.brand.id === id) || cells(b.at, b.len).some((c) => taken.has(c))) continue;
+    cells(b.at, b.len).forEach((c) => taken.add(c));
     const brand = BRAND_LIST.find((x) => x.id === id)!;
     out.push({ model: null, brand, at: b.at, said: t.slice(b.at, b.at + b.len).join(" ") });
   }

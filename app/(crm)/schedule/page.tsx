@@ -209,14 +209,16 @@ export default function SchedulePage() {
   // «–» в итогах дня — начиная с первого дня, когда в графике кто-то работал
   const firstActive = dayTotals.findIndex((t) => t.h > 0 || t.n > 0);
 
-  // подсветка «крестом»: столбец под курсором — CSS по номеру столбца, без перерисовки таблицы
-  const crossCss = useMemo(
-    () =>
-      days
-        .map((_, i) => `.sched:has(td.cell[data-c="${i}"]:hover) :is(td.cell, th.day, td.day-tot)[data-c="${i}"]:not(.sel):not(.rng){box-shadow:inset 0 0 0 100px var(--sch-cross)}`)
-        .join(""),
-    [days],
-  );
+  // подсветка «крестом»: столбец под курсором — отметка data-xh только на ячейках этого столбца, без перерисовки таблицы.
+  // Не CSS «.sched:has(td:hover)»: с ним любое изменение страницы (курсоры коллег, всплывашки, волна от щелчка)
+  // заставляло браузер перепроверять всю таблицу — по 20–40 мс на каждое, и график подвисал.
+  const crossCol = useRef(-1);
+  const markCol = (table: HTMLElement, c: number) => {
+    if (c === crossCol.current) return;
+    table.querySelectorAll("[data-xh]").forEach((el) => el.removeAttribute("data-xh"));
+    crossCol.current = c;
+    if (c >= 0) table.querySelectorAll(`:is(td.cell, th.day, td.day-tot)[data-c="${c}"]`).forEach((el) => el.setAttribute("data-xh", ""));
+  };
 
   const tot = useMemo(() => {
     const hours = rows.reduce((a, r) => a + (ix.svIds.has(r.op.id) ? 0 : r.hours), 0);
@@ -409,7 +411,6 @@ export default function SchedulePage() {
     // когда строк много, таблица упирается в высоту окна и прокручивается, а итог остаётся на виду.
     // Высота = окно минус рамка main (8+8 отступ, 1+1 граница = 18px) и отступы .app-content
     <div className="stack sched-page" style={{ height: "calc(100vh / var(--ui-scale, 1) - var(--titlebar-h, 0px) - 18px - var(--pad-t) - var(--pad-b))" }}>
-      <style>{crossCss}</style>
       <PageHero
         compact
         accent="teal"
@@ -502,6 +503,11 @@ export default function SchedulePage() {
         <div ref={scrollRef} className="tbl-wrap" style={{ flex: "0 1 auto", minHeight: 0 }}>
           <table
             className="tbl sched"
+            onMouseOver={(e) => {
+              const td = e.target instanceof Element ? e.target.closest<HTMLElement>("td.cell") : null;
+              markCol(e.currentTarget, td?.dataset.c ? Number(td.dataset.c) : -1);
+            }}
+            onMouseLeave={(e) => markCol(e.currentTarget, -1)}
             onMouseMove={(e) => {
               if (!dragging.current) return;
               const td = (e.target as HTMLElement).closest?.("td.cell") as HTMLElement | null;

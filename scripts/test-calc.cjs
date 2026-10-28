@@ -1203,3 +1203,22 @@ console.log("ALL OK");
   assert.ok(!b.can.createLeads && !b.routes.has("/leads"), "настройка операторов действует и на стажёра");
   console.log("32 ok: стажёр записывает свои лиды, «Лиды» открыты, график и деньги — нет");
 }
+
+/* 33. Машина с опечаткой: код модели слитно / раздельно / с перестановкой, кириллицей; короткая марка с ошибкой рядом с моделью */
+{
+  const assert = require("assert");
+  const c = R("cars/cars/catalog");
+  const names = (t) => c.detectCars(t).map((m) => (m.model ? m.model.full : m.brand.name));
+  const top = (t) => c.searchCars(t, 1).map((h) => (h.model ? h.model.full : h.brand && h.brand.name));
+  assert.deepEqual(names("хочет продать volvo cx90 2018"), ["Volvo XC90"], "переставленные буквы кода");
+  assert.deepEqual(names("вольво хс90"), ["Volvo XC90"], "код кириллицей");
+  assert.deepEqual(names("клиент на kio rio, хочет поменять"), ["Kia Rio"], "опечатка в марке рядом с её моделью");
+  assert.deepEqual(names("hyundai solaris"), ["Hyundai Solaris"], "Hyundai — не ещё и Honda");
+  assert.deepEqual(names("mazda cx5"), ["Mazda CX-5"], "код слитно");
+  assert.deepEqual(names("мазда сх5"), ["Mazda CX-5"], "код слитно кириллицей");
+  assert.deepEqual(names("бмв х6"), ["BMW X6"], "другая цифра — другая модель");
+  assert.deepEqual(top("volvo cx90"), ["Volvo XC90"], "поиск: переставленные буквы");
+  assert.deepEqual(top("kio rio"), ["Kia Rio"], "поиск: опечатка в марке");
+  assert.deepEqual(top("mazda cx5"), ["Mazda CX-5"], "поиск: код слитно");
+  console.log("33 ok: «volvo cx90» → XC90, «kio rio» → Kia Rio, «mazda cx5» → CX-5 — и в комментарии, и в поиске");
+}
