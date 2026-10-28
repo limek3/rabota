@@ -125,10 +125,42 @@ export default function SettingsPage() {
   const shown = tabs.filter((t) => t.show);
   const active = shown.some((t) => t.value === tab) ? tab : "profile";
   const systemTab = active === "system";
+  const pickTab = (v: Tab) => {
+    // апрув за месяц — свой черновик, он пропадёт при уходе с вкладки
+    if (approveDirty && v !== "system" && !window.confirm("Апрув за месяц не сохранён. Перейти без сохранения?")) return;
+    setTab(v);
+    window.history.replaceState(null, "", `/settings?tab=${v}`);
+  };
 
   return (
     <div className="stack" style={{ maxWidth: 1100 }}>
-      <StickyHead title="Настройки" ctx={tabs.find((x) => x.value === tab)?.label} />
+      <StickyHead
+        title="Настройки"
+        ctx={
+          shown.length > 1 ? (
+            // разделы — и в полоске при прокрутке: не листать наверх, чтобы перейти
+            <span className="sh-tabs" role="tablist" aria-label="Разделы настроек">
+              {shown.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={active === t.value}
+                  className={active === t.value ? "on" : undefined}
+                  onClick={() => {
+                    pickTab(t.value);
+                    document.getElementById("app-scroll")?.scrollTo({ top: 0 });
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </span>
+          ) : (
+            tabs.find((x) => x.value === tab)?.label
+          )
+        }
+      />
       <PageHero
         accent="slate"
         style={{ ["--ph-cols" as string]: "minmax(0, 1fr)", ["--ph-cols-md" as string]: "minmax(0, 1fr)" }}
@@ -168,16 +200,7 @@ export default function SettingsPage() {
       </PageHero>
 
       {shown.length > 1 && (
-        <Seg<Tab>
-          value={active}
-          onChange={(v) => {
-            // апрув за месяц — свой черновик, он пропадёт при уходе с вкладки
-            if (approveDirty && v !== "system" && !window.confirm("Апрув за месяц не сохранён. Перейти без сохранения?")) return;
-            setTab(v);
-            window.history.replaceState(null, "", `/settings?tab=${v}`);
-          }}
-          options={shown.map((t) => ({ value: t.value, label: t.label }))}
-        />
+        <Seg<Tab> value={active} onChange={pickTab} options={shown.map((t) => ({ value: t.value, label: t.label }))} />
       )}
 
       {active === "audit" && <AuditLog />}

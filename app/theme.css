@@ -60,7 +60,7 @@
   --shadow-md: 0 0 0 1px rgb(var(--ink-rgb) / 0.05), 0 4px 12px -3px rgb(var(--ink-rgb) / 0.1);
   --shadow-lg: 0 0 0 1px rgb(var(--ink-rgb) / 0.05), 0 12px 28px -8px rgb(var(--ink-rgb) / 0.16);
   --shadow-xl: 0 0 0 1px rgb(var(--ink-rgb) / 0.06), 0 24px 56px -16px rgb(var(--ink-rgb) / 0.28);
-  --main-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 24px 60px -26px rgba(0, 0, 0, 0.6);
+  --main-shadow: none;
   --sw-knob: #ffffff;
   --tip-bg: #1f1d30;
   --tip-fg: #f4f3fa;
@@ -156,7 +156,7 @@
   --shadow-md: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 6px 16px -4px rgba(0, 0, 0, 0.55);
   --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 14px 32px -8px rgba(0, 0, 0, 0.65);
   --shadow-xl: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 26px 60px -16px rgba(0, 0, 0, 0.75);
-  --main-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 24px 60px -24px rgba(0, 0, 0, 0.9);
+  --main-shadow: none;
   --sw-knob: #ffffff;
   --tip-bg: #2d2c3d;
   --tip-fg: #f4f3fa;
@@ -577,3 +577,81 @@ input[type="radio"] { accent-color: var(--brand); }
 .o2-alert .go:hover { background: var(--c-red-bg); }
 .d2-alert { border-radius: 12px; }
 
+
+/* выбранный пункт переключателя при наведении — текст не меняет цвет (старое правило красило его в белый) */
+.seg > button[aria-pressed="true"]:hover, .o2-seg button.on:hover { color: var(--text); }
+
+/* ── курсор: «живая» точка (components/ui/CursorFx.tsx) ──
+   Точка в цвет акцента с белым ореолом (видна и на акцентных кнопках) и кольцо, которое
+   догоняет её. Над кнопками и строками кольцо раздувается, над полями точка — каретка,
+   при нажатии кольцо сжимается и расходится волна. Где точка выключена (сенсорный экран,
+   «уменьшить движение») — обычные системные курсоры. */
+:root, :root[data-theme="light"], :root[data-theme="dark"] {
+  --cursor-brand: auto;
+  --cursor-hand: pointer;
+  --cursor-grab: grab;
+  --cursor-grabbing: grabbing;
+  --cursor-text: text;
+}
+html.cfx-on, html.cfx-on * { cursor: none !important; }
+.cfx-dot, .cfx-ring { position: fixed; left: 0; top: 0; z-index: 2147483647; pointer-events: none; border-radius: 50%; opacity: 0; will-change: transform; }
+html.cfx-in .cfx-dot, html.cfx-in .cfx-ring { opacity: 1; }
+.cfx-dot {
+  width: 8px; height: 8px; margin: -4px 0 0 -4px;
+  background: var(--brand);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92), 0 1px 4px rgba(0, 0, 0, 0.25);
+  transition: opacity 0.2s, width 0.15s var(--ease), height 0.15s var(--ease), margin 0.15s var(--ease), border-radius 0.15s;
+}
+.cfx-ring {
+  width: 32px; height: 32px; margin: -16px 0 0 -16px;
+  border: 1.5px solid color-mix(in srgb, var(--brand) 55%, transparent);
+  transition: opacity 0.2s, width 0.22s var(--ease), height 0.22s var(--ease), margin 0.22s var(--ease), background 0.2s, border-color 0.2s;
+}
+/* над кнопками, ссылками, строками — кольцо раздувается и чуть заливается, точка мельче */
+html.cfx-link .cfx-ring { width: 46px; height: 46px; margin: -23px 0 0 -23px; background: color-mix(in srgb, var(--brand) 10%, transparent); border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
+html.cfx-link .cfx-dot { width: 6px; height: 6px; margin: -3px 0 0 -3px; }
+/* над полями ввода — точка вытягивается в каретку, кольцо прячется */
+html.cfx-text .cfx-dot { width: 2px; height: 20px; margin: -10px 0 0 -1px; border-radius: 1px; }
+html.cfx-text .cfx-ring { opacity: 0; }
+/* нажатие — кольцо сжимается к точке */
+html.cfx-down .cfx-ring { width: 20px; height: 20px; margin: -10px 0 0 -10px; background: color-mix(in srgb, var(--brand) 22%, transparent); border-color: var(--brand); }
+html.cfx-down .cfx-dot { width: 10px; height: 10px; margin: -5px 0 0 -5px; }
+/* волна от точки при нажатии */
+.cfx-ripple { position: fixed; z-index: 2147483646; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid var(--brand); pointer-events: none; animation: cfxRipple 0.55s var(--ease) forwards; }
+@keyframes cfxRipple { from { transform: scale(1); opacity: 0.75; } to { transform: scale(5); opacity: 0; } }
+
+/* переключатель разделов в липкой полоске при прокрутке («Настройки») — маленькая копия обычного */
+.sh-c:has(> .sh-tabs) { overflow: visible; }
+.sh-tabs { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 10px; background: var(--bg-sunken); vertical-align: middle; }
+.sh-tabs button { height: 26px; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; font: inherit; font-size: 12.5px; font-weight: 500; color: var(--text-sub); white-space: nowrap; cursor: pointer; transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease); }
+.sh-tabs button:hover { color: var(--text); }
+.sh-tabs button.on { background: var(--seg-on); color: var(--text); font-weight: 600; box-shadow: var(--seg-on-shadow); }
+.sh-tabs button:focus-visible { outline: none; box-shadow: var(--ring); }
+
+
+/* ══════════════ живые курсоры коллег (components/app/LiveCursors.tsx) ══════════════
+   Чужой курсор — маленькая точка его цвета (6px, без кольца — мельче своей «живой» точки)
+   и цветная подпись с именем; сообщение — облачко под подписью. */
+.app-content { position: relative; }
+.lv-layer { position: absolute; inset: 0; z-index: 60; pointer-events: none; overflow: visible; }
+.lv-cur { position: absolute; left: 0; top: 0; transition: transform 90ms linear; will-change: transform; }
+.lv-dot { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--lv); box-shadow: 0 0 0 1.5px #ffffff, 0 1px 3px rgba(0, 0, 0, 0.3); transition: opacity 0.3s; }
+.lv-name { position: absolute; left: 6px; top: 6px; padding: 1px 6px; border-radius: 2px 6px 6px 6px; background: var(--lv); color: #ffffff; font-size: 10.5px; font-weight: 600; line-height: 16px; white-space: nowrap; box-shadow: 0 2px 6px -2px rgba(0, 0, 0, 0.35); transition: opacity 0.3s; }
+.lv-cur.idle .lv-dot, .lv-cur.idle .lv-name { opacity: 0; }
+.lv-msg { position: absolute; left: 6px; top: 26px; width: max-content; max-width: 240px; padding: 6px 10px; border-radius: 2px 12px 12px 12px; background: var(--lv); color: #ffffff; font-size: 12.5px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.45); animation: lvPop 0.2s var(--ease); }
+.lv-cur.me .lv-msg { top: 10px; }
+@keyframes lvPop { from { transform: scale(0.85); opacity: 0; } to { transform: none; opacity: 1; } }
+/* поле «/» — у своего курсора */
+.lv-type { position: absolute; left: 0; top: 0; z-index: 61; display: flex; flex-direction: column; gap: 4px; padding: 12px 0 0 8px; }
+.lv-type input { width: 260px; height: 34px; padding: 0 12px; border: 0; border-radius: 2px 12px 12px 12px; outline: none; background: var(--brand); color: #ffffff; font: inherit; font-size: 13px; box-shadow: 0 8px 22px -8px rgba(0, 0, 0, 0.45), var(--ring); }
+.lv-type input::placeholder { color: rgba(255, 255, 255, 0.72); }
+.lv-type span { width: max-content; padding: 2px 7px; border-radius: 6px; background: var(--bg-modal); box-shadow: var(--shadow-md); font-size: 11px; color: var(--text-sub); }
+/* кто сейчас на странице */
+.lv-here { position: fixed; right: 18px; bottom: 16px; z-index: 890; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 5px; border-radius: 999px; background: var(--bg-modal); border: 1px solid var(--line); box-shadow: var(--shadow-lg); font-size: 12px; }
+.lv-here-ava { display: flex; }
+.lv-here-ava i { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 9.5px; font-weight: 700; color: #ffffff; box-shadow: 0 0 0 2px var(--bg-modal); }
+.lv-here-ava i + i { margin-left: -6px; }
+.lv-here-t { white-space: nowrap; color: var(--text); font-weight: 600; }
+.lv-here-t em { font-style: normal; font-weight: 500; color: var(--dim); }
+html:has(.lv-here) .toast-stack { bottom: 60px; }
+@media (max-width: 760px) { .lv-here, .lv-layer { display: none; } }

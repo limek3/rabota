@@ -8,6 +8,8 @@ import { NAV, NAV_GROUPS } from "@/lib/crm/nav";
 import { Icon } from "@/components/ui/icons";
 import { ConfirmHost, Progress, ToastHost, isTyping } from "@/components/ui/kit";
 import { TitleTips } from "@/components/ui/TitleTips";
+import { CursorFx } from "@/components/ui/CursorFx";
+import { LiveCursors } from "./LiveCursors";
 import { AuthGate } from "./AuthGate";
 import { LeadModal } from "./LeadModal";
 import { OperatorModal } from "./OperatorModal";
@@ -493,6 +495,8 @@ export function Shell({ children }: { children: ReactNode }) {
         <ConfirmHost />
         <ToastHost />
         <TitleTips />
+        <CursorFx />
+        <LiveCursors />
         <Hotkeys />
         <NumberTween />
         <RouteGuard />

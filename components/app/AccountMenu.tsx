@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
 import { AUTH_ENABLED } from "@/lib/appMode";
@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 import { Layer, usePopover } from "@/components/ui/select";
 import { signOut } from "@/lib/auth";
+import { LIVE_HIDE_EVENT, liveHidden, setLiveHidden } from "@/lib/live";
 
 /** Логин под именем: почту показываем как есть, короткий логин — с «@». */
 const loginOf = (a: { login: string }): string => (!a.login ? "" : a.login.includes("@") ? a.login : `@${a.login}`);
@@ -64,6 +65,14 @@ export function AccountMenu() {
     router.push(href);
   };
   const dark = me.prefs.theme === "dark";
+  // «живые курсоры»: показывать ли свой курсор коллегам (в этом браузере)
+  const [curHidden, setCurHidden] = useState(false);
+  useEffect(() => {
+    setCurHidden(liveHidden());
+    const on = () => setCurHidden(liveHidden());
+    window.addEventListener(LIVE_HIDE_EVENT, on);
+    return () => window.removeEventListener(LIVE_HIDE_EVENT, on);
+  }, []);
 
   return (
     <>
@@ -122,6 +131,12 @@ export function AccountMenu() {
               label={dark ? "Светлая тема" : "Тёмная тема"}
               hint={dark ? "Сейчас тёмная" : "Сейчас светлая"}
               onClick={() => void saveMyProfile({ theme: dark ? "light" : "dark" })}
+            />
+            <MenuItem
+              icon="users"
+              label={curHidden ? "Показывать мой курсор" : "Скрывать мой курсор"}
+              hint={curHidden ? "Сейчас коллеги вас не видят" : "Коллеги видят ваш курсор на той же странице"}
+              onClick={() => setLiveHidden(!curHidden)}
             />
 
             {AUTH_ENABLED && (
