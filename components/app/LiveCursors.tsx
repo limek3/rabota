@@ -152,12 +152,13 @@ function useOwnTrail(on: boolean) {
   }, [on]);
 }
 
-type Party = { key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number; mine?: boolean };
+/** op — карточка оператора, взявшего Грейд IV: ему самому подпись «Вы взяли Грейд IV!». */
+type Party = { key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number; op?: string };
 const PARTY_MS = 5200;
 const hhmm = (t: number) => new Date(t).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 
 export function LiveCursors() {
-  const { me, data, access, today } = useCrm();
+  const { me, data, access, today, ready: crmReady } = useCrm();
   // свой грейд дня — по своим доведённым лидам за сегодня; без карточки оператора (РОП) грейда нет
   const myGrade = useMemo(() => {
     if (!access.opId) return undefined;
@@ -260,32 +261,49 @@ export function LiveCursors() {
   popRef.current = pop;
 
   // праздник: один раз за день на каждый повод (в этом браузере)
-  const [party, setParty] = useState<Party | null>(null);
+  // очередь: несколько поводов сразу (двое взяли IV) — показываем по одному
+  const [parties, setParties] = useState<Party[]>([]);
+  const party = parties[0] ?? null;
   const celebrate = (p: Party) => {
     if (partySeen(p.key)) return;
     markParty(p.key, today);
-    setParty(p);
+    setParties((q) => (q.some((x) => x.key === p.key) ? q : [...q, p]));
   };
   const celebrateRef = useRef(celebrate);
   celebrateRef.current = celebrate;
   useEffect(() => {
     if (!party) return;
-    const t = window.setTimeout(() => setParty(null), PARTY_MS);
+    const t = window.setTimeout(() => setParties((q) => q.slice(1)), PARTY_MS);
     return () => window.clearTimeout(t);
   }, [party]);
-  const announce = (p: Omit<Party, "mine">) => {
+  const announce = (p: Party) => {
     if (partySeen(p.key)) return;
-    celebrate({ ...p, mine: p.kind === "g4" });
+    celebrate(p);
     link.current?.send({ t: "party", sid: sid.current, ...p });
   };
-  // свой Грейд IV — когда дорос до него за сессию (при открытии уже IV — не празднуем задним числом)
-  const prevGrade = useRef<number | undefined>(undefined);
+  // Грейд IV у кого угодно, чьи лиды видит этот браузер: в момент, когда доведённых за сегодня стало 11.
+  // Раньше объявлял только браузер самого оператора — а «Доведён» ставит проверяющий, и у оператора
+  // CRM в этот момент могла быть закрыта или спать. Теперь праздник объявит и браузер проверяющего.
+  // Тот же ключ на оператора и день — у всех покажется один раз, сколько бы браузеров его ни заметили.
+  // Открыли CRM, а кто-то уже сегодня взял IV и этот браузер праздник ещё не показывал — показываем
+  // (и рассылаем: кто не видел — увидит). Один раз за день на человека.
+  const doneToday = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of data.leads) if (l.status === "done" && l.at.slice(0, 10) === today) m.set(l.operatorId, (m.get(l.operatorId) ?? 0) + 1);
+    return m;
+  }, [data.leads, today]);
+  const prevDone = useRef<{ who: string; day: string; m: Map<string, number> } | null>(null);
   useEffect(() => {
-    const prev = prevGrade.current;
-    prevGrade.current = myGrade;
-    if (prev != null && prev < 4 && myGrade === 4) announce({ key: `g4:${me.id}:${today}`, kind: "g4", name: me.name });
+    if (!crmReady || me.id === "__boot__") return;
+    const prev = prevDone.current;
+    prevDone.current = { who: me.id, day: today, m: doneToday };
+    // первый снимок, другой аккаунт или новый день — все, у кого сегодня уже IV (кого ещё не праздновали)
+    const fresh = !prev || prev.who !== me.id || prev.day !== today;
+    for (const [op, n] of doneToday)
+      if (gradeLevel(n) === 4 && (fresh || gradeLevel(prev.m.get(op) ?? 0) < 4))
+        announce({ key: `g4:${op}:${today}`, kind: "g4", op, name: data.operators.find((o) => o.id === op)?.name ?? "" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myGrade]);
+  }, [doneToday, crmReady, me.id]);
   // план отдела на день — так же, только в момент выполнения
   const prevPlan = useRef<boolean | undefined>(undefined);
   useEffect(() => {
@@ -323,7 +341,7 @@ export function LiveCursors() {
       // вызов в игру и ходы — тоже мимо настройки «не показывать курсоры»
       if (m.t === "rps") return rpsRef.current.handle(m);
       // праздник показываем всем, даже если чужие курсоры выключены
-      if (m.t === "party") return celebrateRef.current({ key: m.key, kind: m.kind, name: m.name, n: m.n, plan: m.plan });
+      if (m.t === "party") return celebrateRef.current({ key: m.key, kind: m.kind, name: m.name, n: m.n, plan: m.plan, op: m.op });
       if (othersOffRef.current) return;
       if (m.t === "msg") {
         const p = peersRef.current[m.sid];
@@ -803,14 +821,14 @@ export function LiveCursors() {
           document.documentElement,
         )}
       {rps.card && createPortal(<div className={`rps-wrap${people.length > 0 || pageNotes.length > 0 ? " up" : ""}`}>{rps.card}</div>, document.documentElement)}
-      {party && createPortal(<Confetti key={party.key} party={party} />, document.documentElement)}
+      {party && createPortal(<Confetti key={party.key} party={party} mine={!!party.op && party.op === access.opId} />, document.documentElement)}
     </>
   );
 }
 
 /** Конфетти на весь экран и подпись: кто взял Грейд IV или что отдел выполнил план дня. */
 const CONFETTI = ["#ffc83d", "#f97316", "#ef4444", "#ec4899", "#a855f7", "#3b82f6", "#06b6d4", "#10b981"];
-function Confetti({ party }: { party: Party }) {
+function Confetti({ party, mine }: { party: Party; mine: boolean }) {
   const bits = useMemo(
     () =>
       Array.from({ length: 90 }, (_, i) => ({
@@ -847,7 +865,7 @@ function Confetti({ party }: { party: Party }) {
       <div className={`lv-party-cap ${party.kind}`}>
         <span className="lv-party-ico">{g4 ? "👑" : "🎉"}</span>
         <div>
-          <b>{g4 ? (party.mine ? "Вы взяли Грейд IV!" : `${shortName(party.name ?? "") || "Коллега"} — Грейд IV!`) : "Отдел выполнил план дня!"}</b>
+          <b>{g4 ? (mine ? "Вы взяли Грейд IV!" : `${shortName(party.name ?? "") || "Коллега"} — Грейд IV!`) : "Отдел выполнил план дня!"}</b>
           <span>{g4 ? "11 доведённых за день — так держать" : party.n != null && party.plan ? `${party.n} лидов при плане ${party.plan} — и день ещё не кончился` : "Спасибо всем, кто на смене"}</span>
         </div>
       </div>

@@ -34,7 +34,7 @@ export type LiveMsg =
   // hand — r камень, s ножницы, p бумага; busy — отказ, потому что уже играет
   | { t: "rps"; sid: string; kind: "invite" | "accept" | "decline" | "pick" | "bye" | "show"; gid: string; to?: string; id?: string; name?: string; hand?: "r" | "p" | "s"; round?: number; busy?: boolean }
   // праздник у всех: g4 — человек взял Грейд IV, plan — отдел выполнил план дня; key — один раз за день
-  | { t: "party"; sid: string; key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number };
+  | { t: "party"; sid: string; key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number; op?: string };
 
 /* ── праздники: какие уже показали сегодня (в этом браузере), чтобы не повторять ── */
 const PARTY_KEY = "leadup.live.party";
