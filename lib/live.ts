@@ -15,6 +15,7 @@ import { supabase, supabaseReady } from "@/lib/supabase";
  *   msg   — короткое сообщение у курсора;
  *   react — реакция на сообщение (из мини-чата страницы);
  *   bye   — закрыл вкладку или скрыл свой курсор;
+ *   rps   — камень-ножницы-бумага между двумя (с Грейда III; СВ и РОП — всегда);
  *   party — праздник у всех: кто-то взял Грейд IV или отдел выполнил план дня (конфетти).
  * sid — вкладка (у одного аккаунта их может быть несколько).
  */
@@ -29,6 +30,9 @@ export type LiveMsg =
   // реакция на сообщение mid: on — поставил, иначе снял; id/name — кто
   | { t: "react"; sid: string; mid: string; emoji: string; on: boolean; id: string; name: string }
   | { t: "bye"; sid: string }
+  // камень-ножницы-бумага: to — вкладка соперника (у show нет: облачко с рукой видят все на странице);
+  // hand — r камень, s ножницы, p бумага; busy — отказ, потому что уже играет
+  | { t: "rps"; sid: string; kind: "invite" | "accept" | "decline" | "pick" | "bye" | "show"; gid: string; to?: string; id?: string; name?: string; hand?: "r" | "p" | "s"; round?: number; busy?: boolean }
   // праздник у всех: g4 — человек взял Грейд IV, plan — отдел выполнил план дня; key — один раз за день
   | { t: "party"; sid: string; key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number };
 

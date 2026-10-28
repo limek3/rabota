@@ -10,6 +10,7 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import type { MonthKey } from "@/lib/crm/types";
 import { plural, shortName } from "@/lib/crm/format";
 import { uiZoom } from "@/components/ui/select";
+import { useRps } from "./LiveRps";
 
 /**
  * Живые курсоры коллег на той же странице (lib/live.ts — канал).
@@ -49,6 +50,9 @@ type Peer = {
   moved?: number;
   msg?: string;
   msgAt?: number;
+  /** Облачко над курсором (рука в камень-ножницы-бумага, 🏆). */
+  cloud?: string;
+  cloudAt?: number;
 };
 
 /**
@@ -101,6 +105,8 @@ type Note = {
 /** Реакции на сообщения в мини-чате. */
 const REACTS = ["👍", "❤️", "😂", "🔥", "👀", "🙏"];
 const POP_MS = 3500;
+/** Облачко с рукой над курсором игрока. */
+const CLOUD_MS = 2600;
 
 type Party = { key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number; mine?: boolean };
 const PARTY_MS = 5200;
@@ -150,6 +156,19 @@ export function LiveCursors() {
   // где мышь на экране (последнее движение); над меню слева — rail
   const mouse = useRef<{ x: number; y: number; rail: boolean } | null>(null);
   const ready = me.id !== "__boot__";
+
+  // камень-ножницы-бумага: играть можно с Грейда III; СВ и РОП — всегда
+  const canPlay = me.role !== "operator" || (myGrade ?? 0) >= 3;
+  const rps = useRps({
+    send: (m) => link.current?.send(m),
+    mySid: sid.current,
+    me: { id: me.id, name: me.name },
+    enabled: canPlay,
+    onCloud: (s, emoji) => setPeers((prev) => (prev[s] ? { ...prev, [s]: { ...prev[s], cloud: emoji, cloudAt: Date.now() } } : prev)),
+  });
+  const rpsRef = useRef(rps);
+  rpsRef.current = rps;
+  const playable = (p: Peer) => p.role === "head" || p.role === "supervisor" || (p.grade ?? 0) >= 3;
 
   // чужие курсоры выключены в настройках — не принимаем и не рисуем их
   const [othersOff, setOthersOff] = useState(false);
@@ -255,6 +274,8 @@ export function LiveCursors() {
   useEffect(() => {
     if (!ready) return;
     const l = openLive((m: LiveMsg) => {
+      // вызов в игру и ходы — тоже мимо настройки «не показывать курсоры»
+      if (m.t === "rps") return rpsRef.current.handle(m);
       // праздник показываем всем, даже если чужие курсоры выключены
       if (m.t === "party") return celebrateRef.current({ key: m.key, kind: m.kind, name: m.name, n: m.n, plan: m.plan });
       if (othersOffRef.current) return;
@@ -496,7 +517,8 @@ export function LiveCursors() {
           {here.map((p) => {
             const live = p.x != null && p.y != null && now - (p.moved ?? 0) < IDLE_MS;
             const talking = p.msg && now - (p.msgAt ?? 0) < msgTtl(p);
-            if (!live && !talking) return null;
+            const clouding = !!p.cloud && now - (p.cloudAt ?? 0) < CLOUD_MS;
+            if (!live && !talking && !clouding) return null;
             if (p.x == null || p.y == null) return null;
             const r = rankOf(p);
             // СВ моей группы — курсор крупнее
@@ -516,6 +538,11 @@ export function LiveCursors() {
                   {p.role === "supervisor" && p.team && <em>· {p.team}</em>}
                 </span>
                 {talking && <span className={`lv-msg${isEmoji(p.msg ?? "") ? " emo" : ""}`}>{p.msg}</span>}
+                    {clouding && (
+                      <span key={p.cloudAt} className="lv-cloud">
+                        {p.cloud}
+                      </span>
+                    )}
               </div>
             );
           })}
@@ -638,7 +665,8 @@ export function LiveCursors() {
                   const active = p.x != null && now - (p.moved ?? 0) < IDLE_MS;
                   const r = rankOf(p);
                   return (
-                    <button key={p.id} type="button" tabIndex={open ? 0 : -1} className="lv-here-row" disabled={!active} onClick={() => show(p)}>
+                    <div key={p.id} className="lv-here-item">
+                    <button type="button" tabIndex={open ? 0 : -1} className="lv-here-row" disabled={!active} onClick={() => show(p)}>
                       <i style={{ background: liveColor(p.id) }}>{initials(p.name)}</i>
                       <span>
                         <b>
@@ -654,9 +682,27 @@ export function LiveCursors() {
                       </span>
                       <em className={active ? "on" : ""} />
                     </button>
+                    {/* вызвать на камень-ножницы-бумага: оба с Грейда III (или СВ/РОП) */}
+                    {canPlay && playable(p) && (
+                      <button
+                        type="button"
+                        tabIndex={open ? 0 : -1}
+                        className={`lv-rps-btn${rps.foeSid === p.sid ? " on" : ""}`}
+                        disabled={rps.busy}
+                        onClick={() => rps.invite({ sid: p.sid, id: p.id, name: p.name })}
+                        aria-label={`Сыграть с ${p.name} в камень-ножницы-бумага`}
+                      >
+                        ✊✌️✋
+                      </button>
+                    )}
+                    </div>
                   );
                 })}
-                <div className="lv-here-f">{hidden ? "Ваш курсор скрыт — включить можно в меню аккаунта" : "Enter у курсора — написать всем на странице"}</div>
+                <div className="lv-here-f">
+                  {hidden ? "Ваш курсор скрыт — включить можно в меню аккаунта" : "Enter у курсора — написать всем на странице"}
+                  <br />
+                  {canPlay ? "✊✌️✋ у коллеги — вызвать на камень-ножницы-бумага (с Грейда III)" : "✊✌️✋ Камень-ножницы-бумага откроется на Грейде III"}
+                </div>
               </div>
             </div>
             <button type="button" className="lv-here-bar" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
@@ -679,6 +725,7 @@ export function LiveCursors() {
           </div>,
           document.documentElement,
         )}
+      {rps.card && createPortal(<div className={`rps-wrap${people.length > 0 || pageNotes.length > 0 ? " up" : ""}`}>{rps.card}</div>, document.documentElement)}
       {party && createPortal(<Confetti key={party.key} party={party} />, document.documentElement)}
     </>
   );

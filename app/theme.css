@@ -161,18 +161,21 @@
   --tip-bg: #2d2c3d;
   --tip-fg: #f4f3fa;
 
-  --c-gray-fg: #a3a1b6;   --c-gray-bg: #23222f;   --c-gray-bd: #33323f;
-  --c-slate-fg: #a8b1c8;  --c-slate-bg: #20232f;  --c-slate-bd: #313546;
-  --c-blue-fg: #6ea6ff;   --c-blue-bg: #172340;   --c-blue-bd: #23375e;
-  --c-sky-fg: #5bc2f0;    --c-sky-bg: #122b39;    --c-sky-bd: #1d4357;
-  --c-teal-fg: #45cdbd;   --c-teal-bg: #112e2b;   --c-teal-bd: #1b4641;
-  --c-green-fg: #4ccf8c;  --c-green-bg: #122e1f;  --c-green-bd: #1d4831;
-  --c-amber-fg: #f2b146;  --c-amber-bg: #33270f;  --c-amber-bd: #4d3b17;
-  --c-peach-fg: #ff9a72;  --c-peach-bg: #382016;  --c-peach-bd: #553223;
-  --c-red-fg: #ff7184;    --c-red-bg: #3a1820;    --c-red-bd: #592532;
-  --c-pink-fg: #f27cbc;   --c-pink-bg: #37172e;   --c-pink-bd: #532445;
-  --c-purple-fg: #a993ff; --c-purple-bg: #251d44; --c-purple-bd: #392d66;
-  --c-indigo-fg: #8b9bff; --c-indigo-bg: #1c2145; --c-indigo-bd: #2b3367;
+  /* статусы и цвета групп / проектов: текст — мягкий, выровненный по яркости; плашка и рамка — тот же
+     цвет, подмешанный к фону панели (13% и 28%). Раньше плашки были глухими своими тонами
+     (#33270f, #172340…) и на фиолетово-сером фоне смотрелись мутными заплатками */
+  --c-gray-fg: #a9a7bd;   --c-gray-bg: color-mix(in srgb, #a9a7bd 10%, #191823);   --c-gray-bd: color-mix(in srgb, #a9a7bd 22%, #191823);
+  --c-slate-fg: #adb6cc;  --c-slate-bg: color-mix(in srgb, #adb6cc 11%, #191823);  --c-slate-bd: color-mix(in srgb, #adb6cc 24%, #191823);
+  --c-blue-fg: #7eaaff;   --c-blue-bg: color-mix(in srgb, #7eaaff 13%, #191823);   --c-blue-bd: color-mix(in srgb, #7eaaff 28%, #191823);
+  --c-sky-fg: #6fc4ea;    --c-sky-bg: color-mix(in srgb, #6fc4ea 13%, #191823);    --c-sky-bd: color-mix(in srgb, #6fc4ea 28%, #191823);
+  --c-teal-fg: #5fcdbf;   --c-teal-bg: color-mix(in srgb, #5fcdbf 12%, #191823);   --c-teal-bd: color-mix(in srgb, #5fcdbf 27%, #191823);
+  --c-green-fg: #5fd39a;  --c-green-bg: color-mix(in srgb, #5fd39a 12%, #191823);  --c-green-bd: color-mix(in srgb, #5fd39a 27%, #191823);
+  --c-amber-fg: #ecbb62;  --c-amber-bg: color-mix(in srgb, #ecbb62 12%, #191823);  --c-amber-bd: color-mix(in srgb, #ecbb62 27%, #191823);
+  --c-peach-fg: #f6a382;  --c-peach-bg: color-mix(in srgb, #f6a382 12%, #191823);  --c-peach-bd: color-mix(in srgb, #f6a382 27%, #191823);
+  --c-red-fg: #ff8596;    --c-red-bg: color-mix(in srgb, #ff8596 13%, #191823);    --c-red-bd: color-mix(in srgb, #ff8596 28%, #191823);
+  --c-pink-fg: #f08cc4;   --c-pink-bg: color-mix(in srgb, #f08cc4 13%, #191823);   --c-pink-bd: color-mix(in srgb, #f08cc4 28%, #191823);
+  --c-purple-fg: #ae9bff; --c-purple-bg: color-mix(in srgb, #ae9bff 14%, #191823); --c-purple-bd: color-mix(in srgb, #ae9bff 30%, #191823);
+  --c-indigo-fg: #98a5ff; --c-indigo-bg: color-mix(in srgb, #98a5ff 14%, #191823); --c-indigo-bd: color-mix(in srgb, #98a5ff 30%, #191823);
 
   --sch-work: #13301f;
   --sch-work-fg: #6edba3;
@@ -186,7 +189,7 @@
   --sch-train-fg: #eef0ff;
   --sch-plat: #6748de;
   --sch-plat-fg: #f4f0ff;
-  --sch-sick: #3a1820;
+  --sch-sick: color-mix(in srgb, #ff8596 14%, #191823);
   --sch-sick-fg: #ff8a99;
   --sch-vac: #c4892e;
   --sch-gone-bg: color-mix(in srgb, var(--bg-panel) 92%, #ff5070);
@@ -309,6 +312,19 @@
   --c-gray-fg: #b9b6cc; --c-blue-fg: #7cb8ff; --c-green-fg: #6fd39a; --c-amber-fg: #f3c45c; --c-red-fg: #ff8a84; --c-purple-fg: #b49cff;
   --c-pink-fg: #f58fc0; --c-teal-fg: #5fd4c4; --c-indigo-fg: #93a2ff; --c-sky-fg: #6fcaf2; --c-peach-fg: #ffa97f; --c-slate-fg: #b4bcd2;
   --c-red-bg: rgba(255, 138, 132, 0.15); --c-red-bd: rgba(255, 138, 132, 0.32);
+  /* плашки (роль под именем и т. п.): не пастельные светлой темы, а полупрозрачные в цвет текста —
+     иначе на тёмном меню они выглядели чужими */
+  --c-gray-bg: rgba(185, 182, 204, 0.13); --c-gray-bd: rgba(185, 182, 204, 0.26);
+  --c-blue-bg: rgba(124, 184, 255, 0.15); --c-blue-bd: rgba(124, 184, 255, 0.32);
+  --c-green-bg: rgba(111, 211, 154, 0.14); --c-green-bd: rgba(111, 211, 154, 0.3);
+  --c-amber-bg: rgba(243, 196, 92, 0.14); --c-amber-bd: rgba(243, 196, 92, 0.3);
+  --c-purple-bg: rgba(180, 156, 255, 0.15); --c-purple-bd: rgba(180, 156, 255, 0.32);
+  --c-pink-bg: rgba(245, 143, 192, 0.14); --c-pink-bd: rgba(245, 143, 192, 0.3);
+  --c-teal-bg: rgba(95, 212, 196, 0.14); --c-teal-bd: rgba(95, 212, 196, 0.3);
+  --c-indigo-bg: rgba(147, 162, 255, 0.15); --c-indigo-bd: rgba(147, 162, 255, 0.32);
+  --c-sky-bg: rgba(111, 202, 242, 0.14); --c-sky-bd: rgba(111, 202, 242, 0.3);
+  --c-peach-bg: rgba(255, 169, 127, 0.14); --c-peach-bd: rgba(255, 169, 127, 0.3);
+  --c-slate-bg: rgba(180, 188, 210, 0.13); --c-slate-bd: rgba(180, 188, 210, 0.26);
 }
 .app-rail-item { border-radius: var(--ctl-r); color: var(--rail-fg); padding: 8px 12px; }
 .app-rail-item:hover { background: var(--rail-hover-bg); color: var(--rail-text); }
@@ -682,6 +698,18 @@ html.cfx-down .cfx-dot { width: 10px; height: 10px; margin: -5px 0 0 -5px; }
 @keyframes lvSpark { 0%, 100% { transform: scale(1); opacity: 1; } 45% { transform: scale(0.65) rotate(20deg); opacity: 0.55; } 60% { transform: scale(1.18); opacity: 1; } }
 @keyframes lvWave { 0% { transform: scale(0.05); opacity: 0.95; } 100% { transform: scale(1); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .lv-name::after, .lv-rank::after, .lv-ico, .lv-wave { animation: none !important; } }
+/* тёмная тема: металлы не светлыми плитками, а глубокими тонами с ярким текстом и тонкой каймой —
+   так они живут вместе с тёмными карточками, а не лежат поверх них наклейкой */
+:root:not([data-theme="light"]) .lv-rank.g4, :root:not([data-theme="light"]) .lv-cur.g4 .lv-name { color: #ffd76a; background: linear-gradient(120deg, #3b2a08 0%, #5c400c 100%); box-shadow: inset 0 0 0 1px rgba(255, 200, 61, 0.42), 0 2px 10px -3px rgba(255, 190, 40, 0.35); }
+:root:not([data-theme="light"]) .lv-rank.g4 .lv-ico-crown, :root:not([data-theme="light"]) .lv-cur.g4 .lv-ico-crown { color: #ffc83d; }
+:root:not([data-theme="light"]) .lv-rank.g3, :root:not([data-theme="light"]) .lv-cur.g3 .lv-name { color: #f6b98a; background: linear-gradient(120deg, #3a2314 0%, #573320 100%); box-shadow: inset 0 0 0 1px rgba(240, 160, 100, 0.42), 0 2px 10px -3px rgba(220, 130, 60, 0.3); }
+:root:not([data-theme="light"]) .lv-rank.g3 .lv-ico-spark, :root:not([data-theme="light"]) .lv-cur.g3 .lv-ico-spark { color: #ffc49a; }
+:root:not([data-theme="light"]) .lv-rank.g2 { color: #dbe1ea; background: rgba(214, 220, 229, 0.1); box-shadow: inset 0 0 0 1px rgba(214, 220, 229, 0.3); }
+:root:not([data-theme="light"]) .lv-cur.g2 .lv-name { box-shadow: inset 0 0 0 1.5px rgba(232, 237, 244, 0.7), 0 2px 6px -2px rgba(0, 0, 0, 0.45); }
+:root:not([data-theme="light"]) .lv-rank.r-head { color: #ffd76a; background: rgba(255, 200, 61, 0.1); box-shadow: inset 0 0 0 1px rgba(255, 200, 61, 0.38); }
+:root:not([data-theme="light"]) .lv-cur.r-head .lv-name, :root:not([data-theme="light"]) .lv-cur.r-head .lv-msg { background: linear-gradient(120deg, #2c2717, #1d1a12); }
+:root:not([data-theme="light"]) .lv-cur:is(.g3, .g4) .lv-name::after, :root:not([data-theme="light"]) .lv-rank:is(.g3, .g4)::after { opacity: 0.35; }
+:root:not([data-theme="light"]) .lv-party-cap.g4 { color: #ffe39a; background: linear-gradient(120deg, #3b2a08, #5c400c); box-shadow: 0 14px 40px -12px rgba(255, 190, 40, 0.45), inset 0 0 0 1px rgba(255, 200, 61, 0.45); }
 .lv-msg { position: absolute; left: 6px; top: 26px; width: max-content; max-width: 240px; padding: 6px 10px; border-radius: 2px 12px 12px 12px; background: var(--lv); color: #ffffff; font-size: 12.5px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; box-shadow: 0 6px 18px -8px rgba(0, 0, 0, 0.45); animation: lvPop 0.2s var(--ease); }
 /* своё сообщение и поле плывут за курсором с лёгкой задержкой; отступ — чтобы не наезжать на кольцо курсора */
 .lv-cur.me, .lv-type { transition: transform 160ms cubic-bezier(0.22, 0.9, 0.3, 1); will-change: transform; }
@@ -743,6 +771,74 @@ html:has(.lv-here) .toast-stack { bottom: 60px; }
 .lv-note p { margin: 1px 0 0; font-size: 12.5px; line-height: 1.35; color: var(--text-sub); overflow-wrap: anywhere; }
 .lv-note p.emo { font-size: 18px; line-height: 1.2; }
 .lv-note.mine b { color: var(--brand); }
+/* ── камень-ножницы-бумага ── */
+/* кнопка вызова у коллеги в списке «на странице» — справа, перед точкой «водит курсором» */
+.lv-here-item { position: relative; }
+.lv-rps-btn { position: absolute; right: 26px; top: 50%; height: 24px; padding: 0 7px; border: 0; border-radius: 12px; background: var(--ink-05); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; letter-spacing: -1px; cursor: pointer; transform: translateY(-50%); transition: transform 0.15s var(--ease), background 0.15s, box-shadow 0.15s; }
+.lv-rps-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent); transform: translateY(-50%) scale(1.08); }
+.lv-rps-btn.on { background: color-mix(in srgb, var(--brand) 16%, transparent); box-shadow: inset 0 0 0 1px var(--brand); }
+.lv-rps-btn:disabled:not(.on) { opacity: 0.4; cursor: default; }
+/* облачко над курсором игрока: рука в момент раскрытия, 🏆 у победителя — видят все на странице */
+.lv-cloud { position: absolute; left: -24px; top: -62px; width: 48px; height: 44px; display: grid; place-items: center; padding-bottom: 2px; border-radius: 22px; background: var(--bg-modal); box-shadow: var(--shadow-lg), inset 0 0 0 1px var(--line); font-size: 24px; line-height: 1; animation: lvCloud 2.6s var(--ease) forwards; }
+.lv-cloud::before, .lv-cloud::after { content: ""; position: absolute; border-radius: 50%; background: var(--bg-modal); box-shadow: inset 0 0 0 1px var(--line); }
+.lv-cloud::before { width: 10px; height: 10px; left: 19px; bottom: -9px; }
+.lv-cloud::after { width: 5px; height: 5px; left: 22px; bottom: -16px; }
+@keyframes lvCloud { 0% { transform: translateY(10px) scale(0.4); opacity: 0; } 12% { transform: translateY(-2px) scale(1.08); opacity: 1; } 20%, 82% { transform: none; opacity: 1; } 100% { transform: translateY(-8px); opacity: 0; } }
+/* карточка игры — над плашкой «на странице» */
+.rps-wrap { position: fixed; right: 18px; bottom: 16px; z-index: 891; }
+.rps-wrap.up { bottom: 60px; }
+.rps { width: 300px; border-radius: 16px; background: var(--bg-modal); box-shadow: var(--shadow-xl), inset 0 0 0 1px var(--line); color: var(--text); font-size: 12.5px; overflow: hidden; animation: lvCard 0.32s cubic-bezier(0.22, 0.9, 0.3, 1); }
+@keyframes lvCard { from { transform: translateY(14px) scale(0.96); opacity: 0; } }
+.rps-h { display: flex; align-items: center; gap: 8px; padding: 10px 10px 8px 14px; border-bottom: 1px solid var(--line); }
+.rps-logo { font-size: 12px; letter-spacing: -1px; }
+.rps-h b { font-size: 12.5px; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rps-score { flex: 1; min-width: 0; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rps-score em { font-style: normal; font-weight: 500; color: var(--dim); font-size: 11px; }
+.rps-x { width: 24px; height: 24px; border: 0; border-radius: 7px; background: transparent; color: var(--dim); font-size: 17px; line-height: 1; cursor: pointer; }
+.rps-x:hover { background: var(--ink-05); color: var(--text); }
+.rps-b { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; }
+.rps-b p { margin: 0; line-height: 1.4; color: var(--text-sub); }
+.rps-b p b { color: var(--text); }
+.rps-call { font-size: 13.5px; color: var(--text) !important; }
+.rps-invited { box-shadow: var(--shadow-xl), inset 0 0 0 1.5px var(--brand); animation: lvCard 0.32s cubic-bezier(0.22, 0.9, 0.3, 1), rpsRing 1.6s ease-in-out 0.4s 3; }
+@keyframes rpsRing { 50% { box-shadow: var(--shadow-xl), inset 0 0 0 1.5px var(--brand), 0 0 0 6px color-mix(in srgb, var(--brand) 18%, transparent); } }
+.rps-act { display: flex; gap: 6px; }
+.rps-hands { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.rps-hands button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0 8px; border: 0; border-radius: 12px; background: var(--ink-04); box-shadow: inset 0 0 0 1px var(--line); font: inherit; color: var(--text-sub); cursor: pointer; transition: transform 0.15s var(--ease), background 0.15s, box-shadow 0.15s; }
+.rps-hands button span { font-size: 28px; line-height: 1; transition: transform 0.2s var(--ease); }
+.rps-hands button small { font-size: 11px; font-weight: 600; }
+.rps-hands button:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent); transform: translateY(-2px); }
+.rps-hands button:hover:not(:disabled) span { transform: scale(1.15) rotate(-6deg); }
+.rps-hands button.on { background: color-mix(in srgb, var(--brand) 16%, transparent); box-shadow: inset 0 0 0 1.5px var(--brand); color: var(--text); }
+.rps-hands button:disabled:not(.on) { opacity: 0.35; cursor: default; }
+.rps-foe { font-size: 11.5px; color: var(--dim) !important; }
+.rps-dots { display: inline-flex; gap: 3px; margin-left: 4px; vertical-align: middle; }
+.rps-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--dim); animation: rpsDot 1s ease-in-out infinite; }
+.rps-dots i:nth-child(2) { animation-delay: 0.15s; }
+.rps-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes rpsDot { 0%, 60%, 100% { opacity: 0.3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+/* раскрытие: обе руки трясутся «раз-два-три», потом встают на свои места */
+.rps-duel { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 6px 0 2px; }
+.rps-duel > div { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 70px; }
+.rps-duel small { font-size: 11px; color: var(--dim); font-weight: 600; }
+.rps-duel > b { font-size: 11px; font-weight: 800; color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
+.rps-hand { font-size: 40px; line-height: 1; display: inline-block; }
+.rps-hand.me { transform: scaleX(-1); }
+.rps-duel:not(.shown) .rps-hand.me { animation: rpsShakeMe 0.43s ease-in-out 3; }
+.rps-duel:not(.shown) .rps-hand.foe { animation: rpsShake 0.43s ease-in-out 3; }
+.rps-duel.shown .rps-hand { animation: rpsPop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.rps-duel.shown .rps-hand.me { animation-name: rpsPopMe; }
+@keyframes rpsShake { 50% { transform: translateY(-10px) rotate(-12deg); } }
+@keyframes rpsShakeMe { 0%, 100% { transform: scaleX(-1); } 50% { transform: scaleX(-1) translateY(-10px) rotate(-12deg); } }
+@keyframes rpsPop { from { transform: scale(0.4); } }
+@keyframes rpsPopMe { from { transform: scaleX(-1) scale(0.4); } to { transform: scaleX(-1); } }
+.rps-res { text-align: center; font-size: 13.5px; font-weight: 700; color: var(--text) !important; }
+.rps-res.win { color: var(--c-green-fg) !important; }
+.rps-res.lose { color: var(--c-red-fg) !important; }
+.rps-final { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; font-weight: 800; color: var(--text) !important; }
+.rps-final span { font-size: 26px; animation: lvEmo 0.6s cubic-bezier(0.3, 1.6, 0.5, 1); }
+.rps-final.win { color: var(--c-green-fg) !important; }
+@media (prefers-reduced-motion: reduce) { .rps-hand, .rps, .lv-cloud, .rps-dots i { animation: none !important; } }
 /* реакции: под сообщением — поставленные (с числом), при наведении справа — панелька, чтобы поставить */
 .lv-note { position: relative; padding: 3px 4px; margin: 0 -4px; border-radius: 8px; transition: background 0.12s; }
 .lv-note:hover { background: var(--ink-04); }

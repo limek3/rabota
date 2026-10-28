@@ -211,8 +211,11 @@ export async function openCarMini(projects: Project[]): Promise<void> {
       }
     }
   }
-  // тема и шрифт — как у CRM
-  doc.documentElement.className = document.documentElement.className;
+  // тема и шрифт — как у CRM; без классов курсора-точки (cfx-*): они прячут системную стрелку,
+  // а самой точки в этом окне нет — курсор пропадал совсем
+  doc.documentElement.className = Array.from(document.documentElement.classList)
+    .filter((c) => !c.startsWith("cfx-"))
+    .join(" ");
   for (const a of Array.from(document.documentElement.attributes)) if (a.name.startsWith("data-")) doc.documentElement.setAttribute(a.name, a.value);
   doc.body.className = document.body.className;
   const host = doc.createElement("div");
