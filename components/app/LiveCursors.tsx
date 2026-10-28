@@ -87,7 +87,20 @@ const isEmoji = (s: string) => EMOJI_ONLY.test(s) && /\S/.test(s);
 
 /** Мини-чат страницы: последние сообщения — чтобы не пропустить, если отошёл. Только в памяти вкладки. */
 const NOTES_MAX = 10;
-type Note = { k: string; id: string; name: string; text: string; at: number; mine?: boolean };
+type Note = {
+  /** id сообщения — по нему приходят реакции. */
+  k: string;
+  id: string;
+  name: string;
+  text: string;
+  at: number;
+  mine?: boolean;
+  /** Реакции: смайлик → кто поставил. */
+  reacts?: Record<string, { id: string; name: string }[]>;
+};
+/** Реакции на сообщения в мини-чате. */
+const REACTS = ["👍", "❤️", "😂", "🔥", "👀", "🙏"];
+const POP_MS = 3500;
 
 type Party = { key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number; mine?: boolean };
 const PARTY_MS = 5200;
@@ -124,6 +137,8 @@ export function LiveCursors() {
   const [mine, setMine] = useState<{ text: string; at: number } | null>(null);
   // где мой курсор — только пока за ним плывёт поле или сообщение (иначе не перерисовываемся на каждое движение)
   const [cur, setCur] = useState<{ x: number; y: number } | null>(null);
+  // где открыли поле сообщения — оно стоит там, пока печатаете
+  const [typeAt, setTypeAt] = useState<{ x: number; y: number } | null>(null);
   const [open, setOpen] = useState(false);
   const hereRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -146,6 +161,38 @@ export function LiveCursors() {
   const peersRef = useRef(peers);
   peersRef.current = peers;
   const addNote = (pg: string, n: Note) => setNotes((h) => ({ ...h, [pg]: [...(h[pg] ?? []), n].slice(-NOTES_MAX) }));
+  // реакция на сообщение mid — где бы оно ни лежало; один человек — одна такая реакция
+  const applyReact = (mid: string, emoji: string, who: { id: string; name: string }, on: boolean) =>
+    setNotes((h) => {
+      const next: Record<string, Note[]> = {};
+      for (const [pg, list] of Object.entries(h))
+        next[pg] = list.map((n) => {
+          if (n.k !== mid) return n;
+          const was = (n.reacts?.[emoji] ?? []).filter((x) => x.id !== who.id);
+          const reacts = { ...n.reacts, [emoji]: on ? [...was, who] : was };
+          if (!reacts[emoji].length) delete reacts[emoji];
+          return { ...n, reacts };
+        });
+      return next;
+    });
+  // id моих сообщений — чтобы узнать реакцию на них
+  const myNotes = useRef(new Set<string>());
+  const react = (n: Note, emoji: string) => {
+    const on = !(n.reacts?.[emoji] ?? []).some((x) => x.id === me.id);
+    applyReact(n.k, emoji, { id: me.id, name: me.name }, on);
+    link.current?.send({ t: "react", sid: sid.current, mid: n.k, emoji, on, id: me.id, name: me.name });
+  };
+
+  // всплывашки у моего курсора: «❤️ Галина А.» — кто отреагировал на моё сообщение
+  const [pops, setPops] = useState<{ k: number; text: string }[]>([]);
+  const pop = (text: string) => {
+    const k = Date.now() + Math.random();
+    if (pos.current) setCur({ x: pos.current.x, y: pos.current.y });
+    setPops((p) => [...p.slice(-3), { k, text }]);
+    window.setTimeout(() => setPops((p) => p.filter((x) => x.k !== k)), POP_MS);
+  };
+  const popRef = useRef(pop);
+  popRef.current = pop;
 
   // праздник: один раз за день на каждый повод (в этом браузере)
   const [party, setParty] = useState<Party | null>(null);
@@ -213,7 +260,14 @@ export function LiveCursors() {
       if (othersOffRef.current) return;
       if (m.t === "msg") {
         const p = peersRef.current[m.sid];
-        if (p) addNote(m.path, { k: `${m.sid}:${Date.now()}`, id: p.id, name: p.name, text: m.text.slice(0, MSG_MAX), at: Date.now() });
+        if (p) addNote(m.path, { k: m.mid ?? `${m.sid}:${Date.now()}`, id: p.id, name: p.name, text: m.text.slice(0, MSG_MAX), at: Date.now() });
+      }
+      if (m.t === "react") {
+        if (m.id === me.id) return;
+        applyReact(m.mid, m.emoji, { id: m.id, name: m.name }, m.on);
+        // реакция на моё сообщение — всплывает у моего курсора
+        if (m.on && myNotes.current.has(m.mid)) popRef.current(`${m.emoji} ${shortName(m.name) || "Коллега"}`);
+        return;
       }
       setPeers((prev) => {
         const p = prev[m.sid];
@@ -351,6 +405,7 @@ export function LiveCursors() {
       pos.current = p;
       e.preventDefault();
       setCur({ x: p.x, y: p.y });
+      setTypeAt({ x: p.x, y: p.y });
       setTyping(true);
     };
     const onDown = () => {
@@ -367,9 +422,13 @@ export function LiveCursors() {
   const sendMsg = (text: string) => {
     const v = text.trim().slice(0, MSG_MAX);
     if (v && link.current) {
-      link.current.send({ t: "msg", sid: sid.current, path, text: v });
+      const mid = `${sid.current}-${Date.now().toString(36)}`;
+      link.current.send({ t: "msg", sid: sid.current, path, text: v, mid });
       setMine({ text: v, at: Date.now() });
-      addNote(path, { k: `me:${Date.now()}`, id: me.id, name: me.name, text: v, at: Date.now(), mine: true });
+      myNotes.current.add(mid);
+      addNote(path, { k: mid, id: me.id, name: me.name, text: v, at: Date.now(), mine: true });
+      // дальше сообщение плывёт за курсором — с того места, где мышь сейчас
+      if (pos.current) setCur({ x: pos.current.x, y: pos.current.y });
     }
     setTyping(false);
   };
@@ -425,7 +484,9 @@ export function LiveCursors() {
   const people = Array.from(new Map(here.map((p) => [p.id, p])).values()).sort((a, b) => rankWeight(b) - rankWeight(a));
   const w = host.clientWidth;
   const talkingMe = !!mine && now - mine.at < (me.role === "head" ? MSG_MS * 2 : MSG_MS);
-  follow.current = typing || talkingMe;
+  // за курсором плывут отправленное сообщение и всплывашки реакций; поле ввода стоит на месте —
+  // иначе до смайликов под ним мышью не дотянуться
+  follow.current = talkingMe || pops.length > 0;
   const show = (p: Peer) => host.querySelector(`[data-sid="${p.sid}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
 
   return (
@@ -458,20 +519,31 @@ export function LiveCursors() {
               </div>
             );
           })}
-          {talkingMe && !typing && cur && (
+          {(talkingMe || pops.length > 0) && !typing && cur && (
             <div className={`lv-cur me${me.role === "head" ? " r-head" : ""}`} style={{ ["--lv" as string]: "var(--brand)", transform: `translate3d(${cur.x}px, ${cur.y}px, 0)` }}>
-              <span key={mine.at} className={`lv-msg${isEmoji(mine.text) ? " emo" : ""}`}>
-                {mine.text}
-              </span>
+              {talkingMe && (
+                <span key={mine.at} className={`lv-msg${isEmoji(mine.text) ? " emo" : ""}`}>
+                  {mine.text}
+                </span>
+              )}
+              {pops.length > 0 && (
+                <span className="lv-pops">
+                  {pops.map((p) => (
+                    <span key={p.k} className="lv-pop">
+                      {p.text}
+                    </span>
+                  ))}
+                </span>
+              )}
             </div>
           )}
         </div>,
         host,
       )}
       {typing &&
-        cur &&
+        typeAt &&
         createPortal(
-          <div className="lv-type" style={{ transform: `translate3d(${cur.x}px, ${cur.y}px, 0)` }}>
+          <div className="lv-type" style={{ transform: `translate3d(${typeAt.x}px, ${typeAt.y}px, 0)` }}>
             <input
               ref={inputRef}
               autoFocus
@@ -527,7 +599,35 @@ export function LiveCursors() {
                               <time>{hhmm(n.at)}</time>
                             </b>
                             <p className={isEmoji(n.text) ? "emo" : undefined}>{n.text}</p>
+                            {/* поставленные реакции: щелчок по своей — снять, по чужой — присоединиться */}
+                            {n.reacts && Object.keys(n.reacts).length > 0 && (
+                              <span className="lv-reacts">
+                                {Object.entries(n.reacts).map(([em, who]) => (
+                                  <button
+                                    key={em}
+                                    type="button"
+                                    tabIndex={open ? 0 : -1}
+                                    className={who.some((x) => x.id === me.id) ? "on" : undefined}
+                                    onClick={() => react(n, em)}
+                                    aria-label={`${em}: ${who.map((x) => shortName(x.name)).join(", ")}`}
+                                  >
+                                    {em}
+                                    <small>{who.length}</small>
+                                  </button>
+                                ))}
+                              </span>
+                            )}
                           </div>
+                          {/* навели на чужое сообщение — панелька реакций */}
+                          {!n.mine && (
+                            <span className="lv-react-add">
+                              {REACTS.map((em) => (
+                                <button key={em} type="button" tabIndex={open ? 0 : -1} onClick={() => react(n, em)} aria-label={`Реакция ${em}`}>
+                                  {em}
+                                </button>
+                              ))}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>

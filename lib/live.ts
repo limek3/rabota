@@ -13,6 +13,7 @@ import { supabase, supabaseReady } from "@/lib/supabase";
  *   cur   — положение мыши в координатах содержимого страницы (x — доля ширины, y — пиксели от верха);
  *   out   — мышь ушла со страницы (на меню, из окна, вкладка свернута);
  *   msg   — короткое сообщение у курсора;
+ *   react — реакция на сообщение (из мини-чата страницы);
  *   bye   — закрыл вкладку или скрыл свой курсор;
  *   party — праздник у всех: кто-то взял Грейд IV или отдел выполнил план дня (конфетти).
  * sid — вкладка (у одного аккаунта их может быть несколько).
@@ -23,7 +24,10 @@ export type LiveMsg =
   | { t: "hello"; sid: string; id: string; name: string; path: string; grade?: number; role?: "head" | "supervisor" | "operator"; gids?: string[]; team?: string }
   | { t: "cur"; sid: string; path: string; x: number; y: number }
   | { t: "out"; sid: string }
-  | { t: "msg"; sid: string; path: string; text: string }
+  // mid — id сообщения, чтобы на него можно было отреагировать
+  | { t: "msg"; sid: string; path: string; text: string; mid?: string }
+  // реакция на сообщение mid: on — поставил, иначе снял; id/name — кто
+  | { t: "react"; sid: string; mid: string; emoji: string; on: boolean; id: string; name: string }
   | { t: "bye"; sid: string }
   // праздник у всех: g4 — человек взял Грейд IV, plan — отдел выполнил план дня; key — один раз за день
   | { t: "party"; sid: string; key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number };
