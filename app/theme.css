@@ -778,6 +778,15 @@ html:has(.lv-here) .toast-stack { bottom: 60px; }
 .lv-note p { margin: 1px 0 0; font-size: 12.5px; line-height: 1.35; color: var(--text-sub); overflow-wrap: anywhere; }
 .lv-note p.emo { font-size: 18px; line-height: 1.2; }
 .lv-note.mine b { color: var(--brand); }
+/* ── Грейд IV: золотой след за курсором ──
+   искры с тем же положением, что у курсора, но с нарастающей задержкой — хвост тянется сам;
+   каждая следующая мельче и тусклее, нечётные мерцают, как блёстки */
+.lv-trail { position: absolute; left: 0; top: 0; z-index: 59; --s: calc(12px - var(--i) * 1.2px); width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); border-radius: 50%; pointer-events: none; background: radial-gradient(circle at 40% 40%, #fffbe8 0%, #ffe38a 35%, #f5b52e 70%, rgba(245, 181, 46, 0) 100%); opacity: calc(1 - var(--i) * 0.12); box-shadow: 0 0 calc(14px - var(--i) * 1.2px) 1px rgba(255, 196, 60, 0.65); transition-property: transform; transition-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1); will-change: transform; }
+.lv-trail:nth-child(odd) { animation: lvGlint 0.9s ease-in-out infinite; animation-delay: calc(var(--i) * -0.13s); }
+.lv-trail.own { position: fixed; z-index: 2147483646; }
+@keyframes lvGlint { 50% { filter: brightness(1.35); scale: 1.18; } }
+.lv-cur.g4 .lv-dot { box-shadow: 0 0 0 1.5px #ffffff, 0 0 10px 2px rgba(255, 196, 60, 0.8); }
+@media (prefers-reduced-motion: reduce) { .lv-trail { display: none; } }
 /* ── камень-ножницы-бумага ── */
 /* кнопка вызова у коллеги в списке «на странице» — справа, перед точкой «водит курсором» */
 .lv-here-item { display: flex; align-items: center; gap: 2px; margin: 0 4px; padding-right: 6px; border-radius: 10px; }

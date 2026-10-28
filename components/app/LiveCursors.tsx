@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useCrm } from "@/lib/crm/store";
@@ -107,6 +107,50 @@ const REACTS = ["👍", "❤️", "😂", "🔥", "👀", "🙏"];
 const POP_MS = 3500;
 /** Облачко с рукой над курсором игрока. */
 const CLOUD_MS = 2600;
+/** Искры золотого следа Грейда IV — каждая следующая отстаёт сильнее, мельче и тусклее. */
+const TRAIL = [1, 2, 3, 4, 5, 6, 7];
+
+/**
+ * Свой золотой след, когда у вас Грейд IV: искры у вашей мыши (свою точку рисует CursorFx).
+ * Прямо в DOM и раз за кадр — без перерисовки React на каждое движение.
+ */
+function useOwnTrail(on: boolean) {
+  useEffect(() => {
+    if (!on || !window.matchMedia("(pointer: fine)").matches || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const root = document.documentElement;
+    const dots = TRAIL.map((i) => {
+      const d = document.createElement("i");
+      d.className = "lv-trail own";
+      d.style.setProperty("--i", String(i));
+      d.style.transitionDuration = `${60 + i * 65}ms`;
+      d.style.opacity = "0";
+      root.append(d);
+      return d;
+    });
+    let frame = 0;
+    let x = 0;
+    let y = 0;
+    const move = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      x = e.clientX;
+      y = e.clientY;
+      if (!frame)
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          for (const d of dots) {
+            d.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+            d.style.opacity = "";
+          }
+        });
+    };
+    window.addEventListener("pointermove", move, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("pointermove", move);
+      dots.forEach((d) => d.remove());
+    };
+  }, [on]);
+}
 
 type Party = { key: string; kind: "g4" | "plan"; name?: string; n?: number; plan?: number; mine?: boolean };
 const PARTY_MS = 5200;
@@ -121,6 +165,8 @@ export function LiveCursors() {
     for (const l of data.leads) if (l.operatorId === access.opId && l.status === "done" && l.at.slice(0, 10) === today) done++;
     return gradeLevel(done);
   }, [data.leads, access.opId, today]);
+  // Грейд IV — за вашей мышью тянется золотой след (коллеги видят его за вашим курсором)
+  useOwnTrail(myGrade === 4);
   // СВ рассылает свои группы: их операторы видят его курсор крупнее
   const gidsKey = me.role === "supervisor" ? Array.from(access.ownGroups).sort().join(",") : "";
   const myTeam = useMemo(() => {
@@ -538,12 +584,15 @@ export function LiveCursors() {
             const r = rankOf(p);
             // СВ моей группы — курсор крупнее
             const near = p.role === "supervisor" && !!myGroup && !!p.gids?.includes(myGroup);
+            const at = `translate3d(${p.x * w}px, ${p.y}px, 0)`;
             return (
+              <Fragment key={p.sid}>
+              {/* Грейд IV — золотой след: те же координаты, но каждая искра догоняет дольше — хвост тянется сам */}
+              {r?.cls === "g4" && live && TRAIL.map((i) => <i key={i} className="lv-trail" style={{ transform: at, transitionDuration: `${80 + i * 70}ms`, ["--i" as string]: i }} />)}
               <div
-                key={p.sid}
                 data-sid={p.sid}
                 className={`lv-cur${live ? "" : " idle"}${r ? ` ${r.cls}` : ""}${near ? " near" : ""}`}
-                style={{ ["--lv" as string]: liveColor(p.id), transform: `translate3d(${p.x * w}px, ${p.y}px, 0)` }}
+                style={{ ["--lv" as string]: liveColor(p.id), transform: at }}
               >
                 {p.arrive && now - p.arrive < 3000 && <i key={p.arrive} className="lv-wave" />}
                 <i className="lv-dot" />
@@ -559,6 +608,7 @@ export function LiveCursors() {
                       </span>
                     )}
               </div>
+              </Fragment>
             );
           })}
           {(talkingMe || pops.length > 0) && !typing && cur && (
