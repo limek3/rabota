@@ -454,6 +454,21 @@ export function LiveCursors() {
     setTyping(false);
   };
 
+  // мини-чат прокручиваем вниз, только когда пришло новое сообщение или список открыли — и только
+  // если вы и так были внизу. Раньше прокрутка срабатывала на каждую перерисовку (раз в секунду)
+  // и не давала листать историю вверх.
+  const notesRef = useRef<HTMLDivElement | null>(null);
+  const stickNotes = useRef(true);
+  const pathNotes = notes[path] ?? [];
+  const lastNote = pathNotes.length ? pathNotes[pathNotes.length - 1].k : "";
+  useEffect(() => {
+    if (open) stickNotes.current = true;
+  }, [open, path]);
+  useEffect(() => {
+    const el = notesRef.current;
+    if (el && stickNotes.current) el.scrollTop = el.scrollHeight;
+  }, [lastNote, open, path]);
+
   // открыли список — сообщения этой страницы прочитаны
   useEffect(() => {
     if (open) setReadAt((r) => ({ ...r, [path]: Date.now() }));
@@ -614,9 +629,14 @@ export function LiveCursors() {
                 {pageNotes.length > 0 && (
                   <>
                     <div className="lv-here-h">Сообщения на странице</div>
-                    <div className="lv-notes" ref={(el) => {
-                        if (el) el.scrollTop = el.scrollHeight;
-                      }}>
+                    <div
+                      className="lv-notes"
+                      ref={notesRef}
+                      onScroll={(e) => {
+                        const el = e.currentTarget;
+                        stickNotes.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+                      }}
+                    >
                       {pageNotes.map((n) => (
                         <div key={n.k} className={`lv-note${n.mine ? " mine" : ""}`}>
                           <i style={{ background: n.mine ? "var(--brand)" : liveColor(n.id) }} />
