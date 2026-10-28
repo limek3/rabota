@@ -14,7 +14,7 @@ import { useEffect } from "react";
  */
 const CLICKABLE =
   "a, button, [role=button], [role=tab], [role=radio], [role=menuitem], [role=option], [role=switch], label, select, summary, " +
-  "input[type=checkbox], input[type=radio], input[type=range], tbody tr, .click, .sel-trigger, .lcard, .ph-stack, .ph-part";
+  "input[type=checkbox], input[type=radio], input[type=range], tbody tr, .click, .sel-trigger, .lcard, .ph-stack, .ph-part, .isl.can-open[data-s=mini] .isl-top, .isl-seek";
 const TEXT = "input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]), textarea, [contenteditable=true]";
 
 export function CursorFx() {

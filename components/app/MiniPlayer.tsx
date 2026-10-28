@@ -57,12 +57,23 @@ export function MiniPlayer() {
     return () => window.clearTimeout(t);
   }, [stage]);
 
-  // Esc в раскрытом острове — свернуть в капсулу
+  // раскрытый остров сворачивается: Esc или щелчок в любом другом месте страницы.
+  // Всплывашки карточки (причина «Не доведён», подтверждения) живут вне острова — щелчок в них не считаем «мимо»
+  const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (stage !== "open") return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !e.defaultPrevented && setStage("mini");
+    const onDown = (e: PointerEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (!t || box.current?.contains(t) || t.closest(".sel-pop, .modal, .modal-back, [role=dialog], [role=listbox], [role=menu], .toast-stack")) return;
+      setStage("mini");
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown, true);
+    };
   }, [stage]);
 
   const { data } = useCrm();
@@ -75,9 +86,15 @@ export function MiniPlayer() {
   const open = stage === "open";
 
   return createPortal(
-    <div className={`isl${live.playing ? " on" : ""}`} data-s={stage} role="region" aria-label="Запись разговора">
+    <div ref={box} className={`isl${live.playing ? " on" : ""}${lead ? " can-open" : ""}`} data-s={stage} role="region" aria-label="Запись разговора">
       <span className="isl-ring" aria-hidden />
-      <div className="isl-top">
+      {/* щелчок по капсуле (не по кнопкам) — раскрыть карточку лида */}
+      <div
+        className="isl-top"
+        onClick={(e) => {
+          if (lead && stage === "mini" && !(e.target instanceof Element && e.target.closest("button"))) setStage("open");
+        }}
+      >
         <button type="button" className="isl-play" onClick={() => player.toggle()} aria-label={live.playing ? "Пауза" : "Слушать"}>
           {live.playing ? (
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>

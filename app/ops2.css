@@ -846,8 +846,9 @@
 .lw { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--ink-07); border-radius: 12px; background: var(--bg-panel); }
 .lw audio { display: none; }
 .lw-row { display: flex; align-items: center; gap: 10px; height: 44px; }
-.lw-play { width: 40px; height: 40px; flex: none; display: grid; place-items: center; padding: 0; line-height: 0; border: 0; border-radius: 50%; background: var(--brand); color: var(--on-brand); cursor: pointer; }
-.lw-play:hover { background: var(--brand-strong); }
+/* кнопка как в мини-плеере «Остров»: квадрат со скруглением, тень цвета бренда */
+.lw-play { width: 40px; height: 40px; flex: none; display: grid; place-items: center; padding: 0; line-height: 0; border: 0; border-radius: 12px; background: var(--brand); color: var(--on-brand); cursor: pointer; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--brand) 80%, transparent); transition: transform 0.15s var(--ease), background 0.15s; }
+.lw-play:hover { background: var(--brand-strong); transform: scale(1.05); }
 .lw-bars { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-radius: 6px; }
 .lw-bars:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .lw-bars i { flex: none; width: 2px; border-radius: 1px; display: block; transition: background-color 0.15s; }

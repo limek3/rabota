@@ -798,6 +798,9 @@ html:has(.lv-here) .toast-stack { bottom: 60px; }
 .isl.on .isl-ring { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brand) 45%, transparent); animation: islRing 2.4s ease-in-out infinite; }
 @keyframes islRing { 50% { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brand) 12%, transparent); } }
 .isl-top { display: flex; align-items: center; gap: 10px; height: 48px; padding: 7px 8px 0 8px; }
+/* капсулу можно нажать — раскроется в карточку лида */
+.isl.can-open[data-s="mini"] .isl-top { cursor: pointer; }
+.isl.can-open[data-s="mini"]:hover { box-shadow: var(--shadow-xl), inset 0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent); }
 .isl-play { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border: 0; border-radius: 11px; background: var(--brand); color: #ffffff; cursor: pointer; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--brand) 80%, transparent); transition: transform 0.15s var(--ease); }
 .isl-play:hover { transform: scale(1.06); }
 .isl-who { display: flex; flex-direction: column; gap: 1px; min-width: 150px; flex: 1; }
