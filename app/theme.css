@@ -739,16 +739,23 @@ html.cfx-down .cfx-dot { width: 10px; height: 10px; margin: -5px 0 0 -5px; }
 .lv-here-in { min-height: 0; overflow: hidden; width: 0; min-width: 100%; opacity: 0; transform: translateY(8px); transition: opacity 0.2s var(--ease), transform 0.32s cubic-bezier(0.22, 0.9, 0.3, 1); }
 .lv-here.open .lv-here-in { opacity: 1; transform: none; transition-delay: 0.06s, 0s; }
 .lv-here-h { padding: 10px 12px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dim); }
-.lv-here-row { display: flex; align-items: center; gap: 9px; width: calc(100% - 8px); margin: 0 4px; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; font: inherit; text-align: left; color: var(--text); cursor: pointer; }
+.lv-here-row { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; font: inherit; text-align: left; color: var(--text); cursor: pointer; }
 .lv-here-row:hover:not(:disabled) { background: var(--ink-05); }
 .lv-here-row:disabled { cursor: default; }
 .lv-here-row i { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 10px; font-weight: 700; color: #ffffff; }
-.lv-here-row > span { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.lv-here-row b { font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lv-here-row small { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lv-here-row em { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--ink-15, var(--line)); }
-.lv-here-row em.on { background: var(--c-green-fg); box-shadow: 0 0 0 3px var(--c-green-bg); }
-.lv-here-f { margin: 6px 12px 0; padding: 8px 0 10px; border-top: 1px solid var(--line); font-size: 11px; line-height: 1.35; color: var(--dim); }
+/* имя — первой строкой, роль/грейд и статус — второй */
+.lv-here-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.lv-here-who b { font-weight: 600; font-size: 12.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-here-who small { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; }
+.lv-here-who .lv-rank { margin-left: 0; flex: none; max-width: 150px; }
+.lv-here-st { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lv-here-st::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--ink-25); }
+.lv-here-st.on { color: var(--text-sub); }
+.lv-here-st.on::before { background: var(--c-green-fg); box-shadow: 0 0 0 2.5px var(--c-green-bg); }
+
+.lv-here-f { display: flex; flex-direction: column; gap: 5px; margin: 6px 12px 0; padding: 9px 0 10px; border-top: 1px solid var(--line); font-size: 11px; line-height: 1.3; color: var(--dim); }
+.lv-here-f span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.lv-here-f kbd { display: inline-flex; align-items: center; height: 17px; padding: 0 5px; border-radius: 5px; background: var(--ink-05); box-shadow: inset 0 0 0 1px var(--line); font: inherit; font-size: 10px; font-weight: 600; color: var(--text-sub); letter-spacing: -0.5px; }
 .lv-here-bar { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 11px 0 4px; border: 0; border-radius: 18px; background: transparent; font: inherit; color: inherit; cursor: pointer; }
 .lv-here-bar:hover .lv-here-chev { color: var(--text); }
 .lv-here-chev { flex: none; color: var(--dim); transition: transform 0.3s var(--ease), color 0.15s; }
@@ -773,9 +780,11 @@ html:has(.lv-here) .toast-stack { bottom: 60px; }
 .lv-note.mine b { color: var(--brand); }
 /* ── камень-ножницы-бумага ── */
 /* кнопка вызова у коллеги в списке «на странице» — справа, перед точкой «водит курсором» */
-.lv-here-item { position: relative; }
-.lv-rps-btn { position: absolute; right: 26px; top: 50%; height: 24px; padding: 0 7px; border: 0; border-radius: 12px; background: var(--ink-05); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; letter-spacing: -1px; cursor: pointer; transform: translateY(-50%); transition: transform 0.15s var(--ease), background 0.15s, box-shadow 0.15s; }
-.lv-rps-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent); transform: translateY(-50%) scale(1.08); }
+.lv-here-item { display: flex; align-items: center; gap: 2px; margin: 0 4px; padding-right: 6px; border-radius: 10px; }
+.lv-here-item:hover { background: var(--ink-04); }
+.lv-here-item .lv-here-row:hover:not(:disabled) { background: transparent; }
+.lv-rps-btn { flex: none; height: 28px; padding: 0 8px; border: 0; border-radius: 9px; background: var(--ink-05); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; letter-spacing: -1px; cursor: pointer; transition: transform 0.15s var(--ease), background 0.15s, box-shadow 0.15s; }
+.lv-rps-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent); transform: scale(1.06); }
 .lv-rps-btn.on { background: color-mix(in srgb, var(--brand) 16%, transparent); box-shadow: inset 0 0 0 1px var(--brand); }
 .lv-rps-btn:disabled:not(.on) { opacity: 0.4; cursor: default; }
 /* облачко над курсором игрока: рука в момент раскрытия, 🏆 у победителя — видят все на странице */

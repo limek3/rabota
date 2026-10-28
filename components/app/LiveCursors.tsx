@@ -666,21 +666,21 @@ export function LiveCursors() {
                   const r = rankOf(p);
                   return (
                     <div key={p.id} className="lv-here-item">
+                    {/* имя — первой строкой; роль/грейд и «водит курсором» — второй: в одну строку не влезало */}
                     <button type="button" tabIndex={open ? 0 : -1} className="lv-here-row" disabled={!active} onClick={() => show(p)}>
                       <i style={{ background: liveColor(p.id) }}>{initials(p.name)}</i>
-                      <span>
-                        <b>
-                          {p.name || "Коллега"}
+                      <span className="lv-here-who">
+                        <b>{p.name || "Коллега"}</b>
+                        <small>
                           {r && (
                             <span className={`lv-rank ${r.cls}`}>
                               {r.icon && <RankIcon name={r.icon} />}
                               {r.chip}
                             </span>
                           )}
-                        </b>
-                        <small>{active ? "водит курсором — показать" : "смотрит страницу"}</small>
+                          <span className={`lv-here-st${active ? " on" : ""}`}>{active ? "активен" : "смотрит"}</span>
+                        </small>
                       </span>
-                      <em className={active ? "on" : ""} />
                     </button>
                     {/* вызвать на камень-ножницы-бумага: оба с Грейда III (или СВ/РОП) */}
                     {canPlay && playable(p) && (
@@ -699,9 +699,16 @@ export function LiveCursors() {
                   );
                 })}
                 <div className="lv-here-f">
-                  {hidden ? "Ваш курсор скрыт — включить можно в меню аккаунта" : "Enter у курсора — написать всем на странице"}
-                  <br />
-                  {canPlay ? "✊✌️✋ у коллеги — вызвать на камень-ножницы-бумага (с Грейда III)" : "✊✌️✋ Камень-ножницы-бумага откроется на Грейде III"}
+                  {hidden ? (
+                    <span>Ваш курсор скрыт — включается в меню аккаунта</span>
+                  ) : (
+                    <span>
+                      <kbd>Enter</kbd> у курсора — написать всем
+                    </span>
+                  )}
+                  <span>
+                    <kbd>✊✌️✋</kbd> {canPlay ? "— вызвать коллегу на игру" : "— игра откроется на Грейде III"}
+                  </span>
                 </div>
               </div>
             </div>
