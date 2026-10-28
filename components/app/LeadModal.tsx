@@ -863,7 +863,7 @@ function StatusActions({ lead, failIntent }: { lead: Lead; failIntent?: boolean 
    комментарий, данные и история свёрнуты. Статус закреплён внизу: проверил — нажал.
    ════════════════════════════════════════════════════════════════════ */
 
-function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failIntent?: boolean; onClose: () => void; variant: "side" | "modal" }) {
+function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failIntent?: boolean; onClose: () => void; variant: "side" | "modal" | "island" }) {
   const { data, ix, toast } = useCrm();
   const d = useLeadDraft(lead);
   const dlg = useLeadDialog(lead);
@@ -914,8 +914,8 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
             <Icon name="external" size={15} />
           </a>
         )}
-        <button type="button" className="lc-ic" onClick={onClose} aria-label="Закрыть">
-          <Icon name="close" size={16} />
+        <button type="button" className="lc-ic" onClick={onClose} aria-label={variant === "island" ? "Свернуть" : "Закрыть"}>
+          <Icon name={variant === "island" ? "chevD" : "close"} size={16} />
         </button>
       </header>
       <div className="lc-line">
@@ -947,7 +947,8 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
         </div>
       ) : (
         <div className="lc-pane rv">
-          <CallReview lead={lead} d={dlg} />
+          {/* в «Острове» запись играет и перематывается в самом острове — второй плеер не нужен */}
+          {variant !== "island" && <CallReview lead={lead} d={dlg} />}
 
           {lead.comment && (
             <div className="lc-pin">
@@ -1185,6 +1186,11 @@ function usePanelFit() {
     };
   }, []);
   return ref;
+}
+
+/** Карточка лида внутри раскрытого мини-плеера «Остров» (components/app/MiniPlayer.tsx): та же форма обработки. */
+export function LeadIslandCard({ lead, onClose }: { lead: Lead; onClose: () => void }) {
+  return <LeadCard lead={lead} onClose={onClose} variant="island" />;
 }
 
 export function LeadPanel({ lead, onClose, failIntent }: { lead: Lead; onClose: () => void; failIntent?: boolean }) {
