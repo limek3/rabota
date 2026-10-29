@@ -256,7 +256,9 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
               ? `Ссылка от другого лида: в ней номер ${fmtPhone(linkPhone)}, а в лиде ${fmtPhone(phoneNorm)}`
               : null,
   };
-  const invalid = Object.values(err).some(Boolean);
+  // дубль нового лида — не записываем ни в каком проекте (кнопки записи выключены)
+  const dupBlock = isNew && !!dup;
+  const invalid = dupBlock || Object.values(err).some(Boolean);
   const missing = isNew
     ? [!!err.pr && "проект", !client.trim() && "клиент", phoneNorm.length < 10 && "телефон", !linkNorm && "ссылка", !!err.region && (ownCities ? "город" : "регион"), !!err.checks && (isForm ? "чек-лист формы" : "чек-лист")].filter(Boolean)
     : [];
@@ -452,6 +454,7 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     err,
     tried,
     missing,
+    dupBlock,
     dirty,
     readOnly,
     canDelete,
@@ -564,6 +567,12 @@ function regionHint(d: Draft, money: boolean): ReactNode {
 
 function dupHint(d: Draft, opName: (id: string) => string): ReactNode {
   if (!d.dup) return undefined;
+  if (d.dupBlock)
+    return (
+      <span style={{ color: "var(--c-red-fg)" }}>
+        Дубль: номер уже передавали{d.project ? ` в «${d.project.name}»` : ""} {fmtStamp(d.dup.at)} ({shortName(opName(d.dup.operatorId)) || "—"}) — записать нельзя
+      </span>
+    );
   return (
     <span style={{ color: "var(--c-amber-fg)" }}>
       Номер уже передавали{d.project ? ` в «${d.project.name}»` : ""} {fmtStamp(d.dup.at)} ({shortName(opName(d.dup.operatorId)) || "—"}). Не дубль ли?
@@ -1568,7 +1577,7 @@ function LeadCreateMobile({ preset, onClose }: { preset?: LeadPreset; onClose: (
                     <Icon name="alert" size={13} /> Осталось: {d.missing.join(", ")}
                   </div>
                 )}
-                <button type="button" className="mlf-go" onClick={() => void submit()} disabled={d.busy} data-ready={d.missing.length === 0 || undefined} data-wait={d.missing.length > 0 || undefined}>
+                <button type="button" className="mlf-go" onClick={() => void submit()} disabled={d.busy || d.dupBlock} data-ready={(d.missing.length === 0 && !d.dupBlock) || undefined} data-wait={d.missing.length > 0 || undefined}>
                   <Icon name="check" size={18} stroke={2.4} /> {d.busy ? "Записываем…" : d.isForm ? "Форма отправлена — записать" : "Записать лид"}
                 </button>
               </>
@@ -1611,7 +1620,7 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
         </span>
       }
       onClose={onClose}
-      width={560}
+      width={680}
       footer={
         d.noOps ? (
           <button className="o2-btn" onClick={onClose}>
@@ -1624,10 +1633,10 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
             <button type="button" className="o2-btn" onClick={onClose}>
               Отмена
             </button>
-            <button type="button" className="o2-btn" onClick={() => void submit(true)} disabled={d.busy} title="Записать и сразу ввести следующий">
+            <button type="button" className="o2-btn" onClick={() => void submit(true)} disabled={d.busy || d.dupBlock} title={d.dupBlock ? "Дубль — записать нельзя" : "Записать и сразу ввести следующий"}>
               Записать и ещё
             </button>
-            <button type="button" className="o2-btn pri" onClick={() => void submit(false)} disabled={d.busy} title="Ctrl+Enter">
+            <button type="button" className="o2-btn pri" onClick={() => void submit(false)} disabled={d.busy || d.dupBlock} title={d.dupBlock ? "Дубль — записать нельзя" : "Ctrl+Enter"}>
               <Icon name="check" size={13} /> {d.isForm ? "Форма отправлена — записать" : "Записать лид"}
             </button>
           </div>
@@ -1653,6 +1662,11 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
           )}
           {d.tried && d.err.pr && <div className="field-err">Выберите проект — переключатель вверху окна</div>}
           <LeadFields d={d} projectInHead />
+          {d.dupBlock && (
+            <div className="lead-missing dup">
+              <Icon name="alert" size={13} /> Это дубль — такой номер уже передавали{d.project ? ` в «${d.project.name}»` : ""}, записать лид нельзя
+            </div>
+          )}
           {d.missing.length > 0 && (
             <div className="lead-missing">
               <Icon name="alert" size={13} /> Чтобы записать лид, заполните: {d.missing.join(", ")}
@@ -1684,7 +1698,7 @@ function ProjectBrief({ d }: { d: Draft }) {
       icon={d.isForm ? "doc" : d.isMixed ? "phone" : "rules"}
       title={
         d.isMixed
-          ? `«${p.name}» — перевод на менеджера, не получилось — форма`
+          ? `«${p.name}» — перевод на менеджера или форма`
           : d.isForm
             ? `«${p.name}» — отправка формы, клиента не переводим`
             : `Условия «${p.name}»`

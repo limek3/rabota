@@ -1278,3 +1278,12 @@ console.log("ALL OK");
   assert.equal(st.projects.find((p) => p.id === "p2").handoff, "transfer", "непонятное — перевод");
   console.log("37 ok: Дмитровка — Leopard 5, Tank 700, L9, Крузеры не берём; новые BMW, Pajero — уточнить; «перевод или форма» по отметке лида");
 }
+
+/* 38. Город проекта — область без столицы в справочнике («Московская область» у Дмитровки): её крупнейший город */
+{
+  const assert = require("assert");
+  const { geocode } = R("geo/geo/cities");
+  assert.equal(geocode("Московская область").region, "Московская область", "область — её город, а не «не найден»");
+  assert.equal(geocode("Москва").name, "Москва", "Москва — сама Москва");
+  console.log(`38 ok: «Московская область» → ${geocode("Московская область").name}`);
+}

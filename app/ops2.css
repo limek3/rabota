@@ -972,6 +972,10 @@
 /* условия проекта — одной строкой, текст во всплывающем окне; чек-лист — сеткой 2×2 */
 .lf-brief-btn { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 7px; border: 1px solid var(--ink-12); background: var(--bg-panel); color: var(--text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 .lf-brief-btn:hover, .lf-brief-btn.on { background: var(--ink-05); }
+/* заголовок окна, проекты и кнопка условий — без переноса строк */
+.lf-mh, .lf-brief-btn { white-space: nowrap; }
+/* дубль нового лида — записать нельзя */
+.lead-missing.dup { color: var(--c-red-fg); }
 .lf-brief-pop { width: 460px; max-width: calc(100vw - 32px); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 .lf-brief-pop .lf-brief { max-height: min(420px, 60vh); background: none; border: 0; padding: 0; }
 .lf-brief-h { font-size: 13px; font-weight: 700; }

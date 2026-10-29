@@ -117,6 +117,9 @@ export function geocode(label: string): City | null {
   if (exact >= 0) return CITIES[exact];
   const region = CITIES.findIndex((c, i) => c.capital && (N_REGION[i] === n || N_REGION[i].startsWith(n + " ") || n.startsWith(N_REGION[i])));
   if (region >= 0) return CITIES[region];
+  // область без столицы в справочнике («Московская область») — её крупнейший город
+  const anyIn = N_REGION.indexOf(n);
+  if (anyIn >= 0) return CITIES[anyIn];
   // «Москва и МО», «Екатеринбург (ДЦ на Ленина)» — первое слово-город
   const words = ` ${n} `;
   const inside = N_NAME.findIndex((name) => name.length >= 4 && words.includes(` ${name} `));
