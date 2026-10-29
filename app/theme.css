@@ -257,7 +257,7 @@
   /* форма */
   --card-r: 14px;
   --ctl-r: 9px;
-  --chip-r: 999px;
+  --chip-r: 6px;
   --main-r: 18px;
   --modal-r: 18px;
   --title-w: 800;
@@ -517,7 +517,7 @@ input[type="radio"] { accent-color: var(--brand); }
 .note-line { border-radius: 12px; }
 
 /* ── фильтр «Проект» над страницами ── */
-.lens-chip { border-radius: 999px; border-color: var(--ctrl-border); background: var(--bg-panel); }
+.lens-chip { border-radius: var(--chip-r); border-color: var(--ctrl-border); background: var(--bg-panel); }
 .lens-chip:hover { background: var(--bg-panel-hover); border-color: var(--ctrl-border-hover); }
 .lens-chip.on { background: var(--text); color: var(--bg-panel); border-color: var(--text); }
 

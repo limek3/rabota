@@ -37,6 +37,10 @@ export interface CarRules {
 
 export const VERDICT_LABEL: Record<VerdictKind, string> = { ok: "Передаём", no: "Не передаём", ask: "Уточнить" };
 
+/** Вердикт — только про критерии проекта, а не про то, что машина у клиента точно есть: оператору это видно везде, где вердикт. */
+export const CRITERIA_NOTE = "Это только критерии проекта — какие машины можно передавать. Что машина у клиента точно есть, вердикт не значит: уточняйте у клиента.";
+export const CRITERIA_SHORT = "только критерии проекта, не наличие машины";
+
 /** Несколько причин в один вердикт: хоть одна «нет» — не передаём, иначе «уточнить» — уточнить. */
 function combine(parts: { kind: VerdictKind; reason: string }[]): Verdict {
   const no = parts.filter((p) => p.kind === "no");
@@ -48,17 +52,26 @@ function combine(parts: { kind: VerdictKind; reason: string }[]): Verdict {
 
 /* ── 100 up ─────────────────────────────────────────────────────────────── */
 
-const UP_BRANDS = new Set(["mercedes", "bmw", "audi", "porsche", "cadillac", "infiniti", "lexus"]);
-/** Модели из списка: [марка, модель]. */
+/** Марки из списка заказчика целиком (американские, премиум и спорт, ГАЗ, ЗАЗ, ТагАЗ). */
+const UP_BRANDS = new Set([
+  "alpine", "amgeneral", "ariel", "astonmartin", "audi", "aurus", "bmw", "bugatti", "buick", "cadillac", "callaway", "caterham",
+  "chevrolet", "chrysler", "coda", "czinger", "detomaso", "decorides", "dodge", "donkervoort", "ferrari", "fisker", "geo", "gmc",
+  "gumpert", "hennessey", "hummer", "hyperion", "infiniti", "jeep", "karma", "koenigsegg", "lamborghini", "landrover", "lexus",
+  "lincoln", "lotus", "lucid", "marussia", "mclaren", "mercedes", "mercury", "morgan", "noble", "oldsmobile", "pagani", "panoz",
+  "plymouth", "pontiac", "porsche", "ram", "rezvani", "rimac", "rivian", "saleen", "saturn", "scout", "spyker", "tesla", "tvr",
+  "ultima", "vector", "volga", "wmotors", "wiesmann", "zenvo", "gaz", "zaz", "tagaz",
+]);
+/** Модели из списка: [марка, модель]; «Land Cruiser*» — все Land Cruiser (Prado, 100, 200, 300). */
 const UP_MODELS: [string, string][] = [
   ["toyota", "Camry"],
-  ["toyota", "Land Cruiser Prado"],
-  ["toyota", "Land Cruiser 100"],
-  ["toyota", "Land Cruiser 200"],
+  ["toyota", "Land Cruiser*"],
+  ["toyota", "Supra"],
   ["kia", "Carnival"],
   ["ford", "Mustang"],
-  ["gaz", "Волга"],
+  ["ford", "F-150"],
+  ["nissan", "GT-R"],
 ];
+const upListed = (m: Model) => UP_MODELS.some(([b, n]) => b === m.brand.id && (n.endsWith("*") ? m.name.startsWith(n.slice(0, -1)) : n === m.name));
 const UP_BODIES: Partial<Record<Body, string>> = {
   com: "коммерческий транспорт",
   van: "коммерческий транспорт (фургон)",
@@ -71,7 +84,7 @@ function check100up(m: Model): ZoneVerdict[] {
   const parts: { kind: VerdictKind; reason: string }[] = [];
   if (UP_BRANDS.has(m.brand.id)) parts.push({ kind: "no", reason: `${m.brand.name} — в списке «не берём»` });
   else if (m.brand.prem) parts.push({ kind: "ask", reason: `${m.brand.name} — премиум-марка, в списке её нет: уточните у РОП` });
-  const listed = UP_MODELS.some(([b, n]) => b === m.brand.id && n === m.name);
+  const listed = upListed(m);
   if (listed) parts.push({ kind: "no", reason: `${m.full} — в списке «не берём»` });
   // кузов: все варианты в списке — не берём; часть — уточнить, какой у клиента
   const banned = m.bodies.filter((b) => UP_BODIES[b]);
@@ -141,11 +154,13 @@ const RULES: CarRules[] = [
   {
     key: "100up",
     list: [
-      "Mercedes-Benz, BMW, Audi, Porsche",
-      "Cadillac, Infiniti, Lexus",
-      "Toyota Camry, Land Cruiser Prado / 100 / 200",
-      "Kia Carnival",
-      "кабриолеты, «Волга», Ford Mustang и подобные",
+      "Mercedes-Benz, BMW, Audi, Porsche, Lexus, Infiniti, Land Rover, Tesla",
+      "американские: Cadillac, Chevrolet, Chrysler, Dodge, Ram, Jeep, Lincoln, GMC, Hummer, Buick и др.",
+      "спорт и люкс: Ferrari, Lamborghini, Aston Martin, McLaren, Bugatti, Lotus, Aurus и др.",
+      "ГАЗ, «Волга», ЗАЗ, ТагАЗ",
+      "Toyota Camry, Land Cruiser (Prado, 100, 200, 300), Supra",
+      "Kia Carnival, Nissan GT-R, Ford Mustang, Ford F-150",
+      "кабриолеты, спорткары как Mustang",
       "коммерческий транспорт, Газели, спецтехника",
       "пикапы, минивэны",
       "машины только электро или только гибрид (есть бензиновая версия — передаём)",

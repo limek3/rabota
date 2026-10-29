@@ -1222,3 +1222,28 @@ console.log("ALL OK");
   assert.deepEqual(top("mazda cx5"), ["Mazda CX-5"], "поиск: код слитно");
   console.log("33 ok: «volvo cx90» → XC90, «kio rio» → Kia Rio, «mazda cx5» → CX-5 — и в комментарии, и в поиске");
 }
+
+/* 36. 100 up: список «не берём» заказчика — марки целиком (и без моделей в справочнике) и отдельные модели */
+{
+  const assert = require("assert");
+  const c = R("cars/cars/catalog");
+  const { rulesFor, mentionVerdict } = R("cars/cars/rules");
+  const up = rulesFor({ name: "100 up" });
+  const v = (q) => up.check(c.searchCars(q, 1)[0].model).map((x) => x.kind).join("/");
+  for (const q of ["крузак 300", "прадо", "супра", "гтр", "ф150", "мустанг", "карнивал", "камри"]) assert.equal(v(q), "no", `модель в списке: ${q}`);
+  for (const q of ["шевроле круз", "гранд чероки", "тахо", "эскалейд", "рендж ровер", "модель 3", "волга"]) assert.equal(v(q), "no", `марка в списке: ${q}`);
+  assert.equal(v("рав4"), "ok", "RAV4 по-прежнему передаём");
+  assert.equal(v("солярис"), "ok", "Solaris передаём");
+  // марки без моделей в справочнике — вердикт по марке, в том числе из комментария лида
+  for (const name of ["Hummer", "GMC", "McLaren", "Bugatti", "Ram", "ЗАЗ", "ТагАЗ", "Aurus"]) {
+    const b = c.BRAND_LIST.find((x) => x.name === name);
+    assert.ok(b, `марка ${name} в справочнике`);
+    assert.equal(up.checkBrand(b)[0].kind, "no", `${name} — не берём`);
+  }
+  const said = c.detectCars("клиент продаёт хаммер, хочет кроссовер");
+  assert.ok(said.length && said[0].brand.name === "Hummer", "«хаммер» в комментарии — Hummer");
+  assert.equal(mentionVerdict(up, said[0], "")[0].kind, "no", "и 100 up его не берёт");
+  assert.equal(c.detectCars("работаем по вектору, карма хорошая, скаут на сатурн, морган").length, 0, "«вектор», «карма», «скаут» — не машины");
+  assert.equal(up.checkBrand(c.BRAND_LIST.find((x) => x.name === "Karma"))[0].kind, "no", "но Karma по названию — не берём");
+  console.log("36 ok: 100 up — марки и модели из списка заказчика не берём; Hummer, GMC, McLaren — по марке");
+}

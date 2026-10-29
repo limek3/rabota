@@ -4,8 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import { useCrm } from "@/lib/crm/store";
 import { Icon } from "@/components/ui/icons";
 import { Select, dot, type Opt } from "@/components/ui/select";
-import { BODY_LABEL, BRAND_LIST, POWER_LABEL, modelById, modelsOf, searchCars, yearsLabel, type Model } from "@/lib/cars/catalog";
-import { VERDICT_LABEL, rulesFor, type CarRules, type VerdictKind, type ZoneVerdict } from "@/lib/cars/rules";
+import { BODY_LABEL, BRAND_LIST, POWER_LABEL, modelById, modelsOf, searchCars, yearsLabel, type Brand, type Model } from "@/lib/cars/catalog";
+import { CRITERIA_NOTE, CRITERIA_SHORT, VERDICT_LABEL, rulesFor, type CarRules, type VerdictKind, type ZoneVerdict } from "@/lib/cars/rules";
 import { photoOf } from "@/lib/cars/photo";
 import type { Project } from "@/lib/crm/types";
 
@@ -46,6 +46,12 @@ export function CarFinder() {
   ];
 
   const hits = useMemo(() => searchCars(q, 8), [q]);
+  // марки без моделей в справочнике (Hummer, McLaren…): поиск по моделям их не находит — ищем по названию
+  const bare = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (t.length < 2) return [];
+    return BRAND_LIST.filter((b) => !modelsOf(b.id).length && [b.name, ...b.ru].some((n) => n.toLowerCase().startsWith(t))).slice(0, 6);
+  }, [q]);
   const sel = selId ? modelById.get(selId) ?? null : null;
   const brand = brandId ? BRAND_LIST.find((b) => b.id === brandId) ?? null : null;
 
@@ -57,6 +63,8 @@ export function CarFinder() {
 
   const pick = (m: Model) => {
     setSelId(m.id);
+    // слева была марка без моделей (Hummer) — после выбора модели она уже ни к чему
+    setBrandId((b) => (b && !modelsOf(b).length ? null : b));
     setQ(m.full);
     setOpen(false);
   };
@@ -91,7 +99,7 @@ export function CarFinder() {
       const vs = rules.check(sel);
       return `${p.name}: ${vs.map((v) => `${v.zone ? `${v.zone} — ` : ""}${VERDICT_LABEL[v.kind].toLowerCase()}${v.reasons.length ? ` (${v.reasons.join("; ")})` : ""}`).join(", ")}`;
     });
-    const txt = [`${sel.full} (${sel.bodies.map((b) => BODY_LABEL[b]).join(", ")}; ${sel.power.map((p) => POWER_LABEL[p]).join(", ")})`, ...lines].join("\n");
+    const txt = [`${sel.full} (${sel.bodies.map((b) => BODY_LABEL[b]).join(", ")}; ${sel.power.map((p) => POWER_LABEL[p]).join(", ")}) — ${CRITERIA_SHORT}`, ...lines].join("\n");
     try {
       await navigator.clipboard.writeText(txt);
       toast("Скопировано — можно вставить в комментарий");
@@ -134,7 +142,31 @@ export function CarFinder() {
           )}
           {open && q && (
             <div className="cf-pop" role="listbox">
-              {hits.length === 0 ? (
+              {bare.map((b) => (
+                  <button
+                    type="button"
+                    key={b.id}
+                    role="option"
+                    aria-selected={false}
+                    className="cf-opt ca-opt"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setBrandId(b.id);
+                      setSelId(null);
+                      setQ(b.name);
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="ca-thumb ph">
+                      <Icon name="car" size={16} />
+                    </span>
+                    <span className="ca-opt-main">
+                      <span className="cf-opt-name">{b.name}</span>
+                      <span className="cf-opt-sub">марка целиком · {b.country}</span>
+                    </span>
+                  </button>
+                ))}
+              {hits.length === 0 && !bare.length ? (
                 <div className="cf-none">Не нашли такую машину. Попробуйте марку и модель латиницей или как пишут в объявлениях.</div>
               ) : (
                 hits.map((h, i) => (
@@ -177,6 +209,7 @@ export function CarFinder() {
                 <Icon name="arrowL" size={12} /> Все марки
               </button>
             </div>
+            {!modelsOf(brand.id).length && <BrandVerdicts b={brand} shown={shown} />}
             <div className="ca-list">
               {modelsOf(brand.id).map((m) => (
                 <button type="button" key={m.id} className={`ca-row${sel?.id === m.id ? " on" : ""}`} onClick={() => pick(m)}>
@@ -329,6 +362,12 @@ function CarCard({ m, shown, single, onCopy }: { m: Model; shown: { p: Project; 
           })}
           {!shown.length && <div className="cf-tip">Для этого проекта правил по машинам пока нет.</div>}
         </div>
+        {shown.length > 0 && (
+          <div className="ca-crit" role="note">
+            <Icon name="alert" size={15} />
+            <span>{CRITERIA_NOTE}</span>
+          </div>
+        )}
 
         <div className="ca-foot">
           <button type="button" className="btn btn-sm" onClick={onCopy} title="Скопировать для комментария к лиду">
@@ -342,6 +381,41 @@ function CarCard({ m, shown, single, onCopy }: { m: Model; shown: { p: Project; 
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Марка без моделей в справочнике: вердикт по марке целиком (Hummer — 100 up не берёт). */
+function BrandVerdicts({ b, shown }: { b: Brand; shown: { p: Project; rules: CarRules }[] }) {
+  return (
+    <div className="ca-vs" style={{ padding: "4px 2px 10px" }}>
+      <div className="cf-tip">Моделей этой марки в справочнике нет — вердикт по марке.</div>
+      {shown.map(({ p, rules }) => {
+        const vs = rules.checkBrand(b);
+        const kind = vs ? overall(vs) : "ask";
+        return (
+          <div key={p.id} className="ca-v" data-kind={kind}>
+            <div className="ca-v-head">
+              <span className="ca-v-proj">{p.name}</span>
+              <span className="ca-v-kind">
+                <Icon name={kind === "ok" ? "check" : kind === "no" ? "close" : "alert"} size={14} />
+                {VERDICT_LABEL[kind]}
+              </span>
+            </div>
+            <ul className="ca-reasons">
+              {(vs ? vs.flatMap((v) => (v.zone ? [`${v.zone} — ${VERDICT_LABEL[v.kind].toLowerCase()}${v.reasons.length ? `: ${v.reasons.join("; ")}` : ""}`] : v.reasons)) : ["по одной марке не решить — уточните модель у РОП"]).map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+      {shown.length > 0 && (
+        <div className="ca-crit" role="note">
+          <Icon name="alert" size={15} />
+          <span>{CRITERIA_NOTE}</span>
+        </div>
+      )}
     </div>
   );
 }

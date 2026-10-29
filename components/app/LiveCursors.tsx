@@ -158,8 +158,8 @@ export function LiveCursors() {
   const mouse = useRef<{ x: number; y: number; rail: boolean } | null>(null);
   const ready = me.id !== "__boot__";
 
-  // камень-ножницы-бумага: играть можно с Грейда III; СВ и РОП — всегда
-  const canPlay = me.role !== "operator" || (myGrade ?? 0) >= 3;
+  // камень-ножницы-бумага: играть можно с Грейда II (6 лидов); СВ и РОП — всегда
+  const canPlay = me.role !== "operator" || (myGrade ?? 0) >= 2;
   const rps = useRps({
     send: (m) => link.current?.send(m),
     mySid: sid.current,
@@ -169,7 +169,7 @@ export function LiveCursors() {
   });
   const rpsRef = useRef(rps);
   rpsRef.current = rps;
-  const playable = (p: Peer) => p.role === "head" || p.role === "supervisor" || (p.grade ?? 0) >= 3;
+  const playable = (p: Peer) => p.role === "head" || p.role === "supervisor" || (p.grade ?? 0) >= 2;
 
   // чужие курсоры выключены в настройках — не принимаем и не рисуем их
   const [othersOff, setOthersOff] = useState(false);
@@ -722,7 +722,7 @@ export function LiveCursors() {
                         </small>
                       </span>
                     </button>
-                    {/* вызвать на камень-ножницы-бумага: оба с Грейда III (или СВ/РОП) */}
+                    {/* вызвать на камень-ножницы-бумага: оба с Грейда II (или СВ/РОП) */}
                     {canPlay && playable(p) && (
                       <button
                         type="button"
@@ -747,7 +747,7 @@ export function LiveCursors() {
                     </span>
                   )}
                   <span>
-                    <kbd>✊✌️✋</kbd> {canPlay ? "— вызвать коллегу на игру" : "— игра откроется на Грейде III"}
+                    <kbd>✊✌️✋</kbd> {canPlay ? "— вызвать коллегу на игру" : "— игра откроется на Грейде II (6 лидов)"}
                   </span>
                 </div>
               </div>

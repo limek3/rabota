@@ -3,7 +3,8 @@
  *
  * Марка: [id, название, как её называют по-русски (через запятую), страна, метки, статья Википедии].
  *   метки: cn — китайская марка; cnl — местная марка на базе китайских моделей (Tenet, Belgee…);
- *          prem — премиум, которого нет в списках проектов (вердикт «уточнить»).
+ *          prem — премиум, которого нет в списках проектов (вердикт «уточнить»);
+ *          word — название — обычное слово («карма», «вектор»): в тексте лида марку не ищем, только в поиске.
  *
  * Модель — строка «Название|как называют|годы|кузов|двигатель|особенности|статья Википедии»:
  *   годы — «2015» (с 2015 и по сей день) или «2007-2018»;
@@ -132,6 +133,60 @@ export const BRANDS: BrandSrc[] = [
   ["ferrari", "Ferrari", "феррари", "Италия", "prem"],
   ["lamborghini", "Lamborghini", "ламборгини,ламба", "Италия", "prem"],
   ["astonmartin", "Aston Martin", "астон мартин", "Великобритания", "prem"],
+
+  // ── из списка «не берём» 100 up: моделей в справочнике нет — вердикт по марке.
+  //    Русские названия — только однозначные; марки-слова («карма», «вектор») — с меткой word
+  ["alpine", "Alpine", "альпин", "Франция", "prem"],
+  ["amgeneral", "AM General", "", "США", "prem"],
+  ["ariel", "Ariel", "", "Великобритания", "prem word", "Ariel Motor Company"],
+  ["aurus", "Aurus", "аурус", "Россия", "prem", "Aurus Motors"],
+  ["bugatti", "Bugatti", "бугатти", "Франция", "prem"],
+  ["buick", "Buick", "бьюик", "США", ""],
+  ["callaway", "Callaway", "", "США", "prem", "Callaway Cars"],
+  ["caterham", "Caterham", "катерхэм", "Великобритания", "prem", "Caterham Cars"],
+  ["coda", "Coda", "", "США", "word", "Coda Automotive"],
+  ["czinger", "Czinger", "", "США", "prem"],
+  ["detomaso", "De Tomaso", "де томазо", "Италия", "prem"],
+  ["decorides", "Deco Rides", "", "США", "prem"],
+  ["donkervoort", "Donkervoort", "", "Нидерланды", "prem"],
+  ["fisker", "Fisker", "фискер", "США", "", "Fisker Inc."],
+  ["geo", "Geo", "", "США", "word", "Geo (automobile)"],
+  ["gmc", "GMC", "джиэмси,джи эм си", "США", "", "GMC (automobile)"],
+  ["gumpert", "Gumpert", "", "Германия", "prem"],
+  ["hennessey", "Hennessey", "хеннесси", "США", "prem", "Hennessey Performance Engineering"],
+  ["hummer", "Hummer", "хаммер,хамер", "США", ""],
+  ["hyperion", "Hyperion", "", "США", "prem"],
+  ["karma", "Karma", "", "США", "prem word", "Karma Automotive"],
+  ["koenigsegg", "Koenigsegg", "кенигсегг", "Швеция", "prem"],
+  ["lotus", "Lotus", "лотус", "Великобритания", "prem", "Lotus Cars"],
+  ["lucid", "Lucid", "люсид", "США", "prem", "Lucid Motors"],
+  ["marussia", "Marussia", "маруссия", "Россия", "prem", "Marussia Motors"],
+  ["mclaren", "McLaren", "макларен", "Великобритания", "prem", "McLaren Automotive"],
+  ["mercury", "Mercury", "", "США", "word", "Mercury (automobile)"],
+  ["morgan", "Morgan", "", "Великобритания", "prem word", "Morgan Motor Company"],
+  ["noble", "Noble", "", "Великобритания", "prem word", "Noble Automotive"],
+  ["oldsmobile", "Oldsmobile", "олдсмобиль", "США", ""],
+  ["pagani", "Pagani", "пагани", "Италия", "prem"],
+  ["panoz", "Panoz", "", "США", "prem"],
+  ["plymouth", "Plymouth", "плимут", "США", "", "Plymouth (automobile)"],
+  ["pontiac", "Pontiac", "понтиак", "США", ""],
+  ["ram", "Ram", "рэм,додж рам,dodge ram", "США", "", "Ram Trucks"],
+  ["rezvani", "Rezvani", "", "США", "prem"],
+  ["rimac", "Rimac", "римак", "Хорватия", "prem", "Rimac Automobili"],
+  ["rivian", "Rivian", "ривиан", "США", ""],
+  ["saleen", "Saleen", "", "США", "prem"],
+  ["saturn", "Saturn", "", "США", "word", "Saturn Corporation"],
+  ["scout", "Scout", "", "США", "word", "Scout Motors"],
+  ["spyker", "Spyker", "спайкер", "Нидерланды", "prem", "Spyker Cars"],
+  ["tvr", "TVR", "", "Великобритания", "prem"],
+  ["ultima", "Ultima", "", "Великобритания", "prem word", "Ultima Sports"],
+  ["vector", "Vector", "", "США", "prem word", "Vector Aeromotive"],
+  ["volga", "Volga", "", "Россия", "", "Volga (car brand)"],
+  ["wmotors", "W Motors", "", "ОАЭ", "prem"],
+  ["wiesmann", "Wiesmann", "", "Германия", "prem"],
+  ["zenvo", "Zenvo", "", "Дания", "prem", "Zenvo Automotive"],
+  ["zaz", "ЗАЗ", "заз,запорожец", "Украина", "", "ZAZ"],
+  ["tagaz", "ТагАЗ", "тагаз", "Россия", "", "TagAZ"],
 ];
 
 /** Модели по маркам: строка на модель (формат — в шапке файла). */

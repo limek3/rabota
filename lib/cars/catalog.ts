@@ -21,6 +21,8 @@ export interface Brand {
   cnLocal: boolean;
   /** Премиум, которого нет в списках проектов. */
   prem: boolean;
+  /** Название — обычное слово («карма», «вектор»): в тексте лида не ищем. */
+  word: boolean;
   wiki: string;
 }
 
@@ -91,6 +93,7 @@ export const BRAND_LIST: Brand[] = BRANDS.map(([id, name, ru, country, flags, wi
   cn: /\bcn\b/.test(flags),
   cnLocal: /\bcnl\b/.test(flags),
   prem: /\bprem\b/.test(flags),
+  word: /\bword\b/.test(flags),
   wiki: wiki ?? name,
 }));
 
@@ -476,7 +479,7 @@ export function detectCars(text: string, limit = 2): CarMention[] {
   // марки в тексте; exact — написано ровно как в каталоге (при споре за слово побеждает точное)
   const brandAt = new Map<string, { at: number; len: number; exact: boolean }>();
   for (const b of BRAND_LIST)
-    for (const v of [words(b.name), ...b.ru.map(words)]) {
+    for (const v of b.word ? [] : [words(b.name), ...b.ru.map(words)]) {
       const f = findSeq(t, v);
       if (!f || brandAt.has(b.id)) continue;
       brandAt.set(b.id, { ...f, exact: t.slice(f.at, f.at + f.len).join(" ") === v.join(" ") });

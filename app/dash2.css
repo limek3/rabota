@@ -59,7 +59,7 @@
 /* «что сделать сейчас»: нейтральные плитки, цвет — только у полоски слева, иконки и числа */
 .d2-todo { padding: 12px 14px 14px; }
 .d2-todo-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.d2-todo-sum { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--c-amber-bg); color: var(--c-amber-fg); }
+.d2-todo-sum { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: var(--chip-r); font-size: 11.5px; font-weight: 600; background: var(--c-amber-bg); color: var(--c-amber-fg); }
 .d2-todo-sum[data-ok="true"] { background: var(--ink-05); color: var(--text-sub); }
 .d2-todo-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
 .d2-task { --h: var(--c-gray-fg); position: relative; display: flex; flex-direction: column; min-width: 0; padding: 12px 14px 13px 16px; border: 1px solid var(--ink-08); border-radius: 10px; background: var(--bg-panel); overflow: hidden; }
@@ -307,7 +307,7 @@
 
 /* задачи на сегодня — значок у заголовка «Сводки», список по клику */
 .d2-tasks-w { position: relative; display: inline-flex; }
-.d2-tasks { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 0; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0; cursor: pointer; background: var(--c-amber-bg); color: var(--c-amber-fg); }
+.d2-tasks { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--chip-r); border: 0; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0; cursor: pointer; background: var(--c-amber-bg); color: var(--c-amber-fg); }
 .d2-tasks[data-hue="red"] { background: var(--c-red-bg); color: var(--c-red-fg); }
 .d2-tasks[data-ok="true"] { background: var(--ink-05); color: var(--text-sub); font-weight: 500; cursor: default; }
 .d2-tasks .grp-chev { color: currentColor; }
@@ -348,7 +348,7 @@
 @media (prefers-reduced-motion: reduce) { .d2-pp-rank[data-rank="1"]::after { animation: none; opacity: 0; } }
 .d2-pp-none { font-size: 12.5px; color: var(--dim); padding: 10px 8px; }
 .d2-pp-facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--ink-05); }
-.d2-pp-facts button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--ink-08); background: var(--bg-panel); font: inherit; font-size: 12px; color: var(--text-sub); cursor: pointer; }
+.d2-pp-facts button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: var(--chip-r); border: 1px solid var(--ink-08); background: var(--bg-panel); font: inherit; font-size: 12px; color: var(--text-sub); cursor: pointer; }
 .d2-pp-facts button:hover { border-color: var(--ink-15); color: var(--text); }
 .d2-pp-facts button b { font-weight: 700; color: var(--text); }
 .d2-pp-facts button.bad, .d2-pp-facts button.bad b { color: var(--c-red-fg); }

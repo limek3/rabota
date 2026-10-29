@@ -5,7 +5,7 @@ import { useCrm } from "@/lib/crm/store";
 import { Icon } from "@/components/ui/icons";
 import { detectCars } from "@/lib/cars/catalog";
 import { photoSrc } from "@/lib/cars/photo";
-import { VERDICT_LABEL, mentionVerdict, rulesFor, type VerdictKind } from "@/lib/cars/rules";
+import { CRITERIA_SHORT, VERDICT_LABEL, mentionVerdict, rulesFor, type VerdictKind } from "@/lib/cars/rules";
 
 /**
  * Машина в комментарии лида: оператор пишет «хочет продать свой прадик 2012» — под полем сразу
@@ -71,6 +71,7 @@ export function CarHint({ text, projectId, city }: { text: string; projectId: st
           </div>
         );
       })}
+      {shown.some((x) => x.vs) && <div className="ch-crit">Вердикт — {CRITERIA_SHORT}: что машина у клиента точно есть, он не значит</div>}
     </div>
   );
 }

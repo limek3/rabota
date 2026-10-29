@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { Icon } from "@/components/ui/icons";
 import { BODY_LABEL, POWER_LABEL, searchCars, type Model } from "@/lib/cars/catalog";
 import { photoSrc } from "@/lib/cars/photo";
-import { VERDICT_LABEL, rulesFor, type VerdictKind, type ZoneVerdict } from "@/lib/cars/rules";
+import { CRITERIA_SHORT, VERDICT_LABEL, rulesFor, type VerdictKind, type ZoneVerdict } from "@/lib/cars/rules";
 import { getVexaBridge } from "@/lib/electron";
 import type { Project } from "@/lib/crm/types";
 
@@ -77,7 +77,7 @@ export function CarMini({ projects, base = "" }: { projects: Project[]; base?: s
 
   const copy = async () => {
     if (!car || !project) return;
-    const line = `${car.full} (${car.bodies.map((b) => BODY_LABEL[b]).join(", ")}; ${car.power.map((p) => POWER_LABEL[p]).join(", ")}) — ${project.name}: ${vs
+    const line = `${car.full} (${car.bodies.map((b) => BODY_LABEL[b]).join(", ")}; ${car.power.map((p) => POWER_LABEL[p]).join(", ")}) — ${project.name}, ${CRITERIA_SHORT}: ${vs
       .map((v) => `${v.zone ? `${v.zone} — ` : ""}${VERDICT_LABEL[v.kind].toLowerCase()}`)
       .join(", ")}`;
     // буфер обмена того окна, где сейчас фокус: из окна «картинка в картинке» — его собственный
@@ -166,6 +166,7 @@ export function CarMini({ projects, base = "" }: { projects: Project[]; base?: s
           ))}
         </div>
       )}
+      {car && kind && <div className="mw-crit">Вердикт — {CRITERIA_SHORT}</div>}
       <div className="mw-foot">{copied ? "Скопировано — вставьте в комментарий" : "Enter — скопировать · ↑↓ — другая модель · Esc — очистить"}</div>
     </div>
   );
