@@ -270,7 +270,7 @@ function ProjectDirectory({ projects }: { projects: Project[] }) {
                   {p.name}
                 </span>
                 <span className="num" style={{ fontSize: 11.5, color: "var(--dim)" }}>
-                  {fmtInt(totals.get(p.id) ?? 0)} лид. всего{p.handoff === "form" && " · форма"}{!p.active && " · скрыт"}
+                  {fmtInt(totals.get(p.id) ?? 0)} лид. всего{p.handoff === "form" && " · форма"}{p.handoff === "mixed" && " · перевод или форма"}{!p.active && " · скрыт"}
                 </span>
               </span>
             )}
@@ -362,7 +362,7 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
   const [approve, setApprove] = useState<number | null>(p.approvePct ?? null);
   const [handoff, setHandoff] = useState<ProjectHandoff>(p.handoff ?? "transfer");
   const [brief, setBrief] = useState(p.brief ?? "");
-  const [list, setList] = useState((p.checklist?.length ? p.checklist : handoff === "form" ? DEFAULT_FORM_CHECKLIST : []).join("\n"));
+  const [list, setList] = useState((p.checklist?.length ? p.checklist : handoff !== "transfer" ? DEFAULT_FORM_CHECKLIST : []).join("\n"));
   const [cities, setCities] = useState((p.regions ?? []).join("\n"));
   const [busy, setBusy] = useState(false);
   const items = list.split("\n").map((x) => x.trim()).filter(Boolean);
@@ -370,8 +370,8 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
   const notStored = remote && (!hasProjectFormColumns() || !hasProjectCitiesColumn() || !hasLeadChecksColumn() || (money && !hasProjectPriceColumns()));
   const pickHandoff = (v: ProjectHandoff) => {
     setHandoff(v);
-    // форма без чек-листа — подставляем обязательные поля формы
-    if (v === "form" && !list.trim()) setList(DEFAULT_FORM_CHECKLIST.join("\n"));
+    // форма (или «перевод или форма») без чек-листа — подставляем обязательные поля формы
+    if (v !== "transfer" && !list.trim()) setList(DEFAULT_FORM_CHECKLIST.join("\n"));
   };
   const save = async () => {
     setBusy(true);
@@ -391,7 +391,7 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
       <Seg<ProjectHandoff>
         value={handoff}
         onChange={canEdit ? pickHandoff : () => undefined}
-        options={(["transfer", "form"] as ProjectHandoff[]).map((v) => ({ value: v, label: HANDOFF_LABEL[v] }))}
+        options={(["transfer", "form", "mixed"] as ProjectHandoff[]).map((v) => ({ value: v, label: HANDOFF_LABEL[v] }))}
       />
       {money && (
         <div className="grid2" style={{ gap: 8 }}>
@@ -419,7 +419,11 @@ function ProjectTerms({ p, canEdit, onDone }: { p: Project; canEdit: boolean; on
         />
       </label>
       <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-sub)" }}>
-        {handoff === "form" ? "Чек-лист формы — по пункту в строке; оператор отмечает каждый перед записью лида" : "Чек-лист перед записью лида (необязательно) — по пункту в строке"}
+        {handoff === "form"
+          ? "Чек-лист формы — по пункту в строке; оператор отмечает каждый перед записью лида"
+          : handoff === "mixed"
+            ? "Чек-лист формы — по пункту в строке; нужен, только если клиента не перевели на менеджера в звонке"
+            : "Чек-лист перед записью лида (необязательно) — по пункту в строке"}
         <textarea className="inp" rows={4} value={list} onChange={(e) => setList(e.target.value)} readOnly={!canEdit} />
       </label>
       <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-sub)" }}>

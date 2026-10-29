@@ -157,10 +157,21 @@ export interface Group {
 
 /**
  * Как оператор передаёт лид по проекту: transfer — переводит звонок на менеджера (авто.ру),
- * form — заполняет и отправляет форму заказчика, клиента не переводит (100 up).
+ * form — заполняет и отправляет форму заказчика, клиента не переводит (100 up);
+ * mixed — переводит на менеджера в звонке, а не получилось — отправляет форму (Дмитровка).
  */
-export type ProjectHandoff = "transfer" | "form";
-export const HANDOFF_LABEL: Record<ProjectHandoff, string> = { transfer: "Перевод на менеджера", form: "Отправка формы" };
+export type ProjectHandoff = "transfer" | "form" | "mixed";
+export const HANDOFF_LABEL: Record<ProjectHandoff, string> = { transfer: "Перевод на менеджера", form: "Отправка формы", mixed: "Перевод или форма" };
+/**
+ * «Перевод или форма»: отметка в лиде (в его checks), что клиента перевели на менеджера в звонке —
+ * тогда форму не отправляли и чек-лист формы не нужен. Нет отметки — отправлена форма.
+ */
+export const TRANSFER_CHECK = "Перевели на менеджера в звонке";
+/** Как фактически передан лид: у «перевода или формы» — по отметке оператора. */
+export function leadHandoff(p: Pick<Project, "handoff"> | null | undefined, l: Pick<Lead, "checks">): "transfer" | "form" {
+  const h = p?.handoff ?? "transfer";
+  return h === "mixed" ? (l.checks?.includes(TRANSFER_CHECK) ? "transfer" : "form") : h;
+}
 /** Чек-лист формы по умолчанию: без этих полей заказчик форму не примет. */
 export const DEFAULT_FORM_CHECKLIST = ["Телефон", "Имя", "Город клиента", "В комментарии — все остальные критерии"];
 

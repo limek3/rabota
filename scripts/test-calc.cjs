@@ -1247,3 +1247,34 @@ console.log("ALL OK");
   assert.equal(up.checkBrand(c.BRAND_LIST.find((x) => x.name === "Karma"))[0].kind, "no", "но Karma по названию — не берём");
   console.log("36 ok: 100 up — марки и модели из списка заказчика не берём; Hummer, GMC, McLaren — по марке");
 }
+
+/* 37. Дмитровка: свой список «не берём» (новые — уточнить) и передача «перевод или форма» */
+{
+  const assert = require("assert");
+  const c = R("cars/cars/catalog");
+  const { rulesFor, mentionVerdict } = R("cars/cars/rules");
+  const dm = rulesFor({ name: "Дмитровка" });
+  assert.ok(dm && dm.key === "dmitrovka", "правила по названию проекта");
+  const v = (q) => dm.check(c.searchCars(q, 1)[0].model).map((x) => x.kind).join("/");
+  for (const q of ["леопард 5", "танк 700", "ли л9", "ли мега", "фортунер", "прадо", "крузак 200", "сяоми су7", "умо 5", "амбер а5", "райзинг р7", "м хиро 917"])
+    assert.equal(v(q), "no", `в списке: ${q}`);
+  for (const q of ["паджеро", "паджеро спорт", "аутлендер", "х5", "гелик", "рендж ровер", "хс90", "ку7"]) assert.equal(v(q), "ask", `новые не берём: ${q}`);
+  for (const q of ["танк 300", "ли л7", "рав4", "солярис", "асх", "камри"]) assert.equal(v(q), "ok", `передаём: ${q}`);
+  assert.equal(dm.checkBrand(c.BRAND_LIST.find((b) => b.id === "xiaomi"))[0].kind, "no", "Xiaomi — марка целиком");
+  assert.equal(dm.checkBrand(c.BRAND_LIST.find((b) => b.id === "bmw"))[0].kind, "ask", "BMW — смотря новая или нет");
+  assert.equal(dm.checkBrand(c.BRAND_LIST.find((b) => b.id === "toyota")), null, "Toyota — по модели");
+  const said = c.detectCars("хочет лисян л9 или сяоми");
+  assert.ok(said.length >= 1 && mentionVerdict(dm, said[0], "")[0].kind === "no", "из комментария лида — не берём");
+
+  const { leadHandoff, TRANSFER_CHECK } = R("types");
+  const mixed = { handoff: "mixed" };
+  assert.equal(leadHandoff(mixed, { checks: [TRANSFER_CHECK] }), "transfer", "перевели в звонке");
+  assert.equal(leadHandoff(mixed, { checks: ["Телефон", "Имя"] }), "form", "не перевели — форма");
+  assert.equal(leadHandoff({ handoff: "form" }, {}), "form");
+  assert.equal(leadHandoff(null, {}), "transfer", "без проекта — перевод");
+  const { sanitize } = R("validate");
+  const st = sanitize({ projects: [{ id: "p1", name: "Дмитровка", handoff: "mixed" }, { id: "p2", name: "X", handoff: "чепуха" }] }).state;
+  assert.equal(st.projects.find((p) => p.id === "p1").handoff, "mixed", "копия сохраняет «перевод или форму»");
+  assert.equal(st.projects.find((p) => p.id === "p2").handoff, "transfer", "непонятное — перевод");
+  console.log("37 ok: Дмитровка — Leopard 5, Tank 700, L9, Крузеры не берём; новые BMW, Pajero — уточнить; «перевод или форма» по отметке лида");
+}

@@ -28,6 +28,8 @@ export const BRANDS: BrandSrc[] = [
   ["xcite", "XCite", "икссайт,экссайт,xcite", "Россия", "cnl", "XCite"],
   ["evolute", "Evolute", "эволют", "Россия", "cnl", "Evolute (automobile)"],
   ["sollers", "Sollers", "соллерс", "Россия", "", "Sollers JSC"],
+  ["umo", "UMO", "умо,umo", "Россия", "cnl", "UMO (automobile)"],
+  ["amberauto", "Амберавто", "амберавто,амбер авто,amberauto,amber auto,амбер", "Россия", "cnl", "Amberavto"],
   ["belgee", "Belgee", "белджи,белжи", "Беларусь", "cnl", "Belgee"],
   ["ravon", "Ravon", "равон", "Узбекистан", "", "Ravon"],
   ["daewoo", "Daewoo", "дэу,деу,девоо,дэо", "Корея / Узбекистан", "", "Daewoo Motors"],
@@ -68,6 +70,7 @@ export const BRANDS: BrandSrc[] = [
   ["neta", "Neta", "нета,hozon,хозон", "Китай", "cn", "Neta (automobile)"],
   ["leapmotor", "Leapmotor", "липмотор,лип мотор", "Китай", "cn"],
   ["xiaomi", "Xiaomi", "сяоми,ксиаоми", "Китай", "cn", "Xiaomi Auto"],
+  ["rising", "Rising Auto", "райзинг,райзинг авто,feifan,фейфан,фэйфань", "Китай", "cn", "Rising Auto"],
   ["skywell", "Skywell", "скайвел", "Китай", "cn"],
   ["swm", "SWM", "свм,эсвээм", "Китай", "cn", "SWM (automobile)"],
   ["jetta", "Jetta", "джетта бренд", "Китай", "cn", "Jetta (brand)"],
@@ -223,6 +226,10 @@ Profi|профи|2017|com|g|грузовик|ru:УАЗ Профи
 3e|москвич 3е,москвич 3e|2022|suv|e|электро, на базе JAC|Moskvich 3
 6|москвич 6|2024|lb|g|лифтбек на базе JAC|Moskvich 6
 8|москвич 8|2025|suv|g|кроссовер на базе JAC|Moskvich 8`,
+  umo: `
+5|умо 5,умо5,umo5,яндекс умо|2026|suv|e|электро на базе GAC Aion Y Plus, «Москвич» и «Яндекс»|UMO 5`,
+  amberauto: `
+A5|амбер а5,амберавто а5|2025|sed|e|электро, калининградский «Автотор»|-`,
   solaris: `
 KRS|крс|2024|sed|g|бывший Hyundai Solaris|Hyundai Accent
 KRX|крх,крикс|2024|hat|g|бывший Kia Rio X|Kia Rio
@@ -476,7 +483,8 @@ Qin Plus|цинь плюс,кин плюс|2021|sed|p e|BYD Qin Plus
 Yuan Plus|юань плюс,atto 3,атто 3|2022|suv|e|электро|BYD Atto 3
 Dolphin|долфин,дельфин|2021|hat|e|электро|BYD Dolphin
 Seagull|сигал,чайка|2023|hat|e|электро|BYD Seagull
-F3|ф3 бид|2005-2014|sed|g|бензин|BYD F3`,
+F3|ф3 бид|2005-2014|sed|g|бензин|BYD F3
+Leopard 5|леопард 5,леопард,бао 5,фанчэнбао,фангчэнбао,фанченбао,fangchengbao,fang cheng bao,fcb|2023|off|p|рамный, подзаряжаемый гибрид; марка Fangchengbao|Fangchengbao Bao 5`,
   denza: `
 D9|д9,денза д9|2022|mpv|p e|минивэн|Denza D9`,
   liauto: `
@@ -509,7 +517,12 @@ C10|ц10,с10|2023|suv|e r|электро и с запасом хода|Leapmoto
 C11|ц11,с11|2021|suv|e r|электро и с запасом хода|Leapmotor C11
 C16|ц16,с16|2024|suv|e r|6 мест|Leapmotor C16`,
   xiaomi: `
-SU7|су7,сяоми су7|2024|sed|e|электро|Xiaomi SU7`,
+SU7|су7,сяоми су7|2024|sed|e|электро|Xiaomi SU7
+YU7|ю7,юу7,сяоми ю7|2025|suv|e|электро|Xiaomi YU7`,
+  rising: `
+R7|р7,райзинг р7|2022|suv|e|электро|Rising Auto R7
+F7|ф7,райзинг ф7|2023|sed|e|электро|Rising Auto F7
+Marvel R|марвел р,марвел|2021|suv|e|электро|-`,
   skywell: `
 ET5|ет5 скайвел|2021|suv|e|электро|Skywell ET5`,
   swm: `

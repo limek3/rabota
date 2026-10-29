@@ -126,7 +126,7 @@ export function sanitize(raw: unknown): { state: DataState; warnings: string[] }
         active: p.active !== false,
         color: str(p.color, "blue"),
         sort: num(p.sort, i),
-        handoff: p.handoff === "form" ? ("form" as const) : ("transfer" as const),
+        handoff: p.handoff === "form" || p.handoff === "mixed" ? (p.handoff as "form" | "mixed") : ("transfer" as const),
         brief: str(p.brief),
         checklist: Array.isArray(p.checklist) ? p.checklist.map((x: unknown) => str(x).trim()).filter(Boolean) : [],
         regions: Array.isArray(p.regions) ? p.regions.map((x: unknown) => str(x).trim()).filter(Boolean) : [],

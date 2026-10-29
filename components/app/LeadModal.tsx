@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useCrm, type LeadPreset } from "@/lib/crm/store";
 import type { Lead, LeadStatus } from "@/lib/crm/types";
-import { HANDOFF_LABEL, LEAD_SOURCE, LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
+import { HANDOFF_LABEL, LEAD_SOURCE, TRANSFER_CHECK, leadHandoff, LEAD_STATUSES, LEAD_STATUS_HUE, LEAD_STATUS_LABEL, NO_GROUP_LABEL } from "@/lib/crm/types";
 import type { Project } from "@/lib/crm/types";
 import { Avatar, Chip, Modal, RegionTag } from "@/components/ui/kit";
 import { Layer, Select, dot, usePopover, type Opt } from "@/components/ui/select";
@@ -186,7 +186,12 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
   );
   const project = projectId ? data.projects.find((p) => p.id === projectId) ?? null : null;
   const checklist = project?.checklist ?? [];
-  const isForm = project?.handoff === "form";
+  // «перевод или форма» (Дмитровка): оператор отмечает, что перевёл клиента в звонке, — иначе это форма
+  const isMixed = project?.handoff === "mixed";
+  const transferred = isMixed && checks.has(TRANSFER_CHECK);
+  const isForm = project?.handoff === "form" || (isMixed && !transferred);
+  // свой заказчик, не авто.ру: старые лиды без проекта (авто.ру) с ним в дубли не сверяем
+  const ownClient = project?.handoff === "form" || isMixed;
   const ownCities = project?.regions?.length ? project.regions : null;
   const regionList = ownCities ?? settingsRegions;
 
@@ -210,14 +215,14 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     () =>
       phoneNorm.length >= 10
         ? findDuplicate(
-            data.leads.filter((l) => (l.projectId ?? "") === projectId || (!l.projectId && !isForm)),
+            data.leads.filter((l) => (l.projectId ?? "") === projectId || (!l.projectId && !ownClient)),
             phoneNorm,
             at,
             s.duplicateDays,
             lead?.id,
           )
         : null,
-    [data.leads, projectId, isForm, phoneNorm, at, s.duplicateDays, lead?.id],
+    [data.leads, projectId, ownClient, phoneNorm, at, s.duplicateDays, lead?.id],
   );
 
   // новый лид — только полный: клиент, телефон, ссылка, регион. Старые записи без них правятся как раньше
@@ -239,7 +244,7 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
         ? "Слишком короткий номер"
         : null,
     region: isNew && regionList.length > 0 && !region ? (ownCities ? "Выберите город клиента" : "Выберите регион") : null,
-    checks: isNew && checklist.length > 0 && checklist.some((c) => !checks.has(c)) ? (isForm ? "Отметьте всё, что заполнено в форме" : "Отметьте чек-лист") : null,
+    checks: isNew && checklist.length > 0 && !transferred && checklist.some((c) => !checks.has(c)) ? (isForm ? "Отметьте всё, что заполнено в форме" : "Отметьте чек-лист") : null,
     link:
       link.trim() && !linkNorm
         ? "Не похоже на ссылку — вставьте адрес целиком"
@@ -292,8 +297,9 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
       // «Город / ДЦ» больше не заполняют — город задаёт регион; старое значение у лида сохраняется
       direction: lead?.direction ?? "",
       comment,
-      // отмеченные пункты чек-листа текущего проекта; проект без чек-листа — отметок нет
-      checks: checklist.filter((c) => checks.has(c)),
+      // отмеченные пункты чек-листа текущего проекта; проект без чек-листа — отметок нет.
+      // Перевели на менеджера (Дмитровка) — только эта отметка: форму не отправляли
+      checks: transferred ? [TRANSFER_CHECK] : checklist.filter((c) => checks.has(c)),
       ...(lead ? { groupId: groupId || null } : {}),
     });
     setBusy(false);
@@ -388,6 +394,8 @@ function useLeadDraft(lead: Lead | null, preset?: LeadPreset) {
     project,
     checklist,
     isForm,
+    isMixed,
+    transferred,
     set: {
       operatorId: (v: string) => {
         setOperatorId(v);
@@ -582,7 +590,13 @@ function ProjectSwitch({ d, inHead }: { d: Draft; inHead?: boolean }) {
             className={on ? "on" : ""}
             onClick={() => d.set.projectId(p.id)}
             disabled={d.readOnly}
-            title={p.handoff === "form" ? `${p.name}: отправка формы, клиента не переводим` : `${p.name}: перевод на менеджера`}
+            title={
+              p.handoff === "form"
+                ? `${p.name}: отправка формы, клиента не переводим`
+                : p.handoff === "mixed"
+                  ? `${p.name}: перевод на менеджера, не получилось — форма`
+                  : `${p.name}: перевод на менеджера`
+            }
           >
             <i style={{ background: `var(--c-${p.color}-fg)` }} />
             {p.name}
@@ -961,7 +975,7 @@ function LeadCard({ lead, failIntent, onClose, variant }: { lead: Lead; failInte
           {/* машина из комментария — как при записи лида: фото и передаём ли по проекту и городу */}
           {lead.comment && <CarHint text={lead.comment} projectId={lead.projectId ?? ""} city={lead.region ?? ""} />}
 
-          {proj && (proj.handoff === "form" || (proj.checklist?.length ?? 0) > 0) && <FormChecks lead={lead} project={proj} />}
+          {proj && (proj.handoff === "form" || proj.handoff === "mixed" || (proj.checklist?.length ?? 0) > 0) && <FormChecks lead={lead} project={proj} />}
 
           <details className="rv-fold" open>
             <summary>
@@ -1031,7 +1045,10 @@ function LeadInfo({ lead, canEdit, onEdit, dupHintNode, exported }: { lead: Lead
         {proj && (
           <>
             <dt>Передача</dt>
-            <dd>{HANDOFF_LABEL[proj.handoff ?? "transfer"]}</dd>
+            <dd>
+              {HANDOFF_LABEL[leadHandoff(proj, lead)]}
+              {proj.handoff === "mixed" && <span className="o2-muted"> · {HANDOFF_LABEL.mixed.toLowerCase()}</span>}
+            </dd>
           </>
         )}
         <dt>Оператор</dt>
@@ -1650,7 +1667,8 @@ function LeadCreateModal({ preset, onClose }: { preset?: LeadPreset; onClose: ()
 
 /**
  * Условия проекта и чек-лист. «Форма» (100 up): клиента не переводим — отправляем форму заказчика,
- * поэтому перед записью оператор отмечает, что в форме есть всё обязательное. Условия — длинный текст:
+ * поэтому перед записью оператор отмечает, что в форме есть всё обязательное. «Перевод или форма»
+ * (Дмитровка): перевели на менеджера в звонке — отмечают это, и чек-лист формы не нужен; нет — форма. Условия — длинный текст:
  * в окне одна строка, сам текст — во всплывающем окне по кнопке, чтобы окно лида не росло.
  */
 function ProjectBrief({ d }: { d: Draft }) {
@@ -1659,12 +1677,18 @@ function ProjectBrief({ d }: { d: Draft }) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const { style } = usePopover(open, btnRef, popRef, () => setOpen(false));
-  if (!p || (!p.brief?.trim() && !d.checklist.length && !d.isForm)) return null;
+  if (!p || (!p.brief?.trim() && !d.checklist.length && !d.isForm && !d.isMixed)) return null;
   const brief = p.brief?.trim() ?? "";
   return (
     <Sec
-      icon={d.isForm ? "doc" : "rules"}
-      title={d.isForm ? `«${p.name}» — отправка формы, клиента не переводим` : `Условия «${p.name}»`}
+      icon={d.isForm ? "doc" : d.isMixed ? "phone" : "rules"}
+      title={
+        d.isMixed
+          ? `«${p.name}» — перевод на менеджера, не получилось — форма`
+          : d.isForm
+            ? `«${p.name}» — отправка формы, клиента не переводим`
+            : `Условия «${p.name}»`
+      }
       right={
         brief ? (
           <button ref={btnRef} type="button" className={`lf-brief-btn${open ? " on" : ""}`} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
@@ -1681,7 +1705,19 @@ function ProjectBrief({ d }: { d: Draft }) {
           </div>
         </Layer>
       )}
-      {d.checklist.length > 0 && (
+      {d.isMixed && (
+        <div className="lf-checks" role="group" aria-label="Как передали лид">
+          <span className="lf-l">Передача</span>
+          <div className="lf-checks-g">
+            <label title="Клиента перевели на менеджера в звонке — форму не отправляем" className={`lf-check${d.transferred ? " on" : ""}`}>
+              <input type="checkbox" checked={d.transferred} onChange={() => d.set.check(TRANSFER_CHECK)} disabled={d.readOnly} />
+              <span>{TRANSFER_CHECK}</span>
+            </label>
+          </div>
+          <span className="field-hint">{d.transferred ? "Форму не отправляем — чек-лист формы не нужен" : "Не перевели — отправьте форму и отметьте, что в ней заполнено"}</span>
+        </div>
+      )}
+      {d.checklist.length > 0 && !d.transferred && (
         <div className="lf-checks" role="group" aria-label={d.isForm ? "Что заполнено в форме" : "Чек-лист"}>
           <span className="lf-l">{d.isForm ? "В форме заполнено" : "Перед записью"}</span>
           <div className="lf-checks-g">
@@ -1706,8 +1742,19 @@ function ProjectBrief({ d }: { d: Draft }) {
  */
 function FormChecks({ lead, project }: { lead: Lead; project: Project }) {
   const done = new Set(lead.checks ?? []);
+  // «перевод или форма»: перевели в звонке — так и пишем, без пунктов формы
+  if (project.handoff === "mixed" && done.has(TRANSFER_CHECK))
+    return (
+      <div className="lc-form ok">
+        <div className="lc-form-h">
+          <Icon name="phone" size={13} />
+          <b>Переведён на менеджера</b>
+          <span className="o2-muted">{project.name} · в звонке, форму не отправляли</span>
+        </div>
+      </div>
+    );
   const items = [...(project.checklist ?? []), ...(lead.checks ?? []).filter((c) => !(project.checklist ?? []).includes(c))];
-  const isForm = project.handoff === "form";
+  const isForm = project.handoff === "form" || project.handoff === "mixed";
   const all = items.length > 0 && items.every((c) => done.has(c));
   return (
     <div className={`lc-form${all ? " ok" : ""}`}>

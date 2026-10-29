@@ -9,6 +9,8 @@ import { BODY_LABEL, type Body, type Brand, type CarMention, type Model } from "
  * (есть и бензиновая версия — передаём).
  * Авто.ру — по городу клиента: Москва и Санкт-Петербург — любые марки, регионы и Екатеринбург — только китайские;
  * Lada — нигде; грузовые, микроавтобусы, спецтехника, фургоны — нет; Datsun, Zotye, Kaiyi — наличие не обещаем.
+ * Дмитровка — свой список «не берём»: отдельные китайские модели и марки, Fortuner и Land Cruiser;
+ * новые BMW, Mercedes, Land Rover, Volvo, Audi и Mitsubishi Pajero / Pajero Sport / Outlander — с пробегом можно.
  *
  * Правила пока здесь, в коде; проект узнаём по названию. Потом — редактор в карточке проекта.
  */
@@ -27,7 +29,7 @@ export interface ZoneVerdict extends Verdict {
 }
 
 export interface CarRules {
-  key: "100up" | "autoru";
+  key: "100up" | "autoru" | "dmitrovka";
   /** Что показать оператору списком. */
   list: string[];
   check: (m: Model) => ZoneVerdict[];
@@ -71,7 +73,10 @@ const UP_MODELS: [string, string][] = [
   ["ford", "F-150"],
   ["nissan", "GT-R"],
 ];
-const upListed = (m: Model) => UP_MODELS.some(([b, n]) => b === m.brand.id && (n.endsWith("*") ? m.name.startsWith(n.slice(0, -1)) : n === m.name));
+/** Модель в списке [марка, модель]; «Модель*» — все модели с таким началом. */
+const inList = (list: [string, string][], m: Model) =>
+  list.some(([b, n]) => b === m.brand.id && (n.endsWith("*") ? m.name.startsWith(n.slice(0, -1)) : n === m.name));
+const upListed = (m: Model) => inList(UP_MODELS, m);
 const UP_BODIES: Partial<Record<Body, string>> = {
   com: "коммерческий транспорт",
   van: "коммерческий транспорт (фургон)",
@@ -138,6 +143,40 @@ function checkAutoru(m: Model): ZoneVerdict[] {
   );
 }
 
+/* ── Дмитровка ──────────────────────────────────────────────────────────── */
+
+/** Марки из списка целиком: Xiaomi, M-Hero, Амберавто, UMO (у неё одна модель — UMO 5), Rising Auto (только электро). */
+const DM_BRANDS = new Set(["xiaomi", "mhero", "amberauto", "umo", "rising"]);
+/** Новые не берём, с пробегом — передаём. */
+const DM_NEW_BRANDS = new Set(["bmw", "mercedes", "landrover", "volvo", "audi"]);
+/** Модели из списка: [марка, модель]; «Land Cruiser*» — все Land Cruiser. */
+const DM_MODELS: [string, string][] = [
+  ["byd", "Leopard 5"],
+  ["tank", "700"],
+  ["liauto", "L9"],
+  ["liauto", "Mega"],
+  ["toyota", "Fortuner"],
+  ["toyota", "Land Cruiser*"],
+];
+const DM_NEW_MODELS: [string, string][] = [
+  ["mitsubishi", "Pajero"],
+  ["mitsubishi", "Pajero Sport"],
+  ["mitsubishi", "Outlander"],
+];
+const NEW_ONLY = "новые не берём, с пробегом — передаём: уточните у клиента";
+
+function checkDmitrovkaBrand(b: Brand): ZoneVerdict[] | null {
+  if (DM_BRANDS.has(b.id)) return [{ zone: null, kind: "no", reasons: [`${b.name} — в списке «не берём»`] }];
+  if (DM_NEW_BRANDS.has(b.id)) return [{ zone: null, kind: "ask", reasons: [`${b.name}: ${NEW_ONLY}`] }];
+  return null;
+}
+
+function checkDmitrovka(m: Model): ZoneVerdict[] {
+  if (inList(DM_MODELS, m)) return [{ zone: null, kind: "no", reasons: [`${m.full} — в списке «не берём»`] }];
+  if (inList(DM_NEW_MODELS, m)) return [{ zone: null, kind: "ask", reasons: [`${m.full}: ${NEW_ONLY}`] }];
+  return checkDmitrovkaBrand(m.brand) ?? [{ zone: null, kind: "ok", reasons: [] }];
+}
+
 /** 100 up по одной марке: ясно только про марки из списка и непонятный премиум. */
 function check100upBrand(b: Brand): ZoneVerdict[] | null {
   if (UP_BRANDS.has(b.id)) return [{ zone: null, kind: "no", reasons: [`${b.name} — в списке «не берём»`] }];
@@ -180,6 +219,19 @@ const RULES: CarRules[] = [
     check: checkAutoru,
     checkBrand: checkAutoruBrand,
   },
+  {
+    key: "dmitrovka",
+    list: [
+      "BYD FangChengBao Leopard 5, Tank 700, M-Hero, Xiaomi",
+      "LiXiang L9, LiXiang Mega",
+      "Амберавто, УМО 5, электромобили Rising Auto",
+      "Toyota Fortuner, Land Cruiser (все)",
+      "новые Mitsubishi Pajero, Pajero Sport, Outlander — с пробегом передаём",
+      "новые BMW, Mercedes-Benz, Land Rover, Volvo, Audi — с пробегом передаём",
+    ],
+    check: checkDmitrovka,
+    checkBrand: checkDmitrovkaBrand,
+  },
 ];
 
 /**
@@ -198,6 +250,7 @@ export function rulesFor(p: Pick<Project, "name"> | null | undefined): CarRules 
   const n = (p?.name ?? "").toLowerCase().replace(/[^a-zа-я0-9]+/g, "");
   if (/100(up|ап)/.test(n)) return RULES[0];
   if (/^(авто|auto)(ру|ru)$/.test(n)) return RULES[1];
+  if (/дмитровк|dmitrovk/.test(n)) return RULES[2];
   return null;
 }
 
