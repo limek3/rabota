@@ -641,26 +641,6 @@ export function Hero({
       </span>
     );
 
-  // шкала: всё в одном масштабе — до плана или прогноза, что больше
-  const max = Math.max(plan, p.rr, p.fact, 1);
-  const pos = (v: number) => Math.max(0, Math.min(100, (v / max) * 100));
-  const pf = pos(p.fact);
-  const ps = pos(p.planToDate);
-  const pp = pos(plan);
-  const showShould = cur && plan > 0;
-  const showRr = cur && p.elapsedW > 0 && p.rr > p.fact;
-  const close = showShould && Math.abs(pf - ps) < 9;
-  // подписи рядом не влезают: «должно быть» уходит над шкалой, если там нет прогноза
-  const shouldAbove = close && (!showRr || Math.abs(pos(p.rr) - ps) > 16);
-  const near = close && !shouldAbove;
-  const factLeft = pf <= ps;
-  const labStyle = (x: number, side: "c" | "l" | "r"): CSSProperties => ({
-    left: `${x}%`,
-    transform: side === "c" ? "translateX(-50%)" : side === "r" ? "translateX(-100%)" : "translateX(-4px)",
-    textAlign: side === "r" ? "right" : side === "c" ? "center" : "left",
-  });
-  const okFill = plan > 0 && (past ? p.pct >= 1 : p.deviation >= -0.5);
-
   return (
     <section className="card d2-hero">
       <div className="d2-hero-top">
@@ -718,50 +698,135 @@ export function Hero({
           ))}
         </div>
       </div>
-      {plan > 0 && (
-        <div className="d2-bar">
-          <div className="trk" />
-          {showRr && <div className="hatch" style={{ left: `${pf}%`, width: `${pos(p.rr) - pf}%` }} />}
-          <div className="fill" data-ok={String(okFill)} style={{ width: `${pf}%` }} />
-          <div className="dot" style={{ left: `${pf}%`, width: 11, height: 11, background: okFill ? "var(--c-green-fg)" : "var(--c-red-fg)", border: "2px solid var(--bg-panel)" }} />
-          {showShould && (
-            <>
-              <div className="tick" style={{ left: `${ps}%`, top: 15, height: 10, width: 1.5 }} />
-              <div className="dot" style={{ left: `${ps}%`, width: 7, height: 7, background: "var(--text)" }} />
-            </>
-          )}
-          {showRr && (
-            <>
-              <div className="pill" style={{ left: `${Math.min(92, Math.max(8, pos(p.rr)))}%` }}>
-                Прогноз: {fmtInt(p.rr)} ({fmtPct(p.rrPct)})
-              </div>
-              <div className="tick" style={{ left: `${pos(p.rr)}%`, top: 16, height: 6, width: 1, background: "var(--dim)" }} />
-              <div className="dot" style={{ left: `${pos(p.rr)}%`, width: 9, height: 9, background: "var(--bg-panel)", border: "1.5px solid var(--dim)" }} />
-            </>
-          )}
-          <div className="tick" style={{ left: `${pp}%`, top: 18, height: 17, width: 2 }} />
+      {plan > 0 && <Race plan={plan} p={p} cur={cur} past={past} isDay={isDay} one={one} gen={w.gen} />}
+    </section>
+  );
+}
 
-          {pf > 4 && (
-            <div className="lab" style={labStyle(0, "l")}>
-              <b>0</b>
-            </div>
-          )}
-          <div className={`lab ${okFill ? "d2-green" : "d2-red"}`} style={labStyle(pf, near ? (factLeft ? "r" : "l") : pf < 3 ? "l" : pf > 92 ? "r" : "c")}>
-            <b style={{ color: "inherit" }}>{fmtInt(p.fact)}</b>факт
+/** Бегущий человечек: ноги и руки машут, пока на шкале .run (бегун добегает до своего места). */
+function RunFig() {
+  return (
+    <svg className="rc-fig" viewBox="0 0 24 24" aria-hidden>
+      <g className="rc-bob">
+        <circle cx="14.2" cy="3.8" r="2.4" />
+        <path d="M13.2 7.2 11 13" />
+        <path className="rc-a1" d="M12.5 8.5 9 11" />
+        <path className="rc-a2" d="M12.5 8.5 16.4 10.4" />
+        <path className="rc-l1" d="M11 13 8.6 17.4 5.6 18.6" />
+        <path className="rc-l2" d="M11 13 14.2 16.4 13.6 21" />
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * Шкала плана — «забег»: две дорожки к одному финишу (плану). Бегун — факт, призрак на второй
+ * дорожке — сколько должно быть к сегодня (в закрытом периоде — весь план). У каждого своя
+ * дорожка, поэтому подписи не наползают, даже когда числа совпали. Справа — отрыв от графика
+ * и план, под дорожками — % плана, прогноз и на какой рабочий день добежим по темпу.
+ */
+function Race({ plan, p, cur, past, isDay, one, gen }: { plan: number; p: Pace; cur: boolean; past: boolean; isDay: boolean; one: boolean; gen: string }) {
+  // внутри дня графика нет, у будущего периода — ещё нечего сравнивать: тогда дорожка одна
+  const should = isDay ? null : past ? plan : cur ? p.planToDate : null;
+  const gap = should == null ? null : past ? p.fact - plan : p.deviation;
+  const ok = past ? p.pct >= 1 : p.deviation >= -0.5;
+  const done = p.fact >= plan;
+  const showRr = cur && !isDay && p.elapsedW > 0 && p.rr > p.fact;
+  const max = Math.max(plan, p.fact, showRr ? p.rr : 0, 1) * 1.02;
+  const pos = (v: number) => Math.max(0, Math.min(100, (v / max) * 100));
+  const pf = pos(p.fact);
+  const pp = pos(plan);
+  // фишка стоит слева от своей точки; у самого старта — справа, чтобы не уехать за край
+  const tok = (x: number): CSSProperties => ({ left: `${x}%`, transform: x < 22 ? "translate(0, -50%)" : "translate(-100%, -50%)" });
+
+  // ноги бегут, пока бегун добегает до места: при открытии и при смене чисел
+  const [run, setRun] = useState(true);
+  const factR = Math.round(p.fact);
+  useEffect(() => {
+    setRun(true);
+    const t = setTimeout(() => setRun(false), 1300);
+    return () => clearTimeout(t);
+  }, [factR, plan]);
+
+  const finishDay = p.avgPerDay > 0 ? Math.ceil(plan / p.avgPerDay) : null;
+  const finish = done
+    ? `план взят, сверху ${fmtSigned(Math.round(p.fact - plan))}`
+    : finishDay != null && finishDay <= p.totalW
+      ? `по темпу добежим к финишу на ${finishDay}-й рабочий день из ${p.totalW}`
+      : `по темпу до финиша не хватит ${fmtInt(Math.round(plan - p.rr))} ${plural(Math.round(plan - p.rr), LEADS)}`;
+
+  return (
+    <div className={`rc${run ? " run" : ""}`} data-ok={String(ok)}>
+      <div className="rc-lanes">
+        <div className="rc-lane me">
+          <div className="rc-who">
+            {one ? "Факт" : "Мы"}
+            {!one && <small>факт</small>}
           </div>
-          {showShould && (
-            <div className="lab" style={{ ...labStyle(ps, near ? (factLeft ? "l" : "r") : "l"), ...(shouldAbove ? { top: -4, display: "flex", gap: 5, alignItems: "baseline" } : null) }}>
-              <b>{fmtInt(Math.round(p.planToDate))}</b>должно быть
+          <div className="rc-tr">
+            <div className="rc-bar me" style={{ width: `${pf}%` }} />
+            {showRr && <div className="rc-fc" style={{ left: `${pf}%`, width: `${pos(p.rr) - pf}%` }} title={`Прогноз по темпу: ${fmtInt(p.rr)} (${fmtPct(p.rrPct)})`} />}
+            <div className="rc-fin" style={{ left: `${pp}%` }} />
+            <div className="rc-tok" style={tok(pf)}>
+              <span className="rc-runner">
+                <span className="rc-av">
+                  <RunFig />
+                </span>
+                {fmtInt(p.fact)}
+                {done && <span className="rc-medal" title="План взят">★</span>}
+              </span>
             </div>
-          )}
-          {pp - Math.max(pf, showShould ? ps : 0) > 9 && (
-            <div className="lab" style={labStyle(pp, pp > 95 ? "r" : "c")}>
-              <b>{fmtInt(plan)}</b>план
+          </div>
+          {gap != null ? (
+            <div className={`rc-end ${ok ? "d2-green" : "d2-red"}`}>
+              {fmtSigned(Math.round(gap))}
+              <small>{gap >= -0.5 ? "впереди" : "позади"}</small>
+            </div>
+          ) : (
+            <div className={`rc-end ${ok ? "d2-green" : ""}`}>
+              {fmtPct(p.pct)}
+              <small>из {fmtInt(plan)}</small>
             </div>
           )}
         </div>
+        {should != null && (
+          <div className="rc-lane gh">
+            <div className="rc-who">
+              График<small>{past ? "план" : "должно быть"}</small>
+            </div>
+            <div className="rc-tr">
+              <div className="rc-bar gh" style={{ width: `${pos(should)}%` }} />
+              <div className="rc-fin" style={{ left: `${pp}%` }} />
+              <div className="rc-tok" style={tok(pos(should))}>
+                <span className="rc-ghost">
+                  <span className="rc-av">
+                    <RunFig />
+                  </span>
+                  {fmtInt(Math.round(should))}
+                </span>
+              </div>
+            </div>
+            <div className="rc-end">
+              {fmtInt(plan)}
+              <small>финиш</small>
+            </div>
+          </div>
+        )}
+      </div>
+      {should != null && (
+        <div className="rc-cap">
+          <span>
+            <b>{fmtPct(p.pct)}</b> плана{p.elapsedW > 0 && !past ? <> · темп <b>{fmtNum(p.avgPerDay)}</b> в день</> : null}
+          </span>
+          {cur && p.elapsedW > 0 && (
+            <span>
+              {showRr && <>≈ <b>{fmtInt(Math.round(p.rr))}</b> к концу {gen} · </>}
+              {finish}
+            </span>
+          )}
+        </div>
       )}
-    </section>
+    </div>
   );
 }
 

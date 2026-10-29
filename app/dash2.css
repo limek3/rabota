@@ -44,16 +44,51 @@
 .d2-kpi-v { font-size: 21px; font-weight: 700; margin-top: 6px; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .d2-kpi-u { font-size: 11px; color: var(--dim); margin-top: 2px; white-space: nowrap; }
 
-.d2-bar { position: relative; margin: 14px 34px 0 26px; height: 56px; }
-.d2-bar .trk { position: absolute; left: 0; right: 0; top: 22px; height: 9px; border-radius: 5px; background: var(--ink-06); }
-.d2-bar .hatch { position: absolute; top: 22px; height: 9px; background: repeating-linear-gradient(135deg, var(--ink-25) 0 1.2px, transparent 1.2px 5px); }
-.d2-bar .fill { position: absolute; left: 0; top: 22px; height: 9px; border-radius: 5px; background: linear-gradient(90deg, color-mix(in srgb, var(--c-red-fg) 35%, transparent), var(--c-red-fg)); }
-.d2-bar .fill[data-ok="true"] { background: linear-gradient(90deg, color-mix(in srgb, var(--c-green-fg) 35%, transparent), var(--c-green-fg)); }
-.d2-bar .dot { position: absolute; top: 26.5px; transform: translate(-50%, -50%); border-radius: 50%; }
-.d2-bar .tick { position: absolute; transform: translateX(-50%); background: var(--text); }
-.d2-bar .lab { position: absolute; top: 37px; font-size: 11px; line-height: 1.15; white-space: nowrap; color: var(--text-sub); }
-.d2-bar .lab b { display: block; font-weight: 700; font-size: 12px; color: var(--text); }
-.d2-bar .pill { position: absolute; top: -2px; transform: translateX(-50%); background: var(--ink-06); border-radius: 4px; padding: 2px 8px; font-size: 10.5px; color: var(--text-sub); white-space: nowrap; }
+/* шкала плана — «забег»: дорожка «Мы» (бегун — факт) и «График» (призрак — должно быть), финиш — план */
+.rc { --rc-c: var(--c-red-fg); --rc-on: var(--bg-panel); margin-top: 16px; }
+.rc[data-ok="true"] { --rc-c: var(--c-green-fg); }
+:root[data-theme="light"] .rc { --rc-on: #fff; }
+.rc-lanes { position: relative; border-radius: 10px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--ink-07); }
+.rc-lane { position: relative; height: 44px; display: grid; grid-template-columns: 88px 1fr 76px; align-items: center; }
+.rc-lane + .rc-lane { border-top: 1px dashed var(--ink-10, var(--ink-07)); }
+.rc-lane.me { background: color-mix(in srgb, var(--rc-c) 6%, transparent); }
+.rc-who { padding-left: 12px; font-size: 12px; font-weight: 700; color: var(--text-sub); line-height: 1.15; }
+.rc-who small { display: block; font-size: 10.5px; font-weight: 500; color: var(--dim); }
+.rc-tr { position: relative; height: 100%; }
+.rc-tr::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--ink-10, var(--ink-07)); }
+.rc-bar { position: absolute; left: 0; top: 50%; height: 4px; transform: translateY(-50%); border-radius: 2px; }
+.rc-bar.me { height: 6px; background: linear-gradient(90deg, transparent, var(--rc-c)); }
+.rc-bar.gh { background: linear-gradient(90deg, transparent, var(--ink-25)); }
+.rc-fc { position: absolute; top: 50%; border-top: 2px dotted color-mix(in srgb, var(--rc-c) 70%, transparent); }
+.rc-fin { position: absolute; top: 0; bottom: 0; width: 8px; transform: translateX(-50%); opacity: 0.85; background: conic-gradient(var(--text) 25%, var(--bg-panel) 0 50%, var(--text) 0 75%, var(--bg-panel) 0) 0 0 / 8px 8px; }
+.rc-tok { position: absolute; top: 50%; z-index: 1; }
+.rc-runner, .rc-ghost { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 99px; font-size: 12.5px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rc-runner { background: var(--rc-c); color: var(--rc-on); box-shadow: 0 6px 16px -6px var(--rc-c); }
+.rc-ghost { border: 1.5px dashed var(--ink-25); background: var(--bg-panel); color: var(--text-sub); font-size: 12px; font-weight: 700; }
+.rc-av { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, currentColor 18%, transparent); }
+.rc-ghost .rc-av { width: 19px; height: 19px; background: var(--ink-06); opacity: 0.8; }
+.rc-medal { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #e0a526; color: #fff; font-size: 10px; margin-left: 1px; }
+.rc-end { padding-right: 12px; text-align: right; font-size: 15px; font-weight: 800; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.rc-end small { display: block; font-size: 10.5px; font-weight: 500; color: var(--dim); }
+.rc-cap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 12px; color: var(--text-sub); }
+.rc-cap b { color: var(--text); font-variant-numeric: tabular-nums; }
+/* человечек: машет ногами и руками, пока бежит */
+.rc-fig { width: 16px; height: 16px; overflow: visible; }
+.rc-fig * { stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; fill: none; transform-box: view-box; }
+.rc-fig circle { fill: currentColor; stroke: none; }
+.rc-l1, .rc-l2 { transform-origin: 11px 13px; }
+.rc-a1, .rc-a2 { transform-origin: 12.5px 8.5px; }
+.rc.run .rc-l1, .rc.run .rc-a2 { animation: rcSwing 0.32s ease-in-out infinite alternate; }
+.rc.run .rc-l2, .rc.run .rc-a1 { animation: rcSwing 0.32s ease-in-out infinite alternate-reverse; }
+.rc.run .rc-bob { animation: rcBob 0.16s ease-in-out infinite alternate; }
+@keyframes rcSwing { from { transform: rotate(-28deg); } to { transform: rotate(24deg); } }
+@keyframes rcBob { to { transform: translateY(-1.5px); } }
+/* при открытии бегуны прибегают от старта, дальше — едут к новым числам */
+.rc-tok { animation: rcIn 1.3s cubic-bezier(0.22, 0.9, 0.25, 1) backwards; transition: left 0.55s var(--ease), transform 0.55s var(--ease); }
+.rc-bar, .rc-fc { animation: rcGrow 1.3s cubic-bezier(0.22, 0.9, 0.25, 1) backwards; transition: width 0.55s var(--ease), left 0.55s var(--ease); }
+@keyframes rcIn { from { left: 0; } }
+@keyframes rcGrow { from { width: 0; } }
+@media (prefers-reduced-motion: reduce) { .rc-tok, .rc-bar, .rc-fc, .rc.run .rc-fig * , .rc.run .rc-bob { animation: none !important; transition: none; } }
 
 /* ── что сделать сейчас ──────────────────────────────────────────── */
 /* «что сделать сейчас»: нейтральные плитки, цвет — только у полоски слева, иконки и числа */
@@ -300,10 +335,6 @@
 @keyframes badgeShine { 0% { background-position: 130% 0; } 55%, 100% { background-position: -130% 0; } }
 @media (prefers-reduced-motion: reduce) { .d2-badge::after { animation: none; opacity: 0; } }
 
-/* шкала плана в главном блоке: заполнение, отметки и подписи едут к новым значениям */
-.d2-bar .fill, .d2-bar .hatch { transition: width 0.55s var(--ease), left 0.55s var(--ease), background 0.3s; }
-.d2-bar .dot, .d2-bar .tick, .d2-bar .lab, .d2-bar .pill { transition: left 0.55s var(--ease), transform 0.55s var(--ease), top 0.3s; }
-@media (prefers-reduced-motion: reduce) { .d2-bar .fill, .d2-bar .hatch, .d2-bar .dot, .d2-bar .tick, .d2-bar .lab, .d2-bar .pill { transition: none; } }
 
 /* задачи на сегодня — значок у заголовка «Сводки», список по клику */
 .d2-tasks-w { position: relative; display: inline-flex; }
