@@ -37,6 +37,71 @@ function Head({ controls = 3, sub = true }: { controls?: number; sub?: boolean }
   );
 }
 
+/**
+ * Шапка-«витрина» страницы (PageHero) на тех же классах: заголовок с кнопками, строка управления,
+ * главное число, доли и столбики. stats — вместо числа и столбиков ряд показателей («Настройки»).
+ */
+function HeroSk({ tools = 2, ctrl = false, stats = 0, compact = false }: { tools?: number; ctrl?: boolean; stats?: number; compact?: boolean }) {
+  return (
+    <section className={`ph${compact ? " ph-compact" : ""}`} aria-hidden>
+      <div className="ph-top">
+        <div className="ph-head">
+          <B w={170} h={30} r={7} />
+          <B w={320} h={12} style={{ marginTop: 10 }} />
+        </div>
+        {tools > 0 && (
+          <div className="ph-tools">
+            {Array.from({ length: tools }, (_, i) => (
+              <B key={i} w={i === tools - 1 ? 130 : 170} h={34} r={8} />
+            ))}
+          </div>
+        )}
+      </div>
+      {ctrl && (
+        <div className="ph-ctrl">
+          <B w={360} h={30} r={8} />
+          <B w={160} h={30} r={8} />
+        </div>
+      )}
+      {stats > 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${stats}, minmax(0, 1fr))`, gap: 12, marginTop: 20 }}>
+          {Array.from({ length: stats }, (_, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <B w="55%" h={10} />
+              <B w="45%" h={22} r={5} />
+              <B w="70%" h={9} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="ph-body">
+          <div className="ph-big">
+            <B w={100} h={11} />
+            <B w={180} h={compact ? 40 : 52} r={8} />
+            <B w={150} h={10} />
+          </div>
+          <div className="ph-split">
+            <B h={10} r={5} />
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <B w="65%" h={10} />
+                  <B w="45%" h={20} r={5} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="sk-bars" style={{ height: compact ? 64 : 86, marginTop: 0 }}>
+            {Array.from({ length: 18 }, (_, i) => (
+              <div key={i} className="sk" style={{ height: `${30 + ((i * 37) % 65)}%` }} />
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** Полоса показателей: подпись, число, пояснение — по центру колонок с разделителями. */
 function Strip({ n = 6 }: { n?: number }) {
   return (
@@ -188,8 +253,21 @@ function Dashboard() {
           <B h={58} r={8} />
         </div>
         <Strip n={7} />
-        <div style={{ padding: "18px 26px 22px" }}>
-          <B h={9} r={5} />
+        {/* шкала плана — «забег»: дорожки «Мы» и «График», строка под ними */}
+        <div style={{ padding: "16px 22px 18px" }}>
+          <div className="sk-race">
+            {[0, 1].map((i) => (
+              <div key={i}>
+                <B w={42} h={11} />
+                <B w={i ? "68%" : "78%"} h={i ? 4 : 6} r={3} />
+                <B w={40} h={16} r={5} style={{ justifySelf: "end" }} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 9 }}>
+            <B w={170} h={10} />
+            <B w={300} h={10} />
+          </div>
         </div>
       </Card>
       {/* люди периода: лучшие | отстают | вклад, факты */}
@@ -226,10 +304,13 @@ function Dashboard() {
   );
 }
 
-/** «Лиды», «Операторы», «Зарплата»: шапка, плитки в одной карточке, фильтры, таблица и правая панель. */
-function SidePage({ cols = 9, rows = 13, group = false }: { cols?: number; rows?: number; group?: boolean }) {
+/** «Лиды», «Операторы», «Зарплата»: шапка (или витрина), плитки, фильтры, таблица и правая панель. */
+function SidePage({ cols = 9, rows = 13, group = false, hero = false, kpis = true }: { cols?: number; rows?: number; group?: boolean; hero?: boolean; kpis?: boolean }) {
   return (
     <>
+      {hero ? (
+        <HeroSk />
+      ) : (
       <div className="o2-head">
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <B w={150} h={26} r={7} />
@@ -241,8 +322,10 @@ function SidePage({ cols = 9, rows = 13, group = false }: { cols?: number; rows?
           <B w={110} h={34} r={8} />
         </div>
       </div>
+      )}
       <div className="o2-body has-side">
         <div className="o2-main">
+          {kpis && (
           <Card pad={0}>
             <div className="sk-kpis6">
               {Array.from({ length: 6 }, (_, i) => (
@@ -257,7 +340,8 @@ function SidePage({ cols = 9, rows = 13, group = false }: { cols?: number; rows?
               ))}
             </div>
           </Card>
-          <Card pad={0} style={{ marginTop: 14 }}>
+          )}
+          <Card pad={0} style={{ marginTop: kpis ? 14 : 0 }}>
             <div className="sk-toolbar">
               <B w={260} h={32} r={8} />
               <B w={140} h={32} r={8} />
@@ -290,7 +374,7 @@ function SidePage({ cols = 9, rows = 13, group = false }: { cols?: number; rows?
 function Schedule() {
   return (
     <>
-      <Head controls={4} />
+      <HeroSk compact />
       <Card h={52} pad={12}>
         <B w="60%" h={26} r={7} />
       </Card>
@@ -316,10 +400,10 @@ function Schedule() {
 function Groups() {
   return (
     <>
-      <Head controls={3} />
-      <div className="sk-grid3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <Card key={i} h={220}>
+      <HeroSk tools={3} />
+      <div className="sk-grid2">
+        {Array.from({ length: 4 }, (_, i) => (
+          <Card key={i} h={300}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <B w="45%" h={15} />
               <B w={60} h={20} r={10} />
@@ -341,8 +425,17 @@ function Groups() {
 function Plans() {
   return (
     <>
-      <Head controls={1} />
+      <HeroSk tools={1} />
       <Tiles n={6} />
+      <div className="sk-grid3">
+        {Array.from({ length: 3 }, (_, i) => (
+          <Card key={i} h={112}>
+            <B w="45%" h={13} />
+            <B w="35%" h={20} r={5} style={{ marginTop: 12 }} />
+            <B h={6} r={3} style={{ marginTop: 14 }} />
+          </Card>
+        ))}
+      </div>
       {Array.from({ length: 2 }, (_, i) => (
         <Card key={i} pad={0}>
           <div style={{ display: "flex", justifyContent: "space-between", padding: 16 }}>
@@ -359,8 +452,8 @@ function Plans() {
 function Dynamics() {
   return (
     <>
-      <Head controls={1} />
-      <Tiles n={6} />
+      <HeroSk tools={1} />
+      <B w={420} h={34} r={9} />
       <div className="sk-grid2">
         <Chart strip={0} />
         <Chart strip={0} bars={5} />
@@ -375,8 +468,8 @@ function Dynamics() {
 function Hiring() {
   return (
     <>
-      <Head controls={2} />
-      <B w={360} h={34} r={9} />
+      <HeroSk tools={2} />
+      <B w={480} h={34} r={9} />
       <Tiles n={6} />
       <Card>
         <B w={200} h={14} />
@@ -393,12 +486,9 @@ function Hiring() {
 function Projects() {
   return (
     <>
-      <Head controls={0} />
+      <HeroSk tools={0} ctrl />
       <div className="sk-aside" style={{ gridTemplateColumns: "minmax(0, 1fr) 340px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Card h={70}>
-            <B w="50%" h={32} r={8} />
-          </Card>
           <Card pad={0}>
             <Table rows={8} cols={6} />
           </Card>
@@ -417,27 +507,31 @@ function Projects() {
 function Reports() {
   return (
     <>
-      <Head controls={2} />
-      <B w={420} h={34} r={9} />
-      <div className="sk-grid2">
-        <Card h={520}>
-          <B w="40%" h={14} />
-          <B h={440} r={10} style={{ marginTop: 14 }} />
-        </Card>
-        <Card h={520}>
-          <B w="40%" h={14} />
-          <B h={440} r={10} style={{ marginTop: 14 }} />
-        </Card>
-      </div>
+      <HeroSk tools={2} ctrl />
+      <Card h={520}>
+        <B w="35%" h={22} r={6} />
+        <B w="25%" h={11} style={{ marginTop: 10 }} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 18 }}>
+          {Array.from({ length: 4 }, (_, i) => (
+            <B key={i} h={64} r={10} />
+          ))}
+        </div>
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
+            <B w={`${30 + ((i * 11) % 25)}%`} h={11} />
+            <B w={70} h={11} />
+          </div>
+        ))}
+      </Card>
     </>
   );
 }
 
 function Settings() {
   return (
-    <div style={{ maxWidth: 1100, display: "flex", flexDirection: "column", gap: 16 }}>
-      <Head controls={0} />
-      <B w={520} h={34} r={9} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <HeroSk tools={0} stats={5} />
+      <B w={620} h={34} r={9} />
       {Array.from({ length: 3 }, (_, s) => (
         <Card key={s}>
           <B w={200} h={15} />
@@ -580,6 +674,69 @@ function Learn() {
   );
 }
 
+/** «Марки авто»: поиск и списки марок слева, карточка машины (пока пустая) справа. */
+function Cars() {
+  return (
+    <>
+      <Head controls={1} />
+      <div className="ca">
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <B h={40} r={9} />
+          <B h={34} r={8} />
+          {[0, 1].map((c) => (
+            <Card key={c}>
+              <B w="50%" h={11} />
+              {Array.from({ length: 6 }, (_, i) => (
+                <B key={i} w={`${55 + ((c * 7 + i * 13) % 40)}%`} h={10} style={{ marginTop: i ? 8 : 14 }} />
+              ))}
+            </Card>
+          ))}
+          <Card>
+            <B w="30%" h={11} />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+              {Array.from({ length: 12 }, (_, i) => (
+                <B key={i} w={54 + ((i * 23) % 40)} h={24} r={6} />
+              ))}
+            </div>
+          </Card>
+        </div>
+        <div className="sk-empty" style={{ minHeight: 340 }}>
+          <B w={40} h={40} r={10} />
+          <B w={240} h={14} />
+          <B w={380} h={10} />
+          <B w={300} h={10} />
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** «Карта городов»: поиск и «где мы работаем» слева, карта справа. */
+function Cities() {
+  return (
+    <>
+      <Head controls={0} />
+      <div className="cf">
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <B h={40} r={9} />
+          <B h={34} r={8} />
+          <Card>
+            <B w="45%" h={11} />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+              {Array.from({ length: 10 }, (_, i) => (
+                <B key={i} w={64 + ((i * 23) % 40)} h={22} r={6} />
+              ))}
+            </div>
+            <B w="85%" h={10} style={{ marginTop: 14 }} />
+            <B w="60%" h={10} style={{ marginTop: 7 }} />
+          </Card>
+        </div>
+        <B h={0} r={12} style={{ height: "max(360px, calc(100vh / var(--ui-scale, 1) - 200px))" }} />
+      </div>
+    </>
+  );
+}
+
 function Generic() {
   return (
     <>
@@ -597,9 +754,9 @@ function Generic() {
 
 const BY_ROUTE: Record<string, () => ReactNode> = {
   "/dashboard": Dashboard,
-  "/leads": () => <SidePage cols={9} rows={14} />,
+  "/leads": () => <SidePage cols={9} rows={14} hero kpis={false} />,
   "/operators": () => <SidePage cols={11} rows={12} group />,
-  "/payroll": () => <SidePage cols={8} rows={12} group />,
+  "/payroll": () => <SidePage cols={8} rows={12} group hero />,
   "/schedule": Schedule,
   "/groups": Groups,
   "/plans": Plans,
@@ -611,6 +768,8 @@ const BY_ROUTE: Record<string, () => ReactNode> = {
   "/me": Cabinet,
   "/stats": Personal,
   "/learn": Learn,
+  "/cars": Cars,
+  "/cities": Cities,
 };
 
 /** Заглушка страницы по разделу: /dashboard, /leads… Неизвестный раздел — общая. */

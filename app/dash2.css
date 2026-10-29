@@ -59,7 +59,9 @@
 .rc-bar { position: absolute; left: 0; top: 50%; height: 4px; transform: translateY(-50%); border-radius: 2px; }
 .rc-bar.me { height: 6px; background: linear-gradient(90deg, transparent, var(--rc-c)); }
 .rc-bar.gh { background: linear-gradient(90deg, transparent, var(--ink-25)); }
-.rc-fc { position: absolute; top: 50%; border-top: 2px dotted color-mix(in srgb, var(--rc-c) 70%, transparent); }
+.rc-fc { position: absolute; top: 50%; border-top: 2px dotted var(--ink-25); }
+.rc-fce { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--dim); background: var(--bg-panel); transform: translate(-50%, -50%); }
+.rc-fce span { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); font-size: 10.5px; font-weight: 600; color: var(--dim); white-space: nowrap; }
 .rc-fin { position: absolute; top: 0; bottom: 0; width: 8px; transform: translateX(-50%); opacity: 0.85; background: conic-gradient(var(--text) 25%, var(--bg-panel) 0 50%, var(--text) 0 75%, var(--bg-panel) 0) 0 0 / 8px 8px; }
 .rc-tok { position: absolute; top: 50%; z-index: 1; }
 .rc-runner, .rc-ghost { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 99px; font-size: 12.5px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -88,7 +90,9 @@
 .rc-bar, .rc-fc { animation: rcGrow 1.3s cubic-bezier(0.22, 0.9, 0.25, 1) backwards; transition: width 0.55s var(--ease), left 0.55s var(--ease); }
 @keyframes rcIn { from { left: 0; } }
 @keyframes rcGrow { from { width: 0; } }
-@media (prefers-reduced-motion: reduce) { .rc-tok, .rc-bar, .rc-fc, .rc.run .rc-fig * , .rc.run .rc-bob { animation: none !important; transition: none; } }
+.rc-fce { animation: rcFade 0.4s 1.1s backwards; transition: left 0.55s var(--ease); }
+@keyframes rcFade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .rc-tok, .rc-bar, .rc-fc, .rc-fce, .rc.run .rc-fig * , .rc.run .rc-bob { animation: none !important; transition: none; } }
 
 /* ── что сделать сейчас ──────────────────────────────────────────── */
 /* «что сделать сейчас»: нейтральные плитки, цвет — только у полоски слева, иконки и числа */

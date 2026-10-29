@@ -6,8 +6,8 @@ import { uiZoom } from "./select";
 
 /**
  * Всплывающие подсказки CRM — в одном стиле с подсказками журнала лидов (.clip-tip),
- * вместо системной подсказки браузера. Показываются только у элементов без своей надписи
- * (кнопки-иконки, столбики и точки графиков); у остальных title просто прячется.
+ * вместо системной подсказки браузера. Не показываются, только когда повторяют видимую надпись
+ * (кнопка «Сохранить» с title «Сохранить»): там они лишь мешают.
  *
  * Разметку страниц не трогаем: у элемента под курсором атрибут title переезжает в data-tip
  * (браузер больше не показывает свою подсказку), а текст рисуем сами. Если React позже
@@ -15,10 +15,12 @@ import { uiZoom } from "./select";
  */
 const DELAY = 350;
 
-/** У элемента есть своя видимая надпись (SVG-графики — без надписей: там подсказка и есть число). */
-function hasOwnText(el: HTMLElement): boolean {
+/** Подсказка лишь повторяет видимую надпись элемента (SVG-графики без надписей — там подсказка и есть число). */
+function repeatsText(el: HTMLElement, tip: string): boolean {
   if (el instanceof SVGElement) return false;
-  return (el.innerText ?? el.textContent ?? "").trim().length > 0;
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+  const own = norm(el.innerText ?? el.textContent ?? "");
+  return !!own && own.includes(norm(tip));
 }
 const GAP = 8;
 
@@ -82,9 +84,8 @@ export function TitleTips() {
       if (!el) return;
       const text = textOf(el);
       if (!text.trim()) return;
-      // подсказка — только там, где без неё нечего прочитать: кнопки-иконки, столбики и точки
-      // графиков. Над кнопками с надписью, пунктами меню и плитками с текстом она лишь мешает
-      if (hasOwnText(el)) return;
+      // подсказка, которая повторяет надпись на элементе, ничего не добавляет — её не показываем
+      if (repeatsText(el, text)) return;
       // зажатая кнопка мыши — идёт выделение протягиванием, подсказки только мешают
       if (e.buttons) return;
       timer = window.setTimeout(() => {

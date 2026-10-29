@@ -765,7 +765,15 @@ function Race({ plan, p, cur, past, isDay, one, gen }: { plan: number; p: Pace; 
           </div>
           <div className="rc-tr">
             <div className="rc-bar me" style={{ width: `${pf}%` }} />
-            {showRr && <div className="rc-fc" style={{ left: `${pf}%`, width: `${pos(p.rr) - pf}%` }} title={`Прогноз по темпу: ${fmtInt(p.rr)} (${fmtPct(p.rrPct)})`} />}
+            {/* прогноз по темпу: пунктир от бегуна до кружка с подписью (у финиша подпись не влезает — она в строке ниже) */}
+            {showRr && (
+              <>
+                <div className="rc-fc" style={{ left: `${pf}%`, width: `${pos(p.rr) - pf}%` }} />
+                <div className="rc-fce" style={{ left: `${pos(p.rr)}%` }} title={`Прогноз по темпу на конец ${gen}: ${fmtInt(p.rr)} (${fmtPct(p.rrPct)} плана)`}>
+                  {pp - pos(p.rr) > 14 && <span>прогноз {fmtInt(Math.round(p.rr))}</span>}
+                </div>
+              </>
+            )}
             <div className="rc-fin" style={{ left: `${pp}%` }} />
             <div className="rc-tok" style={tok(pf)}>
               <span className="rc-runner">
