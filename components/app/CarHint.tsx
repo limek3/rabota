@@ -71,7 +71,7 @@ export function CarHint({ text, projectId, city }: { text: string; projectId: st
           </div>
         );
       })}
-      {shown.some((x) => x.vs) && <div className="ch-crit">Вердикт — {CRITERIA_SHORT}: что машина у клиента точно есть, он не значит</div>}
+      {shown.some((x) => x.vs) && <div className="ch-crit">Вердикт — {CRITERIA_SHORT}: что машина у дилера точно есть, он не значит</div>}
     </div>
   );
 }
