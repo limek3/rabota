@@ -59,6 +59,8 @@ import { cleanLeadExportLog, cleanLeadExports, counts, repair, sanitize, toSnaps
 import { stripDemo } from "./purge";
 import { dialogAvailable, syncDialog } from "./dialog";
 import { syncClock } from "@/lib/clock";
+import { setAcademyDoc } from "@/lib/academy/course";
+import type { AcademyData, AcademyDoc } from "@/lib/academy/content";
 
 /**
  * Состояние CRM.
@@ -248,6 +250,8 @@ interface Store {
   saveLearn: (courseId: string, itemId: string, patch: LearnPatch) => Promise<void>;
   /** Сбросить прогресс курса (свой или, для РОПа, чужого аккаунта). */
   resetLearn: (courseId: string, accountId?: ID) => Promise<void>;
+  /** Содержимое обучения для всех (только РОП). null — вернуть исходное. summary — что поменяли, для журнала. */
+  saveAcademy: (data: AcademyData | null, summary?: string) => Promise<boolean>;
   /** Сброс всего обучения аккаунта — как «Сбросить весь прогресс» в академии. */
   resetAllLearn: (accountId?: ID) => Promise<void>;
 
@@ -363,6 +367,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const accessRef = useRef(access);
   accessRef.current = access;
   const view = useMemo(() => scopeData(data, access), [data, access]);
+  // состав курса «Авто» (меню, прогресс, «Обучение команды») — по правке РОПа; до отрисовки страниц
+  setAcademyDoc(data.academy);
   const ix = useMemo(() => (view === data ? fullIx : buildIndex(view, workedTo, openDay)), [view, data, fullIx, workedTo, openDay]);
 
   /* ── уведомления ───────────────────────────────────────────────── */
@@ -2020,6 +2026,21 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     [commit, log, deny],
   );
 
+  /* ── обучение: правка содержимого для всех ─────────────────────── */
+  const saveAcademy = useCallback<Store["saveAcademy"]>(
+    async (content, summary) => {
+      if (!accessRef.current.isHead) {
+        deny();
+        return false;
+      }
+      const doc: AcademyDoc | null = content ? { v: 1, updatedAt: isoNow(), by: accessRef.current.account.name, data: content } : null;
+      const ok = await commit(() => db.setKV("academy", doc), (d) => ({ ...d, academy: doc }));
+      if (ok) void log("settings", "academy", summary || (doc ? "Обучение — содержимое изменено" : "Обучение — возвращено исходное содержимое"));
+      return ok;
+    },
+    [commit, log, deny],
+  );
+
   /* ── аккаунты ──────────────────────────────────────────────────── */
   const switchTo = useCallback((id: string) => {
     setMeId(id);
@@ -2494,6 +2515,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     saveNote,
     deleteNote,
     saveSettings,
+    saveAcademy,
     saveLearn,
     resetLearn,
     resetAllLearn,

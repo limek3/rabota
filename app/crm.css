@@ -599,6 +599,12 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .acc-scope svg { color: var(--dim); flex: none; }
 .acc-scope span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acc-sep { height: 1px; background: var(--ink-06); margin: 5px 4px; }
+/* масштаб интерфейса в меню аккаунта: − Авто · 90% + */
+.acc-scale { display: flex; align-items: center; gap: 6px; padding: 5px 9px; color: var(--text-sub); font-size: 13px; }
+.acc-scale > svg { flex: none; }
+.acc-scale-l { flex: 1; color: var(--text); }
+.acc-scale .btn-icon { font-size: 15px; font-weight: 600; }
+.acc-scale-v { min-width: 92px; justify-content: center; }
 
 .acc-item {
   display: flex;

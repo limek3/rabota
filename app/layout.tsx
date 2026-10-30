@@ -7,6 +7,7 @@ import "./dash2.css";
 import "./ops2.css";
 import "./learn.css";
 import "./academy.css";
+import "./acadedit.css";
 import "./cities.css";
 import "./cars.css";
 import "./hero.css";

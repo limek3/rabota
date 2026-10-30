@@ -48,7 +48,7 @@ export function learnSummary(accountId: string, role: AccountRole, learn: LearnP
 /** Карточка «Обучение» для личного кабинета. */
 export function LearnCard() {
   const { data, me } = useCrm();
-  const s = useMemo(() => learnSummary(me.id, me.role, data.learn, true), [me.id, me.role, data.learn]);
+  const s = useMemo(() => learnSummary(me.id, me.role, data.learn, true), [me.id, me.role, data.learn, data.academy]);
   if (!s.total) return null;
   return (
     <div className="card card-pad">

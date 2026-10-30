@@ -195,8 +195,6 @@
   /* ── «Мой кабинет» ── */
   .me-money-top { padding: 14px 16px 12px; gap: 16px; }
   .me-money-parts span { min-width: 45%; }
-  /* «Мои показатели →» в углу наезжал на подпись второго показателя — на телефоне это строка под полосой */
-  .me-month-go { position: static; display: flex; justify-content: flex-end; padding: 10px 16px 12px; border-top: 1px solid var(--ink-07); font-size: 12.5px; }
 
   /* ── «Сводка»: полосы показателей по два в ряд ── */
   .d2-strip { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; row-gap: 14px; }

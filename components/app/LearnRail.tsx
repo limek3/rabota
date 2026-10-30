@@ -46,12 +46,20 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
     () => acadProgress(data.learn, me.id, true),
     // tick — тренажёр пишет свои главы в браузер и сообщает об этом событием
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.learn, me.id, tick],
+    [data.learn, data.academy, me.id, tick],
   );
   const notes = useMemo(() => data.learn.filter((l) => l.accountId === me.id && l.note && l.note.trim()).length, [data.learn, me.id]);
 
   const onLearn = pathname === "/learn";
-  const active = pathname.startsWith("/learn/sv") ? "__sv" : pathname.startsWith("/learn/team") ? "__team" : onLearn ? acadActive(hash) : "";
+  const active = pathname.startsWith("/learn/sv")
+    ? "__sv"
+    : pathname.startsWith("/learn/team")
+      ? "__team"
+      : pathname.startsWith("/learn/edit")
+        ? "__edit"
+        : onLearn
+          ? acadActive(hash)
+          : "";
   // руководителю (и наставнику — по своей группе) видно, как учатся стажёры
   const lead = !access.isOp || access.isMentor;
 
@@ -184,23 +192,6 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
               <span className="rail-text">{g.g.toUpperCase()}</span>
             </div>
             {g.items.map((n) => item(n.r, n.t, n.i, n.hint, n.count?.(prog, notes)))}
-            {/* «Карта городов» CRM — в справочниках: у стажёра меню обучения единственное, иначе до карты не дойти */}
-            {g.g === "Справочники" && access.routes.has("/cities") && (
-              <Link className="app-rail-item" href="/cities" aria-current={pathname === "/cities" ? "page" : undefined} title="Город клиента → ближайшие города, где мы работаем (клавиша G)">
-                <span className="rail-icon" style={{ display: "flex" }}>
-                  <Icon name="map" size={16} />
-                </span>
-                <span className="rail-text lbl">Карта городов</span>
-              </Link>
-            )}
-            {g.g === "Справочники" && access.routes.has("/cars") && (
-              <Link className="app-rail-item" href="/cars" aria-current={pathname === "/cars" ? "page" : undefined} title="Машина клиента → передаём её по проекту или нет">
-                <span className="rail-icon" style={{ display: "flex" }}>
-                  <Icon name="car" size={16} />
-                </span>
-                <span className="rail-text lbl">Марки авто</span>
-              </Link>
-            )}
           </div>
         ))}
         {lead && (
@@ -214,6 +205,14 @@ export function LearnRail({ off, back, pin }: { off: boolean; back: boolean; pin
               </span>
               <span className="rail-text lbl">Обучение команды</span>
             </Link>
+            {access.isHead && (
+              <Link className="app-rail-item" href="/learn/edit" aria-current={active === "__edit" ? "page" : undefined} title="Тексты уроков, тесты, статусы, возражения — правка для всех">
+                <span className="rail-icon" style={{ display: "flex" }}>
+                  <Icon name="edit" size={16} />
+                </span>
+                <span className="rail-text lbl">Редактор обучения</span>
+              </Link>
+            )}
             {!access.isOp && <Link className="app-rail-item" href="/learn/sv" aria-current={active === "__sv" ? "page" : undefined} title="Найм, группа, деньги и базы — прежняя академия">
               <span className="rail-icon" style={{ display: "flex" }}>
                 <Icon name="users" size={16} />

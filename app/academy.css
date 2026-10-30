@@ -798,6 +798,10 @@
 .rail-learn-top .rail-pin { position: static; flex: none; }
 .app-rail[data-collapsed] .rail-learn-top .rail-pin { display: none; }
 .rail-pane.learn .rail-lead { width: 100%; }
+/* кнопки шапки не слипаются: «Продолжить обучение», «Лид передан» и поиск — с воздухом между ними */
+.rail-pane.learn .rail-leadrow { padding-bottom: 12px; }
+.rail-pane.learn .rail-lead + .rail-lead { margin-top: 8px; }
+.rail-pane.learn .rail-leadrow .rail-search { margin-top: 12px; }
 /* заголовок над колонкой материала, правая колонка — вровень с первой карточкой */
 .acad .lay { row-gap: 0; }
 .acad .lay > .headc { grid-column: 1; grid-row: 1; }

@@ -29,6 +29,7 @@ import { duplicateGroups, sameNameOps } from "@/lib/crm/dupes";
 import { LoginFields } from "./LoginFields";
 import { fileToAvatar } from "@/lib/avatar";
 import { LIVE_HIDE_EVENT, liveHidden, liveOthersOff, setLiveHidden, setLiveOthersOff } from "@/lib/live";
+import { SCALE_OPTIONS, useUiScale } from "@/lib/uiScale";
 
 function Section({ title, icon, sub, children, action }: { title: string; icon?: IconName; sub?: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
@@ -94,6 +95,7 @@ export function ProfileTab() {
   const dirty = name !== me.name || login !== me.login;
   // живые курсоры: настройки этого браузера (lib/live.ts), меняются и из меню аккаунта
   const [live, setLive] = useState({ others: false, mine: false });
+  const scale = useUiScale();
   useEffect(() => {
     const read = () => setLive({ others: liveOthersOff(), mine: liveHidden() });
     read();
@@ -231,6 +233,12 @@ export function ProfileTab() {
               onChange={(v) => void saveMyProfile({ compact: v === "1" })}
               ariaLabel="Плотность таблиц"
             />
+          </Field>
+          <Field
+            label="Масштаб интерфейса"
+            hint={`Сейчас ${Math.round(scale.value * 100)}%. «Авто» уменьшает на небольших экранах, чтобы всё помещалось. Ctrl+Alt+«+» / «−», Ctrl+Alt+0 — «Авто». Запоминается в этом браузере`}
+          >
+            <Select value={scale.pref} options={SCALE_OPTIONS} onChange={(v) => scale.set(v)} ariaLabel="Масштаб интерфейса" />
           </Field>
           <Field label="Курсоры коллег" hint="Чужие курсоры и сообщения на страницах. Запоминается в этом браузере">
             <Select

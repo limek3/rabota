@@ -583,6 +583,14 @@ export interface Backup {
   data: Snapshot;
 }
 
+/** Правка обучения РОПом (kv "academy"): кто, когда и всё содержимое. Формат data — lib/academy/content.ts. */
+export interface AcademyDocRaw {
+  v: 1;
+  updatedAt: string;
+  by: string;
+  data: unknown;
+}
+
 /** Полный слепок исходных данных — формат экспорта/импорта и резервных копий. */
 export interface Snapshot {
   app: "leadup-crm";
@@ -758,6 +766,8 @@ export interface DataState {
   leadExports: Record<ID, string>;
   /** История выгрузок номеров — свежие сверху. */
   leadExportLog: LeadExportLogEntry[];
+  /** Обучение, исправленное РОПом (kv "academy"); нет — исходное из lib/academy/data.json. */
+  academy?: AcademyDocRaw | null;
 }
 
 /* ── подписи ───────────────────────────────────────────────────────── */

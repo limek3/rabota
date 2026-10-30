@@ -3,6 +3,7 @@
 import type { DataState, Settings } from "./types";
 import { emptyState, normalizeSettings } from "./defaults";
 import { cleanLeadExportLog, cleanLeadExports } from "./validate";
+import { cleanAcademyDoc } from "@/lib/academy/content";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -138,6 +139,7 @@ export async function loadAll(): Promise<{ state: DataState; persistent: boolean
   st.frozenMonths = ((val("frozenMonths") as string[] | undefined) ?? []).filter((m) => typeof m === "string");
   st.leadExports = cleanLeadExports(val("leadExports"));
   st.leadExportLog = cleanLeadExportLog(val("leadExportLog"));
+  st.academy = cleanAcademyDoc(val("academy"));
   return { state: st, persistent: true };
 }
 

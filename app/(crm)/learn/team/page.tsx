@@ -99,7 +99,7 @@ export default function TeamLearningPage() {
         };
       })
       .sort((a, b) => (b.last ?? "").localeCompare(a.last ?? "") || a.op.name.localeCompare(b.op.name, "ru"));
-  }, [data.operators, data.groups, data.learn, data.candidates, full.accounts]);
+  }, [data.operators, data.groups, data.learn, data.candidates, data.academy, full.accounts]);
 
   const trainees = rows.filter((r) => r.trainee);
   const shown = (scope === "trainee" ? trainees : rows).filter((r) => !q.trim() || r.op.name.toLowerCase().includes(q.trim().toLowerCase()));

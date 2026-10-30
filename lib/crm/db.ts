@@ -3,6 +3,7 @@
 import type { Backup, DataState } from "./types";
 import { emptyState, normalizeSettings } from "./defaults";
 import { cleanLeadExportLog, cleanLeadExports } from "./validate";
+import { cleanAcademyDoc } from "@/lib/academy/content";
 import { supabaseReady } from "@/lib/supabase";
 import * as remote from "./remote";
 
@@ -156,6 +157,7 @@ export async function loadLocal(): Promise<{ state: DataState; persistent: boole
     st.frozenMonths = (kv.get("frozenMonths") as string[]) ?? [];
     st.leadExports = cleanLeadExports(kv.get("leadExports"));
     st.leadExportLog = cleanLeadExportLog(kv.get("leadExportLog"));
+    st.academy = cleanAcademyDoc(kv.get("academy"));
     return { state: st, persistent: false };
   }
   const tx = db.transaction([...ENTITY_STORES, KV], "readonly");
@@ -167,10 +169,12 @@ export async function loadLocal(): Promise<{ state: DataState; persistent: boole
   const frozen = await reqP(tx.objectStore(KV).get("frozenMonths"));
   const exported = await reqP(tx.objectStore(KV).get("leadExports"));
   const exportLog = await reqP(tx.objectStore(KV).get("leadExportLog"));
+  const academy = await reqP(tx.objectStore(KV).get("academy"));
   st.settings = normalizeSettings((settings as { value?: never })?.value);
   st.frozenMonths = ((frozen as { value?: string[] })?.value ?? []).filter((m) => typeof m === "string");
   st.leadExports = cleanLeadExports((exported as { value?: unknown })?.value);
   st.leadExportLog = cleanLeadExportLog((exportLog as { value?: unknown })?.value);
+  st.academy = cleanAcademyDoc((academy as { value?: unknown })?.value);
   return { state: st, persistent: true };
 }
 

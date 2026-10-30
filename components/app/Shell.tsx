@@ -28,6 +28,7 @@ import { fmtInt, fmtPct } from "@/lib/crm/format";
 import { NumberTween } from "@/components/app/NumberTween";
 import { PageSkeleton, ShellSkeleton } from "@/components/app/Skeletons";
 import { LENS_ROUTES, ProjectLens } from "@/components/app/ProjectLens";
+import { setScalePref, stepScale, useUiScaleApplier } from "@/lib/uiScale";
 
 /**
  * Месяц в меню слева. РОП — весь отдел и разбивка по группам; супервайзер и наставник — только
@@ -353,6 +354,13 @@ function Hotkeys() {
         setPaletteOpen(!paletteOpen);
         return;
       }
+      // масштаб интерфейса: Ctrl+Alt+«+» крупнее, Ctrl+Alt+«−» мельче, Ctrl+Alt+0 — «Авто»
+      if ((e.ctrlKey || e.metaKey) && e.altKey && ["Equal", "NumpadAdd", "Minus", "NumpadSubtract", "Digit0", "Numpad0"].includes(e.code)) {
+        e.preventDefault();
+        if (e.code === "Digit0" || e.code === "Numpad0") setScalePref("auto");
+        else stepScale(e.code === "Equal" || e.code === "NumpadAdd" ? 1 : -1);
+        return;
+      }
       if (isTyping(e) || modal || confirmState || paletteOpen || e.ctrlKey || e.metaKey || e.altKey) return;
       // code — физическая клавиша (работает в любой раскладке), key — запасной вариант
       if (canLead && (e.code === "KeyN" || e.key === "n" || e.key === "N" || e.key === "т" || e.key === "Т")) {
@@ -464,6 +472,8 @@ function Modals() {
 
 export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  // масштаб интерфейса: «Авто» под размер окна или выбранный в профиле
+  useUiScaleApplier();
   // шторка «Ещё» мобильного меню
   const [more, setMore] = useState(false);
   const openMore = useCallback(() => setMore((v) => !v), []);

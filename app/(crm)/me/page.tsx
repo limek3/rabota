@@ -313,7 +313,16 @@ export default function MePage() {
         )}
 
         {/* ── мой месяц коротко; подробно — в «Моих показателях» ──────── */}
-        <Link href="/stats" className="card me-month" title="Открыть «Мои показатели»">
+        <section className="card me-month">
+          <div className="d2-pp-h me-month-h">
+            <h3 className="d2-h">
+              <Icon name="chart" size={15} className="title-ic" />
+              Мой месяц<small>{fmtMonth(month).toLowerCase()}</small>
+            </h3>
+            <Link href="/stats" className="btn btn-sm me-month-go" title="План, графики, смены по дням — подробно за месяц">
+              Мои показатели <Icon name="arrowR" size={13} />
+            </Link>
+          </div>
           <div className="d2-strip" style={{ "--n": 5 } as CSSProperties}>
             <StripKpi l="Факт за месяц" v={`${fmtInt(p.fact)} из ${fmtInt(row.terms.plan)}`} u={row.terms.plan > 0 ? `${fmtPct(p.pct)} плана` : "план не задан"} />
             <StripKpi l="К плану на сегодня" v={fmtSigned(Math.round(p.deviation))} u={`должно быть ${fmtNum(p.planToDate, 0)}`} tone={row.terms.plan > 0 ? (p.deviation < -0.5 ? "red" : "green") : undefined} />
@@ -321,10 +330,7 @@ export default function MePage() {
             <StripKpi l="Прогноз" v={p.elapsedW > 0 ? fmtInt(Math.round(p.rr)) : "—"} u={row.terms.plan > 0 && p.elapsedW > 0 ? `${fmtPct(p.rrPct)} плана` : "по темпу"} tone={row.terms.plan > 0 && p.elapsedW > 0 ? (p.rrPct >= 1 ? "green" : "red") : undefined} />
             <StripKpi l="Конверсия" v={row.lph == null ? "—" : fmtPct(row.lph)} u={`${fmtNum(row.hours, 0)} ч за месяц`} tone={row.lph == null || s.convNormPct <= 0 ? undefined : row.lph >= s.convNormPct / 100 ? "green" : "red"} />
           </div>
-          <span className="me-month-go">
-            Мои показатели <Icon name="arrowR" size={13} />
-          </span>
-        </Link>
+        </section>
 
         {/* ── стажировка ──────────────────────────────────────────────── */}
         {prob.active && !prob.done && (

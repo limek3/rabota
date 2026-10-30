@@ -10,6 +10,7 @@ import { Icon } from "@/components/ui/icons";
 import { Layer, usePopover } from "@/components/ui/select";
 import { signOut } from "@/lib/auth";
 import { LIVE_HIDE_EVENT, liveHidden, setLiveHidden } from "@/lib/live";
+import { stepScale, useUiScale } from "@/lib/uiScale";
 
 /** Логин под именем: почту показываем как есть, короткий логин — с «@». */
 const loginOf = (a: { login: string }): string => (!a.login ? "" : a.login.includes("@") ? a.login : `@${a.login}`);
@@ -65,6 +66,7 @@ export function AccountMenu() {
     router.push(href);
   };
   const dark = me.prefs.theme === "dark";
+  const scale = useUiScale();
   // «живые курсоры»: показывать ли свой курсор коллегам (в этом браузере)
   const [curHidden, setCurHidden] = useState(false);
   useEffect(() => {
@@ -132,6 +134,19 @@ export function AccountMenu() {
               hint={dark ? "Сейчас тёмная" : "Сейчас светлая"}
               onClick={() => void saveMyProfile({ theme: dark ? "light" : "dark" })}
             />
+            <div className="acc-scale" title="Масштаб интерфейса: «Авто» — под размер экрана. Ctrl+Alt+«+» / «−»">
+              <Icon name="search" size={15} />
+              <span className="acc-scale-l">Масштаб</span>
+              <button type="button" className="btn btn-sm btn-icon" aria-label="Мельче" onClick={() => stepScale(-1)} disabled={scale.value <= 0.8}>
+                −
+              </button>
+              <button type="button" className="btn btn-sm acc-scale-v" onClick={() => scale.set("auto")} title="Вернуть «Авто»">
+                {scale.pref === "auto" ? `Авто · ${Math.round(scale.value * 100)}%` : `${Math.round(scale.value * 100)}%`}
+              </button>
+              <button type="button" className="btn btn-sm btn-icon" aria-label="Крупнее" onClick={() => stepScale(1)} disabled={scale.value >= 1.25}>
+                +
+              </button>
+            </div>
             <MenuItem
               icon="users"
               label={curHidden ? "Показывать мой курсор" : "Скрывать мой курсор"}
