@@ -254,7 +254,8 @@ const remoteStore: PixelStore = {
     return Number(data ?? 0);
   },
   subscribe(month, on) {
-    const ch = supabase().channel(`pixels-${month}`);
+    // своё имя у каждой подписки: старая может ещё закрываться, когда открывается новая
+    const ch = supabase().channel(`pixels-${month}-${Math.random().toString(36).slice(2, 8)}`);
     ch.on("postgres_changes", { event: "*", schema: "public", table: "pixels" }, (p) => {
       if (p.eventType === "DELETE") on({ type: "del", id: String((p.old as { id?: unknown })?.id ?? "") });
       else {

@@ -76,7 +76,8 @@ const remoteStore: ChatStore = {
     return !!data;
   },
   subscribe(on) {
-    const ch = supabase().channel("canvas-chat");
+    // своё имя у каждой подписки: старая может ещё закрываться, когда открывается новая
+    const ch = supabase().channel(`canvas-chat-${Math.random().toString(36).slice(2, 8)}`);
     ch.on("postgres_changes", { event: "*", schema: "public", table: "canvas_chat" }, (p) => {
       if (p.eventType !== "DELETE") on({ type: "put", m: fromRow(p.new as Record<string, unknown>) });
     });
