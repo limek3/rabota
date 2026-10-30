@@ -25,6 +25,7 @@ import { MobileMore, MobileTabs, MobileTop, useMonthStatus } from "./MobileNav";
 import { homeFor } from "@/lib/crm/access";
 import { signOut } from "@/lib/auth";
 import { currentMonth, fmtMonth } from "@/lib/crm/dates";
+import { APP_NAME } from "@/lib/appMode";
 import { fmtInt, fmtPct } from "@/lib/crm/format";
 import { NumberTween } from "@/components/app/NumberTween";
 import { PageSkeleton, ShellSkeleton } from "@/components/app/Skeletons";
@@ -331,6 +332,9 @@ function Rail() {
               Браузер запретил хранилище — данные живут только до закрытия вкладки. Сделайте выгрузку в Настройках.
             </div>
           )}
+          <div className="rail-text rail-copy">
+            © {currentMonth().slice(0, 4)} {APP_NAME}. Все права защищены.
+          </div>
         </div>
       </div>
 

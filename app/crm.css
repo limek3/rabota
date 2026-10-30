@@ -391,6 +391,8 @@ button.chip[aria-pressed="true"] { box-shadow: 0 0 0 1px var(--chip-fg, var(--c-
 .app-rail .acc-btn { overflow: hidden; padding-left: 5px; }
 .rail-fold { display: grid; grid-template-rows: 1fr; }
 .rail-fold > div { min-height: 0; overflow: hidden; }
+/* строка © под блоком месяца — тихая, в свёрнутом меню гаснет вместе с подписями */
+.rail-copy { margin: 2px 12px 8px; font-size: 10.5px; line-height: 1.4; text-align: center; color: var(--rail-dim); }
 .app-rail[data-anim] .rail-fold { transition: grid-template-rows 0.28s cubic-bezier(0.2, 0, 0, 1); }
 .app-rail[data-collapsed] .rail-fold { grid-template-rows: 0fr; }
 /* верхняя строка меню: «Лид передан» и булавка «закрепить».
