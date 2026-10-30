@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CrmProvider, useCrm } from "@/lib/crm/store";
 import { NAV, NAV_GROUPS } from "@/lib/crm/nav";
 import { PixelIcon, PixelWord } from "@/components/app/PixelNav";
+import { useSeaBadge } from "@/components/app/sea/useSeaBadge";
 import { Icon } from "@/components/ui/icons";
 import { ConfirmHost, Progress, ToastHost, isTyping } from "@/components/ui/kit";
 import { TitleTips } from "@/components/ui/TitleTips";
@@ -243,6 +244,8 @@ function Rail() {
   const rail = useRailPin();
   const peek = useRailPeek(rail.pinned);
   const expanded = rail.pinned || peek.peek;
+  // «Морской бой»: сколько партий ждут меня — значок у пункта меню
+  const seaWaiting = useSeaBadge(access.account.id, access.routes.has("/sea"));
   // «Обучение» открывает своё меню вместо основного; у стажёра оно единственное
   const learnMode = access.isTrainee || pathname === "/learn" || pathname.startsWith("/learn/");
   // запоминаем, откуда ушли в обучение, — «Вернуться в меню» ведёт туда
@@ -314,6 +317,11 @@ function Rail() {
                     {n.href === "/canvas" ? <PixelIcon size={16} /> : <Icon name={n.icon} size={16} />}
                   </span>
                   <span className="rail-text">{n.href === "/canvas" ? <PixelWord /> : n.label}</span>
+                  {n.href === "/sea" && seaWaiting > 0 && (
+                    <span className="sea-badge" title={`Ждут вас: ${seaWaiting}`}>
+                      {seaWaiting}
+                    </span>
+                  )}
                 </Link>
               );
             })}
