@@ -48,6 +48,7 @@ export function CanvasChat() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const stick = useRef(true);
   const canModerate = access.isHead || access.isSup;
@@ -98,6 +99,17 @@ export function CanvasChat() {
     const el = listRef.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [rows]);
+  // высота сообщений досчитывается и после отрисовки (шрифты, значки, перенос строк) — держим низ
+  useEffect(() => {
+    const el = listRef.current;
+    const inner = innerRef.current;
+    if (!el || !inner) return;
+    const ro = new ResizeObserver(() => {
+      if (stick.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, []);
   const onScroll = () => {
     const el = listRef.current;
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
@@ -160,6 +172,7 @@ export function CanvasChat() {
             Договоритесь, что рисуем: герб отдела, котика или огромное сердце
           </div>
         )}
+        <div className="px-chat-inner" ref={innerRef}>
         {rows.map((m, i) => {
           const prev = rows[i - 1];
           const newDay = !prev || dayKey(prev.at) !== dayKey(m.at);
@@ -195,6 +208,7 @@ export function CanvasChat() {
             </div>
           );
         })}
+        </div>
       </div>
 
       <form className="px-chat-in" onSubmit={send}>
