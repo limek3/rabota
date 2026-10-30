@@ -1,0 +1,200 @@
+/* ── «Холст» (components/app/PixelCanvas.tsx) ── */
+
+.px-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+.px-stage { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.px-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.px-zoom { display: flex; gap: 4px; align-items: center; }
+.px-zoom .btn-icon { font-size: 16px; font-weight: 600; }
+.px-gallery { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-sub); }
+
+.px-box {
+  position: relative;
+  height: min(calc(100vh / var(--ui-scale, 1) - 250px), 760px);
+  min-height: 360px;
+  background: var(--bg-sunken);
+  --px-empty-1: #f6f7f9;
+  --px-empty-2: #eceff3;
+  --px-grid: rgba(15, 23, 42, 0.07);
+}
+:root[data-theme="dark"] .px-box { --px-empty-1: #1d2027; --px-empty-2: #23262e; --px-grid: rgba(255, 255, 255, 0.06); }
+.px-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: var(--cursor-hand, pointer); }
+.px-box[data-tool="pick"] .px-canvas { cursor: copy; }
+.px-box[data-tool="erase"] .px-canvas { cursor: not-allowed; }
+.px-note, .px-play {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+  padding: 6px 12px; border-radius: 999px; font-size: 12.5px; pointer-events: none;
+  background: var(--tip-bg); color: var(--tip-fg); box-shadow: var(--shadow-md); white-space: nowrap;
+}
+.px-note-err { background: var(--c-red-bg); color: var(--c-red-fg); border: 1px solid var(--c-red-bd); white-space: normal; }
+
+.px-info { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--text-sub); min-height: 36px; }
+.px-info b { color: var(--text); font-weight: 600; }
+.px-info .px-fill { margin-left: auto; white-space: nowrap; }
+.px-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); }
+
+.px-side { display: flex; flex-direction: column; gap: 14px; }
+.px-paint { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.px-paint-n { display: flex; align-items: baseline; gap: 8px; }
+.px-paint-n .num { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; color: var(--brand); line-height: 1; }
+.px-paint[data-empty] .px-paint-n .num { color: var(--text-sub); }
+.px-paint-n small { font-size: 13px; color: var(--text-sub); }
+.px-paint-s { font-size: 12.5px; color: var(--text-sub); line-height: 1.45; }
+.px-paint-s b { color: var(--text); }
+/* «Отменить» — плашка над низом холста, полоска внизу тает за 10 секунд */
+.px-undo {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 5;
+  display: inline-flex; align-items: center; gap: 10px; padding: 9px 12px 11px 10px; overflow: hidden;
+  border: 0; border-radius: 12px; font: inherit; font-size: 13px; white-space: nowrap; cursor: var(--cursor-hand, pointer);
+  background: var(--tip-bg); color: var(--tip-fg); box-shadow: var(--shadow-lg);
+  animation: px-undo-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.25);
+}
+.px-undo b {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 8px;
+  background: var(--brand); color: var(--on-brand, #fff); font-weight: 650;
+}
+.px-undo:hover b { background: var(--brand-strong, var(--brand)); }
+.px-undo-sw { width: 18px; height: 18px; border-radius: 5px; flex: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
+.px-undo-t { min-width: 26px; opacity: 0.75; }
+.px-undo kbd { font: inherit; font-size: 11px; padding: 1px 6px; border-radius: 5px; background: rgba(255, 255, 255, 0.14); opacity: 0.8; }
+.px-undo-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--brand); transform-origin: left; animation: px-undo-bar linear forwards; }
+@keyframes px-undo-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes px-undo-in { from { opacity: 0; transform: translate(-50%, 12px) scale(0.96); } to { opacity: 1; transform: translateX(-50%); } }
+@media (max-width: 760px) { .px-undo kbd, .px-undo > span:first-of-type { display: none; } }
+
+.px-pal { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
+.px-pal-h { position: relative; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.px-cur { width: 22px; height: 22px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); }
+.px-custom { margin-left: auto; }
+.px-custom[data-on] { background: var(--brand-tint); color: var(--brand); }
+
+/* недавние — маленькие кружки в строку */
+.px-recent { display: flex; gap: 5px; flex-wrap: wrap; }
+.px-dot-sw { width: 18px; height: 18px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); transition: transform 0.08s ease; }
+.px-dot-sw:hover { transform: scale(1.15); }
+.px-dot-sw[data-on] { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 3.5px var(--text); }
+
+/* вкладки наборов */
+.px-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 9px; background: var(--ink-05); }
+.px-tabs button {
+  flex: 1; min-width: 0; height: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  border: 0; border-radius: 6px; background: transparent; cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 500; color: var(--text-sub); white-space: nowrap;
+}
+.px-tabs button:hover { color: var(--text); }
+.px-tabs button[data-on] { background: var(--seg-on, var(--bg-panel)); color: var(--text); font-weight: 650; box-shadow: var(--seg-on-shadow, 0 1px 2px rgba(0, 0, 0, 0.12)); }
+.px-tabs button[data-tier="3"][data-on] { color: #d946ef; }
+.px-tabs button[data-tier="4"][data-on] { color: #c99a10; }
+
+/* основные: ряд цветов и оттенки выбранного */
+.px-fam-row { display: grid; grid-template-columns: repeat(14, 1fr); gap: 3px; }
+.px-fam { aspect-ratio: 1; border: 0; border-radius: 50%; padding: 0; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); transition: transform 0.08s ease; }
+.px-fam:hover { transform: scale(1.15); }
+.px-fam[data-on] { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 3.5px var(--text); }
+.px-shades { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.px-sw {
+  aspect-ratio: 1; border: 0; border-radius: 5px; padding: 0; cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  transition: transform 0.08s ease;
+}
+.px-sw:hover { transform: scale(1.12); position: relative; z-index: 1; }
+.px-sw[data-on] { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--text); position: relative; z-index: 2; }
+
+.px-tier { display: flex; flex-direction: column; gap: 6px; }
+.px-tier-note { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--text-sub); }
+.px-tier[data-locked] .px-sw { cursor: not-allowed; filter: saturate(0.25) brightness(0.92); opacity: 0.55; }
+.px-tier[data-locked] .px-sw:hover { transform: none; }
+.px-tier[data-tier="3"]:not([data-locked]) .px-sw { box-shadow: 0 0 6px -1px currentColor, inset 0 0 0 1px rgba(255, 255, 255, 0.25); }
+.px-tier[data-tier="3"]:not([data-locked]) .px-sw[data-on] { box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--text); }
+[data-gold] {
+  background: linear-gradient(115deg, #b8860b 0%, #e8b923 35%, #fff6c9 50%, #e8b923 65%, #b8860b 100%) 0 0 / 250% 100% !important;
+  animation: px-gold 2.2s linear infinite;
+}
+@keyframes px-gold { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+
+/* свой цвет (components/app/ColorPop.tsx) */
+.px-cp {
+  position: absolute; top: calc(100% + 8px); left: -4px; right: -4px; z-index: 30;
+  display: flex; flex-direction: column; gap: 10px; padding: 12px;
+  border-radius: 12px; background: var(--bg-modal, var(--bg-panel)); border: 1px solid var(--line); box-shadow: var(--shadow-lg);
+}
+.px-cp-sv {
+  position: relative; height: 150px; border-radius: 8px; touch-action: none; cursor: var(--cursor-hand, pointer);
+  /* поверх оттенка (inline background-color): белый слева, чёрный снизу */
+  background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, rgba(255, 255, 255, 0));
+}
+.px-cp-hue {
+  position: relative; height: 12px; border-radius: 999px; touch-action: none; cursor: var(--cursor-hand, pointer);
+  background: linear-gradient(to right, #f00, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00);
+}
+.px-cp-knob {
+  position: absolute; width: 16px; height: 16px; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none;
+  border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.px-cp-row { display: flex; align-items: center; gap: 8px; }
+.px-cp-prev { width: 28px; height: 28px; border-radius: 7px; flex: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); }
+.px-cp-hex {
+  flex: 1; min-width: 0; height: 28px; padding: 0 8px; border-radius: 7px; font: inherit; font-size: 12.5px;
+  border: 1px solid var(--ctrl-border, var(--line)); background: var(--bg-panel); color: var(--text);
+}
+
+.px-top { padding: 14px 16px; }
+.px-top ol { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.px-top li { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 6px; border-radius: 6px; min-height: 30px; }
+.px-top li[data-me] { background: var(--brand-tint); }
+.px-rank { width: 18px; color: var(--text-sub); font-size: 12px; text-align: right; }
+.px-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.px-wipe { width: 24px; height: 24px; opacity: 0; }
+.px-top li:hover .px-wipe { opacity: 1; }
+
+@media (max-width: 1100px) {
+  .px-wrap { grid-template-columns: 1fr; }
+  .px-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}
+@media (max-width: 760px) {
+  .px-box { height: 70vw; min-height: 300px; }
+  .px-info .px-fill { display: none; }
+}
+
+/* ── пункт меню «Холст» (components/app/PixelNav.tsx) ── */
+
+.pxn-word { display: block; overflow: visible; animation: pxn-glow 3s ease-in-out infinite; }
+.pxn-shadow { fill: #3b1d6e; opacity: 0.9; }
+:root[data-theme="dark"] .pxn-shadow { fill: #000; opacity: 0.55; }
+.pxn-spark { fill: #fff; opacity: 0; animation: pxn-twinkle 4.2s ease-in-out infinite; }
+@keyframes pxn-twinkle {
+  0%, 100% { opacity: 0; }
+  6% { opacity: 1; }
+  14% { opacity: 0; }
+}
+@keyframes pxn-glow {
+  0%, 100% { filter: drop-shadow(0 0 1.5px rgba(167, 139, 250, 0.3)); }
+  50% { filter: drop-shadow(0 0 4px rgba(76, 201, 255, 0.55)); }
+}
+
+.pxn-ic { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5px; padding: 1px; }
+.pxn-ic i { border-radius: 1px; background: #3b82f6; animation: pxn-spark 3s steps(1) infinite; }
+@keyframes pxn-spark {
+  0% { background: #ef4444; }
+  12% { background: #f59e0b; opacity: 1; }
+  24% { background: #10b981; }
+  36% { background: #3b82f6; opacity: 0.35; }
+  48% { background: #a855f7; opacity: 1; }
+  60% { background: #ec4899; }
+  72% { background: #eab308; opacity: 0.5; }
+  84% { background: #06b6d4; opacity: 1; }
+}
+
+/* лёгкая «рамка-радуга» вокруг пункта, пока на нём не стоишь */
+.pxn-item { position: relative; }
+.pxn-item:not([aria-current="page"])::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981, #3b82f6, #a855f7, #ef4444) 0 0 / 200% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0.55; animation: pxn-border 4s linear infinite;
+}
+.pxn-item:hover::before { opacity: 0.9; }
+@keyframes pxn-border { to { background-position: 200% 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pxn-word, .pxn-spark, .pxn-ic i, .pxn-item::before, [data-gold] { animation: none !important; }
+}

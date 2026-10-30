@@ -10,6 +10,7 @@ import "./academy.css";
 import "./acadedit.css";
 import "./cities.css";
 import "./cars.css";
+import "./canvas.css";
 import "./hero.css";
 import "./theme.css";
 // мобильная версия — последней: переопределяет раскладку на экранах до 760 px

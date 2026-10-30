@@ -599,12 +599,21 @@ button.sel-opt:hover { background: var(--ink-05); color: var(--text); }
 .acc-scope svg { color: var(--dim); flex: none; }
 .acc-scope span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acc-sep { height: 1px; background: var(--ink-06); margin: 5px 4px; }
-/* масштаб интерфейса в меню аккаунта: − Авто · 90% + */
-.acc-scale { display: flex; align-items: center; gap: 6px; padding: 5px 9px; color: var(--text-sub); font-size: 13px; }
-.acc-scale > svg { flex: none; }
-.acc-scale-l { flex: 1; color: var(--text); }
-.acc-scale .btn-icon { font-size: 15px; font-weight: 600; }
-.acc-scale-v { min-width: 92px; justify-content: center; }
+/* размер интерфейса в меню аккаунта: заголовок и переключатель A · Авто 80 90 100 110 125 · A */
+.acc-zoom { padding: 6px 9px 8px; display: flex; flex-direction: column; gap: 7px; }
+.acc-zoom-h { display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text); }
+.acc-zoom-h small { font-size: 11px; font-weight: 500; color: var(--dim); }
+.acc-zoom-seg { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 10px; background: var(--ink-05); }
+.acc-zoom-seg button {
+  flex: 1; min-width: 0; height: 26px; border: 0; border-radius: 7px; background: transparent; cursor: pointer;
+  font: inherit; font-size: 11.5px; font-weight: 500; color: var(--text-sub); font-variant-numeric: tabular-nums;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.acc-zoom-seg button:first-of-type { flex: 1.35; }
+.acc-zoom-seg button:hover { color: var(--text); background: var(--ink-05); }
+.acc-zoom-seg button[data-on] { background: var(--seg-on, var(--bg-panel)); color: var(--brand); font-weight: 650; box-shadow: var(--seg-on-shadow, 0 1px 2px rgba(0, 0, 0, 0.12)); }
+.acc-zoom-a { flex: none; width: 16px; text-align: center; font-size: 10px; font-weight: 700; color: var(--dim); line-height: 1; }
+.acc-zoom-a-lg { font-size: 15px; }
 
 .acc-item {
   display: flex;
