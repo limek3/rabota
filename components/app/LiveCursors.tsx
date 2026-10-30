@@ -60,8 +60,8 @@ type Peer = {
  * Отличие на подписи курсора: РОП — тёмная с золотом и звездой, СВ — щит и его группа,
  * операторы — по грейду дня: II серебро, III бронза с искрой, IV золото с короной.
  */
-type Rank = { cls: string; chip: string; icon: "star" | "shield" | "spark" | "crown" | null };
-function rankOf(p: Peer): Rank | null {
+export type Rank = { cls: string; chip: string; icon: "star" | "shield" | "spark" | "crown" | null };
+export function rankOf(p: Pick<Peer, "role" | "grade" | "team">): Rank | null {
   if (p.role === "head") return { cls: "r-head", chip: "РОП", icon: "star" };
   if (p.role === "supervisor") return { cls: "r-sv", chip: p.team ? `СВ · ${p.team}` : "СВ", icon: "shield" };
   if (p.grade === 4) return { cls: "g4", chip: "Грейд IV", icon: "crown" };
@@ -829,7 +829,7 @@ function Confetti({ party, mine }: { party: Party; mine: boolean }) {
 }
 
 /** Значок на подписи: звезда РОПа, щит СВ, искра грейда III, корона грейда IV — у каждого своя анимация (theme.css). */
-function RankIcon({ name }: { name: NonNullable<Rank["icon"]> }) {
+export function RankIcon({ name }: { name: NonNullable<Rank["icon"]> }) {
   return (
     <svg className={`lv-ico lv-ico-${name}`} width="11" height="11" viewBox="0 0 24 24" aria-hidden>
       {name === "crown" && (
@@ -845,7 +845,7 @@ function RankIcon({ name }: { name: NonNullable<Rank["icon"]> }) {
   );
 }
 
-function initials(name: string): string {
+export function initials(name: string): string {
   const p = name.trim().split(/\s+/);
   return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
 }

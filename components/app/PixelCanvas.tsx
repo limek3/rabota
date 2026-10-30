@@ -9,6 +9,7 @@ import { Empty, MonthSwitcher, PageHead, Seg } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
 import { StickyHead } from "@/components/app/StickyHead";
 import { PixelPalette } from "@/components/app/PixelPalette";
+import { CanvasChat } from "@/components/app/CanvasChat";
 import {
   GOLD,
   SIZE,
@@ -637,6 +638,8 @@ export function PixelCanvas() {
             recent={recent}
             grade={grade}
           />
+
+          <CanvasChat />
 
           <section className="card px-top">
             <h3 className="d2-h">
