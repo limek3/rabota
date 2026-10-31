@@ -24,6 +24,8 @@ import { fmtInt, fmtNum, fmtPct, initials } from "@/lib/crm/format";
 import { PACE_HUE, PACE_LABEL, type PaceStatus } from "@/lib/crm/calc";
 import { SEGMENT_HUE, SEGMENT_LABEL, regionSegment } from "@/lib/crm/regions";
 import { DateInput, MonthPicker, uiZoom } from "./select";
+import { FrameFx } from "@/components/app/ShopFx";
+import { useLook } from "@/lib/shop";
 
 /* ── цвет по тону палитры чипов ───────────────────────────────────── */
 export function hueVars(hue: string): CSSProperties {
@@ -235,8 +237,36 @@ function avatarOf(accounts: { id: string; operatorId?: string | null; deletedAt?
   return m.get(id);
 }
 
-/** Аватарка: своё фото, если человек его поставил в профиле (id аккаунта или карточки сотрудника), иначе инициалы. */
-export function Avatar({ name, id, size = 26, src }: { name: string; id: string; size?: number; src?: string }) {
+/** Чей аккаунт: id аккаунта или его карточки сотрудника → id аккаунта (для рамки из Лавки). */
+const accountMaps = new WeakMap<object, Map<string, string>>();
+function accountOf(accounts: { id: string; operatorId?: string | null; deletedAt?: string | null }[], id: string): string | undefined {
+  let m = accountMaps.get(accounts);
+  if (!m) {
+    m = new Map();
+    for (const a of accounts) {
+      if (a.deletedAt) continue;
+      m.set(a.id, a.id);
+      if (a.operatorId) m.set(a.operatorId, a.id);
+    }
+    accountMaps.set(accounts, m);
+  }
+  // нет в списке (встроенный аккаунт РОПа) — значит, это и есть id аккаунта
+  return m.get(id) ?? id;
+}
+
+/** Аватарка: своё фото, если человек его поставил в профиле (id аккаунта или карточки сотрудника), иначе инициалы. Рамка — из Лавки. */
+export function Avatar({ name, id, size = 26, src, fx }: { name: string; id: string; size?: number; src?: string; fx?: string | null }) {
+  const crm = useCrmOptional();
+  const look = useLook(crm ? accountOf(crm.data.accounts, id) : undefined, crm?.access.account.id);
+  // fx — своя рамка вместо надетой (витрина Лавки), null — без рамки
+  return (
+    <FrameFx fx={fx === undefined ? look.frame : fx ?? undefined} size={size}>
+      <AvatarFace name={name} id={id} size={size} src={src} />
+    </FrameFx>
+  );
+}
+
+function AvatarFace({ name, id, size, src }: { name: string; id: string; size: number; src?: string }) {
   const crm = useCrmOptional();
   const photo = src ?? (crm ? avatarOf(crm.data.accounts, id) : undefined);
   if (photo) {

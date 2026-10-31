@@ -4,9 +4,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useCrm } from "@/lib/crm/store";
 import { gradeLevel } from "@/lib/crm/telegram";
 import { plural } from "@/lib/crm/format";
-import { liveColor } from "@/lib/live";
 import { Icon } from "@/components/ui/icons";
-import { RankIcon, initials, rankOf } from "@/components/app/LiveCursors";
+import { Avatar } from "@/components/ui/kit";
+import { RankIcon, rankOf } from "@/components/app/LiveCursors";
+import { NameFx } from "./ShopFx";
 import { MAX_LEN, chatStore, type ChatChange, type ChatMsg, type Speaker } from "@/lib/canvasChat";
 
 /**
@@ -183,11 +184,14 @@ export function CanvasChat() {
             <div key={m.id} className="px-msg-wrap">
               {newDay && <div className="px-chat-day">{dayLabel(m.at)}</div>}
               <div className="px-msg" data-mine={mine ? "" : undefined} data-cont={cont ? "" : undefined}>
-                {cont ? <span className="px-msg-gap" /> : <i className="px-msg-ava" style={{ background: liveColor(m.accountId) }}>{initials(m.name)}</i>}
+                {/* аватарка с фото и рамкой из Лавки */}
+                {cont ? <span className="px-msg-gap" /> : <span className="px-msg-ava"><Avatar name={m.name || "Коллега"} id={m.accountId} size={28} /></span>}
                 <div className="px-msg-body">
                   {!cont && (
                     <div className="px-msg-h">
-                      <b>{m.name || "Коллега"}</b>
+                      <b>
+                        <NameFx accountId={m.accountId} me={access.account.id}>{m.name || "Коллега"}</NameFx>
+                      </b>
                       {r && (
                         <span className={`lv-rank ${r.cls}`}>
                           {r.icon && <RankIcon name={r.icon} />}

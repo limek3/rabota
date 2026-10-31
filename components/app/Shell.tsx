@@ -11,6 +11,7 @@ import { ConfirmHost, Progress, ToastHost, isTyping } from "@/components/ui/kit"
 import { TitleTips } from "@/components/ui/TitleTips";
 import { CursorFx } from "@/components/ui/CursorFx";
 import { LiveCursors } from "./LiveCursors";
+import { ShopSync } from "./Shop";
 import { MiniPlayer } from "./MiniPlayer";
 import { AuthGate } from "./AuthGate";
 import { LeadModal } from "./LeadModal";
@@ -513,6 +514,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <TitleTips />
         <CursorFx />
         <LiveCursors />
+        <ShopSync />
         <MiniPlayer />
         <Hotkeys />
         <NumberTween />

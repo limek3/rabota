@@ -25,6 +25,7 @@ export const NAV: NavItem[] = [
   { href: "/cities", label: "Карта городов", icon: "map", hint: "Город клиента → ближайшие города, где мы работаем (клавиша G)", group: "Работа" },
   { href: "/cars", label: "Марки авто", icon: "car", hint: "Машина клиента → передаём её по проекту или нет", group: "Работа" },
   { href: "/canvas", label: "Холст", icon: "palette", hint: "Общий пиксель-арт отдела: 1 одобренный лид = 1 пиксель", group: "Игры" },
+  { href: "/shop", label: "Лавка", icon: "bag", hint: "Рамки аватара, стиль имени, значки, фоны и следы курсора за искры — 10 ✦ за одобренный лид", group: "Игры" },
   { href: "/hiring", label: "Найм", icon: "userPlus", hint: "Кандидаты, воронка найма, стажировка и текучесть", group: "Работа" },
   { href: "/schedule", label: "График", icon: "calendar", hint: "Смены и отработанные часы", group: "Время и деньги" },
   { href: "/payroll", label: "Зарплата", icon: "wallet", hint: "Ведомость, начисления и выплаты", group: "Время и деньги" },

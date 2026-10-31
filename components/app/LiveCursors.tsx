@@ -10,8 +10,11 @@ import { useMonthModel } from "@/lib/crm/hooks";
 import type { MonthKey } from "@/lib/crm/types";
 import { plural, shortName } from "@/lib/crm/format";
 import { uiZoom } from "@/components/ui/select";
+import { Avatar } from "@/components/ui/kit";
 import { useRps } from "./LiveRps";
 import { GoldTrail } from "./GoldTrail";
+import { Badge, NameFx, ShopTrail } from "./ShopFx";
+import { namePaint, useLooks } from "@/lib/shop";
 
 /**
  * Живые курсоры коллег на той же странице (lib/live.ts — канал).
@@ -157,6 +160,8 @@ export function LiveCursors() {
   // где мышь на экране (последнее движение); над меню слева — rail
   const mouse = useRef<{ x: number; y: number; rail: boolean } | null>(null);
   const ready = me.id !== "__boot__";
+  // украшения из Лавки: плашка имени и след за курсором
+  const lookOf = useLooks(me.id);
 
   // камень-ножницы-бумага: играть можно с Грейда II (6 лидов); СВ и РОП — всегда
   const canPlay = me.role !== "operator" || (myGrade ?? 0) >= 2;
@@ -557,18 +562,23 @@ export function LiveCursors() {
             // СВ моей группы — курсор крупнее
             const near = p.role === "supervisor" && !!myGroup && !!p.gids?.includes(myGroup);
             const at = `translate3d(${p.x * w}px, ${p.y}px, 0)`;
+            const look = lookOf(p.id);
+            const plate = namePaint(look);
             return (
               <Fragment key={p.sid}>
               <div
                 data-sid={p.sid}
-                className={`lv-cur${live ? "" : " idle"}${r ? ` ${r.cls}` : ""}${near ? " near" : ""}`}
-                style={{ ["--lv" as string]: liveColor(p.id), transform: at }}
+                data-trail={look.trail}
+                data-nm={plate ? look.name : undefined}
+                className={`lv-cur${live ? "" : " idle"}${r ? ` ${r.cls}` : ""}${near ? " near" : ""}${plate ? " np" : ""}`}
+                style={{ ["--lv" as string]: liveColor(p.id), ["--nm" as string]: plate, transform: at }}
               >
                 {p.arrive && now - p.arrive < 3000 && <i key={p.arrive} className="lv-wave" />}
                 <i className="lv-dot" />
                 <span className="lv-name">
                   {r?.icon && <RankIcon name={r.icon} />}
                   {shortName(p.name) || "Коллега"}
+                  <Badge id={look.badge} />
                   {p.role === "supervisor" && p.team && <em>· {p.team}</em>}
                 </span>
                 {talking && <span className={`lv-msg${isEmoji(p.msg ?? "") ? " emo" : ""}`}>{p.msg}</span>}
@@ -707,10 +717,12 @@ export function LiveCursors() {
                   return (
                     <div key={p.id} className="lv-here-item">
                     {/* имя — первой строкой; роль/грейд и «водит курсором» — второй: в одну строку не влезало */}
-                    <button type="button" tabIndex={open ? 0 : -1} className="lv-here-row" disabled={!active} onClick={() => show(p)}>
-                      <i style={{ background: liveColor(p.id) }}>{initials(p.name)}</i>
+                    <button type="button" tabIndex={open ? 0 : -1} className="lv-here-row" data-bn={lookOf(p.id).banner} disabled={!active} onClick={() => show(p)}>
+                      <Avatar name={p.name || "Коллега"} id={p.id} size={26} />
                       <span className="lv-here-who">
-                        <b>{p.name || "Коллега"}</b>
+                        <b>
+                          <NameFx accountId={p.id}>{p.name || "Коллега"}</NameFx>
+                        </b>
                         <small>
                           {r && (
                             <span className={`lv-rank ${r.cls}`}>
@@ -775,6 +787,8 @@ export function LiveCursors() {
       {rps.card && createPortal(<div className={`rps-wrap${people.length > 0 || pageNotes.length > 0 ? " up" : ""}`}>{rps.card}</div>, document.documentElement)}
       {/* Грейд IV — золотая комета: за своей мышью и за курсорами коллег с IV */}
       <GoldTrail own={myGrade === 4} peers={here.some((p) => p.grade === 4 && p.role === "operator" && p.x != null && now - (p.moved ?? 0) < IDLE_MS)} />
+      {/* след из Лавки: за своей мышью и за курсорами коллег, у кого он надет */}
+      <ShopTrail own={lookOf(me.id).trail} peers={here.some((p) => !!lookOf(p.id).trail)} />
       {party && createPortal(<Confetti key={party.key} party={party} mine={!!party.op && party.op === access.opId} />, document.documentElement)}
     </>
   );

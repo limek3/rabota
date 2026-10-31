@@ -10,6 +10,8 @@ import { Icon } from "@/components/ui/icons";
 import { Layer, usePopover } from "@/components/ui/select";
 import { signOut } from "@/lib/auth";
 import { LIVE_HIDE_EVENT, liveHidden, setLiveHidden } from "@/lib/live";
+import { NameFx } from "./ShopFx";
+import { useLook } from "@/lib/shop";
 import { SCALE_OPTIONS, useUiScale } from "@/lib/uiScale";
 
 /** Логин под именем: почту показываем как есть, короткий логин — с «@». */
@@ -108,9 +110,15 @@ export function AccountMenu() {
             }}
           >
             <div className="acc-card">
+              {/* фон профиля из Лавки */}
+              <AccBanner id={me.id} />
               <Avatar name={me.name} id={me.id} size={40} />
               <div className="acc-card-t">
-                <div className="acc-card-n">{me.name}</div>
+                <div className="acc-card-n">
+                  <NameFx accountId={me.id} me={me.id}>
+                    {me.name}
+                  </NameFx>
+                </div>
                 <div className="acc-card-s">{loginOf(me) || ACCOUNT_ROLE_LABEL[me.role]}</div>
               </div>
               <RoleChip role={me.role} trainee={access.isTrainee} />
@@ -258,4 +266,10 @@ function AccountRow({ a, onClick }: { a: Account; onClick: () => void }) {
       <RoleChip role={a.role} />
     </button>
   );
+}
+
+/** Фон профиля из Лавки под карточкой в меню аккаунта. */
+function AccBanner({ id }: { id: string }) {
+  const look = useLook(id, id);
+  return look.banner ? <span className="bnfx" data-bn={look.banner} aria-hidden /> : null;
 }

@@ -742,7 +742,7 @@ html.cfx-down .cfx-dot { width: 10px; height: 10px; margin: -5px 0 0 -5px; }
 .lv-here-row { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; padding: 6px 8px; border: 0; border-radius: 10px; background: transparent; font: inherit; text-align: left; color: var(--text); cursor: pointer; }
 .lv-here-row:hover:not(:disabled) { background: var(--ink-05); }
 .lv-here-row:disabled { cursor: default; }
-.lv-here-row i { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 10px; font-weight: 700; color: #ffffff; }
+.lv-here-row > i { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 10px; font-weight: 700; color: #ffffff; }
 /* имя — первой строкой, роль/грейд и статус — второй */
 .lv-here-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .lv-here-who b { font-weight: 600; font-size: 12.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

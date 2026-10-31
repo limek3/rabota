@@ -70,7 +70,7 @@ export interface Access {
   scopeLabel: string;
 }
 
-export const ALL_ROUTES = ["/dashboard", "/me", "/stats", "/leads", "/operators", "/groups", "/cities", "/cars", "/canvas", "/hiring", "/schedule", "/payroll", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"];
+export const ALL_ROUTES = ["/dashboard", "/me", "/stats", "/leads", "/operators", "/groups", "/cities", "/cars", "/canvas", "/shop", "/hiring", "/schedule", "/payroll", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"];
 
 export function supervisorGroups(acc: Account, st: DataState): Set<ID> {
   const live = new Set(st.groups.filter((g) => !g.deletedAt).map((g) => g.id));
@@ -125,8 +125,8 @@ export function computeAccess(acc: Account, st: DataState): Access {
 
   const routes = new Set<string>();
   if (isHead) ALL_ROUTES.forEach((r) => routes.add(r));
-  else if (isSup) ["/dashboard", "/leads", "/operators", "/groups", "/cities", "/cars", "/canvas", "/schedule", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"].forEach((r) => routes.add(r));
-  else ["/me", "/stats", "/leads", "/cities", "/cars", "/canvas", "/schedule", "/dynamics", "/learn", "/settings"].forEach((r) => routes.add(r));
+  else if (isSup) ["/dashboard", "/leads", "/operators", "/groups", "/cities", "/cars", "/canvas", "/shop", "/schedule", "/dynamics", "/reports", "/projects", "/plans", "/learn", "/settings"].forEach((r) => routes.add(r));
+  else ["/me", "/stats", "/leads", "/cities", "/cars", "/canvas", "/shop", "/schedule", "/dynamics", "/learn", "/settings"].forEach((r) => routes.add(r));
   // наставник видит свою группу: сводку, операторов, группу и отчёт по операторам (без денег)
   if (isMentor) ["/dashboard", "/operators", "/groups", "/reports"].forEach((r) => routes.add(r));
   if (can.viewPayroll) routes.add("/payroll");
@@ -145,6 +145,8 @@ export function computeAccess(acc: Account, st: DataState): Access {
     routes.add("/cars");
     // и холст: его одобренные лиды тоже дают краску
     routes.add("/canvas");
+    // и Лавка: искры за те же одобренные лиды
+    routes.add("/shop");
     // стажёр уже звонит: записывает свои лиды и правит их — по тем же настройкам, что и оператор;
     // журнал «Лиды» — только свои. Остальное (график, деньги, показатели) — пока закрыто
     const own = { createLeads: can.createLeads, editLeads: can.editLeads };
