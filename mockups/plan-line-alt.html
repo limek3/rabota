@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Шкала плана — 5 вариантов без бегунов</title>
+<style>
+/* ── токены как в CRM (app/theme.css) ── */
+:root, :root[data-theme="light"] {
+  --bg: #f3f2f8; --panel: #ffffff; --sunken: #f6f5fb; --line: #e7e5ef; --line2: #dcd9e7;
+  --text: #17152b; --sub: #5e5b74; --dim: #8f8ca5; --ink: 23 21 43;
+  --brand: #6a45f5; --brand-soft: #8466ff;
+  --green: #0f7a48; --green-bg: #e7f6ee; --green-bd: #c0e6d0;
+  --red: #cc2f47; --red-bg: #fdecef; --red-bd: #f6c9d1;
+  --amber: #9c5800;
+  --board: #17152b; --board-2: #24213a; --board-text: #f4f3fa; --on-c: #fff;
+}
+:root[data-theme="dark"] {
+  --bg: #111019; --panel: #191823; --sunken: #14131d; --line: #282736; --line2: #32313f;
+  --text: #edecf4; --sub: #a3a1b6; --dim: #737188; --ink: 237 236 244;
+  --brand: #8466ff; --brand-soft: #a58dff;
+  --green: #5fd39a; --green-bg: color-mix(in srgb, #5fd39a 12%, #191823); --green-bd: color-mix(in srgb, #5fd39a 30%, #191823);
+  --red: #ff8596; --red-bg: color-mix(in srgb, #ff8596 13%, #191823); --red-bd: color-mix(in srgb, #ff8596 30%, #191823);
+  --amber: #ecbb62;
+  --board: #0b0a12; --board-2: #1b1a26; --board-text: #f4f3fa; --on-c: #111019;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 Inter, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+b { font-variant-numeric: tabular-nums; }
+.ok { color: var(--green) !important; }
+.bad { color: var(--red) !important; }
+
+.top { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 24px; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.top h1 { margin: 0; font-size: 16px; font-weight: 800; }
+.top p { margin: 0; color: var(--dim); font-size: 12px; }
+.sp { flex: 1; }
+.tabs { display: flex; max-width: 100%; overflow-x: auto; gap: 3px; padding: 3px; border-radius: 10px; background: rgb(var(--ink) / .05); box-shadow: inset 0 0 0 1px var(--line); }
+.tabs button { height: 28px; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; color: var(--sub); font-weight: 600; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.tabs button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 0 0 1px var(--line); }
+.replay { height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line2); background: var(--panel); font-weight: 700; font-size: 12.5px; cursor: pointer; }
+.facts { padding: 10px 24px 0; color: var(--sub); font-size: 12px; }
+.facts b { color: var(--text); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 18px 24px 60px; display: grid; gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px 20px; overflow: hidden; }
+.card h2 { margin: 0; font-size: 14px; font-weight: 800; display: flex; align-items: baseline; gap: 8px; }
+.card h2 i { font-style: normal; color: var(--brand); font-size: 12px; font-weight: 800; }
+.card .idea { margin: 3px 0 18px; color: var(--sub); font-size: 12px; max-width: 780px; }
+.stage { margin: 0 auto; width: 100%; transition: max-width .3s; }
+body.narrow .stage { max-width: 380px; }
+@media (max-width: 640px) { .top { padding: 12px 16px; } .facts { padding: 10px 16px 0; } .wrap { padding: 14px 16px 40px; } .card { padding: 14px 14px 16px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* общие строки «подпись — число» */
+.kv { display: grid; gap: 8px; align-content: center; }
+.kv div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 7px; border-bottom: 1px dashed var(--line); font-size: 12.5px; color: var(--sub); }
+.kv div:last-child { border-bottom: 0; }
+.kv b { color: var(--text); font-size: 14px; }
+.kv .sw { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 7px; vertical-align: 0; }
+
+/* ═══ 1. Спидометр ═══ */
+.v1 { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 28px; align-items: center; }
+body.narrow .v1 { grid-template-columns: 1fr; gap: 14px; }
+.v1 svg { width: 100%; height: auto; display: block; overflow: visible; }
+.v1 .trk { fill: none; stroke: rgb(var(--ink) / .08); stroke-width: 18; stroke-linecap: round; }
+.v1 .fill { fill: none; stroke: url(#g1); stroke-width: 18; stroke-linecap: round; }
+.v1 .fc { fill: none; stroke: rgb(var(--ink) / .3); stroke-width: 18; stroke-dasharray: 2 5; }
+.v1 .tk { stroke: rgb(var(--ink) / .25); stroke-width: 1.5; }
+.v1 .tk.M { stroke: rgb(var(--ink) / .45); stroke-width: 2; }
+.v1 .tl { font-size: 9.5px; fill: var(--dim); text-anchor: middle; }
+.v1 .should { stroke: var(--text); stroke-width: 3; stroke-linecap: round; }
+.v1 .plan { stroke: var(--brand); stroke-width: 3; stroke-linecap: round; }
+.v1 .needle { transform-origin: 150px 150px; transition: transform 1.4s cubic-bezier(.22, 1.3, .36, 1); }
+.v1 .needle path { fill: var(--text); }
+.v1 .hub { fill: var(--panel); stroke: var(--text); stroke-width: 3; }
+.v1 .big { font-size: 34px; font-weight: 800; fill: var(--text); text-anchor: middle; letter-spacing: -.02em; }
+.v1 .sm { font-size: 11.5px; fill: var(--sub); text-anchor: middle; }
+.v1 .dl { font-size: 13px; font-weight: 800; text-anchor: middle; }
+
+/* ═══ 2. Двойное кольцо ═══ */
+.v2 { display: grid; grid-template-columns: 220px 1fr; gap: 28px; align-items: center; }
+body.narrow .v2 { grid-template-columns: 1fr; justify-items: center; }
+.v2 .ring { position: relative; width: 210px; height: 210px; }
+.v2 svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.v2 circle { fill: none; stroke-linecap: round; transition: stroke-dashoffset 1.4s cubic-bezier(.22, .9, .25, 1); }
+.v2 .t { stroke: rgb(var(--ink) / .07); }
+.v2 .o { stroke: var(--c); }
+.v2 .o2 { stroke: color-mix(in srgb, var(--c) 30%, transparent); stroke-dasharray: 2 6 !important; }
+.v2 .i { stroke: rgb(var(--ink) / .4); }
+.v2 .lap { stroke: color-mix(in srgb, var(--c) 55%, var(--panel)); }
+.v2 .mid { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.v2 .mid b { font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.v2 .mid span { font-size: 11.5px; color: var(--sub); margin-top: 4px; }
+.v2 .mid em { font-style: normal; font-weight: 800; font-size: 12.5px; margin-top: 6px; }
+
+/* ═══ 3. Календарь дней ═══ */
+.v3 .days { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 4px; }
+.v3 .d { position: relative; aspect-ratio: 1 / 1.25; border-radius: 6px; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: var(--text); animation: pop .35s both; animation-delay: calc(var(--i) * 28ms); }
+body.narrow .v3 .d { font-size: 0; }
+@keyframes pop { from { opacity: 0; transform: scale(.6); } }
+.v3 .d.up { background: color-mix(in srgb, var(--green) calc(14% + var(--k) * 46%), transparent); }
+.v3 .d.dn { background: color-mix(in srgb, var(--red) calc(14% + var(--k) * 46%), transparent); }
+.v3 .d.fut { background: repeating-linear-gradient(135deg, rgb(var(--ink) / .07) 0 3px, transparent 3px 6px); box-shadow: inset 0 0 0 1px rgb(var(--ink) / .1); color: var(--dim); font-weight: 600; }
+.v3 .d.today { box-shadow: 0 0 0 2px var(--text); }
+.v3 .d small { position: absolute; bottom: -15px; font-size: 9px; color: var(--dim); font-weight: 600; }
+body.narrow .v3 .d small { display: none; }
+.v3 .scale { display: flex; justify-content: space-between; align-items: center; margin-top: 22px; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--sub); }
+.v3 .scale b { color: var(--text); }
+.v3 .lg { display: inline-flex; align-items: center; gap: 6px; }
+.v3 .lg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.v3 .cum { position: relative; height: 8px; margin-top: 26px; border-radius: 4px; background: rgb(var(--ink) / .07); }
+.v3 .cum i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--c); transition: width 1.2s; }
+.v3 .cum u { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); transform: translateX(-50%); }
+
+/* ═══ 4. Табло матча ═══ */
+.v4 .board { --bc: #5fd39a; border-radius: 14px; background: linear-gradient(180deg, var(--board-2), var(--board)); color: var(--board-text); padding: 16px 20px 14px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 14px 30px -18px rgba(0,0,0,.6); }
+.v4 .score { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; }
+.v4 .team { display: flex; flex-direction: column; gap: 6px; }
+.v4 .team.r { align-items: flex-end; text-align: right; }
+.v4 .team > span { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: rgba(244,243,250,.55); font-weight: 700; }
+.v4 .digits { display: flex; gap: 4px; }
+.v4 .dg { position: relative; width: 34px; height: 50px; border-radius: 7px; background: linear-gradient(180deg, #2d2a44 50%, #24213a 50%); display: grid; place-items: center; font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; box-shadow: inset 0 -1px 0 rgba(0,0,0,.35); overflow: hidden; }
+body.narrow .v4 .dg { width: 22px; height: 34px; font-size: 22px; border-radius: 5px; }
+.v4 .dg::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgba(0,0,0,.45); }
+.v4 .dg.sp { width: 12px; background: none; box-shadow: none; }
+.v4 .dg.sp::after { display: none; }
+.v4 .dg > i { font-style: normal; animation: flip .5s both; animation-delay: calc(var(--i) * 90ms + 200ms); }
+@keyframes flip { 0% { transform: translateY(-100%); opacity: 0; } 60% { opacity: 1; } 100% { transform: none; } }
+.v4 .board[data-ok="false"] { --bc: #ff8596; }
+.v4 .team.me .dg { color: var(--bc); }
+.v4 .vs { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.v4 .vs b { font-size: 22px; font-weight: 800; padding: 4px 12px; border-radius: 10px; background: color-mix(in srgb, var(--bc) 18%, transparent); color: var(--bc); }
+.v4 .vs span { font-size: 10px; color: rgba(244,243,250,.55); letter-spacing: .08em; text-transform: uppercase; }
+.v4 .time { margin-top: 14px; display: flex; align-items: center; gap: 12px; font-size: 11.5px; color: rgba(244,243,250,.7); }
+.v4 .tl { position: relative; flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); }
+.v4 .tl i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: rgba(255,255,255,.55); }
+.v4 .tl u { position: absolute; top: -4px; width: 2px; height: 14px; background: var(--bc); transform: translateX(-50%); }
+.v4 .notes { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--sub); }
+.v4 .notes b { color: var(--text); }
+
+/* ═══ 5. Стакан ═══ */
+.v5 { display: grid; grid-template-columns: 150px 1fr; gap: 30px; align-items: center; }
+body.narrow .v5 { grid-template-columns: 120px 1fr; gap: 16px; }
+.v5 .glass { position: relative; height: 210px; border-radius: 14px 14px 22px 22px; background: rgb(var(--ink) / .04); box-shadow: inset 0 0 0 2px rgb(var(--ink) / .14); overflow: hidden; }
+.v5 .water { position: absolute; left: 0; right: 0; bottom: 0; transition: height 1.6s cubic-bezier(.22, .9, .25, 1); background: linear-gradient(180deg, color-mix(in srgb, var(--c) 70%, #fff 0%), var(--c)); }
+.v5 .water svg { position: absolute; left: 0; top: -9px; width: 200%; height: 10px; animation: wave 3.2s linear infinite; }
+.v5 .water svg path { fill: color-mix(in srgb, var(--c) 70%, #fff 0%); }
+.v5 .water svg.b { animation-duration: 5s; opacity: .45; top: -7px; }
+@keyframes wave { to { transform: translateX(-50%); } }
+.v5 .lvl { position: absolute; left: -2px; right: -2px; height: 0; border-top: 2px dashed var(--text); z-index: 2; transition: bottom 1.4s; }
+.v5 .lvl.p { border-top: 2px solid var(--brand); }
+.v5 .lvl.f { border-top: 2px dotted rgb(var(--ink) / .45); }
+.v5 .pct { position: absolute; inset: auto 0 12px; text-align: center; font-size: 24px; font-weight: 800; color: var(--on-c); z-index: 3; text-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.v5 .pct.low { color: var(--text); text-shadow: none; bottom: auto; top: 14px; }
+.v5 .scale { position: relative; height: 210px; }
+.v5 .mk { position: absolute; left: 0; transform: translateY(50%); display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--sub); white-space: nowrap; transition: bottom 1.4s; }
+.v5 .mk::before { content: ""; width: 18px; border-top: 2px solid currentColor; margin-left: -22px; opacity: .6; }
+.v5 .mk b { color: var(--text); font-size: 14px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Шкала плана — 5 вариантов без бегунов</h1>
+    <p>Спидометр, кольца, календарь дней, табло и стакан — на тех же числах</p>
+  </div>
+  <span class="sp"></span>
+  <div class="tabs" id="scn"></div>
+  <div class="tabs" id="wd"><button data-v="wide" class="on">Широко</button><button data-v="narrow">Телефон</button></div>
+  <div class="tabs" id="th"><button data-v="light" class="on">Светлая</button><button data-v="dark">Тёмная</button></div>
+  <button class="replay" id="replay">▶ Ещё раз</button>
+</header>
+<div class="facts" id="facts"></div>
+<main class="wrap" id="out"></main>
+
+<script>
+const SC = {
+  now:    { name: "Как сейчас",    plan: 700, fact: 656, day: 20.6, days: 22, seed: 3 },
+  behind: { name: "Отстаём",       plan: 700, fact: 540, day: 20.6, days: 22, seed: 5 },
+  start:  { name: "Начало месяца", plan: 700, fact: 70,  day: 2.6,  days: 22, seed: 7 },
+  over:   { name: "Перевыполнили", plan: 700, fact: 742, day: 20.6, days: 22, seed: 9 },
+};
+let cur = "now";
+
+const fmt = (n) => Math.round(n).toLocaleString("ru-RU");
+const sg = (n) => (Math.round(n) > 0 ? "+" : Math.round(n) < 0 ? "−" : "±") + fmt(Math.abs(n));
+const pc = (x) => Math.round(x * 100) + "%";
+const f1 = (n) => n.toLocaleString("ru-RU", { maximumFractionDigits: 1 });
+const lw = (n) => { const a = Math.abs(Math.round(n)) % 100, b = a % 10; return a > 10 && a < 20 ? "лидов" : b === 1 ? "лид" : b >= 2 && b <= 4 ? "лида" : "лидов"; };
+
+function ctx(s) {
+  const should = (s.plan * s.day) / s.days;
+  const pace = s.fact / s.day;
+  const rr = pace * s.days;
+  const ok = s.fact >= should - 0.5;
+  const left = s.days - s.day;
+  return {
+    ...s, should, rr, ok, pace,
+    gap: s.fact - should,
+    done: s.fact >= s.plan,
+    norm: s.plan / s.days,
+    need: left > 0 ? Math.max(0, s.plan - s.fact) / left : 0,
+    left,
+    c: ok ? "var(--green)" : "var(--red)",
+    cls: ok ? "ok" : "bad",
+  };
+}
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+/* ═══ 1. Спидометр ═══ */
+const CX = 150, CY = 150, R = 112;
+const pt = (a, r = R) => [CX + r * Math.cos(Math.PI - a), CY - r * Math.sin(Math.PI - a)];
+const arc = (a0, a1, r = R) => { const [x0, y0] = pt(a0, r), [x1, y1] = pt(a1, r); return `M${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`; };
+function v1(c) {
+  const max = Math.max(c.plan * 1.12, c.rr * 1.04, c.fact * 1.04);
+  const A = (v) => Math.max(0.001, Math.min(Math.PI, (v / max) * Math.PI));
+  let ticks = "";
+  const step = max > 600 ? 50 : 25;
+  for (let v = 0; v <= max; v += step) {
+    const M = v % (step * 2) === 0;
+    const [x0, y0] = pt(A(v), R - 16), [x1, y1] = pt(A(v), R - (M ? 26 : 21));
+    ticks += `<line class="tk${M ? " M" : ""}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`;
+    if (M && v > 0 && Math.abs(v - c.plan) > step) { const [tx, ty] = pt(A(v), R - 37); ticks += `<text class="tl" x="${tx}" y="${ty + 3}">${fmt(v)}</text>`; }
+  }
+  const mark = (v, cls, r0, r1) => { const [x0, y0] = pt(A(v), r0), [x1, y1] = pt(A(v), r1); return `<line class="${cls}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`; };
+  const deg = (A(c.fact) * 180) / Math.PI;
+  const [px, py] = pt(A(c.plan), R + 18);
+  const pAnchor = px > CX + 20 ? "start" : px < CX - 20 ? "end" : "middle";
+  return `<div class="v1" style="--c:${c.c}">
+    <svg viewBox="0 0 300 222">
+      <defs><linearGradient id="g1" x1="0" x2="1"><stop offset="0" stop-color="${c.c}" stop-opacity=".25"/><stop offset="1" stop-color="${c.c}"/></linearGradient></defs>
+      <path class="trk" d="${arc(0.001, Math.PI - 0.001)}"/>
+      ${c.rr > c.fact ? `<path class="fc" d="${arc(A(c.fact), A(c.rr))}"/>` : ""}
+      <path class="fill" d="${arc(0.001, A(c.fact))}"/>
+      ${ticks}
+      ${mark(c.should, "should", R - 12, R + 12)}
+      ${mark(c.plan, "plan", R - 14, R + 16)}
+      <text class="tl" x="${px}" y="${py}" style="fill:var(--brand);font-weight:800;font-size:10.5px;text-anchor:${pAnchor}">план ${fmt(c.plan)}</text>
+      <g class="needle" style="transform:rotate(${deg - 90}deg)"><path d="M146,150 L150,62 L154,150 Z"/></g>
+      <circle class="hub" cx="150" cy="150" r="8"/>
+      <text class="big" x="150" y="198"></text>
+      <text class="sm" x="150" y="217">факт · ${pc(c.fact / c.plan)} плана</text>
+    </svg>
+    <div class="kv">
+      <div><span><span class="sw" style="background:${c.c}"></span>Факт</span><b class="${c.cls}">${fmt(c.fact)}</b></div>
+      <div><span><span class="sw" style="background:var(--text)"></span>Должно быть к сегодня</span><b>${fmt(c.should)} <span class="${c.cls}" style="font-size:12px">${sg(c.gap)}</span></b></div>
+      <div><span><span class="sw" style="background:repeating-linear-gradient(90deg,rgb(var(--ink)/.4) 0 2px,transparent 2px 4px)"></span>Прогноз по темпу</span><b>${fmt(c.rr)} <span style="color:var(--dim);font-size:12px">${pc(c.rr / c.plan)}</span></b></div>
+      <div><span><span class="sw" style="background:var(--brand)"></span>План</span><b>${fmt(c.plan)}</b></div>
+    </div>
+  </div>`;
+}
+
+/* ═══ 2. Двойное кольцо ═══ */
+function v2(c) {
+  const ro = 92, ri = 72, Co = 2 * Math.PI * ro, Ci = 2 * Math.PI * ri;
+  const fp = Math.min(1, c.fact / c.plan), sp = Math.min(1, c.should / c.plan), rp = Math.min(1, c.rr / c.plan);
+  const lap = c.fact > c.plan ? Math.min(1, (c.fact - c.plan) / c.plan) : 0;
+  const circ = (r, C, p, cls, w, extra = "") => `<circle class="${cls}" cx="105" cy="105" r="${r}" stroke-width="${w}" stroke-dasharray="${C}" data-off="${C * (1 - p)}" style="stroke-dashoffset:${C}" ${extra}/>`;
+  return `<div class="v2" style="--c:${c.c}">
+    <div class="ring">
+      <svg viewBox="0 0 210 210">
+        <circle class="t" cx="105" cy="105" r="${ro}" stroke-width="14"/>
+        <circle class="t" cx="105" cy="105" r="${ri}" stroke-width="8"/>
+        ${rp > fp ? circ(ro, Co, rp, "o o2", 14) : ""}
+        ${circ(ro, Co, fp, "o", 14)}
+        ${lap ? circ(ro, Co, lap, "lap", 6) : ""}
+        ${circ(ri, Ci, sp, "i", 8)}
+      </svg>
+      <div class="mid"><b class="${c.cls}">${pc(c.fact / c.plan)}</b><span>плана · ${fmt(c.fact)} из ${fmt(c.plan)}</span><em class="${c.cls}">${sg(c.gap)} к графику</em></div>
+    </div>
+    <div class="kv">
+      <div><span><span class="sw" style="background:${c.c}"></span>Внешнее кольцо — факт</span><b>${fmt(c.fact)}</b></div>
+      <div><span><span class="sw" style="background:rgb(var(--ink)/.4)"></span>Внутреннее — должно быть</span><b>${fmt(c.should)}</b></div>
+      <div><span><span class="sw" style="background:color-mix(in srgb, ${c.c} 30%, transparent)"></span>Пунктир — прогноз</span><b>${fmt(c.rr)} <span style="color:var(--dim);font-size:12px">${pc(c.rr / c.plan)}</span></b></div>
+      <div><span>Нужно в день до конца</span><b class="${c.need > c.pace ? "bad" : ""}">${c.done ? "план взят" : f1(c.need)}</b></div>
+    </div>
+  </div>`;
+}
+
+/* ═══ 3. Календарь дней ═══ */
+function v3(c) {
+  const r = rng(c.seed);
+  const full = Math.floor(c.day), part = c.day - full;
+  const ws = Array.from({ length: full }, () => 0.55 + r() * 0.9);
+  const sum = ws.reduce((a, b) => a + b, 0) + part;
+  const per = ws.map((w) => (w / sum) * c.fact);
+  const todayN = Math.round((part / sum) * c.fact);
+  let cells = "";
+  for (let i = 0; i < c.days; i++) {
+    if (i < full) {
+      const v = per[i], up = v >= c.norm, k = Math.min(1, Math.abs(v - c.norm) / (c.norm * 0.45));
+      cells += `<div class="d ${up ? "up" : "dn"}" style="--i:${i};--k:${k.toFixed(2)}" title="${i + 1}-й рабочий день: ${fmt(v)} лидов (норма ${fmt(c.norm)})">${fmt(v)}<small>${i + 1}</small></div>`;
+    } else if (i === full) {
+      cells += `<div class="d today ${todayN >= c.norm * part ? "up" : "dn"}" style="--i:${i};--k:.2" title="Сегодня: ${fmt(todayN)} пока">${fmt(todayN)}<small>сег.</small></div>`;
+    } else {
+      cells += `<div class="d fut" style="--i:${i}" title="Впереди: нужно ${f1(c.need)} в день">${c.done ? "" : Math.ceil(c.need)}<small>${i + 1}</small></div>`;
+    }
+  }
+  const good = per.filter((v) => v >= c.norm).length;
+  return `<div class="v3" style="--c:${c.c};--n:${c.days}">
+    <div class="days">${cells}</div>
+    <div class="cum"><i style="width:${Math.min(100, (c.fact / c.plan) * 100)}%"></i><u style="left:${Math.min(100, (c.should / c.plan) * 100)}%"></u></div>
+    <div class="scale">
+      <span><b class="${c.cls}">${fmt(c.fact)}</b> из ${fmt(c.plan)} · <b class="${c.cls}">${sg(c.gap)}</b> к графику · норму сделали <b>${good}</b> из ${full} дней</span>
+      <span class="lg"><i style="background:color-mix(in srgb, var(--green) 50%, transparent)"></i>выше нормы <i style="background:color-mix(in srgb, var(--red) 50%, transparent);margin-left:8px"></i>ниже <i style="background:repeating-linear-gradient(135deg, rgb(var(--ink) / .15) 0 3px, transparent 3px 6px);margin-left:8px"></i>впереди — сколько нужно</span>
+    </div>
+  </div>`;
+}
+
+/* ═══ 4. Табло матча ═══ */
+function digits(n, me) {
+  const s = fmt(n).replace(/\s/g, " ");
+  return [...s].map((ch, i) => (ch === " " ? `<span class="dg sp"></span>` : `<span class="dg"><i style="--i:${i}">${ch}</i></span>`)).join("");
+}
+function v4(c) {
+  const t = Math.min(100, (c.day / c.days) * 100);
+  return `<div class="v4" style="--c:${c.c}">
+    <div class="board" data-ok="${c.ok}">
+      <div class="score">
+        <div class="team me"><span>Мы · факт</span><div class="digits">${digits(c.fact)}</div></div>
+        <div class="vs"><b>${sg(c.gap)}</b><span>${c.ok ? "ведём" : "проигрываем"}</span></div>
+        <div class="team r"><span>График · должно быть</span><div class="digits">${digits(c.should)}</div></div>
+      </div>
+      <div class="time"><span>день ${Math.ceil(c.day)}</span><div class="tl"><i style="width:${t}%"></i><u style="left:${Math.min(100, (c.fact / c.plan) * 100)}%"></u></div><span>из ${c.days}</span></div>
+    </div>
+    <div class="notes">
+      <span>До плана <b>${c.done ? "взят ✓" : fmt(c.plan - c.fact)}</b>${c.done ? "" : ` · нужно <b class="${c.need > c.pace ? "bad" : ""}">${f1(c.need)}</b> в день, темп ${f1(c.pace)}`}</span>
+      <span>по темпу к финалу ≈ <b>${fmt(c.rr)}</b> (${pc(c.rr / c.plan)})</span>
+    </div>
+  </div>`;
+}
+
+/* ═══ 5. Стакан ═══ */
+const WAVE = `<svg viewBox="0 0 200 10" preserveAspectRatio="none"><path d="M0,5 Q12.5,0 25,5 T50,5 T75,5 T100,5 T125,5 T150,5 T175,5 T200,5 V10 H0 Z"/></svg>`;
+function v5(c) {
+  const top = Math.max(c.plan, c.rr, c.fact) * 1.08;
+  const h = (v) => Math.min(100, (v / top) * 100);
+  const low = h(c.fact) < 22;
+  // подписи справа: раздвигаем, если ближе 9%
+  const mks = [
+    { v: c.plan, t: `<b style="color:var(--brand)">${fmt(c.plan)}</b> план`, col: "var(--brand)" },
+    { v: c.should, t: `<b>${fmt(c.should)}</b> должно быть`, col: "var(--text)" },
+    { v: c.fact, t: `<b class="${c.cls}">${fmt(c.fact)}</b> факт <span class="${c.cls}" style="font-weight:800">${sg(c.gap)}</span>`, col: c.c },
+    ...(c.rr > c.fact ? [{ v: c.rr, t: `≈ <b>${fmt(c.rr)}</b> прогноз`, col: "var(--dim)" }] : []),
+  ].map((m) => ({ ...m, y: h(m.v) })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < mks.length; i++) if (mks[i].y - mks[i - 1].y < 10) mks[i].y = mks[i - 1].y + 10;
+  for (let i = mks.length - 1; i >= 0; i--) mks[i].y = Math.min(mks[i].y, i === mks.length - 1 ? 95 : mks[i + 1].y - 10);
+  return `<div class="v5" style="--c:${c.c}">
+    <div class="glass">
+      <div class="water" data-h="${h(c.fact)}" style="height:0">${WAVE}${WAVE.replace("<svg", '<svg class="b"')}</div>
+      <div class="lvl p" style="bottom:${h(c.plan)}%"></div>
+      <div class="lvl" style="bottom:${h(c.should)}%"></div>
+      ${c.rr > c.fact ? `<div class="lvl f" style="bottom:${h(c.rr)}%"></div>` : ""}
+      <div class="pct${low ? " low" : ""}">${pc(c.fact / c.plan)}</div>
+    </div>
+    <div class="scale">${mks.map((m) => `<div class="mk" style="bottom:${m.y}%;color:${m.col}"><span style="color:var(--sub)">${m.t}</span></div>`).join("")}</div>
+  </div>`;
+}
+
+const VARIANTS = [
+  ["Спидометр", "Полукруглая шкала со стрелкой: стрелка — факт, чёрная засечка — должно быть, фиолетовая — план, пунктир по дуге — куда доедем по темпу. Справа — те же числа таблицей. Подписи не наползают: на дуге только деления.", v1],
+  ["Двойное кольцо", "Внешнее кольцо — факт от плана, внутреннее — сколько должно быть к сегодня. Видно, какое кольцо «обогнало» другое. В центре — % плана и разрыв. Перевыполнение — второй круг поверх.", v2],
+  ["Календарь рабочих дней", "Клетка — рабочий день, в ней — сколько лидов передали. Зелёная — выше дневной нормы, красная — ниже, чем ярче — тем сильнее. Сегодня в рамке, впереди — штриховка с тем, сколько нужно в день. Снизу — общая полоса и черта графика.", v3],
+  ["Табло матча", "«Мы» против «Графика» на тёмном табло: перекидные цифры, посередине счёт — на сколько ведём или проигрываем. Внизу — сколько дней «матча» прошло и сколько осталось до плана.", v4],
+  ["Стакан", "Стакан наполняется водой до факта (с живой волной). Чёрная пунктирная линия — сколько должно быть, фиолетовая — план, точки — прогноз. Подписи справа раздвигаются, если уровни близко.", v5],
+];
+
+function render() {
+  const c = ctx(SC[cur]);
+  document.getElementById("facts").innerHTML = `Сценарий «${SC[cur].name}»: план <b>${fmt(c.plan)}</b> · факт <b>${fmt(c.fact)}</b> · должно быть к сегодня <b>${fmt(c.should)}</b> · прогноз <b>${fmt(c.rr)}</b> (${pc(c.rr / c.plan)}) · рабочий день ${Math.ceil(c.day)} из ${c.days}`;
+  const out = document.getElementById("out");
+  out.innerHTML = VARIANTS.map(([t, idea, fn], i) => `<section class="card"><h2><i>${i + 1}</i>${t}</h2><p class="idea">${idea}</p><div class="stage">${fn(c)}</div></section>`).join("");
+  // число в центре спидометра — счётчиком
+  const big = out.querySelector(".v1 .big");
+  const t0 = performance.now();
+  const tick = (t) => { const k = Math.min(1, (t - t0) / 1300); big.textContent = fmt(c.fact * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+  // вкладка в фоне — кадры не идут: точное число всё равно через полторы секунды
+  setTimeout(() => (big.textContent = fmt(c.fact)), 1400);
+  // стрелка, кольца, вода — от нуля
+  const needle = out.querySelector(".v1 .needle"); const fin = needle.style.transform; needle.style.transition = "none"; needle.style.transform = "rotate(-90deg)";
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    needle.style.transition = ""; needle.style.transform = fin;
+    out.querySelectorAll(".v2 circle[data-off]").forEach((e) => (e.style.strokeDashoffset = e.dataset.off));
+    out.querySelectorAll(".v5 .water").forEach((e) => (e.style.height = e.dataset.h + "%"));
+  }));
+}
+
+const scn = document.getElementById("scn");
+scn.innerHTML = Object.entries(SC).map(([k, s]) => `<button data-v="${k}" class="${k === cur ? "on" : ""}">${s.name}</button>`).join("");
+const tab = (id, on) => document.getElementById(id).addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b));
+  on(b.dataset.v); render();
+});
+tab("scn", (v) => (cur = v));
+tab("wd", (v) => document.body.classList.toggle("narrow", v === "narrow"));
+tab("th", (v) => (document.documentElement.dataset.theme = v));
+document.getElementById("replay").onclick = render;
+render();
+</script>
+</body>
+</html>

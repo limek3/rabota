@@ -385,3 +385,29 @@
   .shop-wrap { grid-template-columns: 1fr; }
   .shop-side { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 }
+
+/* ═══ пункт меню «Лавка» (components/app/ShopNav.tsx): золотая сумка, блик по надписи, баланс ═══ */
+.shn-item .rail-text { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.shn-ic { position: relative; display: inline-flex; filter: drop-shadow(0 0 3px rgba(245, 197, 66, 0.45)); }
+.shn-ic svg { transform-origin: 50% 20%; }
+.shn-item:hover .shn-ic svg { animation: shn-swing 0.7s ease-in-out; }
+.shn-spark {
+  position: absolute; right: -5px; top: -5px; font-style: normal; font-size: 9px; line-height: 1; color: #fff6d6;
+  text-shadow: 0 0 4px #ffd86b, 0 0 8px rgba(255, 200, 60, 0.8); animation: shn-twinkle 2.8s ease-in-out infinite;
+}
+.shn-word {
+  font-weight: 650; letter-spacing: 0.01em;
+  background: linear-gradient(100deg, #e9a92a 0%, #ffd86b 35%, #fff8dc 48%, #ffd86b 60%, #e9a92a 100%) 0 0 / 250% 100%;
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  animation: shn-shine 4.5s ease-in-out infinite;
+}
+.shn-bal {
+  margin-left: auto; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 650; white-space: nowrap;
+  font-variant-numeric: tabular-nums; color: #ffd86b; background: rgba(255, 216, 107, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 216, 107, 0.28);
+}
+@keyframes shn-shine { 0%, 55% { background-position: 100% 0; } 100% { background-position: -150% 0; } }
+@keyframes shn-twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.6) rotate(0deg); } 45% { opacity: 1; transform: scale(1.15) rotate(45deg); } 60% { opacity: 0.6; transform: scale(0.9) rotate(60deg); } }
+@keyframes shn-swing { 25% { transform: rotate(-12deg); } 50% { transform: rotate(9deg); } 75% { transform: rotate(-5deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .shn-word, .shn-spark, .shn-item:hover .shn-ic svg { animation: none !important; }
+}

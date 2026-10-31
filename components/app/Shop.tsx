@@ -6,6 +6,7 @@ import { currentMonth, nowMs } from "@/lib/crm/dates";
 import { fmtInt, plural, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, PageHead, Seg } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
+import { Select, type Opt } from "@/components/ui/select";
 import { bestGrade, type Painter } from "@/lib/pixels";
 import {
   CATALOG,
@@ -72,27 +73,24 @@ export function ShopSync() {
   return null;
 }
 
-/** Кому подарить: выбор коллеги прямо в окне подтверждения (системный список — окно поверх всего). */
-function GiftPick({ options, onPick }: { options: { value: string; label: string; hint?: string }[]; onPick: (id: string) => void }) {
+/** Кому подарить: выбор коллеги прямо в окне подтверждения — наш список с поиском и аватарками. */
+function GiftPick({ options, onPick }: { options: Opt[]; onPick: (id: string) => void }) {
   const [v, setV] = useState("");
   return (
-    <select
-      className="inp"
-      style={{ width: "100%", marginTop: 10 }}
+    <Select
       value={v}
+      options={options}
+      searchable
       autoFocus
-      onChange={(e) => {
-        setV(e.target.value);
-        onPick(e.target.value);
+      placeholder="Кому подарить…"
+      width="100%"
+      minPopWidth={320}
+      style={{ marginTop: 10 }}
+      onChange={(x) => {
+        setV(x);
+        onPick(x);
       }}
-    >
-      <option value="">Кому подарить…</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.hint ? `${o.label} · ${o.hint}` : o.label}
-        </option>
-      ))}
-    </select>
+    />
   );
 }
 
@@ -191,14 +189,14 @@ export function Shop() {
       full.accounts
         .filter((a) => !a.deletedAt && a.active && a.id !== myId)
         .sort((a, b) => a.name.localeCompare(b.name, "ru"))
-        .map((a) => ({ value: a.id, label: a.name, hint: a.role === "head" ? "РОП" : a.role === "supervisor" ? "СВ" : undefined })),
+        .map((a): Opt => ({ value: a.id, label: a.name, hint: a.role === "head" ? "РОП" : a.role === "supervisor" ? "СВ" : undefined, icon: <Avatar name={a.name} id={a.id} size={20} /> })),
     [full.accounts, myId],
   );
 
   const gift = async (it: Item) => {
     const price = priceOf(it, today)!;
     let to = "";
-    const options = colleagues.map((c) => (rows.some((r) => r.ownerId === c.value && r.item === it.id) ? { ...c, hint: "уже есть" } : c));
+    const options = colleagues.map((c) => (rows.some((r) => r.ownerId === c.value && r.item === it.id) ? { ...c, hint: "уже есть", disabled: true } : c));
     const ok = await confirm({
       title: `Подарить «${it.name}»`,
       text: (

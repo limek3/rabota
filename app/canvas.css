@@ -183,20 +183,9 @@
   84% { background: #06b6d4; opacity: 1; }
 }
 
-/* лёгкая «рамка-радуга» вокруг пункта, пока на нём не стоишь */
-.pxn-item { position: relative; }
-.pxn-item:not([aria-current="page"])::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
-  background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981, #3b82f6, #a855f7, #ef4444) 0 0 / 200% 100%;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  opacity: 0.55; animation: pxn-border 4s linear infinite;
-}
-.pxn-item:hover::before { opacity: 0.9; }
-@keyframes pxn-border { to { background-position: 200% 0; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .pxn-word, .pxn-spark, .pxn-ic i, .pxn-item::before, [data-gold] { animation: none !important; }
+  .pxn-word, .pxn-spark, .pxn-ic i, [data-gold] { animation: none !important; }
 }
 
 /* ── чат холста (components/app/CanvasChat.tsx): над «Художниками», высота фиксированная — листается внутри ── */

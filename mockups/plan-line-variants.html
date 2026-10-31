@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Шкала плана — 10 вариантов</title>
+<style>
+/* ── токены как в CRM (app/theme.css) ── */
+:root, :root[data-theme="light"] {
+  --bg: #f3f2f8; --panel: #ffffff; --sunken: #f6f5fb; --line: #e7e5ef; --line2: #dcd9e7;
+  --text: #17152b; --sub: #5e5b74; --dim: #8f8ca5; --ink: 23 21 43;
+  --brand: #6a45f5; --brand-soft: #8466ff;
+  --green: #0f7a48; --green-2: #2fb27a; --green-bg: #e7f6ee; --green-bd: #c0e6d0;
+  --amber: #9c5800; --amber-bg: #fff4e2; --amber-bd: #f6dcae;
+  --red: #cc2f47; --red-bg: #fdecef; --red-bd: #f6c9d1;
+}
+:root[data-theme="dark"] {
+  --bg: #111019; --panel: #191823; --sunken: #14131d; --line: #282736; --line2: #32313f;
+  --text: #edecf4; --sub: #a3a1b6; --dim: #737188; --ink: 237 236 244;
+  --brand: #8466ff; --brand-soft: #a58dff;
+  --green: #5fd39a; --green-2: #3fae7a; --green-bg: color-mix(in srgb, #5fd39a 12%, #191823); --green-bd: color-mix(in srgb, #5fd39a 30%, #191823);
+  --amber: #ecbb62; --amber-bg: color-mix(in srgb, #ecbb62 12%, #191823); --amber-bd: color-mix(in srgb, #ecbb62 32%, #191823);
+  --red: #ff8596; --red-bg: color-mix(in srgb, #ff8596 13%, #191823); --red-bd: color-mix(in srgb, #ff8596 30%, #191823);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 Inter, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+.num, b { font-variant-numeric: tabular-nums; }
+
+/* ── шапка стенда ── */
+.top { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 24px; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.top h1 { margin: 0; font-size: 16px; font-weight: 800; }
+.top p { margin: 0; color: var(--dim); font-size: 12px; }
+.sp { flex: 1; }
+.tabs { display: flex; max-width: 100%; overflow-x: auto; gap: 3px; padding: 3px; border-radius: 10px; background: rgb(var(--ink) / .05); box-shadow: inset 0 0 0 1px var(--line); }
+.tabs button { height: 28px; padding: 0 11px; border: 0; border-radius: 7px; background: transparent; color: var(--sub); font-weight: 600; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.tabs button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 0 0 1px var(--line); }
+.facts { padding: 10px 24px 0; color: var(--sub); font-size: 12px; }
+.facts b { color: var(--text); }
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 18px 24px 60px; display: grid; gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px 20px; }
+.card h2 { margin: 0; font-size: 14px; font-weight: 800; display: flex; align-items: baseline; gap: 8px; }
+.card h2 i { font-style: normal; color: var(--brand); font-size: 12px; font-weight: 800; }
+.card .idea { margin: 3px 0 16px; color: var(--sub); font-size: 12px; max-width: 760px; }
+.stage { margin: 0 auto; width: 100%; transition: max-width .3s; }
+body.narrow .stage { max-width: 380px; }
+@media (max-width: 640px) {
+  .top { padding: 12px 16px; } .facts { padding: 10px 16px 0; } .wrap { padding: 14px 16px 40px; } .card { padding: 14px 14px 16px; }
+  .v5 .lane { grid-template-columns: 78px 1fr; }
+}
+
+/* ── общее: ряд подписей без наложений (раскладывает JS) ── */
+.row { position: relative; height: 32px; }
+.lb { position: absolute; top: 0; white-space: nowrap; font-size: 11px; color: var(--sub); line-height: 1.15; }
+.lb b { font-size: 13px; color: var(--text); font-weight: 800; }
+.lb.dropped { top: 15px; }
+.sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
+.ok { color: var(--green) !important; }
+.bad { color: var(--red) !important; }
+
+/* 1. Два этажа */
+.v1 .row.up .lb { top: 4px; }
+.v1 .row.up .lb::after { content: ""; position: absolute; left: var(--off); bottom: -7px; width: 1px; height: 6px; background: var(--line2); }
+.v1 .row.dn .lb { top: 7px; }
+.v1 .row.dn .lb::before { content: ""; position: absolute; left: var(--off); top: -7px; width: 1px; height: 6px; background: var(--line2); }
+.v1 .bar { position: relative; height: 10px; border-radius: 6px; background: rgb(var(--ink) / .07); }
+.v1 .fill { position: absolute; inset: 0 auto 0 0; border-radius: 6px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 30%, transparent), var(--c)); }
+.v1 .hatch { position: absolute; top: 0; bottom: 0; border-radius: 0 6px 6px 0; background: repeating-linear-gradient(135deg, rgb(var(--ink) / .22) 0 1.2px, transparent 1.2px 5px); }
+.v1 .mk { position: absolute; top: -4px; bottom: -4px; width: 2px; transform: translateX(-50%); background: var(--text); border-radius: 1px; }
+.v1 .mk.s { width: 2px; top: 0; bottom: -4px; background: var(--text); opacity: .7; }
+.v1 .pill { padding: 2px 7px; border-radius: 5px; background: rgb(var(--ink) / .06); font-size: 10.5px; }
+.v1 .delta { margin-left: 4px; font-weight: 800; font-size: 11px; }
+
+/* 2. Дневные нормы */
+.v2 .head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.v2 .head .big { font-size: 13px; color: var(--sub); }
+.v2 .head .big b { font-size: 20px; color: var(--text); margin-right: 3px; }
+.v2 .cells { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 3px; height: 18px; position: relative; }
+.v2 .cell { position: relative; border-radius: 4px; background: rgb(var(--ink) / .07); overflow: hidden; }
+.v2 .cell > i { position: absolute; inset: 0 auto 0 0; background: var(--c); border-radius: 4px; }
+.v2 .cell.ghost > i { background: repeating-linear-gradient(135deg, rgb(var(--ink) / .25) 0 1.2px, transparent 1.2px 4px); }
+.v2 .cell.over { background: color-mix(in srgb, var(--green) 18%, transparent); }
+.v2 .today { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--text); transform: translateX(-50%); border-radius: 1px; }
+.v2 .foot { display: flex; justify-content: space-between; margin-top: 6px; color: var(--dim); font-size: 11px; }
+
+/* 3. Разрыв-акцент */
+.v3 .line { display: flex; align-items: center; gap: 12px; }
+.v3 .end { font-size: 11px; color: var(--sub); white-space: nowrap; text-align: right; }
+.v3 .end b { display: block; font-size: 15px; color: var(--text); }
+.v3 .bar { position: relative; flex: 1; height: 14px; border-radius: 8px; background: rgb(var(--ink) / .07); }
+.v3 .base { position: absolute; inset: 0 auto 0 0; border-radius: 8px 0 0 8px; background: color-mix(in srgb, var(--c) 40%, transparent); }
+.v3 .gapseg { position: absolute; top: -3px; bottom: -3px; border-radius: 4px; min-width: 6px; }
+.v3 .gapseg.up { background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 20%, transparent); }
+.v3 .gapseg.dn { background: repeating-linear-gradient(135deg, var(--red) 0 3px, color-mix(in srgb, var(--red) 55%, transparent) 3px 6px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent); }
+.v3 .ghost { position: absolute; top: 3px; bottom: 3px; border: 1.5px dashed rgb(var(--ink) / .35); border-left: 0; border-radius: 0 6px 6px 0; }
+.v3 .row.up { height: 40px; }
+.v3 .bubble { padding: 5px 9px; border-radius: 8px; font-size: 12px; font-weight: 700; color: #fff; }
+.v3 .bubble::after { content: ""; position: absolute; left: var(--off); bottom: -5px; width: 10px; height: 10px; transform: translateX(-50%) rotate(45deg); background: inherit; border-radius: 2px; }
+.v3 .bubble small { font-weight: 500; opacity: .85; margin-left: 4px; }
+.v3 .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 11.5px; color: var(--sub); }
+.v3 .legend b { color: var(--text); }
+
+/* 4. Bullet-график */
+.v4 .bul { position: relative; height: 30px; border-radius: 6px; overflow: hidden; }
+.v4 .band { position: absolute; top: 0; bottom: 0; }
+.v4 .meas { position: absolute; top: 10px; height: 10px; left: 0; border-radius: 0 3px 3px 0; background: var(--c); }
+.v4 .fc { position: absolute; top: 14px; height: 2px; background: var(--c); opacity: .55; }
+.v4 .fc::after { content: ""; position: absolute; right: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--c); background: var(--panel); }
+.v4 .cmp { position: absolute; top: 4px; bottom: 4px; width: 3px; background: var(--text); transform: translateX(-50%); border-radius: 2px; }
+.v4 .goal { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--brand); transform: translateX(-50%); }
+.v4 .axis { position: relative; height: 16px; margin-top: 3px; }
+.v4 .axis span { position: absolute; transform: translateX(-50%); font-size: 10px; color: var(--dim); }
+.v4 .keys { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; font-size: 12px; color: var(--sub); }
+.v4 .keys b { color: var(--text); font-size: 13px; margin-left: 3px; }
+.v4 .k { display: inline-flex; align-items: center; gap: 6px; }
+.v4 .k i { display: inline-block; }
+
+/* 5. Дорожки */
+.v5 .lanes { position: relative; display: grid; gap: 7px; }
+.v5 .lane { display: grid; grid-template-columns: 112px 1fr; align-items: center; gap: 10px; }
+body.narrow .v5 .lane { grid-template-columns: 78px 1fr; }
+.v5 .ln { font-size: 11.5px; color: var(--sub); white-space: nowrap; }
+.v5 .tr { position: relative; height: 20px; border-radius: 6px; background: rgb(var(--ink) / .05); }
+.v5 .b { position: absolute; inset: 0 auto 0 0; border-radius: 6px; display: flex; align-items: center; justify-content: flex-end; padding-right: 7px; font-size: 11.5px; font-weight: 800; color: #fff; min-width: 34px; }
+.v5 .b.out { justify-content: flex-start; }
+.v5 .b.out span { position: absolute; left: calc(100% + 6px); color: var(--text); }
+.v5 .b.f { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), var(--c)); }
+.v5 .b.s { background: rgb(var(--ink) / .22); color: var(--text); }
+.v5 .b.r { background: transparent; border: 1.5px dashed rgb(var(--ink) / .35); color: var(--sub); }
+.v5 .planline { position: absolute; top: -16px; bottom: 0; width: 0; border-left: 2px dashed var(--brand); }
+.v5 .planline span { position: absolute; top: -2px; left: 5px; font-size: 10.5px; color: var(--brand); font-weight: 700; white-space: nowrap; }
+.v5 .planline.r span { left: auto; right: 5px; }
+
+/* 6. Накопление по дням */
+.v6 .plot { display: grid; grid-template-columns: 1fr 96px; gap: 8px; }
+.v6 .cv { position: relative; }
+.v6 svg { display: block; width: 100%; height: 120px; overflow: visible; }
+.v6 .rc { position: relative; height: 120px; }
+.v6 .rc div { position: absolute; left: 0; transform: translateY(-50%); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.v6 .rc div::before { content: ""; position: absolute; left: -8px; top: 50%; width: 6px; border-top: 1px dashed currentColor; opacity: .6; }
+.v6 .fl-l { position: absolute; transform: translate(-100%, -100%); padding: 0 8px 6px 0; font-size: 11px; color: var(--sub); white-space: nowrap; }
+.v6 .fl-l b { font-size: 13px; color: var(--text); }
+.v6 .fd { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--c); border: 2px solid var(--panel); transform: translate(-50%, -50%); }
+.v6 .gl { stroke: rgb(var(--ink) / .07); }
+.v6 .pl { stroke: var(--brand); stroke-width: 1.5; stroke-dasharray: 4 4; fill: none; }
+.v6 .fa { fill: color-mix(in srgb, var(--c) 16%, transparent); }
+.v6 .fl { stroke: var(--c); stroke-width: 2.4; fill: none; stroke-linejoin: round; }
+.v6 .rl { stroke: var(--c); stroke-width: 1.6; stroke-dasharray: 2 4; fill: none; opacity: .8; stroke-linecap: round; }
+.v6 .td { stroke: rgb(var(--ink) / .35); stroke-width: 1; stroke-dasharray: 2 3; }
+.v6 text { font-size: 10.5px; fill: var(--sub); }
+.v6 text.b { font-size: 12px; font-weight: 800; fill: var(--text); }
+.v6 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--sub); margin-top: 8px; }
+.v6 .legend b { color: var(--text); }
+
+/* 7. Бегун и призрак */
+.v7 .track { position: relative; height: 12px; border-radius: 7px; background: repeating-linear-gradient(90deg, rgb(var(--ink) / .07) 0 calc(10% - 2px), transparent calc(10% - 2px) 10%); }
+.v7 .run { position: absolute; inset: 0 auto 0 0; border-radius: 7px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 25%, transparent), var(--c)); }
+.v7 .trail { position: absolute; top: 5px; height: 2px; background: radial-gradient(circle, rgb(var(--ink) / .4) 1px, transparent 1.5px) 0 0 / 7px 2px repeat-x; }
+.v7 .row.up { height: 38px; }
+.v7 .row.dn { height: 34px; }
+.v7 .runner { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 3px; border-radius: 99px; background: var(--c); color: #fff; font-size: 12px; font-weight: 800; box-shadow: 0 4px 12px -4px var(--c); }
+.v7 .runner .av { width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,.22); display: grid; place-items: center; }
+.v7 .runner::after { content: ""; position: absolute; left: var(--off); bottom: -6px; border: 5px solid transparent; border-top-color: var(--c); transform: translateX(-50%); }
+.v7 .row.up .lb { top: 2px; }
+.v7 .row.dn .lb { top: 8px; }
+.v7 .ghostp { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 4px; border-radius: 99px; border: 1.5px dashed rgb(var(--ink) / .35); color: var(--sub); font-size: 11.5px; font-weight: 700; background: var(--panel); }
+.v7 .ghostp .av { width: 18px; height: 18px; border-radius: 50%; background: rgb(var(--ink) / .08); display: grid; place-items: center; }
+.v7 .ghostp::before { content: ""; position: absolute; left: var(--off); top: -6px; border: 5px solid transparent; border-bottom-color: rgb(var(--ink) / .35); border-top: 0; transform: translateX(-50%); }
+.v7 .flag { color: var(--brand); font-weight: 800; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.v7 .soft { font-size: 11px; color: var(--dim); font-weight: 600; }
+
+/* 8. Линейка */
+.v8 .ruler { position: relative; height: 26px; border-top: 1.5px solid rgb(var(--ink) / .35); }
+.v8 .tk { position: absolute; top: 0; width: 1px; height: 6px; background: rgb(var(--ink) / .3); }
+.v8 .tk.M { height: 11px; background: rgb(var(--ink) / .5); }
+.v8 .tk span { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-size: 9.5px; color: var(--dim); white-space: nowrap; }
+.v8 .seg { position: absolute; top: -5px; height: 8px; border-radius: 4px 4px 0 0; background: color-mix(in srgb, var(--c) 30%, transparent); }
+.v8 .fseg { position: absolute; top: -5px; height: 8px; border-radius: 0 4px 0 0; border: 1.5px dashed var(--c); border-bottom: 0; opacity: .7; }
+.v8 .plan { position: absolute; top: -26px; height: 52px; width: 2px; background: var(--brand); transform: translateX(-50%); }
+.v8 .row.up { height: 32px; }
+.v8 .row.dn { height: 28px; margin-top: -2px; }
+.v8 .tri-d::after { content: ""; position: absolute; left: var(--off); bottom: -10px; border: 6px solid transparent; border-top-color: var(--tc, var(--text)); transform: translateX(-50%); }
+.v8 .tri-u::before { content: ""; position: absolute; left: var(--off); top: -10px; border: 6px solid transparent; border-bottom-color: var(--tc, var(--text)); transform: translateX(-50%); border-top: 0; }
+.v8 .row.dn .lb { top: 6px; }
+.v8 .row.up .lb { top: 3px; }
+
+/* 9. Капсула */
+.v9 .cap { position: relative; height: 30px; border-radius: 16px; background: rgb(var(--ink) / .06); box-shadow: inset 0 1px 3px rgb(var(--ink) / .12); overflow: hidden; }
+.v9 .cf { position: absolute; inset: 0 auto 0 0; border-radius: 16px; background: linear-gradient(180deg, color-mix(in srgb, #fff 18%, var(--c)), var(--c)); display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; color: #fff; font-weight: 800; font-size: 13px; overflow: hidden; }
+.v9 .cf::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.28) 50%, transparent 70%); transform: translateX(-100%); animation: shine 3.2s ease-in-out infinite; }
+@keyframes shine { 60%, 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .v9 .cf::before { animation: none; } }
+.v9 .cf small { font-weight: 600; opacity: .85; margin-left: 5px; font-size: 11px; }
+.v9 .cr { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 30%, transparent) 0 3px, color-mix(in srgb, var(--c) 12%, transparent) 3px 7px); display: flex; align-items: center; padding-left: 8px; font-size: 11.5px; font-weight: 700; color: var(--c); white-space: nowrap; overflow: hidden; }
+.v9 .notch { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--panel); transform: translateX(-50%); }
+.v9 .goal { position: absolute; top: 4px; bottom: 4px; width: 2px; background: rgb(var(--ink) / .5); transform: translateX(-50%); border-radius: 1px; }
+.v9 .row.dn { height: 24px; }
+.v9 .row.dn .lb { top: 5px; }
+
+/* 10. Строка-предложение */
+.v10 .thin { position: relative; height: 6px; border-radius: 4px; background: rgb(var(--ink) / .07); }
+.v10 .thin i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--c); }
+.v10 .thin u { position: absolute; top: -3px; bottom: -3px; width: 2px; transform: translateX(-50%); background: var(--text); border-radius: 1px; }
+.v10 .thin s { position: absolute; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: repeating-linear-gradient(135deg, rgb(var(--ink) / .25) 0 1.2px, transparent 1.2px 5px); }
+.v10 .sent { margin-top: 10px; font-size: 13.5px; color: var(--sub); line-height: 1.7; }
+.v10 .sent b { color: var(--text); font-size: 15px; }
+.v10 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 6px; font-size: 12.5px; font-weight: 700; vertical-align: 1px; }
+.v10 .chip.ok { background: var(--green-bg); }
+.v10 .chip.bad { background: var(--red-bg); }
+.v10 .dot { color: var(--line2); margin: 0 6px; }
+/* тёмная тема: на светлых зелёном и красном белый текст не читается */
+:root[data-theme="dark"] .v9 .cf, :root[data-theme="dark"] .v5 .b.f, :root[data-theme="dark"] .v7 .runner, :root[data-theme="dark"] .v3 .bubble { color: #111019; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Шкала плана — 10 вариантов</h1>
+    <p>Факт, «должно быть к сегодня», прогноз и план — без наползающих подписей</p>
+  </div>
+  <span class="sp"></span>
+  <div class="tabs" id="scn"></div>
+  <div class="tabs" id="wd"><button data-v="wide" class="on">Широко</button><button data-v="narrow">Телефон</button></div>
+  <div class="tabs" id="th"><button data-v="light" class="on">Светлая</button><button data-v="dark">Тёмная</button></div>
+</header>
+<div class="facts" id="facts"></div>
+<main class="wrap" id="out"></main>
+
+<script>
+/* ── сценарии: план, факт, сколько рабочих дней прошло из скольких ── */
+const SC = {
+  now:    { name: "Как сейчас",     plan: 700, fact: 656, day: 20.6, days: 22, seed: 3 },
+  behind: { name: "Отстаём",        plan: 700, fact: 540, day: 20.6, days: 22, seed: 5 },
+  start:  { name: "Начало месяца",  plan: 700, fact: 70,  day: 2.6,  days: 22, seed: 7 },
+  over:   { name: "Перевыполнили",  plan: 700, fact: 742, day: 20.6, days: 22, seed: 9 },
+};
+let cur = "now";
+
+const fmt = (n) => Math.round(n).toLocaleString("ru-RU");
+const sg = (n) => (Math.round(n) > 0 ? "+" : Math.round(n) < 0 ? "−" : "±") + fmt(Math.abs(n));
+const pc = (x) => Math.round(x * 100) + "%";
+const lw = (n) => { const a = Math.abs(Math.round(n)) % 100, b = a % 10; return a > 10 && a < 20 ? "лидов" : b === 1 ? "лид" : b >= 2 && b <= 4 ? "лида" : "лидов"; };
+
+function ctx(s) {
+  const should = (s.plan * s.day) / s.days;
+  const rr = (s.fact / s.day) * s.days;
+  const max = Math.max(s.plan, rr, s.fact);
+  const ok = s.fact >= should - 0.5;
+  return {
+    ...s, should, rr, max, ok,
+    gap: s.fact - should,
+    pct: s.fact / s.plan,
+    rrPct: rr / s.plan,
+    daily: s.plan / s.days,
+    c: ok ? "var(--green)" : "var(--red)",
+    cls: ok ? "ok" : "bad",
+    p: (v) => Math.max(0, Math.min(100, (v / max) * 100)),
+  };
+}
+
+/* подпись ряда: x — в процентах шкалы; align c/l/r — как привязать к точке */
+const lb = (x, html, cls = "", align = "c", style = "") => `<div class="lb ${cls}" data-x="${x}" data-al="${align}" style="${style}">${html}</div>`;
+
+/* ── 1. Два этажа ───────────────────────────────────────────── */
+function v1(c) {
+  return `<div class="v1" style="--c:${c.c}">
+    <div class="row up">
+      ${lb(c.p(c.fact), `<b class="${c.cls}">${fmt(c.fact)}</b> факт <span class="delta ${c.cls}">${sg(c.gap)}</span>`)}
+      ${c.rr > c.fact ? lb(c.p(c.rr), `<span class="pill">прогноз <b style="font-size:11px">${fmt(c.rr)}</b> · ${pc(c.rrPct)}</span>`) : ""}
+    </div>
+    <div class="bar">
+      ${c.rr > c.fact ? `<div class="hatch" style="left:${c.p(c.fact)}%;width:${c.p(c.rr) - c.p(c.fact)}%"></div>` : ""}
+      <div class="fill" style="width:${c.p(c.fact)}%"></div>
+      <div class="mk s" style="left:${c.p(c.should)}%"></div>
+      <div class="mk" style="left:${c.p(c.plan)}%"></div>
+    </div>
+    <div class="row dn">
+      ${lb(0, `<b>0</b>`, "", "l")}
+      ${lb(c.p(c.should), `<b>${fmt(c.should)}</b> должно быть`)}
+      ${lb(c.p(c.plan), `<b>${fmt(c.plan)}</b> план`)}
+    </div>
+  </div>`;
+}
+
+/* ── 2. Дневные нормы: план = 22 клетки по дню ───────────────── */
+function v2(c) {
+  const n = c.days;
+  const extra = Math.max(0, Math.ceil(Math.max(c.fact, c.rr) / c.daily) - n);
+  const total = n + extra;
+  const filled = c.fact / c.daily;
+  const fc = c.rr / c.daily;
+  let cells = "";
+  for (let i = 0; i < total; i++) {
+    const f = Math.max(0, Math.min(1, filled - i));
+    const g = Math.max(0, Math.min(1, fc - i)) - f;
+    cells += `<div class="cell${i >= n ? " over" : ""}">${g > 0 ? `<i class="" style="width:100%;left:0;background:repeating-linear-gradient(135deg, rgb(var(--ink) / .25) 0 1.2px, transparent 1.2px 4px);clip-path:inset(0 ${(1 - f - g) * 100}% 0 ${f * 100}%)"></i>` : ""}${f > 0 ? `<i style="width:${f * 100}%"></i>` : ""}</div>`;
+  }
+  const dayPos = (c.day / total) * 100;
+  return `<div class="v2" style="--c:${c.c};--n:${total}">
+    <div class="head">
+      <div class="big"><b>${(filled).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}</b> из ${n} дневных норм выполнено</div>
+      <div class="big"><span class="${c.cls}" style="font-weight:800">${sg(c.gap)} ${lw(c.gap)}</span> к сегодня · день ${Math.ceil(c.day)} из ${n}</div>
+    </div>
+    <div class="cells">${cells}<div class="today" style="left:${dayPos}%"></div></div>
+    <div class="foot"><span>норма ${fmt(c.daily)} лидов в день</span><span>прогноз ${fmt(c.rr)} · ${pc(c.rrPct)} плана</span></div>
+  </div>`;
+}
+
+/* ── 3. Разрыв-акцент ──────────────────────────────────────── */
+function v3(c) {
+  const a = c.p(Math.min(c.fact, c.should)), b = c.p(Math.max(c.fact, c.should));
+  const max = c.p(c.plan);
+  const mid = (a + b) / 2;
+  return `<div class="v3" style="--c:${c.c}">
+    <div class="row up" style="margin-right:${80}px">
+      ${lb(mid, `<span class="bubble" style="background:${c.c}">${sg(c.gap)}<small>${c.ok ? "впереди плана на сегодня" : "отстаём от плана на сегодня"}</small></span>`, "", "c", "position:absolute")}
+    </div>
+    <div class="line">
+      <div class="bar">
+        <div class="base" style="width:${a}%"></div>
+        <div class="gapseg ${c.ok ? "up" : "dn"}" style="left:${a}%;width:${b - a}%"></div>
+        ${c.rr > c.fact ? `<div class="ghost" style="left:${c.p(c.fact)}%;width:${c.p(c.rr) - c.p(c.fact)}%"></div>` : ""}
+        <div style="position:absolute;top:-6px;bottom:-6px;left:${max}%;width:2px;background:var(--text);transform:translateX(-50%)"></div>
+      </div>
+      <div class="end"><b>${fmt(c.plan)}</b>план</div>
+    </div>
+    <div class="legend">
+      <span>факт <b class="${c.cls}">${fmt(c.fact)}</b></span>
+      <span>должно быть <b>${fmt(c.should)}</b></span>
+      <span>прогноз <b>${fmt(c.rr)}</b> (${pc(c.rrPct)})</span>
+    </div>
+  </div>`;
+}
+
+/* ── 4. Bullet-график ──────────────────────────────────────── */
+function v4(c) {
+  const b1 = c.p(c.plan * 0.8), b2 = c.p(c.plan);
+  const ticks = [];
+  const step = c.max > 600 ? 100 : 50;
+  for (let v = 0; v <= c.max; v += step) ticks.push(`<span style="left:${c.p(v)}%">${fmt(v)}</span>`);
+  return `<div class="v4" style="--c:${c.c}">
+    <div class="bul">
+      <div class="band" style="left:0;width:${b1}%;background:rgb(var(--ink) / .05)"></div>
+      <div class="band" style="left:${b1}%;width:${b2 - b1}%;background:rgb(var(--ink) / .09)"></div>
+      <div class="band" style="left:${b2}%;right:0;background:color-mix(in srgb, var(--green) 14%, transparent)"></div>
+      ${c.rr > c.fact ? `<div class="fc" style="left:${c.p(c.fact)}%;width:${c.p(c.rr) - c.p(c.fact)}%"></div>` : ""}
+      <div class="meas" style="width:${c.p(c.fact)}%"></div>
+      <div class="cmp" style="left:${c.p(c.should)}%"></div>
+      <div class="goal" style="left:${b2}%"></div>
+    </div>
+    <div class="axis">${ticks.join("")}</div>
+    <div class="keys">
+      <span class="k"><i style="width:14px;height:8px;border-radius:2px;background:${c.c}"></i>факт<b class="${c.cls}">${fmt(c.fact)}</b></span>
+      <span class="k"><i style="width:3px;height:12px;border-radius:2px;background:var(--text)"></i>должно быть<b>${fmt(c.should)}</b></span>
+      <span class="k"><i style="width:9px;height:9px;border-radius:50%;border:2px solid ${c.c}"></i>прогноз<b>${fmt(c.rr)}</b> <span style="color:var(--dim)">${pc(c.rrPct)}</span></span>
+      <span class="k"><i style="width:2px;height:12px;background:var(--brand)"></i>план<b>${fmt(c.plan)}</b></span>
+    </div>
+  </div>`;
+}
+
+/* ── 5. Дорожки ────────────────────────────────────────────── */
+function v5(c) {
+  const lane = (name, v, cls) => {
+    const w = c.p(v);
+    return `<div class="lane"><div class="ln">${name}</div><div class="tr"><div class="b ${cls}${w < 14 ? " out" : ""}" style="width:${w}%"><span>${fmt(v)}</span></div></div></div>`;
+  };
+  const pp = c.p(c.plan);
+  return `<div class="v5" style="--c:${c.c}">
+    <div class="lanes" style="padding-top:16px">
+      ${lane(`Факт <b class="${c.cls}" style="margin-left:2px">${sg(c.gap)}</b>`, c.fact, "f")}
+      ${lane("Должно быть", c.should, "s")}
+      ${lane("Прогноз", c.rr, "r")}
+      <div style="position:absolute;inset:0 0 0 0;pointer-events:none;display:grid;grid-template-columns:${document.body.classList.contains("narrow") ? 78 : 112}px 1fr;gap:10px">
+        <span></span><div style="position:relative"><div class="planline${pp > 80 ? " r" : ""}" style="left:${pp}%"><span>план ${fmt(c.plan)}</span></div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── 6. Накопление по дням ─────────────────────────────────── */
+function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function v6(c) {
+  const W = 1000, H = 120, L = 6, R = 4, T = 26, B = 8;
+  const r = rng(c.seed);
+  const full = Math.floor(c.day);
+  const ws = Array.from({ length: full }, () => 0.6 + r() * 0.8);
+  const part = c.day - full;
+  const sum = ws.reduce((a, b) => a + b, 0) + part;
+  const pts = [[0, 0]];
+  let acc = 0;
+  ws.forEach((w, i) => { acc += (w / sum) * c.fact; pts.push([i + 1, acc]); });
+  pts.push([c.day, c.fact]);
+  const ymax = Math.max(c.plan, c.rr, c.fact) * 1.05;
+  const X = (d) => L + (d / c.days) * (W - L - R);
+  const Y = (v) => H - B - (v / ymax) * (H - T - B);
+  const path = pts.map(([d, v], i) => `${i ? "L" : "M"}${X(d).toFixed(1)},${Y(v).toFixed(1)}`).join("");
+  const area = `${path}L${X(c.day)},${Y(0)}L${X(0)},${Y(0)}Z`;
+  // подписи справа — раздвигаем по вертикали, если близко
+  const lbls = [
+    { y: Y(c.plan), t: `план ${fmt(c.plan)}`, cl: "", col: "var(--brand)" },
+    { y: Y(c.rr), t: `прогноз ${fmt(c.rr)}`, cl: "", col: "var(--sub)" },
+  ].sort((a, b) => a.y - b.y);
+  if (lbls[1].y - lbls[0].y < 13) { const m = (lbls[0].y + lbls[1].y) / 2; lbls[0].y = m - 6.5; lbls[1].y = m + 6.5; }
+  const grid = [0.25, 0.5, 0.75, 1].map((k) => `<line class="gl" x1="${L}" x2="${W - R}" y1="${Y(c.plan * k)}" y2="${Y(c.plan * k)}"/>`).join("");
+  const fx = X(c.day), fy = Y(c.fact);
+  return `<div class="v6" style="--c:${c.c}">
+    <div class="plot">
+      <div class="cv">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+          ${grid}
+          <line class="pl" x1="${X(0)}" y1="${Y(0)}" x2="${X(c.days)}" y2="${Y(c.plan)}" vector-effect="non-scaling-stroke"/>
+          <path class="fa" d="${area}"/>
+          <path class="fl" d="${path}" vector-effect="non-scaling-stroke"/>
+          <line class="rl" x1="${fx}" y1="${fy}" x2="${X(c.days)}" y2="${Y(c.rr)}" vector-effect="non-scaling-stroke"/>
+          <line class="td" x1="${fx}" x2="${fx}" y1="${fy}" y2="${H - B}" vector-effect="non-scaling-stroke"/>
+        </svg>
+        <div class="fd" style="left:${(fx / W) * 100}%;top:${fy}px"></div>
+        <div class="fl-l" style="left:${Math.max((fx / W) * 100, 18)}%;top:${fy}px"><b>${fmt(c.fact)}</b> сегодня <b class="${c.cls}" style="font-size:12px">${sg(c.gap)}</b></div>
+      </div>
+      <div class="rc">${lbls.map((l) => `<div style="top:${l.y}px;color:${l.col}">${l.t}</div>`).join("")}</div>
+    </div>
+    <div class="legend"><span style="color:var(--brand)">— — план по дням</span><span><b style="color:${c.c}">━</b> факт накопленно</span><span>· · · прогноз по темпу</span><span>должно быть сегодня <b>${fmt(c.should)}</b></span></div>
+  </div>`;
+}
+
+/* ── 7. Бегун и призрак ────────────────────────────────────── */
+const icoRun = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M4 22l5-6 3 2 2-5 4 3 2-1"/><path d="M8 12l3-4 4 1 2 4"/></svg>`;
+const icoFlag = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4"/><path d="M4 4h12l-2 4 2 4H4"/></svg>`;
+function v7(c) {
+  return `<div class="v7" style="--c:${c.c}">
+    <div class="row up">
+      ${lb(c.p(c.fact), `<span class="runner"><span class="av">${icoRun}</span>${fmt(c.fact)} <span style="opacity:.85;font-weight:600">${sg(c.gap)}</span></span>`)}
+      ${lb(c.p(c.plan), `<span class="flag">${icoFlag}${fmt(c.plan)}</span>`, "", c.p(c.plan) > 92 ? "r" : "c")}
+    </div>
+    <div class="track">
+      ${c.rr > c.fact ? `<div class="trail" style="left:${c.p(c.fact)}%;width:${c.p(c.rr) - c.p(c.fact)}%"></div>` : ""}
+      <div class="run" style="width:${c.p(c.fact)}%"></div>
+      <div style="position:absolute;top:-4px;bottom:-4px;left:${c.p(c.plan)}%;width:2px;background:var(--brand);transform:translateX(-50%)"></div>
+    </div>
+    <div class="row dn">
+      ${lb(c.p(c.should), `<span class="ghostp"><span class="av">${icoRun}</span>${fmt(c.should)} <span class="soft">должно быть</span></span>`)}
+      ${c.rr > c.fact ? lb(c.p(c.rr), `<span class="soft">финиш по темпу ≈ <b style="font-size:11.5px;color:var(--text)">${fmt(c.rr)}</b></span>`) : ""}
+    </div>
+  </div>`;
+}
+
+/* ── 8. Линейка ────────────────────────────────────────────── */
+function v8(c) {
+  const step = c.max > 600 ? 50 : 25;
+  let tks = "";
+  for (let v = 0; v <= c.max + 0.1; v += step) {
+    const M = v % (step * 2) === 0;
+    // число у черты плана не пишем — его закрывает черта
+    const lab = M && !document.body.classList.contains("narrow") && Math.abs(c.p(v) - c.p(c.plan)) > 4;
+    tks += `<div class="tk${M ? " M" : ""}" style="left:${c.p(v)}%">${lab ? `<span>${fmt(v)}</span>` : ""}</div>`;
+  }
+  return `<div class="v8" style="--c:${c.c}">
+    <div class="row up">
+      ${lb(c.p(c.fact), `<b class="${c.cls}">${fmt(c.fact)}</b> факт`, "tri-d", "c", `--tc:${c.c}`)}
+      ${c.rr > c.fact ? lb(c.p(c.rr), `прогноз <b style="font-size:12px">${fmt(c.rr)}</b>`, "", "c") : ""}
+    </div>
+    <div class="ruler">
+      ${tks}
+      <div class="seg" style="left:0;width:${c.p(c.fact)}%"></div>
+      ${c.rr > c.fact ? `<div class="fseg" style="left:${c.p(c.fact)}%;width:${c.p(c.rr) - c.p(c.fact)}%"></div>` : ""}
+      <div class="plan" style="left:${c.p(c.plan)}%"></div>
+    </div>
+    <div class="row dn">
+      ${lb(c.p(c.should), `<b>${fmt(c.should)}</b> должно быть`, "tri-u")}
+      ${lb(c.p(c.plan), `<b style="color:var(--brand)">${fmt(c.plan)}</b> план`)}
+    </div>
+  </div>`;
+}
+
+/* ── 9. Капсула ────────────────────────────────────────────── */
+function v9(c) {
+  const f = c.p(c.fact), r = c.p(c.rr);
+  return `<div class="v9" style="--c:${c.c}">
+    <div class="cap">
+      ${c.rr > c.fact ? `<div class="cr" style="left:${f}%;width:${r - f}%">${r - f > 9 ? `→ ${fmt(c.rr)}` : ""}</div>` : ""}
+      <div class="cf" style="width:${f}%">${f > 18 ? `${fmt(c.fact)}<small>${pc(c.pct)}</small>` : ""}</div>
+      <div class="notch" style="left:${c.p(c.should)}%"></div>
+      <div class="goal" style="left:${c.p(c.plan)}%"></div>
+    </div>
+    <div class="row dn">
+      ${f <= 18 ? lb(f, `<b class="${c.cls}">${fmt(c.fact)}</b> факт`, "", "l") : ""}
+      ${lb(c.p(c.should), `▲ должно быть <b style="font-size:11.5px">${fmt(c.should)}</b> · <span class="${c.cls}" style="font-weight:800">${sg(c.gap)}</span>`)}
+      ${lb(c.p(c.plan), `план <b style="font-size:11.5px">${fmt(c.plan)}</b>`, "", "r")}
+    </div>
+  </div>`;
+}
+
+/* ── 10. Строка-предложение ────────────────────────────────── */
+function v10(c) {
+  const done = c.rrPct >= 0.995;
+  return `<div class="v10" style="--c:${c.c}">
+    <div class="thin">
+      ${c.rr > c.fact ? `<s style="left:${c.p(c.fact)}%;width:${c.p(c.rr) - c.p(c.fact)}%"></s>` : ""}
+      <i style="width:${c.p(c.fact)}%"></i>
+      <u style="left:${c.p(c.should)}%"></u>
+      <u style="left:${c.p(c.plan)}%;background:var(--brand)"></u>
+    </div>
+    <div class="sent">
+      <b>${fmt(c.fact)}</b> из ${fmt(c.plan)} <span class="dot">•</span>
+      <span class="chip ${c.cls}">${sg(c.gap)} ${lw(c.gap)}</span> к плану на сегодня (должно быть ${fmt(c.should)}) <span class="dot">•</span>
+      к концу месяца ≈ <b>${fmt(c.rr)}</b> <span class="chip ${done ? "ok" : "bad"}">${pc(c.rrPct)}${done ? " ✓" : ""}</span>
+    </div>
+  </div>`;
+}
+
+const VARIANTS = [
+  ["Два этажа", "Факт и прогноз — над шкалой, «должно быть» и план — под ней. Близкие числа оказываются на разных этажах и не сталкиваются; в одном ряду подписи раздвигаются сами, а усик показывает, к какой точке относится подпись.", v1],
+  ["Дневные нормы", "План разбит на клетки — по одной на рабочий день. Видно, сколько «дней работы» уже сделано и где сегодня. Числа вынесены в шапку и подвал, на шкале подписей нет вовсе.", v2],
+  ["Разрыв-акцент", "Главное — разница факта и «должно быть»: этот кусок выделен цветом, над ним пузырь «+1 впереди». Остальные числа — легендой под шкалой, план — справа отдельно.", v3],
+  ["Bullet-график", "Классика дашбордов: фоновые зоны (до 80% плана, до плана, сверх плана), толстая полоса факта, вертикальная черта «должно быть», кружок прогноза. Подписи — ключами в строку, наложений быть не может.", v4],
+  ["Дорожки", "Три отдельные полосы: факт, должно быть, прогноз — у каждой свой ряд и число на конце. Пунктирная вертикаль — план. Сравнение «глазами», даже если числа совпадают.", v5],
+  ["Накопление по дням", "Мини-график: факт копится по дням, пунктир — план по дням, точки — куда придём по темпу. Видно не только «сколько», но и как шли: провалы, рывки.", v6],
+  ["Бегун и призрак", "Факт — «бегун» над дорожкой, «должно быть» — пунктирный «призрак» под ней, флажок — план. Игровая подача, но цифры читаются сразу.", v7],
+  ["Линейка", "Шкала с делениями, как у линейки. Треугольник сверху — факт, снизу — «должно быть»; план — фиолетовая черта насквозь. Точно и строго.", v8],
+  ["Капсула", "Толстая капсула с бликом: факт и % плана — прямо внутри заливки, прогноз — штриховкой с «→ 701». «Должно быть» — вырез в заливке с подписью снизу.", v9],
+  ["Строка-предложение", "Тонкая полоса и одна фраза: «656 из 700 • +1 к плану на сегодня • к концу месяца ≈ 701 (100%)». Ничего не позиционируется — нечему наползать.", v10],
+];
+
+/* раскладка подписей в ряду: по точке, без наложений; не влезают — вторая строка */
+function layoutRow(row) {
+  const W = row.clientWidth;
+  const GAP = 8;
+  const ms = [...row.querySelectorAll(":scope > .lb")].map((el) => {
+    el.classList.remove("dropped");
+    const w = el.offsetWidth;
+    const x = (parseFloat(el.dataset.x) / 100) * W;
+    const al = el.dataset.al;
+    const l = al === "l" ? x : al === "r" ? x - w : x - w / 2;
+    return { el, w, x, l: Math.max(0, Math.min(W - w, l)) };
+  }).sort((a, b) => a.x - b.x);
+  for (let i = 1; i < ms.length; i++) { const p = ms[i - 1]; if (ms[i].l < p.l + p.w + GAP) ms[i].l = p.l + p.w + GAP; }
+  for (let i = ms.length - 1; i >= 0; i--) { const lim = i === ms.length - 1 ? W : ms[i + 1].l - GAP; if (ms[i].l + ms[i].w > lim) ms[i].l = lim - ms[i].w; }
+  // всё равно не влезли — каждую вторую подпись опускаем строкой ниже
+  if (ms.length && ms[0].l < 0) {
+    ms.forEach((m) => { m.l = Math.max(0, Math.min(W - m.w, m.el.dataset.al === "l" ? m.x : m.el.dataset.al === "r" ? m.x - m.w : m.x - m.w / 2)); });
+    ms.forEach((m, i) => { if (i % 2) m.el.classList.add("dropped"); });
+  }
+  ms.forEach((m) => { m.el.style.left = m.l + "px"; m.el.style.setProperty("--off", Math.max(4, Math.min(m.w - 4, m.x - m.l)) + "px"); });
+}
+
+function render() {
+  const c = ctx(SC[cur]);
+  document.getElementById("facts").innerHTML = `Сценарий «${SC[cur].name}»: план <b>${fmt(c.plan)}</b> · факт <b>${fmt(c.fact)}</b> · должно быть к сегодня <b>${fmt(c.should)}</b> · прогноз <b>${fmt(c.rr)}</b> (${pc(c.rrPct)}) · рабочий день ${Math.ceil(c.day)} из ${c.days}`;
+  document.getElementById("out").innerHTML = VARIANTS.map(([t, idea, fn], i) => `<section class="card"><h2><i>${i + 1}</i>${t}</h2><p class="idea">${idea}</p><div class="stage">${fn(c)}</div></section>`).join("");
+  document.querySelectorAll(".row").forEach(layoutRow);
+}
+
+const scn = document.getElementById("scn");
+scn.innerHTML = Object.entries(SC).map(([k, s]) => `<button data-v="${k}" class="${k === cur ? "on" : ""}">${s.name}</button>`).join("");
+const tab = (id, on) => document.getElementById(id).addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b));
+  on(b.dataset.v); render();
+});
+tab("scn", (v) => (cur = v));
+tab("wd", (v) => document.body.classList.toggle("narrow", v === "narrow"));
+tab("th", (v) => (document.documentElement.dataset.theme = v));
+addEventListener("resize", () => document.querySelectorAll(".row").forEach(layoutRow));
+render();
+setTimeout(() => document.querySelectorAll(".row").forEach(layoutRow), 300);
+</script>
+</body>
+</html>

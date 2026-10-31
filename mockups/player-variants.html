@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Мини-плеер — 5 вариантов</title>
+<style>
+/* ── токены как в CRM (app/theme.css) ── */
+:root, :root[data-theme="dark"] {
+  --bg: #111019; --panel: #191823; --modal: #1d1c29; --sunken: #14131d; --line: #282736; --line2: #32313f;
+  --text: #edecf4; --sub: #a3a1b6; --dim: #737188; --ink: 237 236 244;
+  --brand: #8466ff; --brand-soft: #a58dff;
+  --green: #5fd39a; --green-bg: color-mix(in srgb, #5fd39a 12%, #191823); --green-bd: color-mix(in srgb, #5fd39a 30%, #191823);
+  --amber: #ecbb62; --amber-bg: color-mix(in srgb, #ecbb62 12%, #191823); --amber-bd: color-mix(in srgb, #ecbb62 32%, #191823);
+  --red: #ff8596; --red-bg: color-mix(in srgb, #ff8596 13%, #191823); --red-bd: color-mix(in srgb, #ff8596 30%, #191823);
+  /* матовое стекло — та же полупрозрачность, что у плашки «на странице» */
+  --glass: rgba(29, 28, 41, 0.72); --glass-strong: rgba(29, 28, 41, 0.86); --glass-bd: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 0 0 1px rgba(255,255,255,.04), 0 18px 48px -14px rgba(0,0,0,.7);
+}
+:root[data-theme="light"] {
+  --bg: #f3f2f8; --panel: #ffffff; --modal: #ffffff; --sunken: #f6f5fb; --line: #e7e5ef; --line2: #dcd9e7;
+  --text: #17152b; --sub: #5e5b74; --dim: #8f8ca5; --ink: 23 21 43;
+  --brand: #6a45f5; --brand-soft: #8466ff;
+  --green: #0f7a48; --green-bg: #e7f6ee; --green-bd: #c0e6d0;
+  --amber: #9c5800; --amber-bg: #fff4e2; --amber-bd: #f6dcae;
+  --red: #cc2f47; --red-bg: #fdecef; --red-bd: #f6c9d1;
+  --glass: rgba(255, 255, 255, 0.7); --glass-strong: rgba(255, 255, 255, 0.86); --glass-bd: rgba(23, 21, 43, 0.08);
+  --glass-shadow: 0 0 0 1px rgba(23,21,43,.04), 0 18px 44px -16px rgba(23,21,43,.28);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 Inter, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ── шапка стенда ── */
+.top { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 14px; padding: 14px 24px; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.top h1 { margin: 0; font-size: 16px; font-weight: 800; }
+.top p { margin: 0; color: var(--dim); font-size: 12px; }
+.tabs { display: flex; gap: 4px; margin-left: auto; padding: 3px; border-radius: 11px; background: rgb(var(--ink) / .05); box-shadow: inset 0 0 0 1px var(--line); }
+.tabs button { height: 30px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--sub); font-weight: 600; cursor: pointer; }
+.tabs button.on { background: var(--modal); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.theme { height: 30px; padding: 0 12px; border: 0; border-radius: 9px; background: rgb(var(--ink) / .06); box-shadow: inset 0 0 0 1px var(--line); color: var(--sub); cursor: pointer; }
+
+/* ── вариант: описание, кнопки сценария, сцена ── */
+.v { display: none; padding: 18px 24px 40px; max-width: 1240px; margin: 0 auto; }
+.v.on { display: block; }
+.v-h { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 12px; }
+.v-h h2 { margin: 0 0 4px; font-size: 20px; font-weight: 800; }
+.v-h h2 em { font-style: normal; color: var(--brand-soft); }
+.v-h p { margin: 0; color: var(--sub); max-width: 680px; }
+.ctl { display: flex; gap: 6px; margin-left: auto; flex: none; }
+.ctl button { height: 34px; padding: 0 14px; border: 0; border-radius: 10px; background: rgb(var(--ink) / .06); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ctl button.pri { background: var(--brand); color: #fff; box-shadow: none; }
+
+/* фейковая страница CRM — фон, на котором видно стекло */
+.stage { position: relative; height: 640px; border-radius: 18px; overflow: hidden; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); display: grid; grid-template-columns: 190px 1fr; }
+.rail { background: linear-gradient(180deg, #1b1735, #120f24); padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; }
+.rail i { display: block; height: 12px; border-radius: 6px; background: rgba(255,255,255,.08); }
+.rail i.big { height: 30px; border-radius: 10px; background: linear-gradient(90deg, #7b5cff, #9a7dff); margin-bottom: 10px; }
+.rail i.on { background: rgba(132,102,255,.35); }
+.page { padding: 18px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.card { border-radius: 14px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); padding: 14px 16px; }
+.hero { display: grid; grid-template-columns: 1.1fr 1fr 1fr 1fr; gap: 12px; align-items: end; }
+.hero b { font-size: 34px; font-weight: 800; letter-spacing: -.02em; }
+.hero .k { border-radius: 11px; background: rgb(var(--ink) / .04); box-shadow: inset 0 0 0 1px var(--line); padding: 8px 10px; }
+.hero .k small { display: block; color: var(--dim); font-size: 11px; }
+.hero .k span { font-size: 18px; font-weight: 700; }
+.bars { display: flex; align-items: flex-end; gap: 5px; height: 90px; margin-top: 10px; }
+.bars i { flex: 1; border-radius: 4px 4px 0 0; background: #3fbf7f; }
+.bars i:nth-child(5n) { background: #e8a83a; }
+.rows { display: flex; flex-direction: column; }
+.row { display: grid; grid-template-columns: 90px 1.2fr 80px 110px 1fr 90px; gap: 10px; align-items: center; height: 44px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.row .st { justify-self: start; padding: 2px 8px; border-radius: 99px; font-size: 11.5px; font-weight: 600; }
+.st.ok { color: var(--green); background: var(--green-bg); box-shadow: inset 0 0 0 1px var(--green-bd); }
+.st.wk { color: var(--amber); background: var(--amber-bg); box-shadow: inset 0 0 0 1px var(--amber-bd); }
+.row .pj { justify-self: start; padding: 1px 7px; border-radius: 99px; font-size: 11px; color: #e8a83a; box-shadow: inset 0 0 0 1px rgba(232,168,58,.35); }
+.row .muted { color: var(--dim); }
+/* плашка «на странице» справа внизу — как в CRM */
+.here { position: absolute; right: 16px; bottom: 14px; z-index: 5; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px 0 4px; border-radius: 18px; background: var(--glass); backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-bd); font-size: 12px; font-weight: 600; }
+.here i { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #8b5cf6; color: #fff; font-size: 9.5px; font-style: normal; font-weight: 700; }
+.here em { font-style: normal; color: var(--dim); font-weight: 500; }
+
+/* ── общие части плеера ── */
+.glass { background: var(--glass); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-bd); }
+.play { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--brand); color: #fff; cursor: pointer; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--brand) 80%, transparent); transition: transform .15s; }
+.play:hover { transform: scale(1.07); }
+.play svg { display: block; }
+.ib { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--sub); cursor: pointer; transition: background .12s, color .12s; }
+.ib:hover { background: rgb(var(--ink) / .07); color: var(--text); }
+.spd { width: auto; padding: 0 7px; font-size: 11.5px; font-weight: 700; }
+.who { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.who b { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who small { color: var(--dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm { flex: none; color: var(--sub); font-size: 11.5px; }
+.eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 11px; flex: none; }
+.eq i { width: 2.5px; height: 4px; border-radius: 1px; background: var(--brand-soft); }
+.playing .eq i { animation: eq .9s ease-in-out infinite; }
+.playing .eq i:nth-child(2) { animation-delay: -.3s; } .playing .eq i:nth-child(3) { animation-delay: -.6s; }
+@keyframes eq { 0%,100% { height: 3px; } 50% { height: 11px; } }
+.line { position: relative; height: 3px; border-radius: 2px; background: rgb(var(--ink) / .08); cursor: pointer; }
+.line > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: linear-gradient(90deg, var(--brand), var(--brand-soft)); }
+/* волна записи */
+.wave { display: flex; align-items: center; gap: 2px; height: 34px; cursor: pointer; }
+.wave i { flex: 1; min-width: 2px; border-radius: 2px; background: rgb(var(--ink) / .18); transition: background .2s; }
+.wave i.done { background: var(--brand-soft); }
+
+/* форма обработки лида — внутри раскрытого плеера */
+.lf { display: flex; flex-direction: column; gap: 12px; }
+.lf-h { display: flex; align-items: flex-start; gap: 10px; }
+.lf-h .ava { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; font-weight: 800; }
+.lf-h b { display: block; font-size: 17px; font-weight: 800; }
+.lf-h small { display: block; color: var(--sub); font-size: 12px; margin-top: 2px; }
+.pj2 { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; color: #e8a83a; background: rgba(232,168,58,.12); box-shadow: inset 0 0 0 1px rgba(232,168,58,.35); margin-left: 6px; }
+.blk { border-radius: 12px; background: rgb(var(--ink) / .045); box-shadow: inset 0 0 0 1px var(--line); padding: 10px 12px; }
+.blk.rec { display: flex; flex-direction: column; gap: 6px; }
+.blk.rec .r1 { display: flex; align-items: center; gap: 10px; }
+.blk.rec .r2 { display: flex; align-items: center; gap: 8px; color: var(--dim); font-size: 11.5px; }
+.blk.rec .r2 .sp { margin-left: auto; }
+.cmt { font-size: 12.5px; color: var(--sub); }
+.cmt b { color: var(--text); }
+.car { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 8px 10px; background: var(--green-bg); box-shadow: inset 0 0 0 1px var(--green-bd); }
+.car .img { width: 52px; height: 34px; border-radius: 6px; background: linear-gradient(135deg, #e8ecf3, #9aa4b5); flex: none; }
+.car b { color: var(--green); font-size: 12.5px; }
+.car small { display: block; color: var(--sub); font-size: 11.5px; }
+.car span { margin-left: auto; color: var(--sub); font-size: 11.5px; }
+.kv { display: grid; grid-template-columns: 96px 1fr; gap: 6px 10px; font-size: 12.5px; }
+.kv dt { color: var(--dim); } .kv dd { margin: 0; }
+.sts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.sts button { height: 38px; border: 0; border-radius: 10px; background: rgb(var(--ink) / .05); box-shadow: inset 0 0 0 1px var(--line2); font-weight: 650; cursor: pointer; transition: background .15s, box-shadow .15s, color .15s, transform .12s; }
+.sts button:active { transform: scale(.97); }
+.sts .wk.on { color: var(--amber); background: var(--amber-bg); box-shadow: inset 0 0 0 1.5px var(--amber); }
+.sts .ok.on { color: var(--green); background: var(--green-bg); box-shadow: inset 0 0 0 1.5px var(--green); }
+.sts .no.on { color: var(--red); background: var(--red-bg); box-shadow: inset 0 0 0 1.5px var(--red); }
+.why { display: none; flex-wrap: wrap; gap: 5px; }
+.lf[data-st="no"] .why { display: flex; }
+.why button { height: 26px; padding: 0 10px; border: 0; border-radius: 99px; background: rgb(var(--ink) / .05); box-shadow: inset 0 0 0 1px var(--line2); font-size: 11.5px; cursor: pointer; }
+.why button.on { color: var(--red); box-shadow: inset 0 0 0 1px var(--red); background: var(--red-bg); }
+.stnote { color: var(--dim); font-size: 11.5px; }
+
+/* ═════════════ 1 · КАПСУЛА: по центру снизу, раскрывается вверх в карточку ═════════════ */
+.p1 { position: absolute; left: 50%; bottom: 14px; z-index: 10; width: 460px; border-radius: 18px; overflow: hidden;
+  transform: translate(-50%, calc(100% + 30px)); opacity: 0;
+  transition: transform .5s cubic-bezier(.2,1.15,.3,1), opacity .3s, width .45s cubic-bezier(.22,.9,.25,1), border-radius .45s; }
+.p1[data-s="mini"], .p1[data-s="open"] { transform: translate(-50%, 0); opacity: 1; }
+.p1[data-s="hidden"] { transition: transform .32s cubic-bezier(.5,0,.8,.4), opacity .3s .05s, width .45s; }
+.p1[data-s="open"] { width: 540px; border-radius: 22px; }
+.p1 .bar { display: flex; align-items: center; gap: 10px; height: 58px; padding: 0 10px 0 11px; }
+.p1 .bd { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s cubic-bezier(.22,.9,.25,1); }
+.p1[data-s="open"] .bd { grid-template-rows: 1fr; }
+.p1 .bd > div { min-height: 0; overflow: hidden; }
+.p1 .bd .lf { max-height: 470px; overflow-y: auto; padding: 4px 16px 16px; opacity: 0; transform: translateY(12px); transition: opacity .3s, transform .4s cubic-bezier(.22,.9,.25,1); }
+.p1[data-s="open"] .bd .lf { opacity: 1; transform: none; transition-delay: .12s; }
+.p1 .line { margin: 0 12px; }
+.p1[data-s="open"] .line { display: none; }
+.p1 .open-b svg { transition: transform .35s; }
+.p1[data-s="open"] .open-b svg { transform: rotate(180deg); }
+
+/* ═════════════ 2 · ДОК СПРАВА: над плашкой «на странице», раскрывается вверх как чат ═════════════ */
+.p2 { position: absolute; right: 16px; bottom: 58px; z-index: 10; width: 340px; border-radius: 16px; overflow: hidden; transform-origin: 100% 100%;
+  transform: translateY(calc(100% + 80px)) scale(.96); opacity: 0;
+  transition: transform .5s cubic-bezier(.2,1.15,.3,1), opacity .3s, width .45s cubic-bezier(.22,.9,.25,1); }
+.p2[data-s="mini"], .p2[data-s="open"] { transform: none; opacity: 1; }
+.p2[data-s="hidden"] { transition: transform .3s cubic-bezier(.5,0,.8,.4), opacity .25s .05s; }
+.p2[data-s="open"] { width: 400px; }
+.p2 .chat { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s cubic-bezier(.22,.9,.25,1); }
+.p2[data-s="open"] .chat { grid-template-rows: 1fr; }
+.p2 .chat > div { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.p2 .ch-h { display: flex; align-items: center; gap: 10px; padding: 12px 12px 10px 14px; border-bottom: 1px solid var(--glass-bd); }
+.p2 .ch-h b { font-size: 14px; font-weight: 800; flex: 1; }
+.p2 .ch-h .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 3px var(--amber-bg); }
+.p2 .lf { max-height: 400px; overflow-y: auto; padding: 12px 14px; }
+.p2 .foot { padding: 10px 14px 12px; border-top: 1px solid var(--glass-bd); display: flex; flex-direction: column; gap: 8px; background: rgb(var(--ink) / .02); }
+.p2 .bar { display: flex; align-items: center; gap: 10px; height: 60px; padding: 0 10px 0 10px; }
+.p2 .cover { width: 38px; height: 38px; flex: none; border-radius: 11px; background: linear-gradient(135deg, #f59e0b, #ef4444); display: grid; place-items: center; color: #fff; font-weight: 800; position: relative; }
+.p2 .cover .play { position: absolute; inset: 0; width: auto; height: auto; border-radius: 11px; background: rgba(0,0,0,.35); box-shadow: none; opacity: 0; transition: opacity .15s; }
+.p2 .bar:hover .cover .play, .p2.playing .cover .play { opacity: 1; }
+.p2 .line { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 0; }
+.p2[data-s="open"] .bar .line { display: none; }
+
+/* ═════════════ 3 · ПОЛОСА: на всю ширину снизу, лист лида выезжает вверх ═════════════ */
+.p3 { position: absolute; left: 190px; right: 0; bottom: 0; z-index: 10; transform: translateY(100%); transition: transform .5s cubic-bezier(.2,1.1,.3,1); }
+.p3[data-s="mini"], .p3[data-s="open"] { transform: none; }
+.p3[data-s="hidden"] { transition: transform .3s cubic-bezier(.5,0,.8,.4); }
+.p3 .sheet { position: absolute; left: 14px; right: 14px; bottom: 100%; height: 0; border-radius: 20px 20px 0 0; overflow: hidden; transition: height .5s cubic-bezier(.22,.9,.25,1); }
+.p3[data-s="open"] .sheet { height: 460px; }
+.p3 .grip { width: 44px; height: 5px; border-radius: 3px; background: rgb(var(--ink) / .2); margin: 10px auto 6px; cursor: pointer; }
+.p3 .sheet-in { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; padding: 4px 20px 18px; height: calc(100% - 21px); overflow-y: auto; }
+.p3 .bar { display: grid; grid-template-columns: auto auto minmax(160px, 260px) 1fr auto; align-items: center; gap: 14px; height: 64px; padding: 0 16px; border-radius: 0; position: relative; }
+.p3 .bar .wave { height: 26px; }
+.p3 .bar .rt { display: flex; align-items: center; gap: 4px; justify-self: end; }
+.p3 .bar .lead-b { height: 32px; padding: 0 12px; border: 0; border-radius: 10px; background: rgb(var(--ink) / .07); box-shadow: inset 0 0 0 1px var(--glass-bd); font-weight: 650; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.p3[data-s="open"] .lead-b { background: color-mix(in srgb, var(--brand) 18%, transparent); color: var(--brand-soft); }
+.stage.v3 .here { bottom: 78px; transition: bottom .5s cubic-bezier(.2,1.1,.3,1); }
+.stage.v3:not([data-s="hidden"]) .here { bottom: 78px; }
+.stage.v3[data-s="hidden"] .here { bottom: 14px; }
+
+/* ═════════════ 4 · ОСТРОВ: капсула с перемоткой, по наведению раздвигается, раскрывается в большую карточку ═════════════ */
+.p4 { position: absolute; left: 50%; bottom: 16px; z-index: 10; width: 340px; height: 60px; border-radius: 30px; overflow: hidden;
+  transform: translate(-50%, 90px) scale(.6); opacity: 0;
+  transition: transform .55s cubic-bezier(.2,1.35,.3,1), opacity .3s, width .5s cubic-bezier(.2,1.2,.3,1), height .55s cubic-bezier(.2,1.1,.3,1), border-radius .5s; }
+.p4[data-s="mini"], .p4[data-s="open"] { transform: translate(-50%, 0) scale(1); opacity: 1; }
+.p4[data-s="hidden"] { transition: transform .32s cubic-bezier(.5,0,.8,.4), opacity .25s .05s; }
+.p4[data-s="mini"]:hover, .p4[data-s="mini"]:focus-within { width: 480px; }
+.p4[data-s="open"] { width: 560px; height: 580px; border-radius: 30px; }
+/* верх: кнопка, кто на записи, время; справа по наведению — скорость, к лиду, закрыть */
+.p4 .isl { display: flex; align-items: center; gap: 10px; height: 46px; padding: 6px 8px 0 7px; }
+.p4 .isl .play { width: 36px; height: 36px; }
+.p4 .isl .who { min-width: 150px; }
+.p4 .isl .who b { font-size: 13.5px; }
+.p4 .isl .tm { font-size: 12px; }
+.p4 .isl .more { display: flex; align-items: center; gap: 2px; width: 0; overflow: hidden; opacity: 0; transition: opacity .2s, width .35s cubic-bezier(.2,1.2,.3,1); }
+.p4[data-s="mini"]:hover .isl .more, .p4[data-s="mini"]:focus-within .isl .more, .p4[data-s="open"] .isl .more { width: 104px; opacity: 1; }
+/* перемотка по низу острова: тонкая полоса; навели — толще, ярче, бегунок и время под курсором */
+.seek { position: absolute; left: 18px; right: 18px; top: 44px; height: 14px; cursor: pointer; touch-action: none; }
+.seek .trk { position: absolute; left: 0; right: 0; top: 6px; height: 3px; border-radius: 3px; background: rgb(var(--ink) / .12); transition: top .15s, height .15s, background .15s, box-shadow .15s; }
+.seek .trk i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; background: linear-gradient(90deg, var(--brand), var(--brand-soft)); }
+.seek .knob { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 45%, transparent), 0 2px 6px rgba(0,0,0,.35); transform: scale(0); transition: transform .15s cubic-bezier(.2,1.4,.3,1); }
+.seek .hov { position: absolute; top: 0; bottom: 0; left: 0; border-radius: inherit; background: rgb(var(--ink) / .14); opacity: 0; transition: opacity .15s; }
+.seek:hover .trk, .seek.drag .trk { top: 4px; height: 7px; background: rgb(var(--ink) / .16); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 12%, transparent); }
+.seek:hover .knob, .seek.drag .knob { transform: scale(1); }
+.seek:hover .hov { opacity: 1; }
+.seek.drag .hov { opacity: 0; }
+.seek .tip { position: absolute; bottom: 15px; padding: 2px 7px; border-radius: 7px; background: var(--text); color: var(--bg); font-size: 11px; font-weight: 700; white-space: nowrap; transform: translateX(-50%) translateY(3px); opacity: 0; pointer-events: none; transition: opacity .12s, transform .12s; }
+.seek:hover .tip, .seek.drag .tip { opacity: 1; transform: translateX(-50%); }
+.p4 .ring { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
+.p4.playing .ring { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brand) 50%, transparent); animation: ring 2.4s ease-in-out infinite; }
+@keyframes ring { 50% { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--brand) 15%, transparent); } }
+.p4 .big { position: absolute; left: 0; right: 0; top: 64px; bottom: 0; padding: 4px 20px 20px; opacity: 0; transform: scale(.96); transition: opacity .25s, transform .4s; overflow-y: auto; }
+.p4[data-s="open"] .big { opacity: 1; transform: none; transition-delay: .18s; }
+/* в раскрытой карточке своя запись не нужна — играет та же, перемотка уже наверху */
+.p4 .big .blk.rec { display: none; }
+
+/* ═════════════ 5 · КАПСУЛА + ЯЗЫЧОК: плеер и отдельный «Лид ↑», шторка с вкладками ═════════════ */
+.p5 { position: absolute; left: 50%; bottom: 14px; z-index: 10; display: flex; flex-direction: column; align-items: center; width: 520px; transform: translate(-50%, calc(100% + 30px)); opacity: 0; transition: transform .5s cubic-bezier(.2,1.15,.3,1), opacity .3s; }
+.p5[data-s="mini"], .p5[data-s="open"] { transform: translate(-50%, 0); opacity: 1; }
+.p5[data-s="hidden"] { transition: transform .3s cubic-bezier(.5,0,.8,.4), opacity .25s .05s; }
+.p5 .drawer { width: 100%; border-radius: 20px 20px 0 0; overflow: hidden; height: 0; opacity: 0; transition: height .5s cubic-bezier(.22,.9,.25,1), opacity .3s; margin-bottom: -1px; }
+.p5[data-s="open"] .drawer { height: 470px; opacity: 1; }
+.p5 .tabs5 { display: flex; gap: 4px; margin: 12px 14px 0; padding: 3px; border-radius: 11px; background: rgb(var(--ink) / .06); }
+.p5 .tabs5 button { flex: 1; height: 30px; border: 0; border-radius: 8px; background: transparent; color: var(--sub); font-weight: 650; cursor: pointer; }
+.p5 .tabs5 button.on { background: var(--modal); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.p5 .pane { display: none; padding: 12px 16px 16px; height: calc(100% - 50px); overflow-y: auto; }
+.p5 .pane.on { display: flex; flex-direction: column; gap: 12px; animation: paneIn .3s cubic-bezier(.22,.9,.25,1); }
+@keyframes paneIn { from { opacity: 0; transform: translateY(8px); } }
+.p5 .row5 { display: flex; align-items: stretch; gap: 6px; width: 100%; }
+.p5 .pill { flex: 1; display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 10px; border-radius: 18px; position: relative; overflow: hidden; }
+.p5[data-s="open"] .pill { border-radius: 0 0 18px 18px; }
+.p5 .tab { width: 92px; border: 0; border-radius: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; font-weight: 700; color: var(--text); }
+.p5 .tab small { font-size: 10.5px; font-weight: 500; color: var(--dim); }
+.p5 .tab svg { transition: transform .35s; }
+.p5[data-s="open"] .tab svg { transform: rotate(180deg); }
+.p5[data-s="open"] .tab { background: color-mix(in srgb, var(--brand) 20%, var(--glass)); }
+.p5 .pill .line { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 0; }
+
+@media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Мини-плеер записи — 5 вариантов</h1>
+    <p>Выезжает снизу, когда уходите со страницы лидов · раскрывается вверх в форму обработки лида · матовое стекло</p>
+  </div>
+  <nav class="tabs" id="tabs"></nav>
+  <button class="theme" id="theme" type="button">☀︎ Светлая</button>
+</header>
+<main id="main"></main>
+
+<script>
+/* ── данные лида (как в CRM) ── */
+const LEAD = { name: "Азиз", phone: "+7 (926) 847-23-00", city: "Москва", region: "основа", at: "28 окт, 18:48", op: "Усанин Д.", group: "Группа 2", project: "Авто.ру", dur: 124,
+  comment: "бмв x6, новая, Наличные, Москва, тёмно-синий, без люка, дизель, 14 млн." };
+const WAVE = Array.from({ length: 64 }, (_, k) => 26 + 60 * Math.abs(Math.sin(k * 0.55) * 0.6 + Math.sin(k * 1.7) * 0.4));
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const I = {
+  play: '<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.6 1.6 10.6 6 2.6 10.4Z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+  pause: '<svg width="12" height="12" viewBox="0 0 12 12"><rect x="2.25" y="1.5" width="2.75" height="9" rx=".8" fill="currentColor"/><rect x="7" y="1.5" width="2.75" height="9" rx=".8" fill="currentColor"/></svg>',
+  up: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
+  down: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  x: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  ext: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+};
+const eq = '<span class="eq"><i></i><i></i><i></i></span>';
+const playBtn = (cls = "") => `<button class="play ${cls}" data-a="play" type="button" aria-label="Слушать">${I.play}</button>`;
+const wave = () => `<div class="wave" data-a="seek">${WAVE.map((h) => `<i style="height:${h}%"></i>`).join("")}</div>`;
+const line = () => `<div class="line" data-a="seek"><i class="js-fill" style="width:0"></i></div>`;
+const who = () => `<div class="who"><b>${eq}${LEAD.name}</b><small>${LEAD.op} · ${LEAD.at}</small></div>`;
+const tm = () => `<span class="tm num"><span class="js-t">0:00</span> / ${mmss(LEAD.dur)}</span>`;
+const spd = () => `<button class="ib spd num js-spd" data-a="speed" type="button">1×</button>`;
+
+/* форма обработки лида; parts — что показать */
+function leadForm({ rec = true, status = true, head = true, info = true } = {}) {
+  return `<div class="lf" data-st="wk">
+    ${head ? `<div class="lf-h"><div class="ava">А</div><div><b>${LEAD.name} <span class="pj2">${LEAD.project}</span></b>
+      <small>${LEAD.phone} · ${LEAD.city} · ${LEAD.region}</small><small>${LEAD.at} · ${LEAD.op} · ${LEAD.group}</small></div></div>` : ""}
+    ${rec ? `<div class="blk rec"><div class="r1">${playBtn()}${wave()}</div>
+      <div class="r2"><span class="num"><span class="js-t">0:00</span> / ${mmss(LEAD.dur)}</span><span>${LEAD.op}</span><span class="sp"></span>${spd()}</div></div>` : ""}
+    ${info ? `<div class="blk cmt"><b>Оператор:</b> ${LEAD.comment}</div>
+    <div class="car"><div class="img"></div><div><b>BMW X6 — передаём</b><small>«бмв x6» · ${LEAD.project}</small></div><span>Не та</span></div>
+    <dl class="kv"><dt>Клиент</dt><dd>${LEAD.name}</dd><dt>Телефон</dt><dd>${LEAD.phone}</dd><dt>Регион</dt><dd>${LEAD.city} · ${LEAD.region}</dd><dt>Проект</dt><dd>${LEAD.project}</dd><dt>Скорозвон</dt><dd style="color:var(--brand-soft)">лид 60507243638 ↗</dd></dl>` : ""}
+    ${status ? statusBlock() : ""}
+  </div>`;
+}
+function statusBlock() {
+  return `<div class="sts"><button class="wk on" data-a="st" data-v="wk" type="button">◷ В работе</button><button class="ok" data-a="st" data-v="ok" type="button">✓ Доведён</button><button class="no" data-a="st" data-v="no" type="button">✕ Не доведён</button></div>
+    <div class="why">${["Не отвечает", "Передумал", "Не подходит авто", "Дубль", "Другое"].map((w) => `<button data-a="why" type="button">${w}</button>`).join("")}</div>
+    <div class="stnote">Статус ещё не меняли — «В работе»</div>`;
+}
+
+/* фейковая страница CRM за плеером */
+const fakePage = () => `
+  <aside class="rail"><i class="big"></i>${Array.from({ length: 12 }, (_, k) => `<i class="${k === 1 ? "on" : ""}" style="width:${60 + ((k * 37) % 35)}%"></i>`).join("")}</aside>
+  <section class="page">
+    <div class="card hero"><div><b>705</b> лидов<div class="bars">${Array.from({ length: 26 }, (_, k) => `<i style="height:${30 + ((k * 53) % 70)}%"></i>`).join("")}</div></div>
+      <div class="k"><small>Доведён</small><span>670</span></div><div class="k"><small>В работе</small><span>5</span></div><div class="k"><small>Не доведён</small><span>30</span></div></div>
+    <div class="card rows">${[["28.10 19:42", "Наталья", "Авто.ру", "ok", "Диникаев А.", "Москва"], ["28.10 18:48", "Азиз", "Авто.ру", "wk", "Усанин Д.", "Москва"], ["28.10 18:30", "Игорь", "100 up", "wk", "Девиченская А.", "Липецк"], ["28.10 18:20", "Александр", "Авто.ру", "ok", "Сапаров Ш.", "Москва"], ["28.10 18:09", "Арнен", "100 up", "ok", "Сапаров Ш.", "Москва"], ["28.10 18:00", "Алексей", "Авто.ру", "ok", "Сапаров Ш.", "Москва"], ["28.10 17:48", "Максим", "100 up", "ok", "Девиченская А.", "Москва"], ["28.10 17:11", "Виталий", "100 up", "ok", "Диникаев А.", "Тольятти"], ["28.10 16:50", "Сергей", "100 up", "ok", "Рахимов А.", "Краснодар"], ["28.10 16:49", "Николай", "100 up", "ok", "Сапаров Ш.", "Москва"]]
+      .map((r) => `<div class="row"><span class="muted num">${r[0]}</span><b>${r[1]}</b><span class="pj">${r[2]}</span><span class="st ${r[3]}">${r[3] === "ok" ? "Доведён" : "В работе"}</span><span>${r[4]}</span><span class="muted">${r[5]}</span></div>`).join("")}</div>
+  </section>
+  <div class="here"><i>ДД</i>Двоеглазова Д. <em>· Enter — написать</em></div>`;
+
+/* ── 5 вариантов: разметка плеера ── */
+const V = [
+  { id: 1, title: "Капсула", sub: "по центру",
+    text: "Стеклянная капсула по центру снизу. Выезжает с пружинкой. «К лиду» — капсула плавно расширяется и вырастает вверх в карточку: та же полоса становится шапкой, под ней — запись, данные и статусы.",
+    html: () => `<div class="p1 glass js-p" data-s="hidden">
+      <div class="bar">${playBtn()}${who()}${tm()}${spd()}<button class="ib open-b" data-a="toggle" type="button" title="К лиду">${I.up}</button><button class="ib" data-a="close" type="button">${I.x}</button></div>
+      ${line()}<div class="bd"><div>${leadForm({ rec: false })}</div></div><div style="height:10px"></div></div>` },
+  { id: 2, title: "Док справа", sub: "как чат",
+    text: "Компактная карточка справа, прямо над плашкой «на странице» — как кнопка чата поддержки. «К лиду» — раскрывается вверх в окно, будто диалог: сверху шапка лида, в середине данные с прокруткой, внизу закреплены статусы.",
+    html: () => `<div class="p2 glass js-p" data-s="hidden">
+      <div class="chat"><div><div class="ch-h"><span class="dot"></span><b>${LEAD.name} <span class="pj2">${LEAD.project}</span></b><button class="ib" data-a="toggle" type="button" title="Свернуть">${I.down}</button></div>
+        <div class="lf-wrap">${leadForm({ rec: false, status: false, head: false }).replace('<div class="lf"', '<div class="lf"')}</div>
+        <div class="foot lf" data-st="wk">${statusBlock()}</div></div></div>
+      <div class="bar" style="position:relative"><div class="cover">А${playBtn()}</div>${who()}${tm()}<button class="ib" data-a="toggle" type="button" title="К лиду">${I.up}</button><button class="ib" data-a="close" type="button">${I.x}</button>${line()}</div></div>` },
+  { id: 3, title: "Полоса", sub: "на всю ширину",
+    text: "Тонкая стеклянная полоса по нижнему краю страницы, как в музыкальных сервисах: с волной записи прямо в полосе. «Лид» — снизу выезжает широкий лист в две колонки: слева данные и машина, справа статусы.",
+    html: () => `<div class="p3 js-p" data-s="hidden">
+      <div class="sheet glass"><div class="grip" data-a="toggle"></div><div class="sheet-in">
+        <div>${leadForm({ rec: false, status: false })}</div><div class="lf" data-st="wk" style="align-self:start;position:sticky;top:0"><div class="blk cmt"><b>Обработка лида</b><br>Выберите статус — сохранится сразу.</div>${statusBlock()}</div></div></div>
+      <div class="bar glass">${playBtn()}${who()}${wave()}<span></span><div class="rt">${tm()}${spd()}<button class="lead-b" data-a="toggle" type="button">${I.up} Лид</button><button class="ib" data-a="close" type="button">${I.x}</button></div></div></div>` },
+  { id: 4, title: "Остров", sub: "капля, которая растёт",
+    text: "Аккуратная капсула: кнопка, имя с оператором, время и полоса перемотки по низу — навели на неё, она утолщается, появляется бегунок и время под курсором; тяните или щёлкайте. Наведёте на капсулу — раздвигается и показывает скорость и кнопки. «К лиду» — пружинисто вырастает в большую карточку в центре снизу. Пока играет — по краю дышит подсветка.",
+    html: () => `<div class="p4 glass js-p" data-s="hidden"><div class="ring"></div>
+      <div class="isl">${playBtn()}${who()}${tm()}<span class="more">${spd()}<button class="ib" data-a="toggle" type="button" title="К лиду">${I.up}</button><button class="ib" data-a="close" type="button">${I.x}</button></span></div>
+      <div class="seek" data-drag><div class="trk"><span class="hov js-hov"></span><i class="js-fill"></i><b class="knob js-knob"></b></div><span class="tip js-tip">0:00</span></div>
+      <div class="big">${leadForm()}</div></div>` },
+  { id: 5, title: "Капсула + язычок", sub: "с вкладками",
+    text: "Плеер и отдельный стеклянный язычок «Лид ↑» рядом. Язычок тянет вверх шторку с вкладками «Запись · Данные · Статус» — всё по полочкам, без длинной прокрутки.",
+    html: () => `<div class="p5 js-p" data-s="hidden">
+      <div class="drawer glass"><div class="tabs5"><button class="on" data-a="tab" data-v="0" type="button">Запись</button><button data-a="tab" data-v="1" type="button">Данные</button><button data-a="tab" data-v="2" type="button">Статус</button></div>
+        <div class="pane on">${leadForm({ status: false, info: false })}</div></div>
+        <div class="pane">${leadForm({ rec: false, status: false, head: false })}</div>
+        <div class="pane"><div class="lf" data-st="wk">${statusBlock()}</div></div>
+      <div class="row5"><div class="pill glass">${playBtn()}${who()}${tm()}${spd()}<button class="ib" data-a="close" type="button">${I.x}</button>${line()}</div>
+        <button class="tab glass" data-a="toggle" type="button">${I.up}Лид<small>форма</small></button></div></div>` },
+];
+
+/* ── сборка страницы ── */
+const main = document.getElementById("main");
+const tabs = document.getElementById("tabs");
+V.forEach((v, i) => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = `${v.id} · ${v.title}`;
+  b.onclick = () => pick(i);
+  tabs.append(b);
+  const sec = document.createElement("section");
+  sec.className = "v";
+  sec.innerHTML = `<div class="v-h"><div><h2>${v.id}. ${v.title} <em>— ${v.sub}</em></h2><p>${v.text}</p></div>
+    <div class="ctl"><button class="pri" data-c="leave" type="button">↓ Уйти со страницы лида</button><button data-c="back" type="button">Вернуться в лид</button></div></div>
+    <div class="stage v${v.id}" data-s="hidden">${fakePage()}${v.html()}</div>`;
+  main.append(sec);
+  wire(sec);
+});
+// у варианта 5 шторка: вкладки лежат в .drawer; перенесём панели внутрь шторки
+document.querySelectorAll(".p5").forEach((p) => {
+  const drawer = p.querySelector(".drawer");
+  p.querySelectorAll(":scope > .pane").forEach((x) => drawer.append(x));
+});
+function pick(i) {
+  [...tabs.children].forEach((b, k) => b.classList.toggle("on", k === i));
+  [...main.children].forEach((s, k) => s.classList.toggle("on", k === i));
+  try { localStorage.setItem("pv.tab", String(i)); } catch {}
+}
+let start = 0;
+try { start = Math.min(4, Number(localStorage.getItem("pv.tab") || 0)); } catch {}
+pick(start);
+
+/* ── поведение: показать / спрятать / раскрыть, плей, перемотка, скорость, статусы ── */
+function wire(sec) {
+  const stage = sec.querySelector(".stage");
+  const p = sec.querySelector(".js-p");
+  const st = { playing: false, t: 0, speed: 1, timer: 0 };
+  const setS = (s) => { p.dataset.s = s; stage.dataset.s = s; };
+  const render = () => {
+    p.classList.toggle("playing", st.playing);
+    p.querySelectorAll('[data-a="play"]').forEach((b) => (b.innerHTML = st.playing ? I.pause : I.play));
+    p.querySelectorAll(".js-t").forEach((x) => (x.textContent = mmss(st.t)));
+    p.querySelectorAll(".js-fill").forEach((x) => (x.style.width = `${(st.t / LEAD.dur) * 100}%`));
+    p.querySelectorAll(".js-knob").forEach((x) => (x.style.left = `${(st.t / LEAD.dur) * 100}%`));
+    p.querySelectorAll(".js-spd").forEach((x) => (x.textContent = `${st.speed}×`));
+    p.querySelectorAll(".wave").forEach((w) => [...w.children].forEach((b, k) => b.classList.toggle("done", (k + 0.5) / w.children.length <= st.t / LEAD.dur)));
+  };
+  const tick = () => {
+    st.t = Math.min(LEAD.dur, st.t + 0.25 * st.speed);
+    if (st.t >= LEAD.dur) { st.playing = false; clearInterval(st.timer); }
+    render();
+  };
+  const play = (on) => {
+    st.playing = on;
+    clearInterval(st.timer);
+    if (on) st.timer = setInterval(tick, 250);
+    render();
+  };
+  // перемотка острова: щелчок и перетаскивание, подсказка времени под курсором
+  p.querySelectorAll("[data-drag]").forEach((sk) => {
+    const trk = sk.querySelector(".trk");
+    const tip = sk.querySelector(".js-tip");
+    const hov = sk.querySelector(".js-hov");
+    const at = (x) => { const r = trk.getBoundingClientRect(); return Math.max(0, Math.min(1, (x - r.left) / r.width)); };
+    const hint = (x) => { const f = at(x); tip.textContent = mmss(f * LEAD.dur); tip.style.left = `${f * 100}%`; hov.style.width = `${f * 100}%`; };
+    sk.addEventListener("pointermove", (e) => { hint(e.clientX); if (sk.classList.contains("drag")) { st.t = at(e.clientX) * LEAD.dur; render(); } });
+    sk.addEventListener("pointerdown", (e) => { sk.setPointerCapture(e.pointerId); sk.classList.add("drag"); st.t = at(e.clientX) * LEAD.dur; hint(e.clientX); render(); });
+    const end = () => { if (!sk.classList.contains("drag")) return; sk.classList.remove("drag"); if (!st.playing) play(true); };
+    sk.addEventListener("pointerup", end);
+    sk.addEventListener("pointercancel", end);
+  });
+  sec.querySelector('[data-c="leave"]').onclick = () => { if (!st.playing) play(true); setS("mini"); };
+  sec.querySelector('[data-c="back"]').onclick = () => setS("hidden");
+  p.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-a]");
+    if (!el) return;
+    const a = el.dataset.a;
+    if (a === "play") play(!st.playing);
+    if (a === "toggle") setS(p.dataset.s === "open" ? "mini" : "open");
+    if (a === "close") { play(false); st.t = 0; render(); setS("hidden"); }
+    if (a === "speed") { st.speed = [1, 1.25, 1.5, 2][([1, 1.25, 1.5, 2].indexOf(st.speed) + 1) % 4]; render(); }
+    if (a === "seek") { const r = el.getBoundingClientRect(); st.t = Math.max(0, Math.min(LEAD.dur, ((e.clientX - r.left) / r.width) * LEAD.dur)); if (!st.playing) play(true); render(); }
+    if (a === "st") {
+      const lf = el.closest(".lf");
+      lf.dataset.st = el.dataset.v;
+      lf.querySelectorAll(".sts button").forEach((b) => b.classList.toggle("on", b === el));
+      const note = lf.querySelector(".stnote");
+      if (note) note.textContent = el.dataset.v === "ok" ? "Доведён — сохранено, поставил(а) Оленчук Б." : el.dataset.v === "no" ? "Выберите причину — без неё «Не доведён» не сохранится" : "В работе — ждёт решения";
+    }
+    if (a === "why") { el.parentElement.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === el)); const note = el.closest(".lf").querySelector(".stnote"); if (note) note.textContent = `Не доведён · ${el.textContent} — сохранено`; }
+    if (a === "tab") {
+      const d = p.querySelector(".drawer");
+      d.querySelectorAll(".tabs5 button").forEach((b) => b.classList.toggle("on", b === el));
+      d.querySelectorAll(".pane").forEach((x, k) => x.classList.toggle("on", String(k) === el.dataset.v));
+    }
+  });
+  render();
+}
+
+/* тема */
+const themeBtn = document.getElementById("theme");
+themeBtn.onclick = () => {
+  const dark = document.documentElement.dataset.theme !== "light";
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  themeBtn.textContent = dark ? "☾ Тёмная" : "☀︎ Светлая";
+};
+</script>
+</body>
+</html>

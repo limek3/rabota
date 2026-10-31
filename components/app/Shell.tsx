@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { CrmProvider, useCrm } from "@/lib/crm/store";
 import { NAV, NAV_GROUPS } from "@/lib/crm/nav";
 import { PixelIcon, PixelWord } from "@/components/app/PixelNav";
+import { ShopIcon, ShopWord } from "@/components/app/ShopNav";
 import { Icon } from "@/components/ui/icons";
 import { ConfirmHost, Progress, ToastHost, isTyping } from "@/components/ui/kit";
 import { TitleTips } from "@/components/ui/TitleTips";
@@ -311,11 +312,17 @@ function Rail() {
             {items.map((n) => {
               const active = pathname === n.href || pathname.startsWith(n.href + "/");
               return (
-                <Link key={n.href} href={n.href} className={n.href === "/canvas" ? "app-rail-item pxn-item" : "app-rail-item"} aria-current={active ? "page" : undefined} title={n.hint}>
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  className={n.href === "/canvas" ? "app-rail-item pxn-item" : n.href === "/shop" ? "app-rail-item shn-item" : "app-rail-item"}
+                  aria-current={active ? "page" : undefined}
+                  title={n.hint}
+                >
                   <span className="rail-icon" style={{ display: "flex" }}>
-                    {n.href === "/canvas" ? <PixelIcon size={16} /> : <Icon name={n.icon} size={16} />}
+                    {n.href === "/canvas" ? <PixelIcon size={16} /> : n.href === "/shop" ? <ShopIcon size={16} /> : <Icon name={n.icon} size={16} />}
                   </span>
-                  <span className="rail-text">{n.href === "/canvas" ? <PixelWord /> : n.label}</span>
+                  <span className="rail-text">{n.href === "/canvas" ? <PixelWord /> : n.href === "/shop" ? <ShopWord label={n.label} /> : n.label}</span>
                 </Link>
               );
             })}
