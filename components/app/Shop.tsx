@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useCrm } from "@/lib/crm/store";
-import { currentMonth, nowHour } from "@/lib/crm/dates";
+import { currentMonth, nowMs } from "@/lib/crm/dates";
 import { fmtInt, plural, shortName } from "@/lib/crm/format";
 import { Avatar, Chip, PageHead, Seg } from "@/components/ui/kit";
 import { Icon } from "@/components/ui/icons";
@@ -134,7 +134,14 @@ export function Shop() {
   const season = seasonOn(today);
   const deal = dealOf(today);
   const dealItem = ITEMS.get(deal)!;
-  const hoursLeft = Math.max(1, 24 - nowHour());
+  // до конца «Скидки дня» — полночь по Москве (UTC+3), тикает раз в секунду
+  const [now, setNow] = useState(() => nowMs());
+  useEffect(() => {
+    const iv = window.setInterval(() => setNow(nowMs()), 1000);
+    return () => window.clearInterval(iv);
+  }, []);
+  const dealLeft = 86_400 - (Math.floor(now / 1000 + 3 * 3600) % 86_400);
+  const dealClock = [Math.floor(dealLeft / 3600), Math.floor((dealLeft % 3600) / 60), dealLeft % 60].map((n) => String(n).padStart(2, "0")).join(":");
 
   const equip = async (slot: Slot, id: string | null) => {
     setBusy(`${slot}:${id}`);
@@ -233,6 +240,52 @@ export function Shop() {
   const names = useMemo(() => new Map(full.accounts.map((a) => [a.id, a.name])), [full.accounts]);
   const feed = useMemo(() => [...rows].sort((a, b) => b.at.localeCompare(a.at)).slice(0, 7), [rows]);
 
+  /** Вещь «на вас»: рамка на аватарке, имя, значок, фон или след. play — след рисуется сам. */
+  const preview = (it: Item, play: boolean) => (
+    <>
+            {it.slot === "frame" && <Avatar name={me.name} id={myId} size={64} fx={it.id} />}
+            {it.slot === "name" && (
+              <div className="shop-prev-name">
+                <span className="nmfx" data-nm={it.id} style={{ ["--nm" as string]: it.paint } as CSSProperties}>
+                  {shortName(me.name) || "Ваше имя"}
+                </span>
+                <span className="shop-plate" data-nm={it.id} style={{ ["--nm" as string]: it.paint } as CSSProperties}>
+                  {shortName(me.name) || "Вы"}
+                </span>
+              </div>
+            )}
+            {it.slot === "badge" && (
+              <div className="shop-prev-name">
+                <span className="shop-prev-b">
+                  {shortName(me.name) || "Ваше имя"}
+                  <span className="nm-badge" data-b={it.id}>
+                    {it.glyph}
+                  </span>
+                </span>
+                <span className="shop-plate">
+                  {shortName(me.name) || "Вы"} <span className="nm-badge" data-b={it.id}>{it.glyph}</span>
+                </span>
+              </div>
+            )}
+            {it.slot === "banner" && (
+              <div className="shop-prev-bn">
+                <span className="bnfx" data-bn={it.id} aria-hidden />
+                <span className="shop-prev-bn-ava">
+                  <Avatar name={me.name} id={myId} size={40} fx={look.frame ?? null} />
+                </span>
+              </div>
+            )}
+            {it.slot === "trail" && (
+              <>
+                <span className="shop-glyph" data-hide={play ? "" : undefined}>
+                  {it.glyph}
+                </span>
+                <TrailDemo kind={it.id} play={play} />
+              </>
+            )}
+    </>
+  );
+
   const card = (it: Item) => {
     const has = owned.has(it.id);
     const on = worn[it.slot] === it.id;
@@ -251,46 +304,7 @@ export function Shop() {
         onMouseLeave={() => setHover((h) => (h === it.id ? null : h))}
       >
         <div className={`shop-prev s-${it.slot}`}>
-          {it.slot === "frame" && <Avatar name={me.name} id={myId} size={64} fx={it.id} />}
-          {it.slot === "name" && (
-            <div className="shop-prev-name">
-              <span className="nmfx" data-nm={it.id} style={{ ["--nm" as string]: it.paint } as CSSProperties}>
-                {shortName(me.name) || "Ваше имя"}
-              </span>
-              <span className="shop-plate" data-nm={it.id} style={{ ["--nm" as string]: it.paint } as CSSProperties}>
-                {shortName(me.name) || "Вы"}
-              </span>
-            </div>
-          )}
-          {it.slot === "badge" && (
-            <div className="shop-prev-name">
-              <span className="shop-prev-b">
-                {shortName(me.name) || "Ваше имя"}
-                <span className="nm-badge" data-b={it.id}>
-                  {it.glyph}
-                </span>
-              </span>
-              <span className="shop-plate">
-                {shortName(me.name) || "Вы"} <span className="nm-badge" data-b={it.id}>{it.glyph}</span>
-              </span>
-            </div>
-          )}
-          {it.slot === "banner" && (
-            <div className="shop-prev-bn">
-              <span className="bnfx" data-bn={it.id} aria-hidden />
-              <span className="shop-prev-bn-ava">
-                <Avatar name={me.name} id={myId} size={40} fx={look.frame ?? null} />
-              </span>
-            </div>
-          )}
-          {it.slot === "trail" && (
-            <>
-              <span className="shop-glyph" data-hide={hover === it.id || tried ? "" : undefined}>
-                {it.glyph}
-              </span>
-              <TrailDemo kind={it.id} play={hover === it.id || tried} />
-            </>
-          )}
+          {preview(it, hover === it.id || tried)}
           <div className="shop-tags">
             {deal === it.id && price != null && <span className="shop-tag deal">−{DEAL_OFF}%</span>}
             {it.season && <span className="shop-tag season">🎃 {SEASON.name}</span>}
@@ -393,9 +407,11 @@ export function Shop() {
                 <div className="shop-season-items">
                   {seasonItems.map((it) => (
                     <button key={it.id} type="button" className={`shop-season-it${owned.has(it.id) ? " has" : ""}`} onClick={() => tryToggle(it)} title={`Примерить «${it.name}»`}>
-                      <span>{it.glyph === "Aa" ? "✒️" : it.glyph}</span>
-                      <b>{it.name}</b>
-                      <small>{owned.has(it.id) ? "есть" : `${fmtInt(priceOf(it, today) ?? it.price)} ${SPARK}`}</small>
+                      <span className="g">{it.glyph === "Aa" ? "✒️" : it.glyph}</span>
+                      <span className="t">
+                        <b>{it.name}</b>
+                        <small>{owned.has(it.id) ? "есть" : `${fmtInt(priceOf(it, today) ?? it.price)} ${SPARK}`}</small>
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -409,22 +425,46 @@ export function Shop() {
                 </div>
               </div>
             )}
-            <div className="shop-deal">
-              <small>Скидка дня · ещё {hoursLeft} {plural(hoursLeft, ["час", "часа", "часов"])}</small>
-              <div className="shop-deal-it">
-                <span className="shop-deal-g">{dealItem.glyph}</span>
-                <span>
-                  <b>{dealItem.name}</b>
-                  <em>{SLOTS.find((s) => s.slot === dealItem.slot)!.one}</em>
+            <div className={`shop-deal r-${dealItem.rarity}`}>
+              <div className="shop-deal-h">
+                <span className="shop-deal-t">🔥 Скидка дня</span>
+                <span className="shop-deal-clock" title="До полуночи по Москве — потом скидка перейдёт на другую вещь">
+                  {dealClock}
                 </span>
               </div>
+              <div className={`shop-prev shop-deal-prev s-${dealItem.slot}`}>{preview(dealItem, true)}</div>
+              <div className="shop-deal-name">
+                <b>{dealItem.name}</b>
+                <Chip hue={RARITY[dealItem.rarity].hue}>{RARITY[dealItem.rarity].label}</Chip>
+              </div>
+              <em className="shop-deal-slot">{SLOTS.find((x) => x.slot === dealItem.slot)!.one}</em>
               <div className="shop-deal-p">
-                <s>{fmtInt(dealItem.price)}</s> <b>{fmtInt(priceOf(dealItem, today)!)}</b> {SPARK}
+                <s>{fmtInt(dealItem.price)}</s>
+                <b>{fmtInt(priceOf(dealItem, today)!)}</b> {SPARK}
                 <span className="shop-tag deal">−{DEAL_OFF}%</span>
               </div>
-              <button type="button" className="btn btn-sm" onClick={() => setTab(dealItem.slot)}>
-                Показать
-              </button>
+              <div className="shop-deal-acts">
+                {owned.has(dealItem.id) ? (
+                  <span className="shop-price own">
+                    <Icon name="check" size={13} /> Уже есть
+                  </span>
+                ) : (
+                  <>
+                    <button type="button" className={`btn btn-sm${trying[dealItem.slot] === dealItem.id ? " shop-trying" : ""}`} onClick={() => tryToggle(dealItem)}>
+                      {trying[dealItem.slot] === dealItem.id ? "Снять" : "Примерить"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      disabled={!!busy || !!buyBlock(dealItem, { today, grade, left, owned: false, gift: false })}
+                      title={buyBlock(dealItem, { today, grade, left, owned: false, gift: false }) ?? undefined}
+                      onClick={() => void buy(dealItem)}
+                    >
+                      Купить
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
